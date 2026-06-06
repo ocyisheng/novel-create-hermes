@@ -1,0 +1,28 @@
+style_name: "纪实白描风"
+description: "客观冷静叙事，事实驱动，极少修辞，近乎报告文学"
+category: "通用"
+dimensions:
+  narrative_tone:
+    description: "客观冷静，极少作者介入，贴着事实走"
+    keywords: ["客观", "冷静", "事实驱动"]
+  sentence_structure:
+    description: "极端短句，一段一句居多，无从句嵌套"
+    avg_sentence_length: "short"
+    characteristics: ["一段一句", "无从句", "动词密集"]
+  pacing:
+    description: "均衡推进，无明显详略差异，每段一个信息点"
+    pattern: "匀速推进"
+  dialogue_style:
+    description: "最简标签，对话与行动交替，无渲染"
+    attribution_pattern: "说、问、道三字标签"
+    speech_patterns: ["简短回复", "无大段独白"]
+  vocabulary_register:
+    description: "日常口语，精确具体，拒绝抽象评价"
+    register_level: "colloquial"
+    distinctive_vocab: ["具体名词和动词优先"]
+    forbidden_vocab: ["抽象情感词", "评价性形容词"]
+  rhetorical_features:
+    description: "不用修辞，纯事实叙述"
+    devices: []
+  forbidden_patterns:
+    patterns: ["修辞性比喻", "情绪渲染", "长定语修饰", "从句嵌套"]

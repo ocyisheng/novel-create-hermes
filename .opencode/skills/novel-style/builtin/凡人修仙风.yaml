@@ -1,0 +1,28 @@
+style_name: "凡人修仙风"
+description: "冷峻克制的凡人流修仙叙事，实用主义，第三人称有限视角"
+category: "网文"
+dimensions:
+  narrative_tone:
+    description: "冷峻克制，极少修辞，贴着主角视线走"
+    keywords: ["克制", "实用主义", "有限视角"]
+  sentence_structure:
+    description: "短句为主，少用复合句，句间靠动作推进"
+    avg_sentence_length: "short"
+    characteristics: ["短句密集", "少关联词", "动作链驱动"]
+  pacing:
+    description: "修炼过程极详（灵药炼制、突破瓶颈），战斗快节奏"
+    pattern: "修炼慢镜头 + 战斗快切"
+  dialogue_style:
+    description: "直白简练，少修饰语，对话自带信息量"
+    attribution_pattern: "极少标签，仅说、道"
+    speech_patterns: ["信息密集型", "少有废话"]
+  vocabulary_register:
+    description: "朴素口语，力量体系术语精准，少成语"
+    register_level: "colloquial"
+    distinctive_vocab: ["灵力", "瓶颈", "法器", "灵根"]
+    forbidden_vocab: ["文艺腔渲染", "现代网络用语"]
+  rhetorical_features:
+    description: "几乎不用修辞，以白描和动作推进叙事"
+    devices: ["白描"]
+  forbidden_patterns:
+    patterns: ["过长心理独白", "情感渲染", "环境抒情"]

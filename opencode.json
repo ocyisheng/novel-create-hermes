@@ -1,0 +1,32 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "novel-writer": {
+      "description": "AI 小说创作助手，覆盖创意构思、写作执行、质量把控全流程",
+      "mode": "primary",
+      "prompt": ".opencode/agents/novel-writer.md",
+      "skills": [
+        "novel-project-manager",
+        "novel-env-setup",
+        "novel-ideation",
+        "novel-style",
+        "novel-outline",
+        "novel-entity",
+        "novel-chapter",
+        "novel-polish",
+        "novel-quality",
+        "novel-checkpoint-service"
+      ],
+      "tools": {
+        "task": true,
+        "skill": true,
+        "read": true,
+        "edit": true,
+        "bash": true,
+        "glob": true,
+        "grep": true,
+        "write": true
+      }
+    }
+  }
+}

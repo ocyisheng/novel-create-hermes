@@ -1,0 +1,28 @@
+style_name: "历史演义风"
+description: "历史演义叙事，宏大史诗，文白庄重，权谋韬略与忠义精神"
+category: "古典"
+dimensions:
+  narrative_tone:
+    description: "全知叙述者如史官，庄重崇敬，偶有评赞，忠义为主旋律"
+    keywords: ["史诗", "庄重", "忠义", "评赞"]
+  sentence_structure:
+    description: "文白混合，叙述用简洁文言，对话稍白，节奏从容"
+    avg_sentence_length: "mixed"
+    characteristics: ["文白混合", "叙事文言化", "回目对仗"]
+  pacing:
+    description: "大战役极详（布阵/计谋/单挑），治国理政简写，时间跳跃以年计"
+    pattern: "天下大势 → 群雄逐鹿 → 决战定鼎"
+  dialogue_style:
+    description: "谋士献策辞藻华丽，武将豪言简洁有力，各人身份分明"
+    attribution_pattern: "曰、谏曰、怒曰、叹曰等身份区分"
+    speech_patterns: ["身份分明", "辞藻华丽", "豪言壮语"]
+  vocabulary_register:
+    description: "文言典雅，大量典故和历史名词"
+    register_level: "literary"
+    distinctive_vocab: ["主公", "军师", "讨伐", "屯田", "称帝", "鞠躬尽瘁"]
+    forbidden_vocab: ["现代口语", "网络用语", "轻浮调侃"]
+  rhetorical_features:
+    description: "对比、烘托、伏笔千里，后人有诗赞曰"
+    devices: ["对比", "烘托", "伏笔", "评赞"]
+  forbidden_patterns:
+    patterns: ["现代解构", "戏说恶搞", "忽视历史逻辑"]

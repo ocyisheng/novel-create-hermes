@@ -1,0 +1,28 @@
+style_name: "经典男频风"
+description: "男频网文经典叙事，快节奏强爽感，主角升级打脸，松弛有度"
+category: "网文"
+dimensions:
+  narrative_tone:
+    description: "第三人称有限，冷静克制，偶尔骚话吐槽，爽点密集"
+    keywords: ["克制", "爽感", "打脸"]
+  sentence_structure:
+    description: "短句为主，对话+动作交替推进，段落短小"
+    avg_sentence_length: "short"
+    characteristics: ["短句", "对话密集", "段落短"]
+  pacing:
+    description: "装逼打脸快节奏，升级突破做慢镜头，日常过渡简写"
+    pattern: "冲突 → 打脸 → 收获 → 升级循环"
+  dialogue_style:
+    description: "干脆利落，少修饰，对话驱动情节"
+    attribution_pattern: "极少标签，说、道、沉声道"
+    speech_patterns: ["干脆", "不废话", "偶尔中二"]
+  vocabulary_register:
+    description: "口语为主，修炼术语精准，少成语堆砌"
+    register_level: "colloquial"
+    distinctive_vocab: ["灵压", "碾压", "逆天", "蝼蚁"]
+    forbidden_vocab: ["文艺腔长句", "女频式情感渲染"]
+  rhetorical_features:
+    description: "少修辞，强调实力对比和反差爽感"
+    devices: ["对比", "夸张"]
+  forbidden_patterns:
+    patterns: ["长篇心理描写", "缠绵感情戏", "拖沓过渡"]

@@ -1,0 +1,42 @@
+# ----- 虚拟环境 -----
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# ----- 小说项目（在根目录下创建的小说） -----
+# 如果直接在 novel-create-hermes/ 下创建了小说项目，
+# 下面面名匹配，按需开启
+# 星辰修仙路/
+# 仙侠传奇/
+
+# ----- OS 文件 -----
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+*.swo
+
+# ----- OpenCode -----
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/.gitignore
+
+# ----- 编辑器 -----
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ----- 其他 -----
+.omo/run-continuation/
+.omo/notepads/novel-context.md
+.omo/notepads/novel-issues.md
+.omo/notepads/novel-learnings.md
+.omo/notepads/projects/
+docs/
+novels/

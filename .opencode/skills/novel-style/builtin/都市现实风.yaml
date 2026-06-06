@@ -1,0 +1,28 @@
+style_name: "都市现实风"
+description: "当代都市现实主义，精准观察，日常见深意，人际关系为核心"
+category: "通用"
+dimensions:
+  narrative_tone:
+    description: "第三人称有限，贴近当下生活，冷静但不冷血"
+    keywords: ["当下", "精准", "日常", "关系"]
+  sentence_structure:
+    description: "自然白话，口语化但不随意，节奏如日常呼吸"
+    avg_sentence_length: "mixed"
+    characteristics: ["自然白话", "口语不随意", "节奏从容"]
+  pacing:
+    description: "人物关系和情感转折详写，日常工作生活简写"
+    pattern: "日常往复 → 关系破裂 → 反思成长"
+  dialogue_style:
+    description: "真实对话感，微信/电话/面对面各有腔调，话里有生活"
+    attribution_pattern: "说、笑了笑、顿了顿等生活化标签"
+    speech_patterns: ["真实感", "生活化", "各具职业腔"]
+  vocabulary_register:
+    description: "规范口语，当代生活词汇，拒绝文绉绉"
+    register_level: "colloquial"
+    distinctive_vocab: ["微信", "加班", "房贷", "相亲"]
+    forbidden_vocab: ["网文爽感套路", "脱离现实的戏剧化"]
+  rhetorical_features:
+    description: "少修辞，重细节真实和生活质感"
+    devices: ["细描", "对照"]
+  forbidden_patterns:
+    patterns: ["凭空英雄", "天降奇遇", "悬浮剧情"]

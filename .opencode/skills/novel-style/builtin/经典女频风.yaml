@@ -1,0 +1,28 @@
+style_name: "经典女频风"
+description: "女频网文经典叙事，情感细腻，关系驱动，内心戏丰富"
+category: "网文"
+dimensions:
+  narrative_tone:
+    description: "第一/三人称贴近主角内心，情感充沛，细节绵密"
+    keywords: ["细腻", "情感", "关系"]
+  sentence_structure:
+    description: "长短交织，修饰丰富，心理描写段落较长"
+    avg_sentence_length: "mixed"
+    characteristics: ["心理描写段落长", "修饰丰富", "节奏绵密"]
+  pacing:
+    description: "情感冲突和关系转折详写，打斗动作略写"
+    pattern: "关系破裂 → 内心挣扎 → 和解/决裂 → 成长"
+  dialogue_style:
+    description: "信息量大，潜台词丰富，人物对话推动感情线"
+    attribution_pattern: "动作+神态+语气丰富的前置"
+    speech_patterns: ["潜台词丰富", "称谓细腻", "话中有情"]
+  vocabulary_register:
+    description: "口语为主，情感词丰富，服饰相貌细节词多见"
+    register_level: "mixed"
+    distinctive_vocab: ["心尖", "眼眸", "轻笑", "宠溺", "酸涩"]
+    forbidden_vocab: ["男频式粗暴打斗", "直白武力碾压"]
+  rhetorical_features:
+    description: "比喻、排比用于情感渲染，通感常见"
+    devices: ["明喻", "暗喻", "排比", "通感"]
+  forbidden_patterns:
+    patterns: ["单线升级打怪", "女性角色工具化", "感情随意化"]

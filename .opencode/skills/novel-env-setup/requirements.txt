@@ -1,0 +1,4 @@
+# novel-create-hermes Python 依赖
+# 安装: pip install -r requirements.txt
+
+PyYAML>=6.0

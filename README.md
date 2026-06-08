@@ -1,6 +1,6 @@
 # novel-create-hermes
 
-从创意构思、写作执行、质量把控、风格管理到检查点控制的完整小说创作引擎。10 个技能 + AI 多模型编排。
+从创意构思、写作执行、质量把控到风格管理的完整小说创作引擎。10 个技能 + AI 多模型编排。
 
 ## 用户指南
 
@@ -126,7 +126,7 @@ AI 生成的是初稿，建议你读一遍再确认。质量检测功能（"检�
 五层 + 插件模型路由层：
 
 ```
-novel-writer.md（编排层）→ 阶段识别、task()调度、上下文加载、检查点
+novel-writer.md（编排层）→ 阶段识别、task()调度、上下文加载
         │ task(category="novel-*", load_skills=["..."])
         ▼
 oh-my-openagent.json（插件层）→ category → 模型路由 + fallback 链
@@ -142,7 +142,7 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 
 | 层 | 职责 | 边界 |
 |----|------|------|
-| **编排层** | P-1→P10 阶段识别、task() 调度、上下文加载、检查点 | 不直接写项目文件 |
+| **编排层** | P-1→P10 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
 | **插件层** | category → 模型路由、fallback 链 | 只作用于 task() 子 Agent |
 | **执行层** | 按 SKILL.md + Context Contract 执行 | 不做编排决策、不调度其他技能 |
 | **工具层** | 索引、追踪、导出、配置 | 不碰状态决策 |
@@ -195,7 +195,6 @@ novel-create-hermes/
 | `novel-polish` | 文笔优化、反馈修订、导出 | 按需 | `novel-write` |
 | `novel-style` | 风格提取/激活（22 个内置） | P9 | `novel-ideate` |
 | `novel-quality` | AI 味/情节/角色/世界观/节奏 | P8 | `novel-review` |
-| `novel-checkpoint-service` | 检查点 pause/continue 决策 | — | — |
 
 ### 技能打包结构
 
@@ -276,29 +275,21 @@ novel-chapter/
 ```
 P-1  环境初始化
 P-2  项目管理
-P1   创意构思 → ideation_after_concept
+P1   创意构思
 P2   大纲规划
 P3   情节构建
 P4   世界观建设
 P5   角色创建
-P6   分纲构建 → writing_after_outline（安全门）
-P7   章节写作 → writing_after_chapters（仅 high）
-P8   质量检查 → quality_after_*
+P6   分纲构建
+P7   章节写作
+P8   质量检查
 P9   风格提取
 P10  意图澄清
 ```
 
-### 检查点等级
-
-| 等级 | 语义 | 暂停点 |
-|------|------|--------|
-| `low` | 安全门 | 仅 writing_after_outline |
-| `medium` | 关键决策 | + 创意方向、大纲、质量总评 |
-| `high` | 逐步审核 | + 角色/世界观/每章/每检测 |
-
 ### Ultrawork
 
-`ulw 写第3-5章` — 连续写作不打断，唯一例外：入口查 writing_after_outline 安全门。
+`ulw 写第3-5章` — 连续写作模式，完成后启动 P8 质量检测。
 
 ## 实体信息存储
 

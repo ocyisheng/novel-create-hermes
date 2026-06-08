@@ -14,8 +14,7 @@
         "novel-entity",
         "novel-chapter",
         "novel-polish",
-        "novel-quality",
-        "novel-checkpoint-service"
+        "novel-quality"
       ],
       "tools": {
         "task": true,

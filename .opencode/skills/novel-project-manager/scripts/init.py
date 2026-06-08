@@ -13,7 +13,7 @@
 用法:
   python init.py new "项目名" "类型" [-d 目录]
   python init.py import "源路径" "项目名" [-d 目录]
-  python init.py status "项目名" [-d 目录] [--phase 阶段] [--intervention high|medium|low]
+  python init.py status "项目名" [-d 目录] [--phase 阶段]
   python init.py resume "项目名" [-d 目录]
   python init.py delete "项目名" [-d 目录] [--force]
 """
@@ -206,7 +206,6 @@ styles: []
   每日目标: 2000
 
 工作流:
-  干预等级: "medium"
   AI自主度: true
   检查频率: "weekly"
 
@@ -1002,7 +1001,6 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
             "- 项目名称：{项目名}\n"
             "- 项目类型：\n"
             "- 项目路径：\n"
-            "- 干预等级：\n"
             "- 环境已初始化：True\n\n"
             "## 当前状态\n"
             "- 写作阶段：\n"
@@ -1033,7 +1031,6 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
     last_edit = config.get("最后编辑", "") or ""
     active_style = config.get("活跃风格", "") or ""
     workflow = config.get("工作流", {}) or {}
-    intervention = workflow.get("干预等级", "medium") or "medium"
     progress = config.get("创作进度", {}) or {}
     current_chapter = int(progress.get("当前章节", 0) or 0)
     total_words = int(progress.get("已完成字数", 0) or 0)
@@ -1188,7 +1185,6 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
     content = content.replace("{项目名}", project_name)
     content = _set_field(r"^- 项目类型：.*$", f"- 项目类型：{project_type}", content)
     content = _set_field(r"^- 项目路径：.*$", f"- 项目路径：{project_path.resolve()}", content)
-    content = _set_field(r"^- 干预等级：.*$", f"- 干预等级：{intervention}", content)
     content = _set_field(r"^- 环境已初始化：.*$", "- 环境已初始化：True", content)
     # 当前状态
     phase_line = f"- 写作阶段：{current_phase}"
@@ -1630,7 +1626,6 @@ class ProjectImporter:
   已完成字数: 0
 
 工作流:
-  干预等级: "medium"
   AI自主度: true
   检查频率: "weekly"
 
@@ -1698,7 +1693,7 @@ class ProjectStatus:
         self.target_dir = Path(target_dir)
         self.project_path = self.target_dir / project_name
 
-    def show_status(self, phase: Optional[str] = None, intervention: Optional[str] = None):
+    def show_status(self, phase: Optional[str] = None):
         if not self.project_path.exists():
             print(f"❌ 项目 '{self.project_name}' 不存在！")
             return False
@@ -1719,22 +1714,12 @@ class ProjectStatus:
                 yaml.safe_dump(config, f, allow_unicode=True, default_flow_style=False)
             print(f"✅ 阶段已更新为: {phase}")
 
-        # 更新干预等级
-        if intervention:
-            if '工作流' not in config:
-                config['工作流'] = {}
-            config['工作流']['干预等级'] = intervention
-            with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.safe_dump(config, f, allow_unicode=True, default_flow_style=False)
-            print(f"✅ 干预等级已更新为: {intervention}")
-
         # 显示状态
         print(f"📊 项目状态: {self.project_name}")
         print("-" * 40)
         print(f"状态: {config.get('状态', '未知')}")
         print(f"当前阶段: {config.get('当前阶段', '未知')}")
         print(f"作者: {config.get('作者', '')}")
-        print(f"干预等级: {config.get('工作流', {}).get('干预等级', 'medium')}")
 
         progress = config.get('创作进度', {})
         print(f"当前章节: {progress.get('当前章节', 0)}")
@@ -2022,7 +2007,6 @@ def main():
   # 查看状态
   python init.py status "我的小说"
   python init.py status "我的小说" --phase "章节创作"
-  python init.py status "我的小说" --intervention high
 
   # 续写项目
   python init.py resume "我的小说"
@@ -2064,7 +2048,6 @@ def main():
     p_status.add_argument("name", help="项目名称")
     p_status.add_argument("--root", "-r", default=None, help="目标目录（默认自动发现 NOVELS_ROOT）")
     p_status.add_argument("--phase", choices=["创意构思", "大纲规划", "分纲撰写", "章节创作", "完稿", "暂停"], help="更新阶段")
-    p_status.add_argument("--intervention", choices=["high", "medium", "low"], help="修改干预等级")
 
     # resume
     p_resume = subparsers.add_parser("resume", help="续写项目")
@@ -2114,7 +2097,7 @@ def main():
 
     elif args.command == "status":
         status = ProjectStatus(args.name, args.root)
-        success = status.show_status(args.phase, args.intervention)
+        success = status.show_status(args.phase)
         sys.exit(0 if success else 1)
 
     elif args.command == "resume":

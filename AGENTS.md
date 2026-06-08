@@ -23,7 +23,7 @@ novel-create-hermes/              ← 工具项目根目录
 NOVELS_ROOT/                       ← 小说项目根目录（novel-create-hermes/novels/）
 ├── .venv/                         ← 共享 Python 虚拟环境（自动发现上一级或 novels/ 下）
 └── {小说名}/                       ← 单个小说项目
-    ├── config.yaml                ← 项目配置（阶段、干预等级等）
+    ├── config.yaml                ← 项目配置（阶段等）
     ├── chapters/
     ├── characters/
     ├── ideation/

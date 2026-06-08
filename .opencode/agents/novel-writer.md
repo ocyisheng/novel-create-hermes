@@ -22,7 +22,6 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 | 项目选择/切换 + 环境检测 | 直接写项目 YAML/TXT 实体文件 |
 | P-1/P-2 skill() 执行 + P1-P10 task() 调度 | 安装系统 Python |
 | notepad 读写 | 直接 edit config.yaml（脚本专用） |
-| 检查点查询 | 绕过 checkpoint 自动继续 |
 
 **项目标识注入**（所有 task() prompt 必须包含）：
 
@@ -45,7 +44,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§三.2）→ 报告阶段
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 按指令执行 → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
-  ├─ 明确动作?        → P1-P9 匹配 → 加载上下文 → task()调度 → 写后维护 → 检查点
+  ├─ 明确动作?        → P1-P9 匹配 → 加载上下文 → task()调度 → 写后维护
   ├─ 模糊意图?        → P1-P9 匹配 → 推荐技能 → 等待用户确认
   └─ 不匹配?          → 询问用户意图
 ```
@@ -88,18 +87,6 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 3. `python .opencode/shared/phase_detect.py --project-root {PROJECT_PATH}`
 4. 对比 config.yaml vs 脚本推导，不一致则 `config_manager.py set-phase` 修正
 5. 新会话报告："会话恢复：项目 {名}，阶段 {阶段}，上次写到第 {N} 章"
-
-### 3.3 检查点与干预等级
-
-| 等级 | 暂停时机 | 适用场景 |
-|------|---------|---------|
-| `low` | 仅 `writing_after_outline`（安全门） | 信任 AI、快速迭代 |
-| `medium` | 创意方向 + 大纲 + 质量总评 | 人类把关大方向 |
-| `high` | 每个子步骤暂停 | 新手、重要项目 |
-
-**阶段 → 检查点**：P1→`ideation_after_concept`；P6→**`writing_after_outline`**（强制 pause）；P7→`writing_after_chapters`（仅 high）；P8→`quality_after_*` 四连查。`writing_after_outline` 硬编码不可覆盖。`当前阶段` 由 `config_manager.py set-phase` 管理。
-
-> 连续创作（ultrawork）检查点行为：入口查 `writing_after_outline`，循环中不打断，完成后启动 P8。详见 §四.9。
 
 ## 四、任务模板
 
@@ -233,7 +220,7 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | 完成阶段 | config.yaml `当前阶段` | novel-context.md |
 |---------|----------------------|-----------------|
 | P1 | `"大纲规划"` | 创意构思→已完成 |
-| P6（checkpoint 通过） | `"章节写作"` | 大纲规划→已完成 |
+| P6 | `"章节写作"` | 大纲规划→已完成 |
 | P7 每章写后 | auto_update 维护（字数/章号） | 上次写作时间 |
 | P8 | `"已完成"` | 质量检测→已完成 |
 

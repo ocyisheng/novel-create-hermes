@@ -15,7 +15,7 @@ tags: ["novel", "polish", "export"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行文笔优化、反馈修订和格式化导出任务。暂停/继续决策由编排层通过 checkpoint 服务控制。
+按编排 Agent 传入的 CONTEXT 执行文笔优化、反馈修订和格式化导出任务。
 
 ## 上下文契约
 

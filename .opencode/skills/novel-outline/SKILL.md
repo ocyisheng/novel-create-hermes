@@ -15,7 +15,7 @@ tags: ["novel", "outline", "plot"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行故事结构规划、分纲撰写和情节构建任务。暂停/继续决策由编排层通过 checkpoint 服务控制。
+按编排 Agent 传入的 CONTEXT 执行故事结构规划、分纲撰写和情节构建任务。
 
 > **路径说明**：下文所有 `{PROJECT_PATH}` 替换为编排层 CONTEXT 中传入的 `PROJECT PATH` 值。
 

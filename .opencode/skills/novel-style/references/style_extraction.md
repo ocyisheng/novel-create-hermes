@@ -62,5 +62,5 @@ python .opencode/skills/novel-style/scripts/style_manager.py activate \
 ## 注意事项
 
 - 编排层不再手动 edit config.yaml / write index.yaml——全部由脚本完成
-- 风格提取是一次性操作，不需要 checkpoint 介入
+- 风格提取是一次性操作，由编排层直接调度
 - 提取后用户可随时重新提取覆写现有风格

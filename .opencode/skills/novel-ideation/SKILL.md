@@ -11,7 +11,7 @@ tags: ["novel", "ideation"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行创意构思任务。覆盖约束管理、类型分析、模板生成、创意发散、评估筛选。暂停/继续决策由编排层通过 checkpoint 服务控制。
+按编排 Agent 传入的 CONTEXT 执行创意构思任务。覆盖约束管理、类型分析、模板生成、创意发散、评估筛选。
 
 ## PROMPT_TEMPLATE
 
@@ -143,7 +143,6 @@ tags: ["novel", "ideation"]
     输入：需求分析结果
     输出：ideation/需求分析.yaml → 填入类型/基调/元素等
           ideation/约束集.yaml → 写入 6 大类约束
-     🔲 检查点：ideation_after_template
     ↓
 2. 类型分析（可选）→ 如用户未明确类型，提供类型指南
     输出：类型特征指南
@@ -155,7 +154,6 @@ tags: ["novel", "ideation"]
 4. 创意发散 → 生成 3-5 个创意方向
     输入：约束集 + 模板 + 类型指南
     输出：ideation/创意简报.yaml（write 写入全部方向）
-     🔲 检查点：ideation_after_concept
     ↓
 5. 创意评估 → 打分筛选
     输入：ideation/创意简报.yaml

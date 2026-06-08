@@ -11,7 +11,7 @@ tags: ["novel", "quality"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析。暂停/继续决策由编排层通过 checkpoint 服务控制。如需修正，由编排层调度 novel-polish 执行文笔优化。
+按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析。如需修正，由编排层调度 novel-polish 执行文笔优化。
 
 ## PROMPT_TEMPLATE
 
@@ -166,22 +166,18 @@ tags: ["novel", "quality"]
  2. 情节逻辑检测
     输入：章节正文 + outline/追踪/伏笔.yaml + outline/追踪/时间线.yaml
     输出：quality/第{N}章_情节逻辑检测.yaml
-      🔲 检查点：quality_after_plot_check
     ↓
  3. 角色一致性检查
      输入：章节正文 + project_index.yaml + characters/.summary/*.yaml（摘要层优先）
      输出：quality/第{N}章_角色一致性检查.yaml
-      🔲 检查点：quality_after_character_check
     ↓
  4. 世界观漏洞检测
     输入：章节正文 + worldbuilding/*.yaml
     输出：quality/第{N}章_世界观漏洞检测.yaml
-      🔲 检查点：quality_after_worldview_check
     ↓
  5. 节奏分析
      输入：章节正文 + 分纲
      输出：quality/第{N}章_节奏分析报告.yaml
-       🔲 检查点：quality_after_pacing
      ↓
    6. 风格一致性检查（若 config.yaml 设了 活跃风格）
       输入：章节正文 + styles/{active_style}.yaml
@@ -192,7 +188,7 @@ tags: ["novel", "quality"]
    ↓
 8. 修复执行 → 调度 novel-polish 执行文笔优化
    ↓
- 9. 🔲 检查点：quality_after_full_evaluation
+ 9. 完成质量报告
 ```
 
 ## 参考文件

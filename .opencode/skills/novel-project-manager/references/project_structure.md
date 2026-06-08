@@ -4,7 +4,7 @@
 
 ```
 {项目名}/
-├── config.yaml              # 项目配置（含 结构配置、干预等级、进度、检查标准）
+├── config.yaml              # 项目配置（含 结构配置、进度、检查标准）
 ├── chapters/                # 章节文件（.txt 纯文本）
 │   └── chapter_01.txt
 ├── characters/              # 角色档案（.yaml，按角色名命名）

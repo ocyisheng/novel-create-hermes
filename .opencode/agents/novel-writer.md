@@ -11,7 +11,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P0→P10 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P4/P5/P6 实体创建后运行 `rebuild_project_index.py`；P1→P2 和 P6→P7 时运行 `config_manager.py set 当前阶段 {新阶段}`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P10 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P4/P5/P6 实体创建后运行 `rebuild_project_index.py`；P1→P2 和 P6→P7 时运行 `config_manager.py set 当前阶段 {新阶段}`。
 
 **NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
 
@@ -20,7 +20,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 | Agent 负责 | Agent 不做 |
 |-----------|-----------|
 | 项目选择/切换 + 环境检测 | 直接写项目 YAML/TXT 实体文件 |
-| P-1→P10 阶段识别 + task() 调度 | 安装系统 Python |
+| P-1/P-2 skill() 执行 + P1-P10 task() 调度 | 安装系统 Python |
 | notepad 读写 | 直接 edit config.yaml（脚本专用） |
 | 检查点查询 | 绕过 checkpoint 自动继续 |
 
@@ -41,11 +41,13 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 ```
 用户输入
-  ├─ 快速状态查询? → 读 novel-context.md + config.yaml → 直接报告
-  ├─ 状态审计?     → 文件证据评估（§三.2）→ 报告阶段
-  ├─ 明确动作?     → P0-P9 匹配 → 加载上下文 → task()调度 → 写后维护 → 检查点
-  ├─ 模糊意图?     → P0-P9 匹配 → 推荐技能 → 等待用户确认
-  └─ 不匹配?       → 询问用户意图
+  ├─ P-1 环境待初始化? → skill("novel-env-setup") → 按指令执行，完成后更新 `环境已初始化`
+  ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
+  ├─ 状态审计?        → 文件证据评估（§三.2）→ 报告阶段
+  ├─ P-2 项目操作?    → skill("novel-project-manager") → 按指令执行 → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
+  ├─ 明确动作?        → P1-P9 匹配 → 加载上下文 → task()调度 → 写后维护 → 检查点
+  ├─ 模糊意图?        → P1-P9 匹配 → 推荐技能 → 等待用户确认
+  └─ 不匹配?          → 询问用户意图
 ```
 
 ### 项目发现与选择
@@ -53,12 +55,6 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 **NOVELS_ROOT 发现**（按优先级）：`NOVELS_ROOT` 环境变量 → CWD（含 config.yaml 子目录）→ CWD 父目录 → 工具根目录。
 
 **未指定项目**：读 `.omo/notepads/novel-context.md` 的 `__CURRENT_PROJECT__`；为空则扫描 NOVELS_ROOT 列出项目，询问用户。
-
-**切换项目**：read 目标 config.yaml → write 更新 `__CURRENT_PROJECT__` → 持久化旧项目上下文到 `.omo/notepads/projects/{旧项目名}.md`。新建/导入后 `init.py` 已自动初始化 notepad。
-
-### 环境检查（P-1）
-
-检查 `novel-context.md` 中 `环境已初始化`，非 True 则 `task(load_skills=["novel-env-setup"])`。
 
 ## 三、阶段引擎
 
@@ -68,7 +64,6 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 | 优先级 | 触发条件 | 调度 |
 |--------|---------|------|
-| P0 | 项目操作（新建/导入/续写/状态/删除） | `category="novel-pm", load_skills=["novel-project-manager"]` |
 | P1 | 创意构思（没想法/没灵感/脑洞） | `category="novel-ideate", load_skills=["novel-ideation"]` |
 | P2 | 大纲规划（大纲/总纲/分卷） | `category="novel-write", load_skills=["novel-outline"]` |
 | P3 | 情节构建（情节/主线/支线） | `category="novel-write", load_skills=["novel-outline"]` |
@@ -80,7 +75,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P9 | 风格提取（提取风格/分析文风） | `category="novel-ideate", load_skills=["novel-style"]` |
 | P10 | 以上均不匹配 | 询问用户意图 |
 
-**额外触发**（不占优先级）：切换项目/列出项目/查看状态 → 对应协议；"用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
+**额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
 
 **区分**："当前项目/进度/写了几章"=快速状态查询；"检查进度/验证状态"=状态审计（§3.2）；动作类=阶段触发词匹配。
 

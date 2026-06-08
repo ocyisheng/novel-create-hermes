@@ -877,6 +877,379 @@ chapters: {{}}
 
 
 # ===========================================================================
+# Notepad 工具（init/resume/switch 共用）
+# ===========================================================================
+
+# 当前阶段 → P 编号标签
+PHASE_TO_P_TAG = {
+    "创意构思": "P1",
+    "大纲规划": "P2",
+    "情节构建": "P3",
+    "分纲构建": "P6",
+    "分纲撰写": "P6",
+    "章节写作": "P7",
+    "章节创作": "P7",
+    "质量检测": "P8",
+    "完稿": "完稿",
+    "已完成": "完稿",
+    "暂停": "暂停",
+}
+
+
+def _load_notepad_dir() -> Path:
+    """解析 .omo/notepads/ 目录路径（脚本在 .opencode/skills/*/scripts/ 下）。"""
+    script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    return script_root / ".omo" / "notepads"
+
+
+def _load_template_path() -> Optional[Path]:
+    tpl = _load_notepad_dir() / "templates" / "novel-context.template.md"
+    return tpl if tpl.is_file() else None
+
+
+def _detect_current_project(notepad_dir: Path) -> Optional[str]:
+    """从 novel-context.md 解析当前项目名（__CURRENT_PROJECT__ 优先，回退到 # 标题）。"""
+    context_path = notepad_dir / "novel-context.md"
+    if not context_path.is_file():
+        return None
+    try:
+        content = context_path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+    m = re.search(r"__CURRENT_PROJECT__:\s*(.+)", content)
+    if m:
+        name = m.group(1).strip()
+        if name:
+            return name
+    m = re.search(r"# 项目上下文:\s*(.+)", content)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def _run_tool(tool_name: str, project_path: str, timeout: int = 30,
+              extra_args: Optional[list] = None) -> tuple:
+    """运行 .opencode/shared/ 下的 Python 工具。
+
+    Returns: (returncode, stdout, stderr)
+    """
+    script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    tool_path = script_root / ".opencode" / "shared" / tool_name
+    if not tool_path.is_file():
+        return (127, "", f"工具不存在: {tool_path}")
+    cmd = [sys.executable, str(tool_path), "--project-root", project_path]
+    if extra_args:
+        cmd.extend(extra_args)
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        return (
+            result.returncode,
+            result.stdout.decode("utf-8", errors="replace"),
+            result.stderr.decode("utf-8", errors="replace"),
+        )
+    except subprocess.TimeoutExpired:
+        return (124, "", f"工具 {tool_name} 超时（{timeout}s）")
+    except Exception as e:
+        return (1, "", f"工具 {tool_name} 异常: {e}")
+
+
+def _persist_current_context(notepad_dir: Path, current_project: str) -> Optional[Path]:
+    """把 novel-context.md 持久化到 projects/{current_project}.md。
+
+    Returns: 写入路径；None 表示无内容可持久化。
+    """
+    if not current_project:
+        return None
+    context_path = notepad_dir / "novel-context.md"
+    if not context_path.is_file():
+        return None
+    content = context_path.read_text(encoding="utf-8")
+    projects_dir = notepad_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    save_path = projects_dir / f"{current_project}.md"
+    save_path.write_text(content, encoding="utf-8")
+    return save_path
+
+
+def _parse_phase_detect_output(stdout: str) -> Optional[str]:
+    """从 phase_detect.py 输出中解析推导的阶段名（'推导阶段: P7 章节写作进行中'）。"""
+    if not stdout:
+        return None
+    m = re.search(r"推导阶段[:：]\s*\S+\s+(\S+)", stdout)
+    if m:
+        # 取完整阶段名（到空格/换行）
+        m2 = re.search(r"推导阶段[:：]\s*\S+\s+(\S+(?:\s\S+)*?)(?=\n|$)", stdout)
+        if m2:
+            stage = m2.group(1).strip()
+            # 去掉结尾修饰词（进行中/已完结/未开始）
+            for suffix in ("进行中", "已完结", "未开始", "完成"):
+                if stage.endswith(suffix):
+                    stage = stage[: -len(suffix)].strip()
+            return stage
+    return None
+
+
+def _build_context_from_project(project_path: Path, project_name: str) -> str:
+    """从 config.yaml + project_index.yaml + filesystem 推导完整 notepad 内容。"""
+    tpl_path = _load_template_path()
+    if tpl_path:
+        content = tpl_path.read_text(encoding="utf-8")
+    else:
+        content = (
+            "__CURRENT_PROJECT__: {项目名}\n\n"
+            "# 项目上下文: {项目名}\n\n"
+            "## 项目信息\n"
+            "- 项目名称：{项目名}\n"
+            "- 项目类型：\n"
+            "- 项目路径：\n"
+            "- 干预等级：\n"
+            "- 环境已初始化：True\n\n"
+            "## 当前状态\n"
+            "- 写作阶段：\n"
+            "- 上次写作：\n\n"
+            "## 创作进度\n"
+            "- 创意构思：未开始\n"
+            "- 大纲规划：未开始\n"
+            "- 章节写作：未开始\n"
+            "- 质量检测：未开始\n"
+            "- 角色：0 个已创建\n"
+            "- 情节线：主线未设计 / 0 条支线\n"
+            "- 世界观：0/7 文件中已初始化\n\n"
+            "## 待处理事项\n- ...\n"
+        )
+
+    # === 从 config.yaml 读取 ===
+    config_path = project_path / "config.yaml"
+    config: Dict[str, Any] = {}
+    if config_path.is_file():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            config = {}
+
+    project_type = config.get("项目类型", "") or ""
+    current_phase = config.get("当前阶段", "创意构思") or "创意构思"
+    last_edit = config.get("最后编辑", "") or ""
+    active_style = config.get("活跃风格", "") or ""
+    workflow = config.get("工作流", {}) or {}
+    intervention = workflow.get("干预等级", "medium") or "medium"
+    progress = config.get("创作进度", {}) or {}
+    current_chapter = int(progress.get("当前章节", 0) or 0)
+    total_words = int(progress.get("已完成字数", 0) or 0)
+    goals = config.get("创作目标", {}) or {}
+    total_chapters_target = int(goals.get("目标章节数", 0) or 0)
+    structure_cfg = config.get("结构配置", {}) or {}
+    volume_count = int(structure_cfg.get("卷数", 0) or 0) if isinstance(structure_cfg, dict) else 0
+
+    # === 从 project_index.yaml 读取 ===
+    index_path = project_path / "project_index.yaml"
+    counts = {"characters": 0, "worldbuilding": 0, "plot_threads": 0, "chapters": 0}
+    active_subplots = 0
+    on_hold_subplots = 0
+    main_plot_name = ""
+    subplot_names: list[str] = []
+    written_chapters_idx = 0
+    draft_chapters_idx = 0
+    if index_path.is_file():
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                idx = yaml.safe_load(f) or {}
+            meta = idx.get("_meta", {}) or {}
+            cnt = meta.get("entity_counts", {}) or {}
+            counts.update({k: int(cnt.get(k, 0) or 0) for k in counts.keys()})
+            for plot_key, p in (idx.get("plot_threads", {}) or {}).items():
+                if isinstance(p, dict):
+                    status = p.get("status", "")
+                    name = p.get("name", "")
+                    # index 摘要不含 type 字段，从 key 名前缀推断
+                    is_sub = str(plot_key).startswith("subplot")
+                    if not is_sub and status == "active":
+                        main_plot_name = name or main_plot_name
+                    elif is_sub:
+                        if status == "active":
+                            active_subplots += 1
+                            if name and len(subplot_names) < 6:
+                                subplot_names.append(name)
+                        elif status == "on_hold":
+                            on_hold_subplots += 1
+            for c in (idx.get("chapters", {}) or {}).values():
+                if isinstance(c, dict):
+                    st = c.get("status")
+                    if st == "written":
+                        written_chapters_idx += 1
+                    elif st == "draft":
+                        draft_chapters_idx += 1
+        except Exception:
+            pass
+
+    # === 从 filesystem 补充（权威源） ===
+    ideation_done = (project_path / "ideation" / "最终创意方案.yaml").is_file()
+    outline_done = (project_path / "outline" / "总纲.yaml").is_file()
+    chapters_dir = project_path / "chapters"
+    written_count_fs = 0
+    if chapters_dir.is_dir():
+        written_count_fs = sum(1 for _ in chapters_dir.glob("*.txt"))
+    subdirs = project_path / "outline" / "分纲"
+    outline_files_count = 0
+    if subdirs.is_dir():
+        outline_files_count = sum(1 for _ in subdirs.rglob("第*章.yaml"))
+    quality_dir = project_path / "quality"
+    has_quality = any(quality_dir.glob("*.yaml")) if quality_dir.is_dir() else False
+
+    # === 状态字符串推导 ===
+    p_tag = PHASE_TO_P_TAG.get(current_phase, "")
+
+    def _ideation_status() -> str:
+        return "已完成" if ideation_done else "未开始"
+
+    def _outline_status() -> str:
+        if not outline_done:
+            return "未开始"
+        if volume_count and total_chapters_target:
+            return f"已完成（{volume_count}卷{total_chapters_target}章）"
+        return "已完成"
+
+    def _suboutline_status() -> str:
+        # 优先用分纲目录计数（filesystem 权威）
+        if outline_files_count == 0 and draft_chapters_idx == 0:
+            return "未开始"
+        actual = max(outline_files_count, draft_chapters_idx + written_chapters_idx)
+        # 进度判定：actual 与 current_chapter 差 ≤ 1 即视为分纲已就绪
+        if current_chapter and actual >= current_chapter:
+            return f"已完成至第 {actual} 章"
+        return f"进行中（{actual} 章已撰写）"
+
+    def _chapter_status() -> str:
+        actual = max(written_count_fs, written_chapters_idx)
+        if actual == 0:
+            return "未开始"
+        if current_chapter and total_chapters_target and current_chapter >= total_chapters_target:
+            return f"已完成（第 1 ~ {actual} 章，共 {total_words:,} 字）"
+        return f"进行中（第 1 ~ {actual} 章，共 {total_words:,} 字）"
+
+    def _quality_status() -> str:
+        return "进行中" if has_quality else "未开始"
+
+    def _subplot_status() -> str:
+        total = active_subplots + on_hold_subplots
+        if total == 0 and not main_plot_name:
+            return "主线未设计 / 0 条支线"
+        if total == 0:
+            return f"1 主线（{main_plot_name}）/ 0 条支线"
+        if main_plot_name:
+            head = f"1 主线（{main_plot_name}） + {total} 条支线"
+        else:
+            head = f"1 主线 + {total} 条支线"
+        tail_parts = []
+        if active_subplots:
+            tail_parts.append(f"{active_subplots} 活跃")
+        if on_hold_subplots:
+            tail_parts.append(f"{on_hold_subplots} 暂挂")
+        if subplot_names:
+            return f"{head}（{', '.join(tail_parts)}: {', '.join(subplot_names[:6])}）"
+        return f"{head}（{', '.join(tail_parts)}）"
+
+    def _worldbuilding_status() -> str:
+        if counts["worldbuilding"] == 0:
+            return "未初始化"
+        if counts["worldbuilding"] >= 7:
+            return f"{counts['worldbuilding']} 个文件已初始化（完整）"
+        return f"{counts['worldbuilding']} 个文件已初始化"
+
+    def _todo_lines() -> list[str]:
+        actual = max(written_count_fs, written_chapters_idx)
+        # 阶段判定优先看 current_chapter（filesystem 真实进度）
+        if current_chapter == 0:
+            if not ideation_done:
+                return ["- 项目处于初始化阶段，可启动 P1 创意构思"]
+            if not outline_done:
+                return ["- 大纲未就绪，可启动 P2 大纲规划"]
+            if outline_files_count == 0:
+                return [
+                    "- 大纲已就绪，可启动 P6 分纲构建",
+                    "- 或先调用 phase_detect.py 复核状态",
+                ]
+        # 已在 P7（章节写作阶段）或更后
+        if total_chapters_target and actual >= total_chapters_target:
+            return ["- 全书章节已完成，建议启动 P8 质量检测"]
+        next_chapter = actual + 1 if not total_chapters_target or actual < total_chapters_target else total_chapters_target
+        todos = [f"- 第 {actual} 章已写完，分纲已就绪到第 {next_chapter} 章"]
+        if has_quality:
+            todos.append("- 质量检测已有部分报告，可继续推进 P8 全面质量检测")
+        else:
+            todos.append("- 建议在阶段性完成后启动质量检测（P8）")
+        return todos
+
+    # === 模板字段替换（用 lambda 避免 re.sub replacement 解析反斜杠） ===
+    def _set_field(pattern, value, src):
+        return re.sub(pattern, lambda m: value, src, count=1, flags=re.MULTILINE)
+
+    content = content.replace("{项目名}", project_name)
+    content = _set_field(r"^- 项目类型：.*$", f"- 项目类型：{project_type}", content)
+    content = _set_field(r"^- 项目路径：.*$", f"- 项目路径：{project_path.resolve()}", content)
+    content = _set_field(r"^- 干预等级：.*$", f"- 干预等级：{intervention}", content)
+    content = _set_field(r"^- 环境已初始化：.*$", "- 环境已初始化：True", content)
+    # 当前状态
+    phase_line = f"- 写作阶段：{current_phase}"
+    if p_tag and p_tag not in ("完稿", "暂停"):
+        phase_line += f"（{p_tag}）"
+    content = _set_field(r"^- 写作阶段：.*$", phase_line, content)
+    content = _set_field(r"^- 上次写作：.*$", f"- 上次写作：{last_edit}", content)
+    # 活跃风格 + 切换时间（如模板不含则插入）
+    if "- 活跃风格：" not in content and "## 当前状态" in content:
+        style_line = f"- 活跃风格：{active_style if active_style else '（未设置）'}"
+        switch_time_line = f"- 切换时间：{datetime.now().strftime('%Y-%m-%d')}"
+        content = re.sub(
+            r"(^- 上次写作：.*$)",
+            lambda m: f"{m.group(1)}\n{style_line}\n{switch_time_line}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+    # 创作进度
+    content = _set_field(r"^- 创意构思：.*$", f"- 创意构思：{_ideation_status()}", content)
+    content = _set_field(r"^- 大纲规划：.*$", f"- 大纲规划：{_outline_status()}", content)
+    # 分纲构建（模板可能没有此行——如有则替换；如无则插入到"大纲规划"后）
+    if re.search(r"^- 分纲构建：", content, flags=re.MULTILINE):
+        content = _set_field(r"^- 分纲构建：.*$", f"- 分纲构建：{_suboutline_status()}", content)
+    else:
+        content = re.sub(
+            r"(^- 大纲规划：.*$)",
+            lambda m: f"{m.group(1)}\n- 分纲构建：{_suboutline_status()}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+    content = _set_field(r"^- 章节写作：.*$", f"- 章节写作：{_chapter_status()}", content)
+    content = _set_field(r"^- 质量检测：.*$", f"- 质量检测：{_quality_status()}", content)
+    content = _set_field(r"^- 角色：.*$", f"- 角色：{counts['characters']} 个已创建", content)
+    content = _set_field(r"^- 情节线：.*$", f"- 情节线：{_subplot_status()}", content)
+    content = _set_field(r"^- 世界观：.*$", f"- 世界观：{_worldbuilding_status()}", content)
+    # 待处理事项
+    todo_block = "\n".join(_todo_lines())
+    content = re.sub(
+        r"(## 待处理事项\n)- .*$",
+        lambda m: f"{m.group(1)}{todo_block}",
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    # 追加 __CURRENT_PROJECT__ 标记（如模板未含）
+    if "__CURRENT_PROJECT__" not in content:
+        content = f"__CURRENT_PROJECT__: {project_name}\n\n" + content
+    return content
+
+
+def _write_notepad(notepad_dir: Path, project_path: Path, project_name: str) -> Path:
+    """写入完整的 notepad 上下文（从项目状态推导）。"""
+    content = _build_context_from_project(project_path, project_name)
+    context_path = notepad_dir / "novel-context.md"
+    context_path.write_text(content, encoding="utf-8")
+    return context_path
+
+
+# ===========================================================================
 # 导入项目
 # ===========================================================================
 
@@ -1428,30 +1801,174 @@ class ProjectResume:
             print(f"最新章节: {last_chapter}")
         print("-" * 40)
 
-        # 更新 .omo/notepads/novel-context.md（切换项目时持久化旧上下文）
-        script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
-        notepad_dir = script_root / ".omo" / "notepads"
-        context_path = notepad_dir / "novel-context.md"
-
-        if context_path.is_file():
-            old_content = context_path.read_text(encoding="utf-8")
-            old_match = re.search(r'# 项目上下文: (.+)', old_content)
-            if old_match and old_match.group(1).strip() != self.project_name:
-                # 持久化旧项目上下文
-                projects_dir = notepad_dir / "projects"
-                projects_dir.mkdir(parents=True, exist_ok=True)
-                save_path = projects_dir / f"{old_match.group(1).strip()}.md"
-                save_path.write_text(old_content, encoding="utf-8")
-
-        # 写入新项目上下文
-        tpl_path = notepad_dir / "templates" / "novel-context.template.md"
-        if tpl_path.is_file():
-            content = tpl_path.read_text(encoding="utf-8")
-            content = content.replace("{项目名}", self.project_name)
-            context_path.write_text(content, encoding="utf-8")
-
+        # === 切换 notepad：复用共享 helper（与 switch 一致的逻辑） ===
+        notepad_dir = _load_notepad_dir()
+        old_project = _detect_current_project(notepad_dir)
+        if old_project and old_project != self.project_name:
+            old_path = self.target_dir / old_project
+            if old_path.is_dir():
+                print(f"🔄 同步旧项目状态: {old_project}")
+                _run_tool("rebuild_project_index.py", str(old_path.resolve()))
+            saved = _persist_current_context(notepad_dir, old_project)
+            if saved:
+                print(f"💾 旧项目快照已保存: {saved.relative_to(notepad_dir.parent)}")
+        # 同步目标项目索引
+        print(f"🔄 同步目标项目状态: {self.project_name}")
+        _run_tool("rebuild_project_index.py", str(self.project_path.resolve()))
+        # 写入完整 notepad（从 config + index 推导）
+        _write_notepad(notepad_dir, self.project_path, self.project_name)
         print("✅ 项目已准备好继续创作")
         return True
+
+
+# ===========================================================================
+# 切换项目（原子化）
+# ===========================================================================
+
+class ProjectSwitcher:
+    """原子化的项目切换。替代 novel-writer.md §1 中手动 read/write 的切换协议。
+
+    流程：发现旧项目 → 同步旧索引 → 持久化旧 notepad → 验证目标项目
+        → 同步目标索引 → 推导并写入新 notepad → phase_detect 验证一致性
+        → 输出摘要。
+
+    Args:
+        project_name: 目标项目名
+        target_dir: novels 根目录（默认自动发现）
+        skip_sync: 跳过 rebuild_project_index 同步
+        no_verify: 跳过 phase_detect 一致性验证
+        dry_run: 仅打印计划，不修改任何文件
+    """
+
+    def __init__(self, project_name: str, target_dir: str = None,
+                 skip_sync: bool = False, no_verify: bool = False,
+                 dry_run: bool = False):
+        self.project_name = project_name
+        if target_dir is None:
+            target_dir = str(find_novels_root())
+        self.target_dir = Path(target_dir)
+        self.project_path = self.target_dir / project_name
+        self.skip_sync = skip_sync
+        self.no_verify = no_verify
+        self.dry_run = dry_run
+
+    def switch(self) -> bool:
+        # ── Step 0: 验证目标项目 ──
+        if not self.project_path.is_dir():
+            print(f"❌ 目标项目 '{self.project_name}' 不存在：{self.project_path}")
+            print(f"   可用项目: {self._list_available()}")
+            return False
+        config_path = self.project_path / "config.yaml"
+        if not config_path.is_file():
+            print(f"❌ 目标项目缺少 config.yaml: {config_path}")
+            return False
+
+        notepad_dir = _load_notepad_dir()
+        old_project = _detect_current_project(notepad_dir)
+        same_project = (old_project == self.project_name)
+
+        print(f"🔀 切换项目: {(old_project or '（无）')} → {self.project_name}")
+        print("-" * 40)
+
+        warnings: list[str] = []
+
+        # ── Step 1: 同步 + 持久化旧项目（仅切换不同项目时） ──
+        if old_project and not same_project:
+            old_path = self.target_dir / old_project
+            if old_path.is_dir():
+                if not self.skip_sync and not self.dry_run:
+                    print(f"🔄 同步旧项目索引: {old_project}")
+                    rc, out, err = _run_tool(
+                        "rebuild_project_index.py", str(old_path.resolve())
+                    )
+                    if rc != 0:
+                        warnings.append(
+                            f"旧项目同步失败（rc={rc}）: {err.strip()[:200]}"
+                        )
+                if not self.dry_run:
+                    saved = _persist_current_context(notepad_dir, old_project)
+                    if saved:
+                        print(
+                            f"💾 旧项目快照已保存: {saved.relative_to(notepad_dir.parent)}"
+                        )
+
+        # ── Step 2: 同步目标项目索引 ──
+        if not self.skip_sync and not self.dry_run:
+            print(f"🔄 同步目标项目索引: {self.project_name}")
+            rc, out, err = _run_tool(
+                "rebuild_project_index.py", str(self.project_path.resolve())
+            )
+            if rc != 0:
+                warnings.append(
+                    f"目标项目同步失败（rc={rc}）: {err.strip()[:200]}"
+                )
+            else:
+                for line in out.strip().splitlines()[:3]:
+                    if line.strip():
+                        print(f"   {line.strip()}")
+
+        # ── Step 3: 写入新 notepad ──
+        if not self.dry_run:
+            written = _write_notepad(notepad_dir, self.project_path, self.project_name)
+            print(f"📝 新 notepad 已写入: {written.name}")
+        else:
+            print("🧪 DRY RUN: 跳过 notepad 写入")
+
+        # ── Step 4: phase_detect 验证（可选） ──
+        if not self.no_verify and not self.dry_run:
+            print(f"🔍 验证状态一致性: {self.project_name}")
+            rc, out, err = _run_tool(
+                "phase_detect.py", str(self.project_path.resolve())
+            )
+            if rc != 0:
+                warnings.append(
+                    f"phase_detect 失败（rc={rc}）: {err.strip()[:200]}"
+                )
+            else:
+                detected = _parse_phase_detect_output(out)
+                if detected:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        cfg = yaml.safe_load(f) or {}
+                    cfg_phase = cfg.get("当前阶段", "")
+                    if cfg_phase and detected != cfg_phase:
+                        warnings.append(
+                            f"config.当前阶段='{cfg_phase}' 与文件证据推导='{detected}' 不一致"
+                        )
+                    elif cfg_phase:
+                        print(f"   ✓ 阶段一致: {cfg_phase}")
+                    first_line = out.strip().splitlines()[0] if out.strip() else ""
+                    if first_line:
+                        print(f"   {first_line.strip()}")
+                else:
+                    first_line = out.strip().splitlines()[0] if out.strip() else ""
+                    if first_line:
+                        print(f"   {first_line.strip()}")
+
+        # ── Step 5: 摘要 ──
+        print("-" * 40)
+        if self.dry_run:
+            print(f"🧪 DRY RUN 完成（未修改任何文件）")
+            print(f"   旧项目: {old_project or '（无）'}")
+            print(f"   目标: {self.project_name} ({self.project_path})")
+        elif same_project:
+            print(f"✅ 项目 '{self.project_name}' 已是当前活跃项目（已重新同步）")
+        else:
+            print(f"✅ 已切换到项目: {self.project_name}")
+        print(f"📂 位置: {self.project_path}")
+        if warnings:
+            print("⚠️  警告:")
+            for w in warnings:
+                print(f"   - {w}")
+        return True
+
+    def _list_available(self) -> str:
+        if not self.target_dir.is_dir():
+            return "（无法列出）"
+        names = sorted(
+            p.name for p in self.target_dir.iterdir()
+            if p.is_dir() and (p / "config.yaml").is_file()
+        )
+        return ", ".join(names) if names else "（空）"
 
 
 # ===========================================================================
@@ -1510,6 +2027,11 @@ def main():
   # 续写项目
   python init.py resume "我的小说"
 
+  # 切换项目（原子化：同步旧→持久化旧→同步新→推导新→验证）
+  python init.py switch "我的小说"
+  python init.py switch "我的小说" --dry-run
+  python init.py switch "我的小说" --skip-sync --no-verify
+
   # 删除项目
   python init.py delete "我的小说"
   python init.py delete "我的小说" --force
@@ -1549,6 +2071,17 @@ def main():
     p_resume.add_argument("name", help="项目名称")
     p_resume.add_argument("--root", "-r", default=None, help="目标目录（默认自动发现 NOVELS_ROOT）")
 
+    # switch
+    p_switch = subparsers.add_parser("switch", help="切换项目（原子化：同步旧→持久化→同步新→推导→验证）")
+    p_switch.add_argument("name", help="目标项目名")
+    p_switch.add_argument("--root", "-r", default=None, help="目标目录（默认自动发现 NOVELS_ROOT）")
+    p_switch.add_argument("--skip-sync", action="store_true",
+                          help="跳过 rebuild_project_index 同步（旧/新项目都不同步）")
+    p_switch.add_argument("--no-verify", action="store_true",
+                          help="跳过 phase_detect 状态一致性验证")
+    p_switch.add_argument("--dry-run", action="store_true",
+                          help="仅打印计划，不修改任何文件")
+
     # delete
     p_delete = subparsers.add_parser("delete", help="删除项目")
     p_delete.add_argument("name", help="项目名称")
@@ -1587,6 +2120,16 @@ def main():
     elif args.command == "resume":
         resume = ProjectResume(args.name, args.root)
         success = resume.resume_project()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "switch":
+        switcher = ProjectSwitcher(
+            args.name, args.root,
+            skip_sync=args.skip_sync,
+            no_verify=args.no_verify,
+            dry_run=args.dry_run,
+        )
+        success = switcher.switch()
         sys.exit(0 if success else 1)
 
     elif args.command == "delete":

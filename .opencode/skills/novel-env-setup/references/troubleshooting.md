@@ -78,7 +78,7 @@ sudo yum install python3-venv
 **使用国内镜像源**：
 ```bash
 # 临时使用
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install -r scripts/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 永久配置
 pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
@@ -160,10 +160,10 @@ python -c "import yaml; print(yaml.__version__)"
 
 ```bash
 # 在有网络的机器上下载
-pip download -r requirements.txt -d ./offline_packages
+pip download -r scripts/requirements.txt -d ./offline_packages
 
 # 在目标机器上离线安装
-pip install --no-index --find-links=./offline_packages -r requirements.txt
+pip install --no-index --find-links=./offline_packages -r scripts/requirements.txt
 ```
 
 ---

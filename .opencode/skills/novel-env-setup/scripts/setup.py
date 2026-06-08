@@ -62,7 +62,7 @@ def _discover_venv() -> Path:
     return _TOOL_ROOT / ".venv"
 
 VENV_DIR = _discover_venv()
-REQUIREMENTS = SKILL_DIR / "requirements.txt"
+REQUIREMENTS = SKILL_DIR / "scripts" / "requirements.txt"
 
 MIN_PYTHON = (3, 8)
 
@@ -228,7 +228,7 @@ def print_status() -> int:
         if not venv_exists:
             print(f"\n修复方法:")
             print(f"  cd 到小说项目的根目录（即小说1、小说2所在目录）")
-            print(f"  然后运行: .opencode\\skills\\novel-env-setup\\setup_env.bat")
+            print(f"  然后运行: .opencode\\skills\\novel-env-setup\\scripts\\setup_env.bat")
         elif not deps_ok:
             print(f"\n修复方法:")
             print(f"  python {Path(__file__).resolve().relative_to(Path.cwd())} --fix")
@@ -300,7 +300,7 @@ def main():
             venv_parent = VENV_DIR.parent
             print(f"   请在小说项目根目录创建 .venv：")
             print(f"   cd {venv_parent}")
-            print(f"   .opencode\\skills\\novel-env-setup\\setup_env.bat")
+            print(f"   .opencode\\skills\\novel-env-setup\\scripts\\setup_env.bat")
 
     return exit_code
 

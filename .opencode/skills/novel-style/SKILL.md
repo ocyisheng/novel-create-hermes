@@ -38,7 +38,7 @@ tags: ["novel", "style", "infrastructure"]
 4. **参考文本原文不存储**：只在提取 prompt 中分析
 5. **叙事腔调适用于叙述者**，不影响角色对话的个性化声音
 
-风格存在的唯一目的：在 P7 章节写作时由 novel-writer.md 读取并注入到写作 prompt 中。
+风格存在的唯一目的：在 P8 章节写作时由 novel-writer.md 读取并注入到写作 prompt 中。
 
 ## 使用方式
 
@@ -54,7 +54,7 @@ Step B: bash style_manager.py validate → register → activate
         → 脚本自动维护 index.yaml 和 config.yaml
 ```
 
-### 风格应用（P7 写作时）
+### 风格应用（P8 章节写作时）
 
 使用 `render_style.py` 将 style.yaml 转换为写作 prompt 中的 STYLE REFERENCE 段：
 
@@ -63,9 +63,9 @@ python .opencode/skills/novel-style/scripts/render_style.py \
     --style styles/{active_style}.yaml --mode chapter
 ```
 
-输出可直接内联到章节写作 prompt 中。详见 `novel-chapter/templates/prompt_template.md` §STYLE REFERENCE。
+输出可直接内联到章节写作 prompt 的 `### 活跃风格` 段（由编排层 novel-writer.md 在 P8 调度时注入）。
 
-### 风格一致性检查（P8 质量检测时）
+### 风格一致性检查（P9 质量检测时）
 
 ```bash
 python .opencode/skills/novel-style/scripts/render_style.py \
@@ -170,7 +170,7 @@ python .opencode/skills/novel-style/scripts/style_manager.py builtin copy \
 | novel-style | 格式定义 + 提取工作流 + 脚本维护 + 应用/检查规范 | 实际写作、实际质量检测 |
 | novel-chapter | 写章节时遵循 prompt 中的写作约束 | 定义 style.yaml 格式 |
 | novel-quality | 执行风格一致性检查（通过 prompt） | 定义检查维度和标准 |
-| novel-writer.md | 检测 活跃风格 → 加载注入 prompt → 调度检查 | 定义风格数据 |
+| novel-writer.md | 检测 活跃风格 → 加载注入 prompt → 调度检查（P9） | 定义风格数据 |
 
 ## HARD CONSTRAINTS
 

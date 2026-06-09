@@ -23,7 +23,7 @@ tags: ["novel", "ideation"]
 
 ## 约束管理
 
-参考 `novel-ideation/references/constraints_library.md`（30+ 约束，6 大类），应用以下约束方向激发创意：
+参考 `references/constraints_library.md`（30+ 约束，6 大类），应用以下约束方向激发创意：
 - **结构约束**：叙事结构、时间结构、视角结构
 - **内容约束**：题材限制、基调限制、主题方向
 - **角色约束**：主角特质、角色数量、关系限制
@@ -44,7 +44,7 @@ tags: ["novel", "ideation"]
 
 每种类型提供：核心元素、典型情节模式、世界观构建指南、角色设定建议、创作禁忌、创新方向。
 
-参考: `novel-ideation/references/genres_compendium.md`
+参考: `references/genres_compendium.md`
 
 ## 模板生成指南
 
@@ -55,7 +55,7 @@ tags: ["novel", "ideation"]
 - **侦探结构**（案件→调查→推理→揭露）：适合悬疑类
 - **多线叙事**（多条故事线交织）：适合群像剧
 
-参考: `novel-ideation/references/template_principles.md`
+参考: `references/template_principles.md`
 
 ## 创意生成方法
 
@@ -73,7 +73,7 @@ tags: ["novel", "ideation"]
 ### 阶段二：创意深化（用户选定后）
 对选定创意进行深度开发：世界观设定、角色档案、情节大纲、主题方向。
 
-参考: `novel-ideation/references/ideation_techniques.md`
+参考: `references/ideation_techniques.md`
 
 ## 评估标准
 
@@ -88,7 +88,7 @@ tags: ["novel", "ideation"]
 
 阈值：总分 ≥16/20，原创性≥4，吸引力≥4 为通过。输出 YAML 评估报告，含改进建议。
 
-参考: `novel-ideation/references/evaluation_criteria.md`
+参考: `references/evaluation_criteria.md`
 
 ## 工作流程
 
@@ -98,44 +98,7 @@ tags: ["novel", "ideation"]
 - 避免生成与已有实体冲突的创意
 - 新创意应填补已有设定中的空白
 
-### 输出格式规范
-
-创意输出字段对齐项目数据结构契约：
-
-**角色概念**：
-```yaml
-角色 ID: ""         # 如 "linmo"
-姓名: ""
-角色类型: ""        # 主角/反派/导师/盟友/对手/次要角色
-一句话描述: ""       # ≤30 字
-核心特质: []         # ≤5 个关键词
-当前目标: ""
-关键关系:
-  - 角色: ""
-    关系: ""
-    状态: ""
-```
-
-**世界观概念**：
-```yaml
-核心设定: ""
-关键地点:
-  - 名称: ""
-    类型: ""        # 主城/宗门/遗迹/秘境/国都
-    一句话描述: ""
-```
-
-**情节线概念**：
-```yaml
-类型: ""            # 主线/支线/感情线/成长线/伏笔线
-核心冲突: ""
-关键事件: []
-涉及角色: []
-```
-
-结构格式：实体的 YAML 文件包含 _meta、索引信息、摘要、完整档案 四段。
-```
-
+### 流程步骤
 0. 接收编排 Agent 传入的 CONTEXT（项目路径、项目类型、已有实体、已有创意方向）
    输入：编排层 task() prompt 中的 TASK + CONTEXT 字段
    ↓
@@ -163,7 +126,6 @@ tags: ["novel", "ideation"]
     输入：选定的创意方向
     输出：ideation/最终创意方案.yaml（主角/冲突/世界观/情节主线）
     展示摘要给用户，等待确认
-```
 
 ### 写入规范
 
@@ -179,40 +141,40 @@ tags: ["novel", "ideation"]
 ## 参考文件
 
 ### 核心指南
-- `novel-ideation/references/genres_compendium.md` — 五大类型概览（玄幻/科幻/都市/悬疑/历史）
-- `novel-ideation/references/constraints_library.md` — 30+ 约束模板（6 大类）
-- `novel-ideation/references/template_principles.md` — 模板生成原则
-- `novel-ideation/references/ideation_techniques.md` — 创意生成方法
-- `novel-ideation/references/evaluation_criteria.md` — 4 维度评估矩阵
-- `novel-ideation/references/ideation_philosophy.md` — 创意构思哲学
-- `novel-ideation/references/thresholds.md` — 评估阈值设定
+- `references/genres_compendium.md` — 五大类型概览（玄幻/科幻/都市/悬疑/历史）
+- `references/constraints_library.md` — 30+ 约束模板（6 大类）
+- `references/template_principles.md` — 模板生成原则
+- `references/ideation_techniques.md` — 创意生成方法
+- `references/evaluation_criteria.md` — 4 维度评估矩阵
+- `references/ideation_philosophy.md` — 创意构思哲学
+- `references/thresholds.md` — 评估阈值设定
 
 ### 类型深入（详细版，genres_compendium.md 的精缩对照）
-- `novel-ideation/references/genre_fantasy.md` — 玄幻/修仙类型深入
-- `novel-ideation/references/genre_scifi.md` — 科幻/星际类型深入
-- `novel-ideation/references/genre_urban.md` — 都市/异能类型深入
-- `novel-ideation/references/genre_mystery.md` — 悬疑/推理类型深入
-- `novel-ideation/references/genre_history.md` — 历史/穿越类型深入
-- `novel-ideation/references/genres_quick_reference.md` — 类型快速诊断清单
-- `novel-ideation/references/genre_innovation.md` — 类型创新方向
+- `references/genre_fantasy.md` — 玄幻/修仙类型深入
+- `references/genre_scifi.md` — 科幻/星际类型深入
+- `references/genre_urban.md` — 都市/异能类型深入
+- `references/genre_mystery.md` — 悬疑/推理类型深入
+- `references/genre_history.md` — 历史/穿越类型深入
+- `references/genres_quick_reference.md` — 类型快速诊断清单
+- `references/genre_innovation.md` — 类型创新方向
 
 ### 约束与组合
-- `novel-ideation/references/constraint_types_overview.md` — 约束类型概览
-- `novel-ideation/references/combination_strategy.md` — 约束组合策略
-- `novel-ideation/references/combination_examples.md` — 约束组合示例
+- `references/constraint_types_overview.md` — 约束类型概览
+- `references/combination_strategy.md` — 约束组合策略
+- `references/combination_examples.md` — 约束组合示例
 
 ### 模板与示例
-- `novel-ideation/references/template_examples.md` — 模板生成示例
-- `novel-ideation/references/output_examples.md` — 输出格式示例
+- `references/template_examples.md` — 模板生成示例
+- `references/output_examples.md` — 输出格式示例
 
 ### 评估与场景
-- `novel-ideation/references/evaluation_scenarios.md` — 评估场景
-- `novel-ideation/references/evaluation_examples.md` — 评估实例
+- `references/evaluation_scenarios.md` — 评估场景
+- `references/evaluation_examples.md` — 评估实例
 
 ### 模式参考
-- `novel-ideation/references/ideation_tools.md` — 创意工具
-- `novel-ideation/references/ideation_mode.md` — 创意模式
-- `novel-ideation/references/writing_mode.md` — 写作模式
+- `references/ideation_tools.md` — 创意工具
+- `references/ideation_mode.md` — 创意模式
+- `references/writing_mode.md` — 写作模式
 
 ## HARD CONSTRAINTS
 

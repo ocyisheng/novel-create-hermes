@@ -142,7 +142,7 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 
 | 层 | 职责 | 边界 |
 |----|------|------|
-| **编排层** | P-1→P10 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
+| **编排层** | P-1→P11 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
 | **插件层** | category → 模型路由、fallback 链 | 只作用于 task() 子 Agent |
 | **执行层** | 按 SKILL.md + Context Contract 执行 | 不做编排决策、不调度其他技能 |
 | **工具层** | 索引、追踪、导出、配置 | 不碰状态决策 |
@@ -189,28 +189,32 @@ novel-create-hermes/
 | `novel-project-manager` | 项目新建/导入/续写/删除 | P-2 | — |
 | `novel-env-setup` | .venv 环境初始化 | P-1 | — |
 | `novel-ideation` | 创意构思、约束管理、评估 | P1 | `novel-ideate` |
-| `novel-outline` | 大纲规划、情节构建、分纲撰写 | P2/P3/P6 | `novel-write` |
-| `novel-entity` | 角色创建、世界观建设 | P4/P5 | `novel-write` |
-| `novel-chapter` | 章节写作 | P7 | `novel-write` |
+| `novel-outline` | 总纲撰写、分卷大纲生成、情节构建、分纲撰写 | P2/P3/P4/P7 | `novel-write` |
+| `novel-entity` | 角色创建、世界观建设 | P5/P6 | `novel-write` |
+| `novel-chapter` | 章节写作 | P8 | `novel-write` |
 | `novel-polish` | 文笔优化、反馈修订、导出 | 按需 | `novel-write` |
-| `novel-style` | 风格提取/激活（22 个内置） | P9 | `novel-ideate` |
-| `novel-quality` | AI 味/情节/角色/世界观/节奏 | P8 | `novel-review` |
+| `novel-style` | 风格提取/激活（22 个内置） | P10 | `novel-ideate` |
+| `novel-quality` | AI 味/情节/角色/世界观/节奏 | P9 | `novel-review` |
 
 ### 技能打包结构
 
 每个技能自包含模板、资产和引用：
 
 ```
-novel-chapter/
+novel-outline/
 ├── SKILL.md              ← 技能指令 + Context Contract
 ├── templates/            ← prompt 模板
 │   └── prompt_template.md
-├── assets/               ← 自有模板
-│   └── chapter.yaml
+├── assets/               ← 自有模板（输出文件格式定义）
+│   ├── outline.yaml      ← 总纲模板（P2）
+│   ├── volume.yaml       ← 分卷模板（P3）
+│   ├── plot_thread.yaml  ← 情节线模板（P4）
+│   └── chapter.yaml      ← 分纲模板（P7）
 └── references/           ← 自有参考文件
-    ├── writing_principles.md
-    ├── scene-guide.md
-    └── foreshadowing.md
+    ├── structure_comparison.md
+    ├── outline_templates.md
+    ├── outline_examples.md
+    └── plot_examples.md
 ```
 
 ### Context Contract
@@ -231,9 +235,9 @@ novel-chapter/
 
 | category | 阶段 | 主模型 | fallback 链 |
 |----------|------|--------|------------|
-| `novel-write` | P2-P7 | deepseek-v4-flash-free | big-pickle → nemotron → v4-flash → v4-pro |
-| `novel-review` | P8 | deepseek-v4-flash-free | nemotron → big-pickle → v4-flash → v4-pro |
-| `novel-ideate` | P1/P9 | big-pickle | deepseek-v4-flash-free → mimo → v4-flash |
+| `novel-write` | P2-P8 | deepseek-v4-flash-free | big-pickle → nemotron → v4-flash → v4-pro |
+| `novel-review` | P9 | deepseek-v4-flash-free | nemotron → big-pickle → v4-flash → v4-pro |
+| `novel-ideate` | P1/P10 | big-pickle | deepseek-v4-flash-free → mimo → v4-flash |
 
 > category 路由只作用于 task() 子 Agent，主 novel-writer Agent 使用会话模型。
 
@@ -270,26 +274,27 @@ novel-chapter/
 | `.omo/notepads/` | Momus/Boulder | novel-context/issues/learnings |
 | `.omo/run-continuation` | Ralph Loop 续接 | 默认启用 |
 
-## 工作流（P-1 → P10）
+## 工作流（P-1 → P11）
 
 ```
 P-1  环境初始化
 P-2  项目管理
 P1   创意构思
-P2   大纲规划
-P3   情节构建
-P4   世界观建设
-P5   角色创建
-P6   分纲构建
-P7   章节写作
-P8   质量检查
-P9   风格提取
-P10  意图澄清
+P2   总纲撰写
+P3   分卷大纲生成
+P4   情节构建
+P5   世界观建设
+P6   角色创建
+P7   分纲构建
+P8   章节写作
+P9   质量检查
+P10  风格提取
+P11  意图澄清
 ```
 
 ### Ultrawork
 
-`ulw 写第3-5章` — 连续写作模式，完成后启动 P8 质量检测。
+`ulw 写第3-5章` — 连续写作模式，完成后启动 P9 质量检测。
 
 ## 实体信息存储
 

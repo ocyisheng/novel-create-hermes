@@ -882,13 +882,15 @@ chapters: {{}}
 # 当前阶段 → P 编号标签
 PHASE_TO_P_TAG = {
     "创意构思": "P1",
-    "大纲规划": "P2",
-    "情节构建": "P3",
-    "分纲构建": "P6",
-    "分纲撰写": "P6",
-    "章节写作": "P7",
-    "章节创作": "P7",
-    "质量检测": "P8",
+    "总纲撰写": "P2",
+    "大纲规划": "P2",           # 旧名兼容
+    "卷大纲生成": "P3",
+    "情节构建": "P4",
+    "分纲构建": "P7",
+    "分纲撰写": "P7",
+    "章节写作": "P8",
+    "章节创作": "P8",
+    "质量检测": "P9",
     "完稿": "完稿",
     "已完成": "完稿",
     "暂停": "暂停",
@@ -971,7 +973,7 @@ def _persist_current_context(notepad_dir: Path, current_project: str) -> Optiona
 
 
 def _parse_phase_detect_output(stdout: str) -> Optional[str]:
-    """从 phase_detect.py 输出中解析推导的阶段名（'推导阶段: P7 章节写作进行中'）。"""
+    """从 phase_detect.py 输出中解析推导的阶段名（'推导阶段: P8 章节写作进行中'）。"""
     if not stdout:
         return None
     m = re.search(r"推导阶段[:：]\s*\S+\s+(\S+)", stdout)
@@ -1083,6 +1085,10 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
     # === 从 filesystem 补充（权威源） ===
     ideation_done = (project_path / "ideation" / "最终创意方案.yaml").is_file()
     outline_done = (project_path / "outline" / "总纲.yaml").is_file()
+    volume_dir = project_path / "outline" / "分卷"
+    vol_outline_count = 0
+    if volume_dir.is_dir():
+        vol_outline_count = sum(1 for _ in volume_dir.glob("*.yaml"))
     chapters_dir = project_path / "chapters"
     written_count_fs = 0
     if chapters_dir.is_dir():
@@ -1106,6 +1112,14 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
         if volume_count and total_chapters_target:
             return f"已完成（{volume_count}卷{total_chapters_target}章）"
         return "已完成"
+
+    def _volume_status() -> str:
+        """分卷大纲生成（P3）状态"""
+        if not outline_done or vol_outline_count == 0:
+            return "未开始"
+        if volume_count and vol_outline_count >= volume_count:
+            return f"已完成（{vol_outline_count}/{volume_count}卷）"
+        return f"进行中（{vol_outline_count}/{volume_count}卷）"
 
     def _suboutline_status() -> str:
         # 优先用分纲目录计数（filesystem 权威）
@@ -1161,21 +1175,26 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
             if not ideation_done:
                 return ["- 项目处于初始化阶段，可启动 P1 创意构思"]
             if not outline_done:
-                return ["- 大纲未就绪，可启动 P2 大纲规划"]
+                return ["- 总纲未就绪，可启动 P2 总纲撰写"]
+            if vol_outline_count < (volume_count or 1):
+                return [
+                    "- 总纲已就绪，可启动 P3 分卷大纲生成",
+                    f"- 当前仅 {vol_outline_count}/{volume_count or '?'} 卷有内容",
+                ]
             if outline_files_count == 0:
                 return [
-                    "- 大纲已就绪，可启动 P6 分纲构建",
-                    "- 或先调用 phase_detect.py 复核状态",
+                    "- 分卷大纲已就绪，可启动 P7 分纲构建",
+                    "- 或先创建角色和世界观（P5/P6）再开始分纲",
                 ]
-        # 已在 P7（章节写作阶段）或更后
+        # 已在 P8（章节写作阶段）或更后
         if total_chapters_target and actual >= total_chapters_target:
-            return ["- 全书章节已完成，建议启动 P8 质量检测"]
+            return ["- 全书章节已完成，建议启动 P9 质量检测"]
         next_chapter = actual + 1 if not total_chapters_target or actual < total_chapters_target else total_chapters_target
         todos = [f"- 第 {actual} 章已写完，分纲已就绪到第 {next_chapter} 章"]
         if has_quality:
-            todos.append("- 质量检测已有部分报告，可继续推进 P8 全面质量检测")
+            todos.append("- 质量检测已有部分报告，可继续推进 P9 全面质量检测")
         else:
-            todos.append("- 建议在阶段性完成后启动质量检测（P8）")
+            todos.append("- 建议在阶段性完成后启动质量检测（P9）")
         return todos
 
     # === 模板字段替换（用 lambda 避免 re.sub replacement 解析反斜杠） ===
@@ -1206,12 +1225,23 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
     # 创作进度
     content = _set_field(r"^- 创意构思：.*$", f"- 创意构思：{_ideation_status()}", content)
     content = _set_field(r"^- 大纲规划：.*$", f"- 大纲规划：{_outline_status()}", content)
-    # 分纲构建（模板可能没有此行——如有则替换；如无则插入到"大纲规划"后）
+    # 分卷大纲生成（插入在大纲规划和分纲构建之间）
+    if re.search(r"^- 分卷大纲生成：", content, flags=re.MULTILINE):
+        content = _set_field(r"^- 分卷大纲生成：.*$", f"- 分卷大纲生成：{_volume_status()}", content)
+    else:
+        content = re.sub(
+            r"(^- 大纲规划：.*$)",
+            lambda m: f"{m.group(1)}\n- 分卷大纲生成：{_volume_status()}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+    # 分纲构建（模板可能没有此行——如有则替换；如无则插入到"分卷大纲生成"后）
     if re.search(r"^- 分纲构建：", content, flags=re.MULTILINE):
         content = _set_field(r"^- 分纲构建：.*$", f"- 分纲构建：{_suboutline_status()}", content)
     else:
         content = re.sub(
-            r"(^- 大纲规划：.*$)",
+            r"(^- 分卷大纲生成：.*$)",
             lambda m: f"{m.group(1)}\n- 分纲构建：{_suboutline_status()}",
             content,
             count=1,

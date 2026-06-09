@@ -68,7 +68,6 @@ python .opencode/shared/auto_update.py \
 - `references/writing_principles.md` — 核心写作原则
 - `references/scene-guide.md` — 场景写作指南
 - `references/foreshadowing.md` — 伏笔设计
-- `assets/chapter.yaml` — 章节分纲模板
 
 ## HARD CONSTRAINTS
 

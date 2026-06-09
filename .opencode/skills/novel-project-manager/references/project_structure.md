@@ -5,30 +5,49 @@
 ```
 {项目名}/
 ├── config.yaml              # 项目配置（含 结构配置、进度、检查标准）
-├── chapters/                # 章节文件（.txt 纯文本）
-│   └── chapter_01.txt
-├── characters/              # 角色档案（.yaml，按角色名命名）
-│   ├── protagonist.yaml
-│   └── 角色统计.yaml       # 角色出场统计（被 auto_update 自动修改）
-├── project_index.yaml       # 项目索引（由 rebuild_project_index.py 重建，包含所有实体的当前状态）
-├── outline/                 # 大纲文件
-│   ├── 总纲.yaml            # 故事宏观骨架：故事结构（幕列表）、分卷列表、节奏
-│   ├── 情节线/              # 情节线实体文件夹
-│   │   ├── 主线.yaml        # 主线情节
-│   │   └── 支线.yaml        # 支线情节
-│   ├── 分卷/                # 各卷元文档（按卷数量动态生成）
-│   │   ├── 卷1_开端.yaml     # 卷{N}_{名称}.yaml，默认3卷可自定义
-│   │   └── ...
-│   ├── 追踪/               # 运行时数据（被 auto_update 自动修改）
-│   │   ├── 伏笔.yaml
-│   │   └── 时间线.yaml
-│   └── 分纲/               # 分章节大纲（按卷拆分目录）
-│       ├── 卷1/             # 卷1 的分纲文件
-│       │   ├── 第1章.yaml
-│       │   └── ...
-│       ├── 卷2/
+├── chapters/                # 章节正文（.txt 纯文本）
+│   ├── 第1章.txt            # 第{编号}章.txt
+│   ├── 第2章.txt
+│   └── .metas/              # 章节元数据标记（被 auto_update 自动维护）
+│       ├── 第1章.txt
 │       └── ...
-└── worldbuilding/           # 世界观文件（.yaml）
+├── characters/              # 角色档案（.yaml，按角色名命名）
+│   ├── 林默.yaml
+│   └── 角色统计.yaml        # 角色出场统计（被 auto_update 自动修改）
+├── ideation/                # 创意构思产物（P1 生成）
+│   ├── 需求分析.yaml        # 边界条件和目标
+│   ├── 约束集.yaml          # 6 大类约束
+│   ├── 创意简报.yaml        # 3-5 个创意方向
+│   ├── 评估报告.yaml        # 4 维度评分
+│   └── 最终创意方案.yaml    # 选定创意的完整方案（供 P2/P3 读取）
+├── outline/                 # 大纲文件
+│   ├── 总纲.yaml            # 故事宏观骨架：故事结构（幕列表）、分卷概览、节奏（P2 生成）
+│   ├── 分卷/                # 各卷大纲（P3 生成，每卷独立文件）
+│   │   ├── 卷1_开端.yaml    # 卷{N}_{名称}.yaml，含微弧/POV/叙事任务/卷末钩子
+│   │   └── ...
+│   ├── 情节线/              # 情节线实体（P4 生成）
+│   │   ├── 主线.yaml        # 主线情节
+│   │   └── 支线_*.yaml      # 支线情节（多条）
+│   ├── 分纲/                # 分章节大纲（P7 生成，按卷拆分目录）
+│   │   ├── 卷1/             # 卷1 的分纲文件
+│   │   │   ├── 第1章.yaml
+│   │   │   └── ...
+│   │   ├── 卷2/
+│   │   └── ...
+│   └── 追踪/                # 运行时数据（被 auto_update 自动修改）
+│       ├── 伏笔.yaml
+│       └── 时间线.yaml
+├── project_index.yaml       # 项目索引（由 rebuild_project_index.py 重建）
+├── quality/                 # 质量检测报告（P9 生成）
+│   ├── 第{N}章_AI味道检测.yaml
+│   ├── 第{N}章_情节逻辑检测.yaml
+│   ├── 第{N}章_角色一致性检查.yaml
+│   ├── 第{N}章_世界观漏洞检测.yaml
+│   └── 第{N}章_综合质量报告.yaml
+├── styles/                  # 写作风格定义
+│   ├── index.yaml           # 风格清单（由 style_manager.py 维护）
+│   └── {名称}.yaml          # 7 维度风格文件（每风格 ≤30 行）
+└── worldbuilding/           # 世界观文件（.yaml，P5 生成）
     ├── 基本信息.yaml
     ├── 核心规则.yaml
     ├── 力量体系.yaml
@@ -57,16 +76,21 @@
 
 | 文件 | 内容 | 写入者 |
 |------|------|--------|
-| `outline/总纲.yaml` | 故事结构（幕列表）、分卷列表、章节分布、节奏说明 | `init.py`（骨架）+ `novel-writing`（填充） |
-| `outline/分卷/卷N_*.yaml` | 单卷故事上下文（概要、情节点、角色发展） | `init.py`（骨架）+ `novel-writing`（填充） |
-| `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-writing` |
+| `ideation/` | 创意构思 5 个阶段文件 | `novel-ideation` |
+| `outline/总纲.yaml` | 故事结构（幕列表）、分卷概览、节奏说明（P2） | `init.py`（骨架）+ `novel-outline`（P2 填充） |
+| `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P3） | `init.py`（骨架）+ `novel-outline`（P3 填充） |
+| `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P4） |
 | `outline/追踪/伏笔.yaml` | 伏笔设置与回收追踪 | `auto_update.py` |
 | `outline/追踪/时间线.yaml` | 事件时序 | `auto_update.py` |
+| `chapters/.metas/` | 章节元数据标记（摘要/伏笔/出场角色） | `novel-chapter`（P8 写作时）+ `auto_update.py` |
 | `characters/角色统计.yaml` | 角色出场统计 | `auto_update.py` |
+| `quality/` | 质量检测分路报告 + 综合报告（P9） | `novel-quality` |
+| `styles/index.yaml` | 风格清单 | `style_manager.py` |
 
 ## 文件命名规范
 
-- **章节文件**：`chapters/chapter_{编号}.txt`（如 `chapter_01.txt`）
+- **章节文件**：`chapters/第{编号}章.txt`（如 `chapters/第1章.txt`）
+- **章节元数据**：`chapters/.metas/第{编号}章.txt`
 - **角色档案**：`characters/{角色名}.yaml`（如 `characters/林默.yaml`）
 - **角色统计**：`characters/角色统计.yaml`
 - **分卷文件**：`outline/分卷/卷{编号}_{名称}.yaml`（如 `outline/分卷/卷1_开端.yaml`）

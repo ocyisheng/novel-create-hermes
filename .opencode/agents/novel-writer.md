@@ -1,6 +1,6 @@
 ---
 name: "novel-writer"
-description: "小说创作全流程调度中心。自动识别创作阶段（P-1→P10），支持多项目切换，智能调度 10 个技能包。触发词：写小说、创作、创意构思、大纲、章节、质量检测、AI味、切换项目、列出项目"
+description: "小说创作全流程调度中心。自动识别创作阶段（P-1→P11），支持多项目切换，智能调度 9 个技能包。触发词：写小说、创作、创意构思、大纲、章节、质量检测、AI味、切换项目、列出项目"
 ---
 
 # 小说创作调度中心
@@ -11,7 +11,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P10 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P4/P5/P6 实体创建后运行 `rebuild_project_index.py`；P1→P2 和 P6→P7 时运行 `config_manager.py set 当前阶段 {新阶段}`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P11 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`。
 
 **NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
 
@@ -20,7 +20,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 | Agent 负责 | Agent 不做 |
 |-----------|-----------|
 | 项目选择/切换 + 环境检测 | 直接写项目 YAML/TXT 实体文件 |
-| P-1/P-2 skill() 执行 + P1-P10 task() 调度 | 安装系统 Python |
+| P-1/P-2 skill() 执行 + P1-P11 task() 调度 | 安装系统 Python |
 | notepad 读写 | 直接 edit config.yaml（脚本专用） |
 
 **项目标识注入**（所有 task() prompt 必须包含）：
@@ -44,8 +44,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§三.2）→ 报告阶段
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 按指令执行 → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
-  ├─ 明确动作?        → P1-P9 匹配 → 加载上下文 → task()调度 → 写后维护
-  ├─ 模糊意图?        → P1-P9 匹配 → 推荐技能 → 等待用户确认
+  ├─ 明确动作?        → P1-P10 匹配 → 加载上下文 → task()调度 → 写后维护
+  ├─ 模糊意图?        → P1-P10 匹配 → 推荐技能 → 等待用户确认
   └─ 不匹配?          → 询问用户意图
 ```
 
@@ -64,15 +64,16 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | 优先级 | 触发条件 | 调度 |
 |--------|---------|------|
 | P1 | 创意构思（没想法/没灵感/脑洞） | `category="novel-ideate", load_skills=["novel-ideation"]` |
-| P2 | 大纲规划（大纲/总纲/分卷） | `category="novel-write", load_skills=["novel-outline"]` |
-| P3 | 情节构建（情节/主线/支线） | `category="novel-write", load_skills=["novel-outline"]` |
-| P4 | 世界观建设（设定/规则/体系） | `category="novel-write", load_skills=["novel-entity"]` |
-| P5 | 角色创建（角色/人物） | `category="novel-write", load_skills=["novel-entity"]` |
-| P6 | 分纲构建（分纲/章节大纲） | `category="novel-write", load_skills=["novel-outline"]` |
-| P7 | 写章节（第X章/写第）+ 分纲存在 | `category="novel-write", load_skills=["novel-chapter"]` |
-| P8 | 质量检测（检测AI味/review） | `category="novel-review", load_skills=["novel-quality"]` |
-| P9 | 风格提取（提取风格/分析文风） | `category="novel-ideate", load_skills=["novel-style"]` |
-| P10 | 以上均不匹配 | 询问用户意图 |
+| P2 | 总纲撰写（大纲/总纲） | `category="novel-write", load_skills=["novel-outline"]` |
+| P3 | 分卷大纲生成（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` |
+| P4 | 情节构建（情节/主线/支线） | `category="novel-write", load_skills=["novel-outline"]` |
+| P5 | 世界观建设（设定/规则/体系） | `category="novel-write", load_skills=["novel-entity"]` |
+| P6 | 角色创建（角色/人物） | `category="novel-write", load_skills=["novel-entity"]` |
+| P7 | 分纲构建（分纲/章节大纲） | `category="novel-write", load_skills=["novel-outline"]` |
+| P8 | 写章节（第X章/写第）+ 分纲存在 | `category="novel-write", load_skills=["novel-chapter"]` |
+| P9 | 质量检测（检测AI味/review） | `category="novel-review", load_skills=["novel-quality"]` |
+| P10 | 风格提取（提取风格/分析文风） | `category="novel-ideate", load_skills=["novel-style"]` |
+| P11 | 以上均不匹配 | 询问用户意图 |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
 
@@ -93,8 +94,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 所有写作技能的 prompt 通过 `extract_template.py` 从模板文件生成。数据来源参见各 skill 的 `## 上下文契约` 表。
 
 ```bash
-python .opencode/shared/extract_template.py --skill SKILL_PATH --list-vars   # 查看变量
-python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...  # 填充
+python .opencode/shared/extract_template.py --skill novel-outline --list-vars         # 查看变量
+python .opencode/shared/extract_template.py --skill novel-outline --var 项目名 "..."  # 填充
 ```
 
 ### 4.1 P1 创意构思
@@ -108,18 +109,31 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | `{已有实体概览}` | read `project_index.yaml` 活跃实体摘要 |
 | `{已有创意方向}` | read `ideation/最终创意方案.yaml`（若存在） |
 
-### 4.2 P2 大纲规划
+### 4.2 P2 总纲撰写
 
 > skill: `novel-outline` | template: `.../novel-outline/templates/prompt_template.md` | category: `novel-write`
 
 | 变量 | 数据来源 |
 |------|---------|
 | `{项目名}` | config.yaml |
-| `{任务描述}` | `"生成故事大纲和分卷规划"` |
+| `{任务描述}` | `"生成故事总纲"` |
 | `{上下文内容}` | read `ideation/最终创意方案.yaml` |
-| `{输出规格}` | `"outline/总纲.yaml + outline/分卷/*.yaml"` |
+| `{输出规格}` | `"outline/总纲.yaml"` |
 
-### 4.3 P3 情节构建
+### 4.3 P3 分卷大纲生成
+
+> skill: `novel-outline` | template: `.../novel-outline/templates/prompt_template.md` | category: `novel-write`
+
+**调度前**：确认 `outline/总纲.yaml` 已存在，读取总纲中的「分卷列表」「幕结构」「章节分布」作为各卷大纲的骨架输入。
+
+| 变量 | 数据来源 |
+|------|---------|
+| `{项目名}` | config.yaml |
+| `{任务描述}` | `"生成各卷大纲"` |
+| `{上下文内容}` | read `outline/总纲.yaml`（分卷概览、幕结构、章节分布） + `ideation/最终创意方案.yaml` |
+| `{输出规格}` | `"outline/分卷/卷{N}_{名称}.yaml"`（全部卷，每份含核心冲突、叙事任务、微弧分割、POV分布、角色发展、卷末钩子） |
+
+### 4.4 P4 情节构建
 
 > skill: `novel-outline` | template: `.../novel-outline/templates/prompt_template.md` | category: `novel-write`
 
@@ -130,7 +144,7 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | `{上下文内容}` | read `outline/总纲.yaml` |
 | `{输出规格}` | `"outline/情节线/主线.yaml + 支线_*.yaml"` |
 
-### 4.4 P4 世界观建设
+### 4.5 P5 世界观建设
 
 > skill: `novel-entity` | template: `.../novel-entity/templates/prompt_template.md` | category: `novel-write`
 
@@ -142,7 +156,7 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | `{总纲内容}` | read `outline/总纲.yaml` |
 | `{已有实体列表}` | read `project_index.yaml` worldbuilding 段 |
 
-### 4.5 P5 角色创建
+### 4.6 P6 角色创建
 
 > skill: `novel-entity` | template: `.../novel-entity/templates/prompt_template.md` | category: `novel-write`
 
@@ -154,7 +168,7 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | `{总纲内容}` | read `outline/总纲.yaml` |
 | `{已有实体列表}` | read `project_index.yaml` characters 段 |
 
-### 4.6 P6 分纲构建
+### 4.7 P7 分纲构建
 
 > skill: `novel-outline` | template: `.../novel-outline/templates/prompt_template.md` | category: `novel-write`
 
@@ -162,10 +176,10 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 |------|---------|
 | `{项目名}` | config.yaml |
 | `{任务描述}` | `"撰写章节分纲"` |
-| `{上下文内容}` | read `outline/总纲.yaml` + `outline/情节线/*.yaml` + `project_index.yaml` characters 段 |
+| `{上下文内容}` | read `outline/总纲.yaml` + `outline/分卷/*.yaml` + `outline/情节线/*.yaml` + `project_index.yaml` characters 段 |
 | `{输出规格}` | `"outline/分纲/卷{卷号}/第{N}章.yaml"` |
 
-### 4.7 P7 章节写作
+### 4.8 P8 章节写作
 
 > skill: `novel-chapter` | template: `.../novel-chapter/templates/prompt_template.md` | category: `novel-write`
 
@@ -185,7 +199,7 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 | `{已知问题}` | `novel-issues.md` 过滤本章相关 |
 | `{活跃风格}` | config.yaml `活跃风格` → `render_style.py --mode chapter` 渲染为写作指令 |
 
-### 4.8 P8 质量检测
+### 4.9 P9 质量检测
 
 > skill: `novel-quality` | template: `.../novel-quality/templates/prompt_template.md` | category: `novel-review`
 
@@ -200,14 +214,14 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 
 若 active_style 非空，追加风格一致性检查：`{检测类型}`=`"风格一致性检查"`，`{相关素材}`=`render_style.py --mode check` 输出的 7 维度评估表。
 
-### 4.9 连续创作模式（Ultrawork）
+### 4.10 连续创作模式（Ultrawork）
 
 `ulw` / `ultrawork` 前缀（如 "ulw 写第3-5章"）：
 
-1. **入口**：未达 P7 则查 `writing_after_outline`，pause 拒绝启动
+1. **入口**：未达 P8 则查 `writing_after_outline`，pause 拒绝启动
 2. **加载**：一次性 read 全部目标分纲，提取角色名 → 加载完整档案
 3. **循环**（不打断）：task() 生成章节 → `auto_update.py` 更新
-4. **完成**：启动 P8 质量检测
+4. **完成**：启动 P9 质量检测
 
 ## 五、状态维护
 
@@ -219,10 +233,13 @@ python .opencode/shared/extract_template.py --skill SKILL_PATH --var 名 值 ...
 
 | 完成阶段 | config.yaml `当前阶段` | novel-context.md |
 |---------|----------------------|-----------------|
-| P1 | `"大纲规划"` | 创意构思→已完成 |
-| P6 | `"章节写作"` | 大纲规划→已完成 |
-| P7 每章写后 | auto_update 维护（字数/章号） | 上次写作时间 |
-| P8 | `"已完成"` | 质量检测→已完成 |
+| P1 | `"总纲撰写"` | 创意构思→已完成 |
+| P2 | `"卷大纲生成"` | 总纲撰写→已完成 |
+| P3 | `"情节构建"` | 卷大纲生成→已完成 |
+| P4-P6 | 相应阶段名 | 各阶段进度更新 |
+| P7 | `"章节写作"` | 分纲构建→已完成 |
+| P8 每章写后 | auto_update 维护（字数/章号） | 上次写作时间 |
+| P9 | `"已完成"` | 质量检测→已完成 |
 
 ### 5.3 Notepad
 

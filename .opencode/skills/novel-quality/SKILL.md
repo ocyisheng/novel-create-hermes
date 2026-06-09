@@ -54,7 +54,7 @@ tags: ["novel", "quality"]
 | 风格过于正式 | 低 | 对话不够口语化 |
 | 句式单调 | 低 | 句子结构单一 |
 
-参考: `novel-quality/references/ai_flavor_rules.md`（8 大类检测模式整合为体系化规则库）
+参考: `references/ai_flavor_rules.md`（8 大类检测模式整合为体系化规则库）
 
 ### 处理流程
 问题识别（8类特征全文扫描） → 问题分类（高中低优先级） → 输出检测报告（含修正建议）
@@ -82,7 +82,7 @@ tags: ["novel", "quality"]
 ### 注意事项
 区分"艺术性留白"与"逻辑漏洞"；优先处理影响理解的致命问题
 
-参考: `novel-quality/references/logic_criteria.md`
+参考: `references/logic_criteria.md`
 
 ## 角色一致性检查
 
@@ -101,7 +101,7 @@ tags: ["novel", "quality"]
 ### 注意事项
 区分"角色成长"与"性格突变"；尊重角色多面性；关注关键角色和重要场景
 
-参考: `novel-quality/references/check_criteria.md`
+参考: `references/check_criteria.md`
 
 ## 世界观漏洞检测
 
@@ -117,7 +117,7 @@ tags: ["novel", "quality"]
 ### 注意事项
 区分"创新设定"与"逻辑漏洞"；聚焦与情节相关的核心设定
 
-参考: `novel-quality/references/bug_criteria.md`
+参考: `references/bug_criteria.md`
 
 ## 节奏分析
 
@@ -132,7 +132,7 @@ tags: ["novel", "quality"]
 ### 注意事项
 节奏判断需结合目标读者群体；不同类型对节奏要求不同；节奏服务于情感传递
 
-参考: `novel-quality/references/pacing_guide.md`
+参考: `references/pacing_guide.md`
 
 ## 读者反馈
 
@@ -193,18 +193,18 @@ tags: ["novel", "quality"]
 
 ## 参考文件
 
-- `novel-quality/references/ai_flavor_rules.md`
-- `novel-quality/references/logic_criteria.md`
-- `novel-quality/references/check_criteria.md`
-- `novel-quality/references/bug_criteria.md`
-- `novel-quality/references/pacing_guide.md`
-- `novel-quality/references/feedback_metrics.md`
-- `novel-quality/references/problem_examples.md`
-- `novel-quality/references/check_examples.md`
-- `novel-quality/references/bug_examples.md`
-- `novel-quality/references/pacing_examples.md`
-- `novel-quality/references/drop-off_indicators.md`
-- `novel-quality/references/quality_mode.md`
+- `references/ai_flavor_rules.md`
+- `references/logic_criteria.md`
+- `references/check_criteria.md`
+- `references/bug_criteria.md`
+- `references/pacing_guide.md`
+- `references/feedback_metrics.md`
+- `references/problem_examples.md`
+- `references/check_examples.md`
+- `references/bug_examples.md`
+- `references/pacing_examples.md`
+- `references/drop-off_indicators.md`
+- `references/quality_mode.md`
 
 ---
 

@@ -8,19 +8,20 @@ Usage:
 Example:
     python phase_detect.py --project-root NOVELS_ROOT/穿越三国成刘谌
     # 输出:
-    #   推导阶段: P7 章节写作进行中
+    #   推导阶段: P8 章节写作进行中
     #   依据: chapters/ 下有 .txt 文件
 
 优先级从高到低（后建设的阶段覆盖前阶段）：
-    P8 可深度检查          chapters/ 文件数 >= 目标章节数
-    P7 章节写作进行中       chapters/ 下有 .txt 文件
-    P6 分纲已就绪           outline/分纲/ 下有文件
-    P5 角色已创建           characters/ 下有角色 .yaml
-    P4 世界观已建设         worldbuilding/ 基础文件存在
-    P3 情节线已设计         outline/情节线/ 下有文件
-    P2 大纲已规划           outline/总纲.yaml 有内容
-    P1 创意构思中           ideation/ 有内容但无最终方案
-    P0 新建项目             config.yaml 存在但无产出
+    P9 可深度检查           chapters/ 文件数 >= 目标章节数
+    P8 章节写作进行中        chapters/ 下有 .txt 文件
+    P7 分纲已就绪            outline/分纲/ 下有文件
+    P6 角色已创建            characters/ 下有角色 .yaml
+    P5 世界观已建设          worldbuilding/ 基础文件存在
+    P4 情节线已设计          outline/情节线/ 下有文件
+    P3 分卷大纲已生成        outline/分卷/ 下有文件
+    P2 大纲已规划            outline/总纲.yaml 有内容
+    P1 创意构思中            ideation/ 有内容但无最终方案
+    P0 新建项目              config.yaml 存在但无产出
 """
 
 import argparse
@@ -48,6 +49,7 @@ def detect_phase(project_root: Path) -> tuple[str, str]:
     outline_dir = project_root / "outline"
     zonggang = outline_dir / "总纲.yaml"
     fengang_dir = outline_dir / "分纲"
+    volume_dir = outline_dir / "分卷"
     plot_dir = outline_dir / "情节线"
 
     # Read target chapter count from config
@@ -60,24 +62,27 @@ def detect_phase(project_root: Path) -> tuple[str, str]:
         except Exception:
             target = 0
 
-    # Priority: most advanced phase wins (check from P8 down to P0)
+    # Priority: most advanced phase wins (check from P9 down to P0)
     chapter_count = count_files(chapters_dir, "*.txt")
     if target > 0 and chapter_count >= target:
-        return ("P8 可深度检查", f"chapters/ 文件数({chapter_count}) >= 目标({target})")
+        return ("P9 可深度检查", f"chapters/ 文件数({chapter_count}) >= 目标({target})")
     if chapter_count > 0:
-        return ("P7 章节写作进行中", f"chapters/ 下有 {chapter_count} 个 .txt 文件")
+        return ("P8 章节写作进行中", f"chapters/ 下有 {chapter_count} 个 .txt 文件")
 
     if fengang_dir.is_dir() and list(fengang_dir.rglob("*.yaml")):
-        return ("P6 分纲已就绪", "outline/分纲/ 下有文件")
+        return ("P7 分纲已就绪", "outline/分纲/ 下有文件")
 
     if count_files(characters_dir) > 1:  # >1 to skip 角色统计.yaml
-        return ("P5 角色已创建", f"characters/ 下有 {count_files(characters_dir)} 个文件")
+        return ("P6 角色已创建", f"characters/ 下有 {count_files(characters_dir)} 个文件")
 
     if worldbuilding_dir.is_dir() and list(worldbuilding_dir.glob("*.yaml")):
-        return ("P4 世界观已建设", "worldbuilding/ 基础文件存在")
+        return ("P5 世界观已建设", "worldbuilding/ 基础文件存在")
 
     if plot_dir.is_dir() and list(plot_dir.glob("*.yaml")):
-        return ("P3 情节线已设计", "outline/情节线/ 下有文件")
+        return ("P4 情节线已设计", "outline/情节线/ 下有文件")
+
+    if volume_dir.is_dir() and list(volume_dir.glob("*.yaml")):
+        return ("P3 分卷大纲已生成", "outline/分卷/ 下有文件")
 
     if content_exists(zonggang):
         return ("P2 大纲已规划", "outline/总纲.yaml 有内容")

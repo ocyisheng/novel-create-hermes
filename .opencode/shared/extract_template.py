@@ -6,21 +6,25 @@ extract_template.py — 加载 prompt 模板并填充变量
 均可通过 CLI 调用，将填充后的 prompt 喂给 LLM。
 
 Usage:
-    # 基本用法（模板文件优先）
+    # 按技能名（自动解析到 .opencode/skills/{name}/SKILL.md）
     python .opencode/shared/extract_template.py \
-        --skill .opencode/skills/novel-chapter/SKILL.md \
+        --skill novel-chapter \
         --var 项目名 "星辰修仙路" \
         --var 章节号 "5"
 
+    # 传入完整路径也行
+    python .opencode/shared/extract_template.py \
+        --skill .opencode/skills/novel-chapter/SKILL.md --list-vars
+
     # 多行变量从 stdin 读入（--var 值传 "-"）
     echo "分纲内容..." | python extract_template.py \
-        --skill ... --var 章节正文 -
+        --skill novel-chapter --var 章节正文 -
 
     # 写入文件
-    python extract_template.py --skill ... --output /tmp/prompt.txt
+    python extract_template.py --skill novel-chapter --output /tmp/prompt.txt
 
-    # 查看模板有哪些变量（用于编排层预先收集数据）
-    python extract_template.py --skill ... --list-vars
+    # 查看模板有哪些变量（编排层预先收集数据）
+    python extract_template.py --skill novel-chapter --list-vars
 
 工作原理:
     1. 先查 SKILL.md 同级的 templates/prompt_template.md（独立模板文件）→ 直接读
@@ -115,21 +119,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 基本填充
-  python extract_template.py --skill novel-chapter/SKILL.md \\
+  # 基本填充（技能名即可）
+  python extract_template.py --skill novel-chapter \\
       --var 项目名 "星辰修仙路" --var 章节号 "5"
 
   # 多行变量从 stdin 读入
   cat /tmp/chapter_body.txt | python extract_template.py \\
-      --skill novel-chapter/SKILL.md --var 章节正文 -
+      --skill novel-chapter --var 章节正文 -
 
   # 仅列出变量名（编排层用）
-  python extract_template.py --skill novel-chapter/SKILL.md --list-vars
+  python extract_template.py --skill novel-chapter --list-vars
 """,
     )
     parser.add_argument(
         "--skill", required=True, type=str,
-        help="SKILL.md 文件路径（脚本自动查找同级 templates/prompt_template.md）",
+        help="技能名（如 novel-chapter）或 SKILL.md 路径。技能名自动解析为 .opencode/skills/{name}/SKILL.md",
     )
     parser.add_argument(
         "--var", nargs=2, action="append", default=[],
@@ -146,9 +150,16 @@ def main():
     )
     args = parser.parse_args()
 
-    skill_path = Path(args.skill).resolve()
+    # 解析 --skill：技能名 → .opencode/skills/{name}/SKILL.md
+    raw = args.skill
+    if "/" not in raw and not raw.endswith(".md"):
+        # 是技能名，自动拼路径
+        resolved = Path(".opencode/skills") / raw / "SKILL.md"
+    else:
+        resolved = Path(raw)
+    skill_path = resolved.resolve()
     if not skill_path.is_file():
-        print(f"错误: SKILL.md 未找到: {skill_path}", file=sys.stderr)
+        print(f"错误: SKILL.md 未找到（尝试: {skill_path}）", file=sys.stderr)
         sys.exit(1)
 
     template = load_template(skill_path)

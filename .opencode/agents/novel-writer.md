@@ -11,7 +11,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P11 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P11 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`；novel-entity/novel-outline write、edite YAML 后立即用 `fix_yaml_advanced.py` 校验,并修复；失败则记 `novel-issues.md`。
 
 **NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
 
@@ -44,7 +44,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§三.2）→ 报告阶段
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 按指令执行 → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
-  ├─ 明确动作?        → P1-P10 匹配 → 加载上下文 → task()调度 → 写后维护
+  ├─ P-3 压力测试?    → skill("novel-grill") → 读测试对象 → 按决策树逐层追问 → 输出 quality/grill/ → 等待用户决策
+  ├─ 明确动作?        → P1-P10 匹配 → P1/P6/P8: skill("novel-grill") 预生成优先 → 加载上下文 → task()调度 → 写后维护
   ├─ 模糊意图?        → P1-P10 匹配 → 推荐技能 → 等待用户确认
   └─ 不匹配?          → 询问用户意图
 ```
@@ -108,6 +109,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | `{项目类型}` | 用户指定或 config.yaml |
 | `{已有实体概览}` | read `project_index.yaml` 活跃实体摘要 |
 | `{已有创意方向}` | read `ideation/最终创意方案.yaml`（若存在） |
+| `{grill_需求}` | 若预生成 grill 已执行，读 `quality/grill/ideation_需求_*.yaml` 注入 |
 
 ### 4.2 P2 总纲撰写
 
@@ -167,6 +169,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | `{创意方案}` | read `ideation/最终创意方案.yaml` |
 | `{总纲内容}` | read `outline/总纲.yaml` |
 | `{已有实体列表}` | read `project_index.yaml` characters 段 |
+| `{grill_角色需求}` | 若预生成 grill 已执行，读 `quality/grill/character_需求_*.yaml` 注入 |
 
 ### 4.7 P7 分纲构建
 
@@ -198,6 +201,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | `{支线状态}` | `project_index.yaml` 活跃支线 → read 支线 YAML |
 | `{已知问题}` | `novel-issues.md` 过滤本章相关 |
 | `{活跃风格}` | config.yaml `活跃风格` → `render_style.py --mode chapter` 渲染为写作指令 |
+| `{grill_写作方案}` | 若预生成 grill 已执行，读 `quality/grill/chapter_需求_*.yaml` 注入 |
 
 ### 4.9 P9 质量检测
 

@@ -18,6 +18,10 @@ from collections import Counter
 # 匹配 YAML 块标量指示符（|, > 及其修饰符如 |2, |+, |-, >2 等）
 BLOCK_SCALAR_RE = re.compile(r':\s*[|>][0-9+\-]*\s*$')
 
+# 匹配已有标量值的映射键（如 key: "value"、key: 'value'、key: plain_scalar）
+# 特征：key: 后跟非空内容，且不是块标量指示符
+MAPPING_KEY_WITH_VALUE_RE = re.compile(r'^[^:]+:\s+.+$')
+
 
 def find_block_scalar_content(lines):
     """返回所有属于块标量（| / >）内容的行号集合，这些行是纯文本，不应修改缩进"""
@@ -90,14 +94,14 @@ def fix_yaml_indent(filepath, output=None):
             indent = len(line) - len(stripped)
             list_entries.append((i, indent, stripped))
 
-    # 按父级分组
+    # 按父级行索引分组（确保只有同一父级下的列表项才参与众数对齐）
     groups = {}
     for idx, indent, content in list_entries:
         parent_idx, parent_indent, is_mapping = find_parent(idx, fixed_lines)
-        groups.setdefault(parent_indent, []).append((idx, indent, content))
+        groups.setdefault(parent_idx, []).append((idx, indent, content))
 
     # 对每组列表项统一缩进
-    for parent_indent, items in groups.items():
+    for parent_idx, items in groups.items():
         indents = [indent for _, indent, _ in items]
         if len(set(indents)) <= 1:
             continue
@@ -108,7 +112,8 @@ def fix_yaml_indent(filepath, output=None):
                 print(f"  [列表对齐] L{idx+1}: {indent} -> {most_common}  | {content[:60]}")
 
     # ------- 第三步：列表项内同级键缩进修正 -------
-    # 规则：列表项 `- key: value` 的同级键应缩进到 parent_indent + 2（与 key 对齐）
+    # 场景 A：非列表键是列表项的子属性 → 缩进到 parent_indent + 2（与 - key 对齐）
+    # 场景 B：非列表键与列表项同缩进 → 它是父级映射的兄弟键 → 提升到 parent_indent
     for i, line in enumerate(fixed_lines):
         stripped = line.lstrip(' ')
         if stripped == '' or stripped.startswith('#') or stripped.startswith('- '):
@@ -116,26 +121,84 @@ def fix_yaml_indent(filepath, output=None):
         if i in block_content_lines:
             continue  # 块标量内容是纯文本，不参与对齐
         indent = len(line) - len(stripped)
-        # 查找直接父列表项：向上扫描，穿越同级的 mapping key，找到最近且缩进更小的列表项
+
+        # 向上扫描，找最近的非空非注释行
+        nearest_above = None
+        nearest_above_idx = None
+        for j in range(i - 1, -1, -1):
+            prev = fixed_lines[j]
+            if prev.strip() == '' or prev.strip().startswith('#'):
+                continue
+            nearest_above = prev
+            nearest_above_idx = j
+            break
+        if nearest_above is None:
+            continue
+
+        nearest_stripped = nearest_above.lstrip(' ')
+        nearest_indent = len(nearest_above) - len(nearest_stripped)
+
+        # 场景 B：最近的上方行是同缩进的列表项 → 当前行是父级映射的兄弟键
+        if nearest_stripped.startswith('- ') and nearest_indent == indent:
+            # 向上找到包含此列表的映射键（缩进 < nearest_indent 的非列表行）
+            for j in range(nearest_above_idx - 1, -1, -1):
+                prev = fixed_lines[j]
+                if prev.strip() == '' or prev.strip().startswith('#'):
+                    continue
+                ps = prev.lstrip(' ')
+                pi = len(prev) - len(ps)
+                if not ps.startswith('- ') and pi < nearest_indent:
+                    # ps 是映射键，当前行应与其同缩进
+                    if indent != pi:
+                        fixed_lines[i] = ' ' * pi + stripped
+                        print(f"  [提升到映射键] L{i+1}: {indent} -> {pi}  | {stripped[:60]}")
+                    break
+            continue
+
+        # 场景 C：最近的上方行是已有标量值的映射键 → 当前行不应是其子键，应提升到父级
+        if (not nearest_stripped.startswith('- ')
+                and nearest_indent < indent
+                and MAPPING_KEY_WITH_VALUE_RE.match(nearest_stripped)):
+            # 向上找到包含此映射键的父级（缩进 < nearest_indent 的非列表行）
+            for j in range(nearest_above_idx - 1, -1, -1):
+                prev = fixed_lines[j]
+                if prev.strip() == '' or prev.strip().startswith('#'):
+                    continue
+                ps = prev.lstrip(' ')
+                pi = len(prev) - len(ps)
+                if pi < nearest_indent:
+                    # 当前行应与 nearest_above 同缩进（兄弟键）
+                    if indent != nearest_indent:
+                        fixed_lines[i] = ' ' * nearest_indent + stripped
+                        print(f"  [提升到映射键] L{i+1}: {indent} -> {nearest_indent}  | {stripped[:60]}")
+                    break
+            continue
+
+        # 场景 A：最近的上方行是缩进更小的列表项 → 当前行是其子属性
+        if nearest_stripped.startswith('- ') and nearest_indent < indent:
+            correct_indent = nearest_indent + 2
+            if indent != correct_indent:
+                fixed_lines[i] = ' ' * correct_indent + stripped
+                print(f"  [列表项内对齐] L{i+1}: {indent} -> {correct_indent}  | {stripped[:60]}")
+            continue
+
+        # 其他情况：最近的上方行是非列表行，继续向上找列表项
         parent_list_idx = None
         for j in range(i - 1, -1, -1):
             prev = fixed_lines[j]
             if prev.strip() == '' or prev.strip().startswith('#'):
                 continue
-            prev_stripped = prev.lstrip(' ')
-            prev_indent = len(prev) - len(prev_stripped)
-            if prev_stripped.startswith('- ') and prev_indent < indent:
+            ps = prev.lstrip(' ')
+            pi = len(prev) - len(ps)
+            if ps.startswith('- ') and pi < indent:
                 parent_list_idx = j
                 break
-            # 非列表行：继续向上找，直到遇到缩进更小的列表项
         if parent_list_idx is None:
             continue
 
         parent_indent = len(fixed_lines[parent_list_idx]) - len(fixed_lines[parent_list_idx].lstrip(' '))
-        # 如果当前缩进 <= parent_indent，说明这不是列表项的子属性，跳过
         if indent <= parent_indent:
             continue
-        # 列表项内的同级键应与 `- ` 后的 key 对齐，即 parent_indent + 2
         correct_indent = parent_indent + 2
         if indent != correct_indent:
             fixed_lines[i] = ' ' * correct_indent + stripped

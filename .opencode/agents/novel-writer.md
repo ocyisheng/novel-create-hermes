@@ -45,10 +45,16 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 状态审计?        → 文件证据评估（§3.3）→ 报告阶段
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
-  │   ├─ P1/P6/P8（模糊需求，如"帮我想个创意"）→ read → skill("novel-grill") → 加载上下文 → task() → 写后维护
+  │   ├─ P1/P6（模糊需求）→ read → skill("novel-grill") → 加载上下文 → task() → 写后维护
+  │   ├─ P2（模糊需求，如"写个大纲"）→ read → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index + set-phase(P2→P3)
+  │   ├─ P3（模糊需求，如"生成分卷"）→ read 总纲 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index
+  │   ├─ P4（模糊需求，如"设计情节线"）→ read 总纲 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index
+  │   ├─ P7（模糊需求，如"写分纲"）→ read 分卷 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index + set-phase(P7→P8)
+  │   ├─ P8（模糊需求，如"继续写""下一章"）→ read 分纲 → skill("novel-grill") → 加载上下文 → task(novel-chapter) → auto_update + rebuild_index
+  │   ├─ P13（模糊编辑请求，如"改一下角色""世界观改一改"）→ read 实体文件 → skill("novel-grill") → 加载上下文 → task(novel-entity-editor) → 实体后处理（§5.4）
   │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ 编辑模式：
   │   │   ├─ P2/P3/P4/P7(大纲/分卷/分纲) → outline 修订模式
-  │   │   ├─ P5/P6(世界观/角色) → novel-entity-editor → 实体后处理（§5.4）
+  │   │   ├─ P5/P6/P13(世界观/角色/实体) → novel-entity-editor → 实体后处理（§5.4）
   │   │   └─ P8(章节) → novel-chapter-editor
   │   ├─ 其他 P 阶段 + 无修改意图 → 加载上下文 → task() → 写后维护
   │   └─ 无匹配 → 询问用户意图
@@ -72,7 +78,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 | 优先级 | 触发条件 | 调度 | 写后处理 |
 |--------|---------|------|---------|
-| P-3 | 需求发现（嵌入 P1/P6/P8 模糊分支） | `skill("novel-grill")` | 无 |
+| P-3 | 需求发现（嵌入 P1/P2/P3/P4/P6/P7/P8/P13 模糊分支） | `skill("novel-grill")` | 无 |
 | P1 | 创意构思（没想法/没灵感/脑洞/构思） | `category="novel-ideate", load_skills=["novel-ideation"]` | rebuild_index（若有新实体） |
 | P2 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-outline"]` | rebuild_index + set-phase(P2→P3) |
 | P3 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` | rebuild_index |
@@ -85,24 +91,29 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P10 | 风格提取（提取风格/分析文风/模仿风格） | `category="novel-ideate", load_skills=["novel-style"]` | style_manager.py validate → register → activate |
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `category="novel-write", load_skills=["novel-export"]` | 无（调用 export.py） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | `category="novel-write", load_skills=["novel-chapter-editor"]` | 无（不改元数据） |
-| P13 | 实体编辑（编辑/更新/改动角色/世界观） | `category="novel-write", load_skills=["novel-entity-editor"]` | 实体后处理（§5.4） |
+| P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill")` → `category="novel-write", load_skills=["novel-entity-editor"]`；明确→直接 task | 实体后处理（§5.4） |
 | P14 | 以上均不匹配 | 询问用户意图 | — |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
 
 **区分**："当前项目/进度/写了几章"=快速状态查询；"检查进度/验证状态"=状态审计（§3.3）；动作类=阶段触发词匹配。
 
-### 3.2 模糊度检测规则（P1/P6/P8）
+### 3.2 模糊度检测规则
 
 用户需求模糊时触发 grill 追问。满足任一条件即判定为模糊：
 
 | 阶段 | 模糊判定条件 |
 |------|------------|
 | P1 创意 | 用户输入 ≤5 字（"没灵感了""帮我想个"）；不含类型/基调/元素关键词；含"随便""推荐""不知道"；`ideation/` 目录为空 |
+| P2 总纲 | 用户未指定结构类型；未提及冲突方向；用户说"随便""你定"；大纲文件不存在 |
+| P3 分卷 | P2 刚完成但用户未表达分卷偏好；用户说"按标准来"；分卷目录为空 |
+| P4 情节 | 用户未指定主线/支线偏好；未提及情节类型；情节线文件不存在 |
 | P6 角色 | 不含角色类型/定位/性格关键词；`project_index.yaml` 无角色；请求为泛化（"创建几个角色"） |
+| P7 分纲 | 用户未指定章节数/重点章节；分纲目录为空；用户说"自动生成" |
 | P8 章节 | 不含具体章节号或内容提示；前章内容为空；请求仅含"继续写""下一章" |
+| P13 实体编辑 | 不含具体字段名或修改方向（如"改一下""调整""改改"）；未指定目标实体名；请求仅含"编辑""更新""改动"+ 泛化对象 |
 
-明确需求判定：含具体类型（玄幻/仙侠/都市）、基调（热血/轻松/黑暗）、元素（穿越/系统/重生）、或角色名/章节号。
+明确需求判定：含具体类型（玄幻/仙侠/都市）、基调（热血/轻松/黑暗）、元素（穿越/系统/重生）、角色名/章节号、结构名（三幕/起承转合）、冲突类型、或含具体字段/修改值（如"性格改果断一点"）。
 
 ### 3.3 状态评估协议
 
@@ -137,7 +148,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | P10 | novel-style | novel-ideate | 参考文本 | 用户提供 |
 | P11 | novel-export | novel-write | 项目名/项目路径/导出格式/作者名 | config.yaml + 用户输入 |
 | P12 | novel-chapter-editor | novel-write | 章节号/章节正文/分纲/角色/衔接 | chapters/ + outline/分纲/ + characters/ + last_100.py |
-| P13 | novel-entity-editor | novel-write | 项目路径/实体类型/实体文件/当前内容/修改请求/编辑指南 | entity_schema.py detect + read |
+| P13 | novel-entity-editor | novel-write | 项目路径/实体类型/实体文件/当前内容/修改请求/编辑指南/grill_编辑方案 | entity_schema.py detect + read + quality/grill/entity-editor_需求_*.yaml（如触发grill） |
 
 ### P8 章节写作（详细）
 

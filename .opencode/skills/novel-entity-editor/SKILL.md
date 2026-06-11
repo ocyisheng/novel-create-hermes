@@ -54,6 +54,7 @@ tags: ["novel", "entity", "editor", "modification"]
 | 实体编辑指南 | 对应实体类型的编辑指南 | `references/{类型}_fields.md` |
 | 项目名 | 当前项目名 | config.yaml |
 | 项目路径 | 项目根目录 | novel-context.md |
+| grill_编辑方案（可选） | 编辑前需求发现的用户确认结果 | `quality/grill/entity-editor_需求_*.yaml`（仅模糊请求触发） |
 
 ## 实体类型支持
 

@@ -32,6 +32,16 @@
 - [ ] 标准目录结构创建
 - [ ] 多项目共存检查
 
+### P-3：需求发现 — Grill（按需）
+
+> 仅在 P1/P6/P8 用户需求模糊时触发，作为 task() 调度的前置步骤。使用 `skill()` 交互式追问，非 `task()`。
+
+- [ ] 识别目标阶段（P1 创意 / P6 角色 / P8 章节）
+- [ ] 加载已有上下文（创意方案 / 总纲 / 分纲 / 角色）
+- [ ] 多轮追问收敛需求
+- [ ] 输出需求 YAML 到 `quality/grill/`
+- [ ] 注入对应 P 阶段的 task() prompt
+
 ### P1：创意构思
 
 - [ ] 需求分析完成（mode=ideation）
@@ -93,7 +103,7 @@
 - [ ] 节奏分析（条件执行）
 - [ ] 风格一致性检查（条件执行）
 - [ ] 综合质量报告
-- [ ] 根据报告调度 novel-writing 修订
+- [ ] 根据报告调度 novel-chapter-editor 修订
 
 ### P10：风格提取
 
@@ -102,14 +112,43 @@
 - [ ] style_manager.py validate → register → activate
 - [ ] config.yaml active_style 已设置
 
-### P11：意图澄清
+### P11：格式化导出（按需）
+
+> 用户要求导出章节正文（EPUB/PDF/HTML/TXT/DOCX）时触发。调度 novel-export。
+
+- [ ] 解析导出格式和作者名
+- [ ] 调用 `export.py` 脚本执行导出
+- [ ] 确认脚本 exit code 为 0
+- [ ] 报告输出路径
+
+
+### P12：章节编辑（按需）
+
+> 用户要求修改已有章节正文（文笔优化 / 反馈修订 / 内容修改）时触发。调度 novel-chapter-editor。
+
+- [ ] 读取目标章节正文 + 对应分纲
+- [ ] 读取出场角色档案（摘要优先）
+- [ ] 读取 `last_100.py` 衔接上下文
+- [ ] 明确修改范围（文笔 / 反馈 / 内容）
+- [ ] 执行修改 → 写回 `chapters/第{N}章.txt`
+
+### P13：实体编辑（按需）
+
+> 用户要求修改已有 YAML 实体（角色档案 / 世界观设定）时触发。调度 novel-entity-editor。
+
+- [ ] entity_schema.py detect 确认实体类型
+- [ ] 读取当前实体文件全文
+- [ ] 执行修改 → edit 写回
+- [ ] 后处理：fix_yaml_indent → validate_consistency → rebuild_index
+- [ ] entity_diff.py 展示变更摘要
+
+### P14：意图澄清
 
 > 用户输入不匹配任何已注册触发词时触发。
 
 - [ ] 询问用户意图
-- [ ] 引导到 P1-P10 之一
+- [ ] 引导到 P1-P10 或按需技能之一
 
 ---
 
-> **说明**：P-1/P-2 由 Agent 通过 skill() 直接执行；P1-P11 创作阶段由 novel-writer.md 按触发词自动识别，Agent 通过 task() 调度对应技能。
-> 发布导出为 novel-writing 技能的能力之一，不属于独立创作阶段。
+> **说明**：P-1/P-2/P-3 由 Agent 通过 skill() 直接执行；P1-P14 创作阶段由 novel-writer.md 按触发词自动识别，Agent 通过 task() 调度对应技能。

@@ -13,8 +13,11 @@
         "novel-outline",
         "novel-entity",
         "novel-chapter",
-        "novel-polish",
-        "novel-quality"
+        "novel-quality",
+        "novel-grill",
+        "novel-chapter-editor",
+        "novel-export",
+        "novel-entity-editor"
       ],
       "tools": {
         "task": true,

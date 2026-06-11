@@ -152,7 +152,7 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 
 ```
 novel-create-hermes/
-├── opencode.json                    ← agent + 10 个技能 + tools
+├── opencode.json                    ← agent + 12 个技能 + tools
 ├── .omo/
 │   ├── plans/novel-creation.md      ← 工作流计划
 │   └── notepads/
@@ -175,14 +175,14 @@ novel-create-hermes/
 │   │   ├── extract_template.py         ← prompt 模板填充（框架无关）
 │   │   └── migrate_from_ref.py         ← 项目迁移
 │   ├── agents/novel-writer.md       ← 主编排 Agent prompt
-│   └── skills/                      ← 10 个创作技能（见下表）
+│   └── skills/                      ← 12 个创作技能（见下表）
 ├── novels/                          ← 所有小说项目父目录
 └── docs/                            ← 开发文档
 ```
 
 ## 技能一览
 
-### 10 个技能
+### 12 个技能
 
 | 技能 | 作用 | 阶段 | category |
 |------|------|------|----------|
@@ -192,7 +192,8 @@ novel-create-hermes/
 | `novel-outline` | 总纲撰写、分卷大纲生成、情节构建、分纲撰写 | P2/P3/P4/P7 | `novel-write` |
 | `novel-entity` | 角色创建、世界观建设 | P5/P6 | `novel-write` |
 | `novel-chapter` | 章节写作 | P8 | `novel-write` |
-| `novel-polish` | 文笔优化、反馈修订、导出 | 按需 | `novel-write` |
+| `novel-chapter-editor` | 章节编辑：文笔优化、反馈修订、内容修改 | 按需 | `novel-write` |
+| `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | 按需 | `novel-write` |
 | `novel-style` | 风格提取/激活（22 个内置） | P10 | `novel-ideate` |
 | `novel-quality` | AI 味/情节/角色/世界观/节奏 | P9 | `novel-review` |
 

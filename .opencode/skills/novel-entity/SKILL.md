@@ -43,19 +43,6 @@ tags: ["novel", "character", "worldbuilding", "entity"]
 
 按 `assets/character.yaml` 模板创建角色文件。角色类型参考 → `references/character_types.md`，示例 → `references/character_profile_example.md`
 
-### YAML 格式规则（必须遵守）
-
-1. **缩进**：统一 2 空格缩进，禁止使用 tab
-2. **引号**：所有字符串值必须用双引号 `""` 包裹
-3. **多段落文本**：模板中标注 `|` 的字段（如成长经历、心理创伤、动机根源、角色弧线等）使用 YAML literal block scalar：
-   ```yaml
-   成长经历: |
-     第一段正文内容，比键名多 2 空格缩进。
-     
-     段落之间保留一个空行，空行同样比键名多缩进 2 空格。
-   ```
-4. **列表项**：`-` 比父级键多缩进 2 空格（即缩进 4 空格或更深的偶数层）
-5. **段间空行**：顶层键（`_meta:`、`索引信息:`、`摘要:`、`完整档案:`）之间保留一个空行分割
 
 ### 输出
 

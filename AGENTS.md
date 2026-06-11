@@ -46,6 +46,8 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-chapter` | 章节写作 | `task(category="novel-write", load_skills=["novel-chapter"], ...)` |
 | `novel-chapter-editor` | 章节编辑：文笔优化/反馈修订/内容修改 | `task(category="novel-write", load_skills=["novel-chapter-editor"], ...)` |
 | `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `task(category="novel-write", load_skills=["novel-export"], ...)` |
+| `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
+| `novel-entity-editor` | 实体编辑：修改角色档案/世界观设定 | `task(category="novel-write", load_skills=["novel-entity-editor"], ...)` |
 | `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `task(category="novel-review", load_skills=["novel-quality"], ...)` |
 
 

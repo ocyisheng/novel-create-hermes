@@ -11,7 +11,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P11 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`；novel-entity/novel-outline write、edite YAML 后立即用 `fix_yaml_advanced.py` 校验,并修复；失败则记 `novel-issues.md`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P11 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`; write、edite YAML 后立即用 `fix_yaml_indent.py` 校验修复；失败则记 `novel-issues.md`。
 
 **NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
 

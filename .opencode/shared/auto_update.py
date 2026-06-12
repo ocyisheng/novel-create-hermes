@@ -12,12 +12,23 @@
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from _utils import find_project_root
 from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress, update_plot_threads
 from _summary import extract_markers, persist_actual_summary
+
+
+def _parse_events(raw_events: list[str]) -> list[dict]:
+    """解析事件参数。支持格式：'描述' 或 '描述|时间'。"""
+    result = []
+    for e in raw_events:
+        if "|" in e:
+            desc, time_val = e.split("|", 1)
+            result.append({"描述": desc.strip(), "时间": time_val.strip()})
+        else:
+            result.append({"描述": e.strip()})
+    return result
 
 try:
     from rebuild_project_index import rebuild_index
@@ -32,7 +43,7 @@ def main():
     parser.add_argument("--project-root", type=str, required=True, help="项目根目录")
     parser.add_argument("--foreshadowing", type=str, nargs="*", help="新增伏笔")
     parser.add_argument("--resolve-foreshadowing", type=str, nargs="*", help="已回收伏笔（模糊匹配）")
-    parser.add_argument("--events", type=str, nargs="*", help="新增事件")
+    parser.add_argument("--events", type=str, nargs="*", help="新增事件。格式：'描述' 或 '描述|故事时间'")
     parser.add_argument("--characters", type=str, nargs="*", help="出场角色名")
     parser.add_argument("--actual-summary", type=str, default=None, help="章节摘要")
     parser.add_argument("--summary-file", type=str, default=None, help="从文件读取摘要")
@@ -70,7 +81,13 @@ def main():
             foreshadowing_data = [{"描述": f} for f in markers["foreshadowing"]]
 
         resolve_items = args.resolve_foreshadowing or markers.get("resolve_foreshadowing", [])
-        events_data = [{"描述": e, "时间": datetime.now().isoformat()} for e in args.events] if args.events else None
+        # Merge CLI events with marker events
+        events_data = None
+        cli_events = _parse_events(args.events) if args.events else []
+        marker_events = markers.get("timeline_events", [])
+        merged = cli_events + marker_events
+        if merged:
+            events_data = merged
         char_list = args.characters or markers.get("characters")
 
         update_foreshadowing(cp, foreshadowing_data, resolve_items)

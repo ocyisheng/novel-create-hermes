@@ -37,6 +37,7 @@ tags: ["novel", "chapter", "writing"]
 | 出场角色档案 | 从分纲提取角色名 → 读完整档案 | project_index.yaml → read |
 | 世界观相关实体 | 按分纲"世界观补充"字段 | read worldbuilding/ 对应文件 |
 | 待处理伏笔 | `outline/追踪/伏笔.yaml` | read 筛选进行中/需回收 |
+| 时间线上下文 | `outline/追踪/时间线.yaml` | read 筛选本章附近章节的事件（±5章），提供故事当前时间锚点 |
 | 相关支线 | 活跃支线当前节点 | project_index.yaml → read 支线 YAML |
 | 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在）→ 多线交织总图中匹配本章的条目 | read 筛选。注明涉及哪些线、优先级、交汇内容 |
 | 已知问题 | `novel-issues.md` 相关条目 | read 筛选注入 |

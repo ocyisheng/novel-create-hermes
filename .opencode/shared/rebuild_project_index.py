@@ -77,6 +77,8 @@ ENTITY_SCAN_CONFIG = {
             "type": "索引信息.角色类型",
             "first_chapter": "索引信息.首次出场章节",
             "current_chapter": "索引信息.当前章节位置",
+            "birth_time": "完整档案.基本信息.出生时间",
+            "death_time": "完整档案.基本信息.死亡时间",
         },
     },
     "worldbuilding": {
@@ -107,6 +109,8 @@ ENTITY_SCAN_CONFIG = {
         "extra": {
             "first_chapter": "索引信息.起始章节",
             "current_chapter": "索引信息.当前章节位置",
+            "start_time": "索引信息.起始时间",
+            "end_time": "索引信息.结束时间",
         },
     },
     "chapters": {

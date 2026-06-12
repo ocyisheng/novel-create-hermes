@@ -90,8 +90,12 @@ def update_timeline(
         data = {"事件": [], "版本": "1.0"}
 
     if events:
+        # 尝试从分纲获取本章故事时间，作为无时间事件的回退
+        chapter_time = _extract_chapter_time(project_root, chapter_num)
         for event in events:
             event["章节"] = chapter_num
+            if "时间" not in event and chapter_time:
+                event["时间"] = chapter_time
             data["事件"].append(event)
 
     save_yaml(timeline_file, data)
@@ -253,6 +257,27 @@ def _extract_characters_from_fengang(project_root: Path, chapter_num: int) -> li
     fengang_dir = project_root / "outline" / "分纲"
     if not fengang_dir.is_dir():
         return []
+
+
+def _extract_chapter_time(project_root: Path, chapter_num: int) -> str:
+    """从分纲文件中提取本章的故事时间。"""
+    fengang_dir = project_root / "outline" / "分纲"
+    if not fengang_dir.is_dir():
+        return ""
+    target_filename = f"第{chapter_num}章.yaml"
+    for f in sorted(fengang_dir.rglob(target_filename)):
+        data = load_yaml(f)
+        if not data:
+            continue
+        # 模板格式: 摘要.故事时间
+        st = data.get("摘要", {}).get("故事时间", "")
+        if st:
+            return st
+        # 兼容旧格式：直接在顶层
+        st = data.get("故事时间", "")
+        if st:
+            return st
+    return ""
 
     target_filename = f"第{chapter_num}章.yaml"
     for f in sorted(fengang_dir.rglob(target_filename)):

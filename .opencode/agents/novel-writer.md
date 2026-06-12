@@ -164,6 +164,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | `{出场角色档案}` | 分纲提取角色名 → `project_index.yaml` 找路径 → read |
 | `{世界观相关实体}` | 分纲"世界观补充"字段 → read worldbuilding/ |
 | `{伏笔状态}` | `outline/追踪/伏笔.yaml` 筛选进行中/需回收 |
+| `{时间线上下文}` | `outline/追踪/时间线.yaml` 筛选本章 ±5 章的最近事件 |
 | `{支线状态}` | `project_index.yaml` 活跃支线 → read 支线 YAML |
 | `{本章交汇状态}` | `outline/情节线/主索引.yaml`（如存在）→ 匹配本章的多线交织条目 |
 | `{已知问题}` | `novel-issues.md` 过滤本章相关 |

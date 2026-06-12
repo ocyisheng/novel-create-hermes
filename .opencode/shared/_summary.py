@@ -54,6 +54,21 @@ def extract_markers(chapter_path: Path) -> dict:
         if names:
             result["characters"] = names
 
+    m = re.search(r'【时间线事件】\s*\n(.*?)(?=\n【|$)', text, re.DOTALL)
+    if m:
+        events = []
+        for line in m.group(1).strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            if "|" in line:
+                desc, time_val = line.split("|", 1)
+                events.append({"描述": desc.strip(), "时间": time_val.strip()})
+            else:
+                events.append({"描述": line})
+        if events:
+            result["timeline_events"] = events
+
     return result
 
 

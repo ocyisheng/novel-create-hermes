@@ -38,6 +38,7 @@ tags: ["novel", "chapter", "writing"]
 | 世界观相关实体 | 按分纲"世界观补充"字段 | read worldbuilding/ 对应文件 |
 | 待处理伏笔 | `outline/追踪/伏笔.yaml` | read 筛选进行中/需回收 |
 | 相关支线 | 活跃支线当前节点 | project_index.yaml → read 支线 YAML |
+| 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在）→ 多线交织总图中匹配本章的条目 | read 筛选。注明涉及哪些线、优先级、交汇内容 |
 | 已知问题 | `novel-issues.md` 相关条目 | read 筛选注入 |
 | 活跃风格 | config.yaml `活跃风格` → 风格文件 | read 全文件（≤30行） |
 

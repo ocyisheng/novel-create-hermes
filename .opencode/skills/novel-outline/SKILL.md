@@ -72,6 +72,7 @@ tags: ["novel", "outline", "plot"]
 | 总纲 | `outline/总纲.yaml` | `章节规划` `节奏安排` | `read` 全文件 |
 | 分卷 | `outline/分卷/*.yaml` | 目标卷的 `卷信息.核心冲突` `微弧分割` | `glob` + `read` |
 | 情节线 | `outline/情节线/*.yaml` | 每条线的 `摘要.一句话描述` `摘要.当前状态` | `glob` + `read` 摘要段 |
+| 主索引 | `outline/情节线/主索引.yaml`（如存在） | `多线交织总图`（交汇章节） `节奏总览`（各阶段线程分配） | `read` 全文件（如存在） |
 | 角色列表 | `project_index.yaml` | `characters` 段（所有角色的 `name` `status` `one_line`） | `read` 筛选活跃角色 |
 
 输出：`outline/分纲/卷{卷号}/第{N}章.yaml`，参见 `assets/chapter.yaml` 三层契约模板。

@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from _utils import find_project_root
-from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress
+from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress, update_plot_threads
 from _summary import extract_markers, persist_actual_summary
 
 try:
@@ -77,12 +77,17 @@ def main():
         update_timeline(cp, events_data)
         update_character_stats(cp, char_list)
         update_config_progress(cp)
+        plot_result = update_plot_threads(cp, char_list)
 
         print(f"已更新元数据: {cp.name}")
         print("  - 伏笔.yaml ✓")
         print("  - 时间线.yaml ✓")
         print("  - 角色统计.yaml ✓")
         print("  - config.yaml ✓")
+        if plot_result["updated"] > 0:
+            print(f"  - 情节线进度 ✓ ({plot_result['updated']} 条)")
+            for detail in plot_result["details"]:
+                print(f"    {detail}")
 
         summary = args.actual_summary
         if not summary and args.summary_file:

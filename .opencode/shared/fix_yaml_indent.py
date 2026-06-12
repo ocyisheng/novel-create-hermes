@@ -43,12 +43,26 @@ def find_block_scalar_content(lines):
                     break
     return content_lines
 
-def even_up(indent):
-    """将缩进向上取整为偶数（2的倍数）"""
+def even_up(indent, is_list=False, parent_indent=None):
+    """将缩进规范为偶数。
+
+    - 先规范化父级缩进（奇数向上取偶）
+    - 列表项：对齐到 parent + 2（取偶）
+    - 普通键：向上取整为偶数
+    """
+    # 规范化父级
+    if parent_indent is not None and parent_indent >= 0 and parent_indent % 2 != 0:
+        parent_indent = ((parent_indent + 2) // 2) * 2
+    # 列表项对齐到父级+2
+    if is_list and parent_indent is not None and parent_indent >= 0:
+        ideal = ((parent_indent + 2) // 2) * 2
+        if abs(indent - ideal) <= 2:
+            return ideal
+        return ((indent + 2) // 2) * 2
+    # 普通键：向上取整
     if indent % 2 == 0:
         return indent
-    else:
-        return ((indent + 2) // 2) * 2  # 等价于 (indent + 1) // 2 * 2，此处确保向上
+    return ((indent + 2) // 2) * 2
 
 def fix_yaml_indent(filepath, output=None):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -61,17 +75,42 @@ def fix_yaml_indent(filepath, output=None):
     block_content_lines = find_block_scalar_content(original_lines)
 
     # ------- 第一步：所有行缩进取整为偶数 -------
+    # 预计算每行的父级缩进（用于列表项对齐）
+    # 列表项的父级是包含此列表的映射键（跳过同级的其他列表项）
+    parent_indents = {}
+    for i, line in enumerate(original_lines):
+        if line.strip() == '' or line.strip().startswith('#'):
+            continue
+        stripped = line.lstrip(' ')
+        indent = len(line) - len(stripped)
+        is_this_list = stripped.startswith('- ')
+        for j in range(i - 1, -1, -1):
+            prev = original_lines[j]
+            if prev.strip() == '' or prev.strip().startswith('#'):
+                continue
+            ps = prev.lstrip(' ')
+            pi = len(prev) - len(ps)
+            # 对于列表项，跳过同级或更深的列表项，找真正包含此列表的映射键
+            if is_this_list and ps.startswith('- ') and pi <= indent:
+                continue
+            if pi < indent:
+                parent_indents[i] = pi
+                break
+
     for i, line in enumerate(original_lines):
         if line.strip() == '' or line.strip().startswith('#'):
             continue
         if i in block_content_lines:
-            continue  # 块标量内容是纯文本，不修改缩进
+            continue
         stripped = line.lstrip(' ')
         indent = len(line) - len(stripped)
         if indent % 2 != 0:
-            new_indent = even_up(indent)
-            fixed_lines[i] = ' ' * new_indent + stripped
-            print(f"  [取整] L{i+1}: {indent} -> {new_indent}  | {stripped[:60]}")
+            is_list = stripped.startswith('- ')
+            p_indent = parent_indents.get(i)
+            new_indent = even_up(indent, is_list=is_list, parent_indent=p_indent)
+            if new_indent != indent:
+                fixed_lines[i] = ' ' * new_indent + stripped
+                print(f"  [取整] L{i+1}: {indent} -> {new_indent}  | {stripped[:60]}")
 
     # ------- 第二步：同一父级下列表项缩进对齐（众数） -------
     def find_parent(line_idx, lines_list):
@@ -138,8 +177,46 @@ def fix_yaml_indent(filepath, output=None):
         nearest_stripped = nearest_above.lstrip(' ')
         nearest_indent = len(nearest_above) - len(nearest_stripped)
 
-        # 场景 B：最近的上方行是同缩进的列表项 → 当前行是父级映射的兄弟键
+        # 场景 B：最近的上方行是同缩进的列表项 → 当前行可能是兄弟键或子键
         if nearest_stripped.startswith('- ') and nearest_indent == indent:
+            # 检查1：该列表项后面是否有更深缩进的子键？
+            has_deeper_children = False
+            for j in range(nearest_above_idx + 1, i):
+                check_line = fixed_lines[j]
+                if check_line.strip() == '' or check_line.strip().startswith('#'):
+                    continue
+                check_indent = len(check_line) - len(check_line.lstrip(' '))
+                if check_indent > nearest_indent:
+                    has_deeper_children = True
+                    break
+            if has_deeper_children:
+                continue
+
+            # 检查2：当前行的键名是否出现在前面的列表项子键中？
+            # 若是 → 很可能是子键，不应提升，而是修正到正确缩进
+            current_key = stripped.split(':')[0].strip()
+            check2_is_child = False
+            for j in range(nearest_above_idx - 1, -1, -1):
+                prev = fixed_lines[j]
+                if prev.strip() == '' or prev.strip().startswith('#'):
+                    continue
+                ps = prev.lstrip(' ')
+                pi = len(prev) - len(ps)
+                if ps.startswith('- ') and pi < indent:
+                    break  # 出了当前列表段
+                if pi > nearest_indent:
+                    prev_key = ps.split(':')[0].strip()
+                    if prev_key == current_key:
+                        check2_is_child = True
+                        break
+            if check2_is_child:
+                # 确认是子键 → 修正到正确缩进（列表项 + 2）
+                correct = nearest_indent + 2
+                if indent != correct:
+                    fixed_lines[i] = ' ' * correct + stripped
+                    print(f"  [修正为子键] L{i+1}: {indent} -> {correct}  | {stripped[:60]}")
+                continue
+
             # 向上找到包含此列表的映射键（缩进 < nearest_indent 的非列表行）
             for j in range(nearest_above_idx - 1, -1, -1):
                 prev = fixed_lines[j]
@@ -194,10 +271,24 @@ def fix_yaml_indent(filepath, output=None):
                 parent_list_idx = j
                 break
         if parent_list_idx is None:
+            # 无父级列表项 → 尝试与上方最近的非列表键同级对齐
+            if (not nearest_stripped.startswith('- ')
+                    and MAPPING_KEY_WITH_VALUE_RE.match(nearest_stripped)
+                    and not BLOCK_SCALAR_RE.search(nearest_stripped)
+                    and indent < nearest_indent):
+                fixed_lines[i] = ' ' * nearest_indent + stripped
+                print(f"  [同级对齐] L{i+1}: {indent} -> {nearest_indent}  | {stripped[:60]}")
             continue
 
         parent_indent = len(fixed_lines[parent_list_idx]) - len(fixed_lines[parent_list_idx].lstrip(' '))
         if indent <= parent_indent:
+            # 有可能是同级子键：与上方最近的非列表键对齐
+            if (not nearest_stripped.startswith('- ')
+                    and MAPPING_KEY_WITH_VALUE_RE.match(nearest_stripped)
+                    and not BLOCK_SCALAR_RE.search(nearest_stripped)
+                    and indent < nearest_indent):
+                fixed_lines[i] = ' ' * nearest_indent + stripped
+                print(f"  [同级对齐] L{i+1}: {indent} -> {nearest_indent}  | {stripped[:60]}")
             continue
         correct_indent = parent_indent + 2
         if indent != correct_indent:

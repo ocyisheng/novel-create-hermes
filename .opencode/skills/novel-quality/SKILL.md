@@ -28,6 +28,7 @@ tags: ["novel", "quality"]
 | | 伏笔追踪 | `outline/追踪/伏笔.yaml` | `read` 筛选进行中/需回收 |
 | | 时间线 | `outline/追踪/时间线.yaml` | `read` |
 | | 情节线 | `outline/情节线/*.yaml` | `glob` + `read` |
+| | 主索引 | `outline/情节线/主索引.yaml`（如存在） | `read` 全文件 |
 | | 章节分纲 | `outline/分纲/卷*/第{N}章.yaml` | `read` |
 | 角色一致性检查 | 章节正文 | `chapters/第{N}章.txt` | `read` 全文 |
 | | 出场角色档案 | `characters/{角色ID}.yaml`（摘要段优先） | `project_index.yaml` → 找路径 → `read` |

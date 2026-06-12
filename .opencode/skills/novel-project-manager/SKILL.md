@@ -97,7 +97,7 @@ python .opencode/skills/novel-project-manager/scripts/init.py delete "项目名"
 | `import` | 导入旧项目 | `--root`, `--volumes` |
 | `status` | 查看/更新状态 | `--phase` |
 | `resume` | 续写项目（同一项目刷新） | — |
-| `switch` | **切换项目**（不同项目间原子化） | `--dry-run`, `--skip-sync`, `--no-verify` |
+| `switch` | 切换项目（不同项目间原子化） | `--dry-run`, `--skip-sync`, `--no-verify` |
 | `delete` | 删除项目 | `--force` |
 
 ## HARD CONSTRAINTS

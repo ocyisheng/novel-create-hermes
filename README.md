@@ -257,7 +257,7 @@ novel-outline/
 
 | 优先级 | 阶段 | 触发词 | 调度 |
 |--------|------|--------|------|
-| P-3 | 需求发现（按需） | 嵌入 P1/P6/P8 模糊分支 | `skill("novel-grill")` |
+| P-3 | 需求发现（按需） | 嵌入 P1/P2/P3/P4/P6/P7/P8/P13 模糊分支，或直接说 grill | `skill("novel-grill")` |
 | P-2 | 项目管理 | 新建/导入/切换/续写/删除 | `skill("novel-project-manager")` |
 | P-1 | 环境初始化 | 环境检测/安装依赖 | `skill("novel-env-setup")` |
 | P1 | 创意构思 | 没想法/没灵感/脑洞/构思 | `task(novel-ideation)` |
@@ -268,7 +268,7 @@ novel-outline/
 | P6 | 角色创建 | 角色/人物/角色档案 | `task(novel-entity)` |
 | P7 | 分纲构建 | 分纲/章节大纲/章纲 | `task(novel-outline)` |
 | P8 | 章节写作 | 第X章/写第 | `task(novel-chapter)` |
-| P9 | 质量检测 | 检测AI味/review/压力测试 | `task(novel-quality)` |
+| P9 | 质量检测 | 检测AI味/review/质量/评估 | `task(novel-quality)` |
 | P10 | 风格提取 | 提取风格/分析文风/模仿风格 | `task(novel-style)` |
 | P11 | 格式化导出（按需） | 导出/发布/publish/export | `task(novel-export)` |
 | P12 | 章节编辑（按需） | 润色/修订/反馈/修改章节 | `task(novel-chapter-editor)` |
@@ -289,13 +289,16 @@ novel-outline/
 
 ### 模糊度检测规则
 
-P1/P6/P8 根据需求明确度决定是否触发 grill：
+P1/P2/P3/P4/P6/P7/P8/P13 根据需求明确度决定是否触发 grill（完整规则见 novel-writer.md §3.2）：
 
 | 阶段 | 模糊判定条件 |
 |------|------------|
 | P1 创意 | 输入 ≤5 字；不含类型/基调/元素关键词；含"随便/推荐/不知道"；`ideation/` 目录为空 |
 | P6 角色 | 不含角色类型/定位/性格关键词；无已有角色；泛化请求 |
 | P8 章节 | 不含具体章节号或内容提示；仅"继续写/下一章" |
+| P13 编辑 | 不含具体字段名或修改方向；未指定目标实体名 |
+
+> 也可以直接说 `grill` 或使用 `/novel-grill` 命令主动启动需求发现。
 
 ---
 

@@ -45,13 +45,15 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 状态审计?        → 文件证据评估（§3.3）→ 报告阶段
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
-  │   ├─ P1/P6（模糊需求）→ read → skill("novel-grill") → 加载上下文 → task() → 写后维护
-  │   ├─ P2（模糊需求，如"写个大纲"）→ read → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index + set-phase(P2→P3)
-  │   ├─ P3（模糊需求，如"生成分卷"）→ read 总纲 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index
-  │   ├─ P4（模糊需求，如"设计情节线"）→ read 总纲 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index
-  │   ├─ P7（模糊需求，如"写分纲"）→ read 分卷 → skill("novel-grill") → 加载上下文 → task(novel-outline) → rebuild_index + set-phase(P7→P8)
-  │   ├─ P8（模糊需求，如"继续写""下一章"）→ read 分纲 → skill("novel-grill") → 加载上下文 → task(novel-chapter) → auto_update + rebuild_index
-  │   ├─ P13（模糊编辑请求，如"改一下角色""世界观改一改"）→ read 实体文件 → skill("novel-grill") → 加载上下文 → task(novel-entity-editor) → 实体后处理（§5.4）
+  │   ├─ 需求发现（grill/需求发现）→ 询问模式 → skill("novel-grill")
+  │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → task() → 写后维护
+  │   ├─ P6 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → task() → 写后维护
+  │   ├─ P2 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → task(novel-outline) → rebuild_index + set-phase(P2→P3)
+  │   ├─ P3 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → task(novel-outline) → rebuild_index
+  │   ├─ P4 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → task(novel-outline) → rebuild_index
+  │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → task(novel-outline) → rebuild_index + set-phase(P7→P8)
+  │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → task(novel-chapter) → auto_update + rebuild_index
+  │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → task(novel-entity-editor) → 实体后处理（§5.4）
   │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ 编辑模式：
   │   │   ├─ P2/P3/P4/P7(大纲/分卷/分纲) → outline 修订模式
   │   │   ├─ P5/P6/P13(世界观/角色/实体) → novel-entity-editor → 实体后处理（§5.4）
@@ -78,7 +80,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 | 优先级 | 触发条件 | 调度 | 写后处理 |
 |--------|---------|------|---------|
-| P-3 | 需求发现（嵌入 P1/P2/P3/P4/P6/P7/P8/P13 模糊分支） | `skill("novel-grill")` | 无 |
+| P-3 | 需求发现（嵌入 P1/P2/P3/P4/P6/P7/P8/P13 模糊分支 或 独立 grill/需求发现入口） | `skill("novel-grill")` | 无 |
 | P1 | 创意构思（没想法/没灵感/脑洞/构思） | `category="novel-ideate", load_skills=["novel-ideation"]` | rebuild_index（若有新实体） |
 | P2 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-outline"]` | rebuild_index + set-phase(P2→P3) |
 | P3 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` | rebuild_index |
@@ -87,7 +89,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P6 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-entity"]` | rebuild_index + fix_yaml_indent |
 | P7 | 分纲构建（分纲/章节大纲/章纲） | `category="novel-write", load_skills=["novel-outline"]` | rebuild_index + set-phase(P7→P8) |
 | P8 | 章节写作（第X章/写第）+ 分纲存在 | `category="novel-write", load_skills=["novel-chapter"]` | auto_update + rebuild_index |
-| P9 | 质量检测（检测AI味/review/压力测试/拷问/推敲/质疑/挑战） | `category="novel-review", load_skills=["novel-quality"]` | 无（只写报告） |
+| P9 | 质量检测（检测AI味/review/质量/评估） | `category="novel-review", load_skills=["novel-quality"]` | 无（只写报告） |
 | P10 | 风格提取（提取风格/分析文风/模仿风格） | `category="novel-ideate", load_skills=["novel-style"]` | style_manager.py validate → register → activate |
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `category="novel-write", load_skills=["novel-export"]` | 无（调用 export.py） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | `category="novel-write", load_skills=["novel-chapter-editor"]` | 无（不改元数据） |

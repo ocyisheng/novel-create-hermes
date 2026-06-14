@@ -72,7 +72,7 @@ def detect_phase(project_root: Path) -> tuple[str, str]:
     if fengang_dir.is_dir() and list(fengang_dir.rglob("*.yaml")):
         return ("P7 分纲已就绪", "outline/分纲/ 下有文件")
 
-    if count_files(characters_dir) > 1:  # >1 to skip 角色统计.yaml
+    if count_files(characters_dir) > 0:
         return ("P6 角色已创建", f"characters/ 下有 {count_files(characters_dir)} 个文件")
 
     if worldbuilding_dir.is_dir() and list(worldbuilding_dir.glob("*.yaml")):

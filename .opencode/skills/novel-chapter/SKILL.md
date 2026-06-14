@@ -29,19 +29,40 @@ tags: ["novel", "chapter", "writing"]
 
 编排层在调用前按以下清单加载，`extract_template.py` 填充到模板变量中。
 
+**快捷方式**：使用 `chapter_context.py` 一次性收集全部上下文：
+
+```bash
+python .opencode/shared/chapter_context.py \
+    --project-root {PROJECT_PATH} --chapter {章节号} --output /tmp/context.json
+```
+
+然后用 `extract_template.py` 填充：
+
+```bash
+python .opencode/shared/extract_template.py \
+    --skill novel-chapter \
+    --var 项目名 "{项目名}" --var 章节号 "{章节号}" \
+    --var 本章分纲内容 - --var 前章摘要 - --var 前一章衔接 - \
+    --var 出场角色档案 - --var 世界观相关实体 - --var 伏笔状态 - \
+    --var 支线状态 - --var 已知问题 - --var 活跃风格 - \
+    < /tmp/context.json
+```
+
+**槽位清单**：
+
 | 槽位 | 内容 | 加载方式 |
 |------|------|---------|
-| 本章分纲 | `outline/分纲/卷{卷号}/第{N}章.yaml` | read 关键字段（场景、出场角色、冲突、转折、收尾） |
-| 前章摘要 | 第{N-1}章分纲 `摘要.本章摘要` | read 字段值 |
-| 前一章衔接 | 最后 100 字 + 悬念钩子 | `last_100.py` + 分纲.下章铺垫 |
-| 出场角色档案 | 从分纲提取角色名 → 读完整档案 | project_index.yaml → read |
-| 世界观相关实体 | 按分纲"世界观补充"字段 | read worldbuilding/ 对应文件 |
-| 待处理伏笔 | `outline/追踪/伏笔.yaml` | read 筛选进行中/需回收 |
-| 时间线上下文 | `outline/追踪/时间线.yaml` | read 筛选本章附近章节的事件（±5章），提供故事当前时间锚点 |
-| 相关支线 | 活跃支线当前节点 | project_index.yaml → read 支线 YAML |
-| 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在）→ 多线交织总图中匹配本章的条目 | read 筛选。注明涉及哪些线、优先级、交汇内容 |
-| 已知问题 | `novel-issues.md` 相关条目 | read 筛选注入 |
-| 活跃风格 | config.yaml `活跃风格` → 风格文件 | read 全文件（≤30行） |
+| 本章分纲 | `outline/分纲/卷{卷号}/第{N}章.yaml` | `chapter_context.py` 或 read |
+| 前章摘要 | `outline/追踪/章节摘要.yaml` 中第{N-1}章的摘要 | `chapter_context.py` 或 read |
+| 前一章衔接 | 最后 100 字 + 悬念钩子 | `chapter_context.py` 或 `last_100.py` |
+| 出场角色档案 | 从分纲提取角色名 → 读完整档案 | `chapter_context.py` 或 project_index.yaml → read |
+| 世界观相关实体 | 按分纲"世界观补充"字段 | `chapter_context.py` 或 read worldbuilding/ |
+| 待处理伏笔 | `outline/追踪/伏笔.yaml` | `chapter_context.py` 或 read |
+| 时间线上下文 | `outline/追踪/时间线.yaml` | read 筛选本章附近章节的事件（±5章） |
+| 相关支线 | 活跃支线当前节点 | `chapter_context.py` 或 project_index.yaml → read |
+| 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在）→ 多线交织总图中匹配本章的条目 | read 筛选 |
+| 已知问题 | `novel-issues.md` 相关条目 | `chapter_context.py` 或 read |
+| 活跃风格 | config.yaml `活跃风格` → 风格文件 | `chapter_context.py` 或 read |
 
 ## 输出
 

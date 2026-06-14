@@ -32,6 +32,7 @@ tags: ["novel", "quality"]
 | | 章节分纲 | `outline/分纲/卷*/第{N}章.yaml` | `read` |
 | 角色一致性检查 | 章节正文 | `chapters/第{N}章.txt` | `read` 全文 |
 | | 出场角色档案 | `characters/{角色ID}.yaml`（摘要段优先） | `project_index.yaml` → 找路径 → `read` |
+| | 角色统计 | `outline/追踪/角色统计.yaml` | `read` 筛选本章出场角色的历史状态 |
 | 世界观漏洞检测 | 章节正文 | `chapters/第{N}章.txt` | `read` 全文 |
 | | 世界观实体 | `worldbuilding/*.yaml` | `glob` + `read` |
 | 节奏分析 | 章节正文 | `chapters/第{N}章.txt` + 相邻章节 | `read` |
@@ -89,15 +90,24 @@ tags: ["novel", "quality"]
 
 检测角色性格、行为、语言、能力边界的前后一致性。
 
-### 5 个检测维度
+### 6 个检测维度
 1. **性格一致性**：角色性格是否前后矛盾
 2. **行为一致性**：角色行为是否符合性格设定
 3. **语言风格**：对话是否符合角色身份
 4. **能力边界**：角色能力是否超出设定
 5. **关系动态**：角色关系变化是否合理
+6. **状态连续性**：角色状态是否与上一次出场时的状态连续（读取 `角色统计.yaml` 检测状态跳跃）
+
+### 状态连续性检测规则
+
+读取 `outline/追踪/角色统计.yaml`，获取本章出场角色的上一次记录：
+- 若上一次记录有 `状态` 字段，检查本章中该角色的状态是否与之连续
+- **连续示例**：上一次"重伤" → 本章"康复"（合理过渡）
+- **跳跃示例**：上一次"重伤" → 本章"正常战斗"（警告：状态跳跃）
+- **无记录**：首次出场或无状态记录 → 跳过检测
 
 ### 加载策略
-先读 project_index.yaml 确定本章涉及角色，再读 characters/.summary/{角色ID}.yaml 获取当前境况（~30行/角色），仅在需要深度检查时读取完整 characters/{角色}.yaml
+先读 project_index.yaml 确定本章涉及角色，再读 characters/{角色ID}.yaml 的 `摘要` 段获取当前境况（~30行/角色），仅在需要深度检查时读取完整 `完整档案` 段
 
 ### 注意事项
 区分"角色成长"与"性格突变"；尊重角色多面性；关注关键角色和重要场景
@@ -168,8 +178,8 @@ tags: ["novel", "quality"]
     输入：章节正文 + outline/追踪/伏笔.yaml + outline/追踪/时间线.yaml
     输出：quality/第{N}章_情节逻辑检测.yaml
     ↓
- 3. 角色一致性检查
-     输入：章节正文 + project_index.yaml + characters/.summary/*.yaml（摘要层优先）
+  3. 角色一致性检查
+     输入：章节正文 + project_index.yaml + characters/{角色ID}.yaml（摘要段优先）+ outline/追踪/角色统计.yaml
      输出：quality/第{N}章_角色一致性检查.yaml
     ↓
  4. 世界观漏洞检测

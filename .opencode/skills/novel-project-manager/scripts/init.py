@@ -560,8 +560,7 @@ styles: []
                 "  名称: \"主线\"\n"
                 "  类型: \"main\"\n"
                 "  状态: \"active\"\n"
-                "  起始章节: 1\n"
-                "  当前章节位置: 0\n\n"
+                "  起始章节: 1\n\n"
                 "摘要:\n"
                 "  一句话描述: \"\"\n"
                 "  当前境况: \"\"\n"
@@ -593,8 +592,7 @@ styles: []
                 "  名称: \"支线示例\"\n"
                 "  类型: \"sub\"\n"
                 "  状态: \"active\"\n"
-                "  起始章节: 0\n"
-                "  当前章节位置: 0\n\n"
+                "  起始章节: 0\n\n"
                 "摘要:\n"
                 "  一句话描述: \"\"\n"
                 "  当前境况: \"\"\n"
@@ -622,18 +620,43 @@ styles: []
         track_dir = ol_path / "追踪"
         track_templates = {
             "伏笔.yaml": (
-                "# 伏笔追踪\n\n"
+                "# 伏笔记录\n\n"
                 "伏笔:\n"
-                "  - 描述: \"\"\n"
-                "    章节: \"\"\n"
-                "    状态: \"\"\n"
+                "  # 每章写后追加记录\n"
+                "  # - 描述: \"伏笔内容\"\n"
+                "  #   章节: 1\n"
+                "  #   状态: \"待回收\"\n"
             ),
             "时间线.yaml": (
-                "# 时间线事件\n\n"
+                "# 时间线记录\n\n"
                 "事件:\n"
-                "  - 描述: \"\"\n"
-                "    时间: \"\"\n"
-                "    章节: \"\"\n"
+                "  # 每章写后追加记录\n"
+                "  # - 描述: \"事件内容\"\n"
+                "  #   章节: 1\n"
+                "  #   时间: \"故事时间\"\n"
+            ),
+            "角色统计.yaml": (
+                "# 角色出场统计\n\n"
+                "出场:\n"
+                "  # 每章写后追加记录\n"
+                "  # - 角色: \"角色名\"\n"
+                "  #   章节: 1\n"
+                "  #   状态: \"重伤\"\n"
+            ),
+            "情节线进度.yaml": (
+                "# 情节线进度记录（每章写后追加）\n\n"
+                "进度:\n"
+                "  # 每章写后追加记录\n"
+                "  # - 情节线: \"main_plot\"\n"
+                "  #   章节: 1\n"
+                "  #   时间: \"2024-01-01T00:00:00\"\n"
+            ),
+            "章节摘要.yaml": (
+                "# 章节摘要记录（每章写后追加）\n\n"
+                "摘要:\n"
+                "  # 每章写后追加记录\n"
+                "  # - 章节: 1\n"
+                "  #   摘要: \"本章讲了什么\"\n"
             ),
         }
         for filename, content in track_templates.items():
@@ -652,12 +675,6 @@ styles: []
         if rem == 0:
             return f"{digits[tens]}十"
         return f"{digits[tens]}十{digits[rem]}"
-
-    def create_character_stats_file(self):
-        """创建角色统计文件（移到了 characters/ 下）"""
-        char_path = self.project_path / "characters"
-        content = "# 角色出场统计\n\n角色:\n  \"\":\n    总出场章节: 0\n    出场章节列表: []\n    首次出场: 0\n    最近出场: 0\n"
-        (char_path / "角色统计.yaml").write_text(content, encoding='utf-8')
 
     def create_ideation_templates(self):
         """创建创意构思目录及 5 个阶段模板文件"""
@@ -844,7 +861,6 @@ chapters: {{}}
         self._create_style_index()
         self.create_worldbuilding_files()
         self.create_outline_files()
-        self.create_character_stats_file()
         self.create_ideation_templates()
         self.create_index_file()
         self._index_initial_entities()
@@ -866,7 +882,7 @@ chapters: {{}}
         print("  ✓ config.yaml")
         for wb in ["基本信息", "核心规则", "力量体系", "势力格局", "地理位置", "历史", "文化"]:
             print(f"  ✓ worldbuilding/{wb}.yaml")
-        print("  ✓ characters/角色统计.yaml")
+        print("  ✓ outline/追踪/角色统计.yaml")
         print("  ✓ project_index.yaml")
         print("-" * 40)
         print(f"✅ 项目 '{self.project_name}' 创建完成！")
@@ -1549,108 +1565,190 @@ class ProjectImporter:
             elif item.is_dir():
                 shutil.copytree(item, dest, dirs_exist_ok=True)
 
-        # 3. 自动分类已知文件（带细粒度路由）
-        auto_moved = 0
-        worldbuilding_upgraded = 0
-        for item in list(staging_dir.rglob("*")):
-            if not item.is_file():
-                continue
+        # 3. 基于文件内容的智能分类、路由与格式转换
+        # 调用 classify_import.py 替代旧版硬编码文件名/关键词规则
+        classify_script = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "shared" / "classify_import.py"
+        )
+        classify_ok = False
+        try:
+            result = subprocess.run(
+                [sys.executable, str(classify_script),
+                 "--staging-dir", str(staging_dir.resolve()),
+                 "--project-root", str(self.project_path.resolve()),
+                 "--volumes", str(self.volume_count),
+                 "--source-path", str(self.source_path.resolve())],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode == 0:
+                classify_ok = True
+                # 读取 classify_import 生成的 migration_report
+                report_path = self.project_path / "migration_report.yaml"
+                if report_path.exists():
+                    with open(report_path, 'r', encoding='utf-8') as f:
+                        report = yaml.safe_load(f) or {}
+                # 打印 classify_import 的输出
+                for line in result.stdout.strip().splitlines():
+                    print(line)
+            else:
+                print(f"  ⚠️  classify_import 失败（rc={result.returncode}），回退旧版路由")
+                print(f"     stderr: {result.stderr.strip()[:300]}")
+        except subprocess.TimeoutExpired:
+            print("  ⚠️  classify_import 超时，回退旧版路由")
+        except FileNotFoundError:
+            print("  ⚠️  classify_import.py 未找到，回退旧版路由")
+        except Exception as e:
+            print(f"  ⚠️  classify_import 异常: {e}，回退旧版路由")
 
-            suffix = item.suffix.lower()
+        # 旧版路由：作为 classify_import 的降级兜底
+        if not classify_ok:
+            auto_moved = 0
+            worldbuilding_upgraded = 0
+            for item in list(staging_dir.rglob("*")):
+                if not item.is_file():
+                    continue
 
-            # .txt 文件 → chapters/
-            if suffix == ".txt":
-                dest = self.project_path / "chapters" / item.name
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
+                suffix = item.suffix.lower()
 
-            # 基于文件名精准路由
-            name = item.name
-
-            # 大纲元文档 → 分路由
-            if name in ("故事结构.yaml", "故事结构.yml"):
-                dest = self.project_path / "outline" / "总纲" / f"总纲{Path(item.name).suffix}"
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-            if name in ("情节线.yaml", "情节线.yml"):
-                dest = self.project_path / "outline" / "情节线" / f"主线{Path(item.name).suffix}"
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-            if name in ("伏笔.yaml", "伏笔.yml"):
-                dest = self.project_path / "outline" / "追踪" / f"伏笔{Path(item.name).suffix}"
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-            if name in ("时间线.yaml", "时间线.yml"):
-                dest = self.project_path / "outline" / "追踪" / f"时间线{Path(item.name).suffix}"
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-            if name in ("角色弧光.yaml", "角色弧光.yml", "世界观接轨.yaml", "世界观接轨.yml"):
-                dest = self.project_path / "outline" / item.name
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-
-            # 章节分纲 → 按章号动态分入对应卷
-            chapter_match = re.match(r"第\s*(\d+)\s*章", name)
-            if chapter_match and suffix in (".yaml", ".yml"):
-                ch_num = int(chapter_match.group(1))
-                # Use volume count from config or default to 3
-                vol_count = getattr(self, 'volume_count', 3)
-                ch_per_vol = max(1, math.ceil(100 / vol_count))
-                vol_num = min(math.ceil(ch_num / ch_per_vol), vol_count)
-                vol = f"卷{vol_num}"
-                vol_dir = self.project_path / "outline" / "分纲" / vol
-                vol_dir.mkdir(parents=True, exist_ok=True)
-                dest = vol_dir / item.name
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-
-            # 通用分类
-            guess = self._guess_file_type_by_name(item)
-
-            if guess == 'likely_character' and suffix in (".yaml", ".yml"):
-                dest = self.project_path / "characters" / item.name
-                shutil.move(str(item), str(dest))
-                auto_moved += 1
-                continue
-            elif guess == 'likely_worldbuilding' and suffix in (".yaml", ".yml"):
-                # 尝试升级为三层格式
-                upgraded = self._upgrade_worldbuilding_to_threelayer(item)
-                if upgraded:
-                    dest = self.project_path / "worldbuilding" / item.name
-                    dest.write_text(upgraded, encoding='utf-8')
-                    item.unlink()  # 删除暂存区旧文件
-                    worldbuilding_upgraded += 1
-                    auto_moved += 1
-                else:
-                    dest = self.project_path / "worldbuilding" / item.name
+                # .txt 文件 → chapters/
+                if suffix == ".txt":
+                    dest = self.project_path / "chapters" / item.name
                     shutil.move(str(item), str(dest))
                     auto_moved += 1
-                continue
+                    continue
 
-        # 4. 生成 migration_report
-        report = self._generate_migration_report()
-        report_path = self.project_path / "migration_report.yaml"
+                # 基于文件名精准路由
+                name = item.name
 
-        with open(report_path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(report, f, allow_unicode=True, default_flow_style=False)
+                if name in ("故事结构.yaml", "故事结构.yml"):
+                    dest = self.project_path / "outline" / "总纲" / f"总纲{Path(item.name).suffix}"
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+                if name in ("情节线.yaml", "情节线.yml"):
+                    dest = self.project_path / "outline" / "情节线" / f"主线{Path(item.name).suffix}"
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+                if name in ("伏笔.yaml", "伏笔.yml"):
+                    dest = self.project_path / "outline" / "追踪" / f"伏笔{Path(item.name).suffix}"
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+                if name in ("时间线.yaml", "时间线.yml"):
+                    dest = self.project_path / "outline" / "追踪" / f"时间线{Path(item.name).suffix}"
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+                if name in ("角色弧光.yaml", "角色弧光.yml", "世界观接轨.yaml", "世界观接轨.yml"):
+                    dest = self.project_path / "outline" / item.name
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
 
-        # 5. 生成 config.yaml（如果不存在）
+                # 章节分纲 → 按章号动态分入对应卷
+                chapter_match = re.match(r"第\s*(\d+)\s*章", name)
+                if chapter_match and suffix in (".yaml", ".yml"):
+                    ch_num = int(chapter_match.group(1))
+                    vol_count = getattr(self, 'volume_count', 3)
+                    ch_per_vol = max(1, math.ceil(100 / vol_count))
+                    vol_num = min(math.ceil(ch_num / ch_per_vol), vol_count)
+                    vol = f"卷{vol_num}"
+                    vol_dir = self.project_path / "outline" / "分纲" / vol
+                    vol_dir.mkdir(parents=True, exist_ok=True)
+                    dest = vol_dir / item.name
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+
+                # 通用分类（旧版：仅基于文件名）
+                guess = self._guess_file_type_by_name(item)
+
+                if guess == 'likely_character' and suffix in (".yaml", ".yml"):
+                    dest = self.project_path / "characters" / item.name
+                    shutil.move(str(item), str(dest))
+                    auto_moved += 1
+                    continue
+                elif guess == 'likely_worldbuilding' and suffix in (".yaml", ".yml"):
+                    upgraded = self._upgrade_worldbuilding_to_threelayer(item)
+                    if upgraded:
+                        dest = self.project_path / "worldbuilding" / item.name
+                        dest.write_text(upgraded, encoding='utf-8')
+                        item.unlink()
+                        worldbuilding_upgraded += 1
+                        auto_moved += 1
+                    else:
+                        dest = self.project_path / "worldbuilding" / item.name
+                        shutil.move(str(item), str(dest))
+                        auto_moved += 1
+                    continue
+
+            # 旧版 migration_report 生成
+            report = self._generate_migration_report()
+            report_path = self.project_path / "migration_report.yaml"
+            with open(report_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(report, f, allow_unicode=True, default_flow_style=False)
+            summary = report["migration_report"]["summary"]
+
+            print(f"📁 导入项目: {self.project_name}")
+            print("-" * 40)
+            print(f"📂 位置: {self.project_path.absolute()}")
+            print(f"📋 自动分类: {auto_moved} 个文件")
+            if worldbuilding_upgraded > 0:
+                print(f"⬆️  worldview 三层升级: {worldbuilding_upgraded} 个文件")
+            print(f"🔍 待 Agent 审查: {summary['needs_review_count']} 个文件")
+            print(f"📄 迁移报告: migration_report.yaml")
+            print(f"📊 项目索引: project_index.yaml")
+            if summary['needs_review_count'] > 0:
+                print("⚠️  请 Agent 读取 migration_report.yaml 并处理待分类文件")
+            print(f"✅ 项目 '{self.project_name}' 导入完成！")
+
+        # 3b. 后处理：YAML 缩进修复 + 一致性校验 + 索引重建
+        if classify_ok:
+            print("\n🔧 后处理中...")
+            shared_dir = Path(__file__).resolve().parent.parent.parent.parent / "shared"
+            pp_dirs = ["characters", "worldbuilding", "outline/分纲"]
+            for pp_dir in pp_dirs:
+                target = self.project_path / pp_dir
+                if target.is_dir():
+                    fix_result = subprocess.run(
+                        [sys.executable, str(shared_dir / "fix_yaml_indent.py"),
+                         "--dir", str(target), "--recursive"],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if fix_result.returncode == 0 and fix_result.stdout.strip():
+                        for line in fix_result.stdout.strip().splitlines():
+                            print(f"     {line}")
+            # 一致性校验
+            validate_result = subprocess.run(
+                [sys.executable, str(shared_dir / "validate_entity_consistency.py"),
+                 "--project-root", str(self.project_path.resolve())],
+                capture_output=True, text=True, timeout=60,
+            )
+            if validate_result.returncode == 0 and validate_result.stdout.strip():
+                for line in validate_result.stdout.strip().splitlines():
+                    print(f"     {line}")
+            # 索引重建
+            rebuild_result = subprocess.run(
+                [sys.executable, str(shared_dir / "rebuild_project_index.py"),
+                 "--project-root", str(self.project_path.resolve())],
+                capture_output=True, text=True, timeout=60,
+            )
+            if rebuild_result.returncode == 0:
+                for line in rebuild_result.stdout.strip().splitlines():
+                    print(f"     {line}")
+
+        # 4. 生成 config.yaml（如果不存在）
         config_path = self.project_path / "config.yaml"
         if not config_path.exists():
-            now = datetime.now().strftime("%Y-%m-%d")
+            now_cfg = datetime.now().strftime("%Y-%m-%d")
             config_content = f"""项目名称: "{self.project_name}"
 项目类型: "未知"
 状态: "进行中"
 当前阶段: "创意构思"
-创建时间: "{now}"
-最后编辑: "{now}"
+创建时间: "{now_cfg}"
+最后编辑: "{now_cfg}"
 
 创作进度:
   当前章节: 0
@@ -1666,11 +1764,10 @@ class ProjectImporter:
 """
             config_path.write_text(config_content, encoding='utf-8')
 
-        # 5.5 生成 project_index.yaml 骨架
+        # 5. 生成 project_index.yaml 骨架
         index_path = self.project_path / "project_index.yaml"
         if not index_path.exists():
-            from datetime import datetime as dt_ix
-            now_ix = dt_ix.now().strftime("%Y-%m-%dT%H:%M:%S")
+            now_ix = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             index_content = f"""# 项目实体索引 — 由 rebuild_project_index.py 维护
 _meta:
   generated_by: "novel-project-manager/init.py"
@@ -1690,23 +1787,7 @@ chapters: {{}}
 """
             index_path.write_text(index_content, encoding='utf-8')
 
-        # 6. 输出结果
-        summary = report["migration_report"]["summary"]
-        print(f"📁 导入项目: {self.project_name}")
-        print("-" * 40)
-        print(f"📂 位置: {self.project_path.absolute()}")
-        print(f"📋 自动分类: {auto_moved} 个文件")
-        if worldbuilding_upgraded > 0:
-            print(f"⬆️  worldview 三层升级: {worldbuilding_upgraded} 个文件")
-        print(f"🔍 待 Agent 审查: {summary['needs_review_count']} 个文件")
-        print(f"📄 迁移报告: migration_report.yaml")
-        print(f"📊 项目索引: project_index.yaml")
-        if summary['needs_review_count'] > 0:
-            print("⚠️  请 Agent 读取 migration_report.yaml 并处理待分类文件")
-        print(f"✅ 项目 '{self.project_name}' 导入完成！")
-
-        # 8. 清理暂存区
-        staging_dir = self.project_path / "_migration_staging"
+        # 6. 清理暂存区
         if staging_dir.exists():
             shutil.rmtree(staging_dir)
         return True

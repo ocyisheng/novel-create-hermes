@@ -27,6 +27,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         "description": "角色档案 (characters/{角色名}.yaml)",
         "editable": [
             "索引信息.角色类型",
+            "索引信息.势力",
             "索引信息.状态",
             "摘要.一句话描述",
             "摘要.当前境况",
@@ -94,7 +95,6 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         "auto_fields": [
             "_meta.updated_at",
             "索引信息.首次出场章节",
-            "索引信息.当前章节位置",
         ],
     },
     "worldbuilding": {
@@ -104,7 +104,6 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "索引信息.实体子类型",
             "索引信息.状态",
             "摘要.一句话描述",
-            "摘要.章节关联",
             "摘要.关键词",
             "完整档案.世界名称",
             "完整档案.时代背景",
@@ -190,7 +189,6 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         "auto_fields": [
             "_meta.updated_at",
             "索引信息.起始章节",
-            "索引信息.当前章节位置",
         ],
     },
     "outline_synopsis": {

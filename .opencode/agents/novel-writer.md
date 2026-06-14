@@ -11,7 +11,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P14 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`;写入、编辑YAML文件后或需要校验的，用`fix_yaml_indent.py`校验修复；novel-entity-editor 修改实体后执行实体后处理（§5.4）；失败则记 `novel-issues.md`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P14 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`;写入、编辑YAML文件后或需要校验的，用`fix_yaml_indent.py`校验修复（使用脚本自动处理的不需要校验修复）；novel-entity-editor 修改实体后执行实体后处理（§5.4）；失败则记 `novel-issues.md`。
 
 **NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
 
@@ -154,21 +154,28 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 
 ### P8 章节写作（详细）
 
+**快捷方式**：使用 `chapter_context.py` 一次性收集全部上下文：
+
+```bash
+python .opencode/shared/chapter_context.py \
+    --project-root {PROJECT_PATH} --chapter {章节号} --output /tmp/context.json
+```
+
 | 变量 | 数据来源 |
 |------|---------|
 | `{项目名}` | config.yaml |
 | `{章节号}` | 目标章节号 |
-| `{本章分纲内容}` | read 分纲：场景、出场角色、冲突、转折、收尾、下章铺垫、世界观补充 |
-| `{前章摘要}` | 第{N-1}章分纲 `摘要.本章摘要`（N>1） |
-| `{前一章衔接}` | `last_100.py` + 第{N-1}章分纲.下章铺垫 |
-| `{出场角色档案}` | 分纲提取角色名 → `project_index.yaml` 找路径 → read |
-| `{世界观相关实体}` | 分纲"世界观补充"字段 → read worldbuilding/ |
-| `{伏笔状态}` | `outline/追踪/伏笔.yaml` 筛选进行中/需回收 |
+| `{本章分纲内容}` | `chapter_context.py` 或 read 分纲 |
+| `{前章摘要}` | `chapter_context.py` 或 `outline/追踪/章节摘要.yaml` |
+| `{前一章衔接}` | `chapter_context.py` 或 `last_100.py` + 分纲.下章铺垫 |
+| `{出场角色档案}` | `chapter_context.py` 或 分纲提取角色名 → `project_index.yaml` 找路径 → read |
+| `{世界观相关实体}` | `chapter_context.py` 或 分纲"世界观补充"字段 → read worldbuilding/ |
+| `{伏笔状态}` | `chapter_context.py` 或 `outline/追踪/伏笔.yaml` |
 | `{时间线上下文}` | `outline/追踪/时间线.yaml` 筛选本章 ±5 章的最近事件 |
-| `{支线状态}` | `project_index.yaml` 活跃支线 → read 支线 YAML |
+| `{支线状态}` | `chapter_context.py` 或 `project_index.yaml` 活跃支线 → read |
 | `{本章交汇状态}` | `outline/情节线/主索引.yaml`（如存在）→ 匹配本章的多线交织条目 |
-| `{已知问题}` | `novel-issues.md` 过滤本章相关 |
-| `{活跃风格}` | config.yaml → `render_style.py --mode chapter` |
+| `{已知问题}` | `chapter_context.py` 或 `novel-issues.md` |
+| `{活跃风格}` | `chapter_context.py` 或 config.yaml → `render_style.py --mode chapter` |
 | `{grill_写作方案}` | `quality/grill/chapter_需求_*.yaml` |
 
 ### P9 质量检测（四路并行）
@@ -179,7 +186,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 |---------|------------|------------|------------|
 | AI 味道检测 | `"AI 味道检测"` | 无 | `quality/第{N}章_AI味道检测.yaml` |
 | 情节逻辑 | `"情节逻辑检测"` | `outline/追踪/伏笔.yaml` `时间线.yaml` `情节线/*.yaml` `情节线/主索引.yaml`（如存在） | `quality/第{N}章_情节逻辑检测.yaml` |
-| 角色一致性 | `"角色一致性检查"` | `project_index.yaml` `characters/`（摘要优先） | `quality/第{N}章_角色一致性检查.yaml` |
+| 角色一致性 | `"角色一致性检查"` | `project_index.yaml` `characters/`（摘要优先） `outline/追踪/角色统计.yaml` | `quality/第{N}章_角色一致性检查.yaml` |
 | 世界观漏洞 | `"世界观漏洞检测"` | `worldbuilding/*.yaml` | `quality/第{N}章_世界观漏洞检测.yaml` |
 
 若 active_style 非空，追加风格一致性检查：`{检测类型}`=`"风格一致性检查"`，`{相关素材}`=`render_style.py --mode check` 输出的 7 维度评估表。

@@ -59,7 +59,8 @@ tags: ["novel", "outline", "plot"]
 | 槽位 | 文件路径 | 提取字段 | 加载方式 |
 |------|---------|---------|---------|
 | 总纲 | `outline/总纲.yaml` | `幕结构` `分卷` `关键事件` `节奏安排` | `read` 全文件 |
-| 已有情节线 | `outline/情节线/*.yaml` | 每条线的 `索引信息.实体ID` `索引信息.当前章节位置` | `glob` + `read` 摘要段 |
+| 已有情节线 | `outline/情节线/*.yaml` | 每条线的 `索引信息.实体ID` | `glob` + `read` 摘要段 |
+| 情节线进度 | `outline/追踪/情节线进度.yaml` | 进度列表 | `read` 筛选活跃线 |
 
 输出：`outline/情节线/主线.yaml` + `outline/情节线/支线_{名称}.yaml`，参见 `assets/plot_thread.yaml` 模板。
 

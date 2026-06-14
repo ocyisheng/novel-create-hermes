@@ -66,7 +66,7 @@ ENTITY_SCAN_CONFIG = {
     "characters": {
         "dir": "characters",
         "glob": "*.yaml",
-        "skip": ["角色统计.yaml"],
+        "skip": [],
         "id_path": "索引信息.实体ID",
         "fields": {
             "name": "索引信息.名称",
@@ -76,9 +76,6 @@ ENTITY_SCAN_CONFIG = {
         "extra": {
             "type": "索引信息.角色类型",
             "first_chapter": "索引信息.首次出场章节",
-            "current_chapter": "索引信息.当前章节位置",
-            "birth_time": "完整档案.基本信息.出生时间",
-            "death_time": "完整档案.基本信息.死亡时间",
         },
     },
     "worldbuilding": {
@@ -93,7 +90,6 @@ ENTITY_SCAN_CONFIG = {
         },
         "extra": {
             "subtype": "索引信息.实体子类型",
-            "chapter_refs": "摘要.章节关联",
         },
     },
     "plot_threads": {
@@ -108,7 +104,7 @@ ENTITY_SCAN_CONFIG = {
         },
         "extra": {
             "first_chapter": "索引信息.起始章节",
-            "current_chapter": "索引信息.当前章节位置",
+            # current_chapter 改为从 追踪/情节线进度.yaml 读取
             "start_time": "索引信息.起始时间",
             "end_time": "索引信息.结束时间",
         },

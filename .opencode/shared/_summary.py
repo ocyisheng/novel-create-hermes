@@ -1,13 +1,12 @@
 """元数据标记提取与摘要处理
 
-从 chapters/.metas/ 目录读取章节元数据，提取伏笔、角色、摘要等信息，
-并将摘要内联到分纲 YAML 文件中。
+从 chapters/.metas/ 目录读取章节元数据，提取伏笔、角色、摘要等信息。
 """
 
 import re
 from pathlib import Path
 
-from _utils import load_yaml, save_yaml, extract_chapter_number
+from _utils import load_yaml, extract_chapter_number
 
 
 def extract_markers(chapter_path: Path) -> dict:
@@ -70,39 +69,3 @@ def extract_markers(chapter_path: Path) -> dict:
             result["timeline_events"] = events
 
     return result
-
-
-def persist_actual_summary(project_root: Path, chapter_path: Path, actual_summary: str) -> bool:
-    """将章节摘要内联到分纲文件的 `摘要.本章摘要` 字段。"""
-    if not actual_summary or not actual_summary.strip():
-        return False
-
-    chapter_num = extract_chapter_number(chapter_path)
-    if not chapter_num:
-        return False
-
-    fg_root = project_root / "outline" / "分纲"
-    if not fg_root.is_dir():
-        return False
-
-    target_name = f"第{chapter_num}章.yaml"
-    matches = list(fg_root.rglob(target_name))
-    if not matches:
-        print(f"  警告: 未找到分纲文件 {target_name}")
-        return False
-
-    outline_path = matches[0]
-    data = load_yaml(outline_path)
-
-    if not isinstance(data, dict):
-        return False
-
-    summary_section = data.setdefault("摘要", {})
-    if not isinstance(summary_section, dict):
-        return False
-
-    summary_section["本章摘要"] = actual_summary.strip()
-    save_yaml(outline_path, data)
-
-    print(f"  -> 章节摘要已内联到 {outline_path.relative_to(project_root)}")
-    return True

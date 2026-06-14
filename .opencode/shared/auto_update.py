@@ -3,11 +3,20 @@
 读取 chapters/.metas/ 标记，更新伏笔/时间线/角色统计/config/索引/摘要。
 
 用法:
+  # 增量更新（默认）
   python auto_update.py --project-root PATH --chapter chapters/第X章.txt
   python auto_update.py --project-root PATH  # 自动扫描 .metas/
 
+  # 完整重建
+  python auto_update.py --project-root PATH --rebuild-foreshadowing
+  python auto_update.py --project-root PATH --rebuild-timeline
+  python auto_update.py --project-root PATH --rebuild-plot-progress
+  python auto_update.py --project-root PATH --rebuild-summaries
+  python auto_update.py --project-root PATH --rebuild-all
+
 示例:
   python auto_update.py --project-root novels/项目名 --chapter chapters/第1章.txt
+  python auto_update.py --project-root novels/项目名 --rebuild-all
 """
 
 import argparse
@@ -15,8 +24,8 @@ import sys
 from pathlib import Path
 
 from _utils import find_project_root
-from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress, update_plot_threads
-from _summary import extract_markers, persist_actual_summary
+from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress, update_plot_threads, update_chapter_summary
+from _summary import extract_markers
 
 
 def _parse_events(raw_events: list[str]) -> list[dict]:
@@ -35,6 +44,31 @@ try:
 except ImportError:
     rebuild_index = None
 
+try:
+    from rebuild_character_stats import rebuild_character_stats
+except ImportError:
+    rebuild_character_stats = None
+
+try:
+    from rebuild_foreshadowing import rebuild_foreshadowing
+except ImportError:
+    rebuild_foreshadowing = None
+
+try:
+    from rebuild_timeline import rebuild_timeline
+except ImportError:
+    rebuild_timeline = None
+
+try:
+    from rebuild_plot_progress import rebuild_plot_progress
+except ImportError:
+    rebuild_plot_progress = None
+
+try:
+    from rebuild_chapter_summaries import rebuild_chapter_summaries
+except ImportError:
+    rebuild_chapter_summaries = None
+
 
 def main():
     parser = argparse.ArgumentParser(description="章节写后元数据维护")
@@ -47,6 +81,20 @@ def main():
     parser.add_argument("--characters", type=str, nargs="*", help="出场角色名")
     parser.add_argument("--actual-summary", type=str, default=None, help="章节摘要")
     parser.add_argument("--summary-file", type=str, default=None, help="从文件读取摘要")
+    parser.add_argument("--rebuild-stats", action="store_true",
+                        help="重建角色统计（从实体文件同步，替代增量更新）")
+    parser.add_argument("--rebuild-foreshadowing", action="store_true",
+                        help="重建伏笔（从分纲+章节元数据）")
+    parser.add_argument("--rebuild-timeline", action="store_true",
+                        help="重建时间线（从分纲+章节元数据）")
+    parser.add_argument("--rebuild-plot-progress", action="store_true",
+                        help="重建情节线进度（从情节线文件）")
+    parser.add_argument("--rebuild-summaries", action="store_true",
+                        help="重建章节摘要（从章节元数据）")
+    parser.add_argument("--rebuild-all", action="store_true",
+                        help="重建所有追踪文件")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="仅预览，不写入文件（仅重建模式）")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -106,6 +154,14 @@ def main():
             for detail in plot_result["details"]:
                 print(f"    {detail}")
 
+        # 重建角色统计（从实体文件同步）
+        if args.rebuild_stats and rebuild_character_stats is not None:
+            try:
+                rebuild_character_stats(find_project_root(cp))
+                print("  - 角色统计.yaml (rebuild) ✓")
+            except Exception as e:
+                print(f"  [跳过] 角色统计重建失败: {e}")
+
         summary = args.actual_summary
         if not summary and args.summary_file:
             sf = Path(args.summary_file)
@@ -114,7 +170,7 @@ def main():
         if not summary:
             summary = markers.get("actual_summary")
         if summary:
-            persist_actual_summary(find_project_root(cp), cp, summary)
+            update_chapter_summary(find_project_root(cp), cp, summary)
             print("  - 章节摘要 ✓")
 
     if rebuild_index:
@@ -122,6 +178,47 @@ def main():
             rebuild_index(find_project_root(chapters[0]))
         except Exception as e:
             print(f"  [跳过] 项目索引更新失败: {e}")
+
+    # 处理重建参数
+    if args.rebuild_all or args.rebuild_foreshadowing:
+        if rebuild_foreshadowing is not None:
+            try:
+                rebuild_foreshadowing(project_root, dry_run=args.dry_run)
+                print("  - 伏笔.yaml (rebuild) ✓")
+            except Exception as e:
+                print(f"  [跳过] 伏笔重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_foreshadowing.py 未找到")
+
+    if args.rebuild_all or args.rebuild_timeline:
+        if rebuild_timeline is not None:
+            try:
+                rebuild_timeline(project_root, dry_run=args.dry_run)
+                print("  - 时间线.yaml (rebuild) ✓")
+            except Exception as e:
+                print(f"  [跳过] 时间线重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_timeline.py 未找到")
+
+    if args.rebuild_all or args.rebuild_plot_progress:
+        if rebuild_plot_progress is not None:
+            try:
+                rebuild_plot_progress(project_root, dry_run=args.dry_run)
+                print("  - 情节线进度.yaml (rebuild) ✓")
+            except Exception as e:
+                print(f"  [跳过] 情节线进度重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_plot_progress.py 未找到")
+
+    if args.rebuild_all or args.rebuild_summaries:
+        if rebuild_chapter_summaries is not None:
+            try:
+                rebuild_chapter_summaries(project_root, dry_run=args.dry_run)
+                print("  - 章节摘要.yaml (rebuild) ✓")
+            except Exception as e:
+                print(f"  [跳过] 章节摘要重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_chapter_summaries.py 未找到")
 
 
 if __name__ == "__main__":

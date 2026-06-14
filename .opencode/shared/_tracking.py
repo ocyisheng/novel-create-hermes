@@ -34,9 +34,6 @@ def update_foreshadowing(
         if "状态" not in item:
             item["状态"] = "待回收"
 
-    # Track items with plot thread references for back-linking
-    items_with_plot_refs = []
-
     if foreshadowing_data:
         existing_descriptions = {
             item.get("描述", "") for item in data.get("伏笔", [])
@@ -46,13 +43,9 @@ def update_foreshadowing(
             if desc in existing_descriptions:
                 print(f"  跳过重复伏笔: '{desc}'")
                 continue
-            f["出现章节"] = chapter_num
+            f["章节"] = chapter_num
             data["伏笔"].append(f)
             existing_descriptions.add(desc)
-
-            # Collect items that reference plot threads
-            if f.get("关联实体ID"):
-                items_with_plot_refs.append(f)
 
     if resolve_items:
         for item in data.get("伏笔", []):
@@ -63,14 +56,6 @@ def update_foreshadowing(
                     break
 
     save_yaml(foreshadowing_file, data)
-
-    # Back-link to plot threads
-    if items_with_plot_refs:
-        plot_result = sync_foreshadowing_to_plots(project_root, items_with_plot_refs)
-        if plot_result["updated"] > 0:
-            print(f"  情节线伏笔回链: {plot_result['updated']} 条")
-            for detail in plot_result["details"]:
-                print(f"    {detail}")
 
     return data
 
@@ -102,31 +87,37 @@ def update_timeline(
     return data
 
 
-def update_character_stats(chapter_path: Path, characters: list[str] | None = None) -> dict:
-    """更新角色出场统计"""
+def update_character_stats(
+    chapter_path: Path,
+    characters: list[str] | None = None,
+    char_states: dict[str, str] | None = None,
+) -> dict:
+    """更新角色出场统计（扁平列表格式，只追加）
+
+    Args:
+        chapter_path: 章节文件路径
+        characters: 出场角色名列表
+        char_states: 角色状态字典，如 {"张小凡": "重伤", "李四": "死亡"}
+    """
     project_root = find_project_root(chapter_path)
-    stats_file = project_root / "characters" / "角色统计.yaml"
+    stats_file = project_root / "outline" / "追踪" / "角色统计.yaml"
     data = load_yaml(stats_file)
 
     chapter_num = extract_chapter_number(chapter_path)
 
     if not data:
-        data = {"角色": {}, "版本": "1.0"}
+        data = {"出场": []}
 
     if characters:
         for char_name in characters:
-            if char_name not in data["角色"]:
-                data["角色"][char_name] = {
-                    "总出场章节": 0,
-                    "出场章节列表": [],
-                    "首次出场": chapter_num,
-                    "最近出场": chapter_num,
-                }
-            stats = data["角色"][char_name]
-            stats["总出场章节"] += 1
-            if chapter_num not in stats["出场章节列表"]:
-                stats["出场章节列表"].append(chapter_num)
-            stats["最近出场"] = chapter_num
+            record = {
+                "角色": char_name,
+                "章节": chapter_num,
+            }
+            # 添加状态字段（如果有）
+            if char_states and char_name in char_states:
+                record["状态"] = char_states[char_name]
+            data["出场"].append(record)
 
     save_yaml(stats_file, data)
     return data
@@ -183,12 +174,15 @@ def update_plot_threads(chapter_path: Path, characters: list[str] | None = None)
     主线永远更新（覆盖全书）。支线通过角色匹配判断是否涉及：
     若本章出场角色 ∩ 支线的涉及角色 ≠ ∅ → 该支线在本章活跃 → 更新进度。
 
+    进度写入 outline/追踪/情节线进度.yaml（扁平列表，只追加），
+    不再修改情节线文件本身。
+
     Args:
         chapter_path: 章节文件路径
         characters: 本章出场角色名列表。若为 None，尝试从 fengang 提取
 
     Returns:
-        {"updated": N, "details": ["主线: 0→1", "支线_危机: 0→1"]}
+        {"updated": N, "details": ["主线: +1", "支线_危机: +1"]}
     """
     project_root = find_project_root(chapter_path)
     chapter_num = extract_chapter_number(chapter_path)
@@ -202,6 +196,19 @@ def update_plot_threads(chapter_path: Path, characters: list[str] | None = None)
     if characters is None:
         characters = _extract_characters_from_fengang(project_root, chapter_num)
 
+    # 加载进度文件
+    progress_file = project_root / "outline" / "追踪" / "情节线进度.yaml"
+    progress_data = load_yaml(progress_file)
+    if not progress_data:
+        progress_data = {"进度": []}
+
+    # 收集已有的 (情节线, 章节) 组合，避免重复
+    existing = {
+        (p.get("情节线"), p.get("章节"))
+        for p in progress_data.get("进度", [])
+        if isinstance(p, dict)
+    }
+
     changes = []
     updated_count = 0
 
@@ -210,14 +217,16 @@ def update_plot_threads(chapter_path: Path, characters: list[str] | None = None)
     if main_plot.exists():
         data = load_yaml(main_plot)
         if data:
-            old_chapter = data.get("索引信息", {}).get("当前章节位置", 0)
-            if chapter_num > old_chapter:
-                data.setdefault("索引信息", {})["当前章节位置"] = chapter_num
-                data.setdefault("_meta", {})["updated_at"] = now
-                save_yaml(main_plot, data)
+            entity_id = data.get("索引信息", {}).get("实体ID", "main_plot")
+            if (entity_id, chapter_num) not in existing:
+                progress_data["进度"].append({
+                    "情节线": entity_id,
+                    "章节": chapter_num,
+                    "时间": now,
+                })
                 updated_count += 1
                 main_name = data.get("索引信息", {}).get("名称", "主线")
-                changes.append(f"{main_name}: {old_chapter} → {chapter_num}")
+                changes.append(f"{main_name}: +{chapter_num}")
 
     # ── 支线：角色匹配 ──
     char_set = set(characters) if characters else set()
@@ -240,14 +249,20 @@ def update_plot_threads(chapter_path: Path, characters: list[str] | None = None)
 
         # 角色交集非空 → 支线在本章活跃
         if char_set and involved_chars and (char_set & involved_chars):
-            old_chapter = data.get("索引信息", {}).get("当前章节位置", 0)
-            if chapter_num > old_chapter:
-                data.setdefault("索引信息", {})["当前章节位置"] = chapter_num
-                data.setdefault("_meta", {})["updated_at"] = now
-                save_yaml(subplot_file, data)
+            entity_id = data.get("索引信息", {}).get("实体ID", subplot_file.stem)
+            if (entity_id, chapter_num) not in existing:
+                progress_data["进度"].append({
+                    "情节线": entity_id,
+                    "章节": chapter_num,
+                    "时间": now,
+                })
                 updated_count += 1
                 sub_name = data.get("索引信息", {}).get("名称", subplot_file.stem)
-                changes.append(f"{sub_name}: {old_chapter} → {chapter_num}")
+                changes.append(f"{sub_name}: +{chapter_num}")
+
+    # 保存进度文件
+    if updated_count > 0:
+        save_yaml(progress_file, progress_data)
 
     return {"updated": updated_count, "details": changes}
 
@@ -296,72 +311,43 @@ def _extract_chapter_time(project_root: Path, chapter_num: int) -> str:
     return []
 
 
-def sync_foreshadowing_to_plots(project_root: Path, foreshadowing_items: list[dict]) -> dict:
-    """将伏笔回链到关联的情节线文件。
+def update_chapter_summary(
+    project_root: Path,
+    chapter_path: Path,
+    actual_summary: str,
+) -> bool:
+    """更新章节摘要.yaml（扁平列表，只追加）。
 
-    对每个有 关联实体ID 字段的伏笔项，更新对应情节线的 完整档案.伏笔清单。
-
-    Args:
-        project_root: 项目根目录
-        foreshadowing_items: 伏笔项列表，每项需含:
-            - 编号: 伏笔编号（如 "F001"）
-            - 描述: 伏笔内容
-            - 状态: "已埋伏笔" / "已回收" / "待回收"
-            - 关联实体ID: [list of plot thread entity IDs]
-
-    Returns:
-        {"updated": N, "details": ["主线: +F001", "支线_危机: +F001"]}
+    从章节元数据提取摘要，追加到追踪/章节摘要.yaml。
     """
-    plot_dir = project_root / "outline" / "情节线"
-    if not plot_dir.is_dir():
-        return {"updated": 0, "details": []}
+    if not actual_summary or not actual_summary.strip():
+        return False
 
-    # Build lookup: entity_id → file path
-    id_to_file = {}
-    for f in plot_dir.glob("*.yaml"):
-        if f.name == "主索引.yaml":
-            continue
-        data = load_yaml(f)
-        if data:
-            eid = data.get("索引信息", {}).get("实体ID", "")
-            if eid:
-                id_to_file[eid] = f
+    chapter_num = extract_chapter_number(chapter_path)
+    if not chapter_num:
+        return False
 
-    changes = []
-    updated = 0
+    tracking_dir = project_root / "outline" / "追踪"
+    if not tracking_dir.is_dir():
+        tracking_dir.mkdir(parents=True, exist_ok=True)
 
-    for item in foreshadowing_items:
-        plot_ids = item.get("关联实体ID", [])
-        if not isinstance(plot_ids, list) or not plot_ids:
-            continue
+    summary_file = tracking_dir / "章节摘要.yaml"
+    data = load_yaml(summary_file)
 
-        f_num = item.get("编号", "")
-        f_desc = item.get("描述", "")
-        f_status = item.get("状态", "已埋伏笔")
+    if not data:
+        data = {"摘要": []}
 
-        for pid in plot_ids:
-            plot_file = id_to_file.get(pid)
-            if not plot_file:
-                continue
+    # 避免重复：如果已有本章摘要则跳过
+    existing_chapters = {item.get("章节") for item in data.get("摘要", [])}
+    if chapter_num in existing_chapters:
+        print(f"  跳过重复: 第{chapter_num}章摘要已存在")
+        return False
 
-            data = load_yaml(plot_file)
-            if not data:
-                continue
+    data["摘要"].append({
+        "章节": chapter_num,
+        "摘要": actual_summary.strip(),
+    })
 
-            # Determine target list: 已埋伏笔 or 待回收伏笔
-            full_archive = data.setdefault("完整档案", {})
-            foreshadowing = full_archive.setdefault("伏笔清单", {})
-            target_key = "待回收伏笔" if f_status == "待回收" else "已埋伏笔"
-            target_list = foreshadowing.setdefault(target_key, [])
-
-            # Avoid duplicates
-            existing_ids = {entry.get("编号", "") for entry in target_list if isinstance(entry, dict)}
-            if f_num and f_num not in existing_ids:
-                target_list.append({"编号": f_num, "描述": f_desc})
-                data.setdefault("_meta", {})["updated_at"] = datetime.now().isoformat()
-                save_yaml(plot_file, data)
-                updated += 1
-                plot_name = data.get("索引信息", {}).get("名称", plot_file.stem)
-                changes.append(f"{plot_name}: +{f_num}")
-
-    return {"updated": updated, "details": changes}
+    save_yaml(summary_file, data)
+    print(f"  -> 章节摘要已追加到 {summary_file.relative_to(project_root)}")
+    return True

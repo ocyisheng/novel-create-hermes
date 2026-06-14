@@ -39,15 +39,15 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 |------|------|---------|
 | `novel-project-manager` | 新建/导入/查看状态/续写/删除项目 | `skill("novel-project-manager")` |
 | `novel-env-setup` | 环境初始化 / .venv 故障修复 |  `skill("novel-env-setup")` |
-| `novel-ideation` | 无创意 / 需要脑洞/灵感/构思 | `task(category="novel-ideate", load_skills=["novel-ideation"], ...)` |
-| `novel-style` | 风格提取/切换/查看内置风格 | `task(category="novel-ideate", load_skills=["novel-style"], ...)` |
-| `novel-outline` | 大纲/总纲/分卷/分纲/情节主线支线 | `task(category="novel-write", load_skills=["novel-outline"], ...)` |
-| `novel-entity` | 角色档案/世界观建设 | `task(category="novel-write", load_skills=["novel-entity"], ...)` |
-| `novel-chapter` | 章节写作 | `task(category="novel-write", load_skills=["novel-chapter"], ...)` |
-| `novel-chapter-editor` | 章节编辑：文笔优化/反馈修订/内容修改 | `task(category="novel-write", load_skills=["novel-chapter-editor"], ...)` |
-| `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `task(category="novel-write", load_skills=["novel-export"], ...)` |
+| `novel-ideation` | 无创意 / 需要脑洞/灵感/构思 | `Task(category="novel-ideate", load_skills=["novel-ideation"], ...)` |
+| `novel-style` | 风格提取/切换/查看内置风格 | `Task(category="novel-ideate", load_skills=["novel-style"], ...)` |
+| `novel-outline` | 大纲/总纲/分卷/分纲/情节主线支线 | `Task(category="novel-write", load_skills=["novel-outline"], ...)` |
+| `novel-entity` | 角色档案/世界观建设 | `Task(category="novel-write", load_skills=["novel-entity"], ...)` |
+| `novel-chapter` | 章节写作 | `Task(category="novel-write", load_skills=["novel-chapter"], ...)` |
+| `novel-chapter-editor` | 章节编辑：文笔优化/反馈修订/内容修改 | `Task(category="novel-write", load_skills=["novel-chapter-editor"], ...)` |
+| `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(category="novel-write", load_skills=["novel-export"], ...)` |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
-| `novel-entity-editor` | 实体编辑：修改角色档案/世界观设定 | `task(category="novel-write", load_skills=["novel-entity-editor"], ...)` |
-| `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `task(category="novel-review", load_skills=["novel-quality"], ...)` |
+| `novel-entity-editor` | 实体编辑：修改角色档案/世界观设定 | `Task(category="novel-write", load_skills=["novel-entity-editor"], ...)` |
+| `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(category="novel-review", load_skills=["novel-quality"], ...)` |
 
 

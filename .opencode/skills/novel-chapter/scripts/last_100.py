@@ -27,7 +27,18 @@ def last_n_chars(filepath: Path, n: int = 100) -> str:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="读取章节末尾 100 字（去除换行符）")
+    parser = argparse.ArgumentParser(
+        prog="last_100.py",
+        description="读取章节末尾 100 字（去除换行符）",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python last_100.py --project-root novels/穿越三国成刘谌 --chapter chapters/第1章.txt
+  python last_100.py --project-root novels/穿越三国成刘谌 --chapter chapters/第5章.txt
+
+说明:
+  提取章节末尾 100 字（去除换行符），用于下一章的前章衔接。
+  --chapter 支持相对路径（相对于 --project-root）或绝对路径。"""
+    )
     parser.add_argument("--project-root", required=True, help="项目根目录")
     parser.add_argument("--chapter", required=True, help="章节文件路径（相对于 --project-root，如 chapters/第10章.txt）")
     args = parser.parse_args()

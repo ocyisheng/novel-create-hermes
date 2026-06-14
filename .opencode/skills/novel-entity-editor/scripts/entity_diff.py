@@ -222,7 +222,19 @@ def print_diff_report(diff: dict) -> None:
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="YAML 实体编辑 diff 工具")
+    parser = argparse.ArgumentParser(
+        prog="entity_diff.py",
+        description="YAML 实体编辑 diff 工具",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python entity_diff.py old.yaml new.yaml                    # 显示变更摘要
+  python entity_diff.py old.yaml new.yaml --json             # JSON 格式输出
+  python entity_diff.py old.yaml new.yaml -t character       # 指定实体类型过滤
+
+说明:
+  对比编辑前后的 YAML 实体文件，显示变更的字段和值。
+  退出码: 0=无变更, 1=有变更"""
+    )
     parser.add_argument("old_file", help="编辑前的 YAML 文件")
     parser.add_argument("new_file", help="编辑后的 YAML 文件")
     parser.add_argument("--entity-type", "-t", help="实体类型（可选，用于过滤）")

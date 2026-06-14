@@ -106,7 +106,18 @@ def render_check(style: dict) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="将 style.yaml 渲染为 LLM 提示词块")
+    parser = argparse.ArgumentParser(
+        prog="render_style.py",
+        description="将 style.yaml 渲染为 LLM 提示词块",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python render_style.py --style styles/凡人修仙风.yaml --mode chapter  # 生成写作参考
+  python render_style.py --style styles/金庸武侠风.yaml --mode check    # 生成一致性检查
+
+说明:
+  --mode chapter: 输出写作风格参考段落，注入到章节写作 prompt 中
+  --mode check:   输出 7 维度评估表，用于检查章节与风格的一致性"""
+    )
     parser.add_argument("--style", required=True, type=str, help="style.yaml 文件路径")
     parser.add_argument("--mode", required=True, choices=["chapter", "check"],
                         help="chapter: 写作风格参考 | check: 一致性检查")

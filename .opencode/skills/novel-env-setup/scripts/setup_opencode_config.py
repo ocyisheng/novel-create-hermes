@@ -5,17 +5,41 @@ setup_opencode_config.py — 创建/更新 OhMyOpenAgent 插件配置
 
 在环境初始化后自动调用，确保 novel 创作所需的 category 路由配置已就绪。
 追加模式：读取已有配置 → 追加/更新 categories → 写回，不会丢失其他字段。
-
-用法:
-    python setup_opencode_config.py              # 创建/更新配置
-    python setup_opencode_config.py --dry-run     # 预览，不修改
-    python setup_opencode_config.py --force       # 跳过读取失败警告，直接覆盖
 """
 
+import argparse
 import json
 import shutil
 import sys
 from pathlib import Path
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """创建参数解析器。"""
+    parser = argparse.ArgumentParser(
+        prog="setup_opencode_config.py",
+        description="创建/更新 OhMyOpenAgent 插件配置，确保 novel 创作所需的 category 路由已就绪。",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python setup_opencode_config.py              # 创建/更新配置
+  python setup_opencode_config.py --dry-run     # 预览，不修改
+  python setup_opencode_config.py --force       # 跳过读取失败警告，直接覆盖
+
+说明:
+  追加模式：读取已有配置 → 追加/更新 novel-write/novel-review/novel-ideate 类别 → 写回
+  不会丢失其他已有的非 novel 类别配置。"""
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="预览合并结果，不修改文件"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="跳过读取失败警告，直接覆盖写入"
+    )
+    return parser
 
 # ===========================================================================
 # novel 创作 category 配置
@@ -154,8 +178,10 @@ def calc_stats(config: dict) -> dict:
 # ===========================================================================
 
 def main() -> int:
-    dry_run = "--dry-run" in sys.argv
-    force = "--force" in sys.argv
+    parser = create_parser()
+    args = parser.parse_args()
+    dry_run = args.dry_run
+    force = args.force
 
     config_path = get_config_path()
 

@@ -71,9 +71,21 @@ def _generate_guidance(combo: dict[str, str], genre: str | None = None) -> str:
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="创意约束生成器")
-    parser.add_argument("--count", type=int, default=3, help="生成组合数")
-    parser.add_argument("--genre", type=str, help="小说类型")
+    parser = argparse.ArgumentParser(
+        prog="constraint_generator.py",
+        description="创意约束生成器",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python constraint_generator.py --count 3 --genre 玄幻    # 生成 3 个玄幻约束组合
+  python constraint_generator.py --count 5 --genre 科幻    # 生成 5 个科幻约束组合
+  python constraint_generator.py --file custom.yaml        # 使用自定义约束库
+
+说明:
+  从 6 大类约束（结构/内容/角色/设定/形式/主题）中随机组合，
+  激发创意灵感。每个组合包含约束集和创作指导。"""
+    )
+    parser.add_argument("--count", type=int, default=3, help="生成组合数 (默认 3)")
+    parser.add_argument("--genre", type=str, help="小说类型 (玄幻/科幻/都市/悬疑/历史)")
     parser.add_argument("--file", type=str, help="约束库 YAML 文件路径")
     args = parser.parse_args()
 

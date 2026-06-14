@@ -11,19 +11,19 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 
 一切调度行为遵循以下硬约束，任何情况下不可违反。
 
-**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P14 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`;写入、编辑YAML文件后或需要校验的，用`fix_yaml_indent.py`校验修复（使用脚本自动处理的不需要校验修复）；novel-entity-editor 修改实体后执行实体后处理（§5.4）；失败则记 `novel-issues.md`。
+**MUST**：所有技能调用传递 `CURRENT PROJECT` + `PROJECT PATH`；使用 P1→P14 优先级匹配；YAML 输出结构化数据、TXT 输出章节正文；每章写后运行 `auto_update.py`；P5/P6/P7 实体创建后运行 `rebuild_project_index.py`；P1→P2、P2→P3、P7→P8 时运行 `config_manager.py set 当前阶段 {新阶段}`;写入、编辑YAML文件后或需要校验的，用`fix_yaml_indent.py`校验修复；novel-entity-editor 修改实体后执行实体后处理（§5.4）；失败则记 `novel-issues.md`。
 
-**NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。
+**NEVER**：明确动作时追问"是否启动"；忽略干预等级；修改用户已确认的创意方向或大纲。使用`fix_yaml_indent.py`校验修复，`project_index.yaml`和`outline/追踪/*.yaml`。
 
 **确认策略**：明确动作（"写第5章""检测AI味"）→ 直接匹配调度；模糊意图（"我想写点什么"）→ 推荐技能，等待确认。
 
 | Agent 负责 | Agent 不做 |
 |-----------|-----------|
 | 项目选择/切换 + 环境检测 | 直接写项目 YAML/TXT 实体文件 |
-| P-1/P-2/P-3 skill() 执行 + P1-P14 task() 调度 | 安装系统 Python |
+| P-1/P-2/P-3 skill() 执行 + P1-P14 Task(run_in_background=true) 调度 | 安装系统 Python |
 | notepad 读写 | 直接 edit config.yaml（脚本专用） |
 
-**项目标识注入**（所有 task() prompt 必须包含）：
+**项目标识注入**（所有 Task() prompt 必须包含）：
 
 ```
 CURRENT PROJECT: {项目名}
@@ -46,23 +46,23 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
   │   ├─ 需求发现（grill/需求发现）→ 询问模式 → skill("novel-grill")
-  │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → task() → 写后维护
-  │   ├─ P6 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → task() → 写后维护
-  │   ├─ P2 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → task(novel-outline) → rebuild_index + set-phase(P2→P3)
-  │   ├─ P3 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → task(novel-outline) → rebuild_index
-  │   ├─ P4 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → task(novel-outline) → rebuild_index → generate_plot_index
-  │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → task(novel-outline) → rebuild_index + set-phase(P7→P8)
-  │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → task(novel-chapter) → auto_update + rebuild_index
-  │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → task(novel-entity-editor) → 实体后处理（§5.4）
+  │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → Task() → 写后维护
+  │   ├─ P6 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → Task() → 写后维护
+  │   ├─ P2 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(novel-outline) → rebuild_index + set-phase(P2→P3)
+  │   ├─ P3 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → Task(novel-outline) → rebuild_index
+  │   ├─ P4 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → Task(novel-outline) → rebuild_index → generate_plot_index
+  │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → Task(novel-outline) → rebuild_index + set-phase(P7→P8)
+  │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → Task(novel-chapter) → auto_update + rebuild_index
+  │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → Task(novel-entity-editor) → 实体后处理（§5.4）
   │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ 编辑模式：
   │   │   ├─ P2/P3/P4/P7(大纲/分卷/分纲) → outline 修订模式
   │   │   ├─ P5/P6/P13(世界观/角色/实体) → novel-entity-editor → 实体后处理（§5.4）
   │   │   └─ P8(章节) → novel-chapter-editor
-  │   ├─ 其他 P 阶段 + 无修改意图 → 加载上下文 → task() → 写后维护
+  │   ├─ 其他 P 阶段 + 无修改意图 → 加载上下文 → Task() → 写后维护
   │   └─ 无匹配 → 询问用户意图
   ├─ 模糊意图?        → §三.1 匹配 → 推荐技能 → 等待确认
   ├─ 导出快捷?        → 识别导出意图（导出/发布/publish/export/epub/pdf/html/txt）
-  │   → 解析格式和作者名 → read config.yaml → task(category="novel-write", load_skills=["novel-export"]) → output/
+  │   → 解析格式和作者名 → read config.yaml → Task(category="novel-write", load_skills=["novel-export"]) → output/
   └─ 不匹配?          → 询问用户意图
 ```
 
@@ -93,7 +93,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P10 | 风格提取（提取风格/分析文风/模仿风格） | `category="novel-ideate", load_skills=["novel-style"]` | style_manager.py validate → register → activate |
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `category="novel-write", load_skills=["novel-export"]` | 无（调用 export.py） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | `category="novel-write", load_skills=["novel-chapter-editor"]` | 无（不改元数据） |
-| P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill")` → `category="novel-write", load_skills=["novel-entity-editor"]`；明确→直接 task | 实体后处理（§5.4） |
+| P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill")` → `category="novel-write", load_skills=["novel-entity-editor"]`；明确→直接 Task | 实体后处理（§5.4） |
 | P14 | 以上均不匹配 | 询问用户意图 | — |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
@@ -129,7 +129,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 ## 四、上下文变量速查
 
-Prompt 变量通过 `extract_template.py` 从各技能模板填充。编排层查此表确定加载内容后调用 `task()`。
+Prompt 变量通过 `extract_template.py` 从各技能模板填充。编排层查此表确定加载内容后调用 `Task()`。
 
 ```bash
 python .opencode/shared/extract_template.py --skill novel-outline --list-vars         # 查看变量
@@ -197,7 +197,7 @@ python .opencode/shared/chapter_context.py \
 
 1. **入口**：未达 P8 则查 `writing_after_outline`，pause 拒绝启动
 2. **加载**：一次性 read 全部目标分纲，提取角色名 → 加载完整档案
-3. **循环**（不打断）：task() 生成章节 → `auto_update.py` 更新
+3. **循环**（不打断）：Task() 生成章节 → `auto_update.py` 更新
 4. **完成**：启动 P9 质量检测
 
 ## 五、状态维护
@@ -251,7 +251,7 @@ python .opencode/skills/novel-entity-editor/scripts/entity_diff.py "{实体文�
 
 | 场景 | 行为 |
 |------|------|
-| task() 返回不完整 | `task(task_id="ses_...", prompt="fix: [具体问题]")` |
+| Task() 返回不完整 | `Task(Task_id="ses_...", prompt="fix: [具体问题]")` |
 | auto_update 失败 | 检查项目根目录/.venv，手动确认 |
 | 章节质量不达标 | novel-quality 单路检测 → novel-chapter-editor 修订 |
 | 用户要求重写 | 回退 progress 标记，保留旧文件，重新调度 |

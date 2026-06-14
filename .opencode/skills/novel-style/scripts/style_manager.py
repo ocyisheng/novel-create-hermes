@@ -171,7 +171,27 @@ def builtin_handler(args) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Novel Style Manager")
+    parser = argparse.ArgumentParser(
+        prog="style_manager.py",
+        description="Novel Style Manager - 风格文件管理工具",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python style_manager.py list --project-root novels/我的小说           # 列出项目风格
+  python style_manager.py builtin list                                 # 列出内置风格
+  python style_manager.py validate --file styles/凡人修仙风.yaml       # 验证风格文件
+  python style_manager.py register --project-root novels/我的小说 --name 凡人修仙风 --file styles/凡人修仙风.yaml
+  python style_manager.py activate --project-root novels/我的小说 --name 凡人修仙风
+  python style_manager.py deactivate --project-root novels/我的小说
+  python style_manager.py builtin copy --project-root novels/我的小说 --name 凡人修仙风
+
+说明:
+  register:   注册风格到 styles/index.yaml
+  validate:   验证 style.yaml 格式（7 维度必须齐全）
+  activate:   设置 config.yaml 活跃风格
+  deactivate: 清除活跃风格
+  list:       列出项目已注册风格
+  builtin:    管理 22 个内置风格"""
+    )
     sp = parser.add_subparsers(dest="command")
 
     p = sp.add_parser("register", help="Register a style in styles/index.yaml")

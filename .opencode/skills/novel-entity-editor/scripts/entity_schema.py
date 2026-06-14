@@ -403,7 +403,24 @@ if __name__ == "__main__":
     import argparse
     import json
 
-    parser = argparse.ArgumentParser(description="实体字段 Schema 查询")
+    parser = argparse.ArgumentParser(
+        prog="entity_schema.py",
+        description="实体字段 Schema 查询",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""示例:
+  python entity_schema.py list                           # 列出所有实体类型
+  python entity_schema.py fields --type character        # 查看角色可编辑字段
+  python entity_schema.py fields --type worldbuilding    # 查看世界观可编辑字段
+  python entity_schema.py detect --file characters/张三.yaml  # 检测文件实体类型
+
+支持的实体类型:
+  character       — 角色档案 (53 个可编辑字段)
+  worldbuilding   — 世界观实体 (32 个可编辑字段)
+  plot_thread     — 情节线 (23 个可编辑字段)
+  outline_synopsis — 总纲 (24 个可编辑字段)
+  volume          — 分卷大纲 (16 个可编辑字段)
+  chapter_outline — 分纲 (31 个可编辑字段)"""
+    )
     parser.add_argument("action", choices=["list", "fields", "detect"],
                         help="list=列出类型, fields=查询可编辑字段, detect=检测文件类型")
     parser.add_argument("--type", help="实体类型 (fields 时需要)")

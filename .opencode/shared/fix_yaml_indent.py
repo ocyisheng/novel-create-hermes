@@ -72,6 +72,24 @@ class Line:
         return self.type_ in (LineType.ROOT_KEY, LineType.KEY, LineType.LIST_ITEM, LineType.BLOCK_INDICATOR)
 
 
+# ── 引号补全 ────────────────────────────────────────────────────────────────
+
+UNCLOSED_QUOTE_RE = re.compile(r'^(\s*[^:]+:\s*)"([^"]*)$')
+
+def _fix_unclosed_quotes(lines: list[Line]) -> None:
+    """补全缺失闭合引号的行。
+
+    场景：- 伏笔名: "灵气在经脉中...
+         缺结尾 "
+    """
+    for line in lines:
+        m = UNCLOSED_QUOTE_RE.match(line.raw)
+        if m:
+            line.raw = m.group(1) + '"' + m.group(2) + '"'
+            line.stripped = line.raw.lstrip(' ')
+            print(f"  [补引号] L{line.number+1}")
+
+
 # ── 分类 ───────────────────────────────────────────────────────────────────
 
 def _is_root_key(stripped: str) -> bool:
@@ -115,7 +133,6 @@ def _mark_block_content(lines: list[Line]) -> None:
         for j in range(i + 1, len(lines)):
             nxt = lines[j]
             if nxt.type_ in (LineType.EMPTY, LineType.COMMENT):
-                nxt.type_ = LineType.BLOCK_CONTENT
                 continue
             if nxt.indent > key_indent:
                 nxt.type_ = LineType.BLOCK_CONTENT
@@ -160,11 +177,9 @@ def _build_tree(lines: list[Line]) -> None:
           栈顶即为父节点。空行和注释继承上一个结构行的父节点。
     """
     stack: list[Line] = []
-    last_structural: Line | None = None
 
     for line in lines:
         if line.type_ in (LineType.EMPTY, LineType.COMMENT):
-            line.parent = last_structural.parent if last_structural else None
             continue
 
         if line.type_ == LineType.BLOCK_CONTENT:
@@ -185,7 +200,6 @@ def _build_tree(lines: list[Line]) -> None:
 
         if line.is_structural():
             stack.append(line)
-            last_structural = line
 
 
 # ── 缩进重写 ───────────────────────────────────────────────────────────────
@@ -196,13 +210,11 @@ def _normalize_indent(lines: list[Line]) -> list[str]:
 
     for line in lines:
         if line.type_ == LineType.EMPTY:
-            result.append('')
             continue
 
         if line.type_ == LineType.COMMENT:
-            # 注释跟随父节点缩进，无父节点则保持原缩进
-            indent = line.parent.indent if line.parent else 0
-            result.append(' ' * indent + line.stripped)
+            # 注释全部顶格
+            result.append(line.stripped)
             continue
 
         if line.type_ == LineType.BLOCK_CONTENT:
@@ -259,6 +271,9 @@ def fix_yaml_indent(filepath: str, output: str | None = None, max_passes: int = 
 
         # 建行对象
         lines = [Line(i, raw) for i, raw in enumerate(raw_lines)]
+
+        # 补全引号（前置，避免影响后续分类）
+        _fix_unclosed_quotes(lines)
 
         # 分类
         for line in lines:

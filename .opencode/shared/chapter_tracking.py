@@ -1,22 +1,28 @@
-"""auto_update.py — 章节写后元数据维护
+"""chapter_tracking.py — 章节写后追踪数据维护
 
-读取 chapters/.metas/ 标记，更新伏笔/时间线/角色统计/config/索引/摘要。
+读取 chapters/.metas/ 标记，增量更新伏笔/时间线/角色统计/情节线进度/摘要。
+
+职责边界：本脚本只维护 outline/追踪/ 下的追踪数据。项目索引（project_index.yaml）
+由各创作阶段的 post-processing 链负责（P4/P5/P6/P7/P13），或通过 --rebuild-index 手动触发。
 
 用法:
-  # 增量更新（默认）
-  python auto_update.py --project-root PATH --chapter chapters/第X章.txt
-  python auto_update.py --project-root PATH  # 自动扫描 .metas/
+  # 增量更新（默认 — 仅追踪数据）
+  python chapter_tracking.py --project-root PATH --chapter chapters/第X章.txt
+  python chapter_tracking.py --project-root PATH  # 自动扫描 .metas/
 
-  # 完整重建
-  python auto_update.py --project-root PATH --rebuild-foreshadowing
-  python auto_update.py --project-root PATH --rebuild-timeline
-  python auto_update.py --project-root PATH --rebuild-plot-progress
-  python auto_update.py --project-root PATH --rebuild-summaries
-  python auto_update.py --project-root PATH --rebuild-all
+  # 全量重建（追踪数据）
+  python chapter_tracking.py --project-root PATH --rebuild-foreshadowing
+  python chapter_tracking.py --project-root PATH --rebuild-timeline
+  python chapter_tracking.py --project-root PATH --rebuild-plot-progress
+  python chapter_tracking.py --project-root PATH --rebuild-summaries
+  python chapter_tracking.py --project-root PATH --rebuild-all
+
+  # 全量重建（索引，独立触发）
+  python chapter_tracking.py --project-root PATH --rebuild-index
 
 示例:
-  python auto_update.py --project-root novels/项目名 --chapter chapters/第1章.txt
-  python auto_update.py --project-root novels/项目名 --rebuild-all
+  python chapter_tracking.py --project-root novels/项目名 --chapter chapters/第1章.txt
+  python chapter_tracking.py --project-root novels/项目名 --rebuild-all
 """
 
 import argparse
@@ -24,7 +30,7 @@ import sys
 from pathlib import Path
 
 from _utils import find_project_root
-from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_config_progress, update_plot_threads, update_chapter_summary
+from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_plot_threads, update_chapter_summary
 from _summary import extract_markers
 
 
@@ -93,6 +99,8 @@ def main():
                         help="重建章节摘要（从章节元数据）")
     parser.add_argument("--rebuild-all", action="store_true",
                         help="重建所有追踪文件")
+    parser.add_argument("--rebuild-index", action="store_true",
+                        help="重建项目索引 project_index.yaml（从实体 YAML 全量扫描）")
     parser.add_argument("--dry-run", action="store_true",
                         help="仅预览，不写入文件（仅重建模式）")
     args = parser.parse_args()
@@ -141,14 +149,12 @@ def main():
         update_foreshadowing(cp, foreshadowing_data, resolve_items)
         update_timeline(cp, events_data)
         update_character_stats(cp, char_list)
-        update_config_progress(cp)
         plot_result = update_plot_threads(cp, char_list)
 
         print(f"已更新元数据: {cp.name}")
         print("  - 伏笔.yaml ✓")
         print("  - 时间线.yaml ✓")
         print("  - 角色统计.yaml ✓")
-        print("  - config.yaml ✓")
         if plot_result["updated"] > 0:
             print(f"  - 情节线进度 ✓ ({plot_result['updated']} 条)")
             for detail in plot_result["details"]:
@@ -159,7 +165,7 @@ def main():
             try:
                 rebuild_character_stats(find_project_root(cp))
                 print("  - 角色统计.yaml (rebuild) ✓")
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"  [跳过] 角色统计重建失败: {e}")
 
         summary = args.actual_summary
@@ -173,19 +179,13 @@ def main():
             update_chapter_summary(find_project_root(cp), cp, summary)
             print("  - 章节摘要 ✓")
 
-    if rebuild_index:
-        try:
-            rebuild_index(find_project_root(chapters[0]))
-        except Exception as e:
-            print(f"  [跳过] 项目索引更新失败: {e}")
-
     # 处理重建参数
     if args.rebuild_all or args.rebuild_foreshadowing:
         if rebuild_foreshadowing is not None:
             try:
                 rebuild_foreshadowing(project_root, dry_run=args.dry_run)
                 print("  - 伏笔.yaml (rebuild) ✓")
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"  [跳过] 伏笔重建失败: {e}")
         else:
             print("  [跳过] rebuild_foreshadowing.py 未找到")
@@ -195,7 +195,7 @@ def main():
             try:
                 rebuild_timeline(project_root, dry_run=args.dry_run)
                 print("  - 时间线.yaml (rebuild) ✓")
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"  [跳过] 时间线重建失败: {e}")
         else:
             print("  [跳过] rebuild_timeline.py 未找到")
@@ -205,7 +205,7 @@ def main():
             try:
                 rebuild_plot_progress(project_root, dry_run=args.dry_run)
                 print("  - 情节线进度.yaml (rebuild) ✓")
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"  [跳过] 情节线进度重建失败: {e}")
         else:
             print("  [跳过] rebuild_plot_progress.py 未找到")
@@ -215,10 +215,20 @@ def main():
             try:
                 rebuild_chapter_summaries(project_root, dry_run=args.dry_run)
                 print("  - 章节摘要.yaml (rebuild) ✓")
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"  [跳过] 章节摘要重建失败: {e}")
         else:
             print("  [跳过] rebuild_chapter_summaries.py 未找到")
+
+    if args.rebuild_index or args.rebuild_all:
+        if rebuild_index is not None:
+            try:
+                rebuild_index(project_root, dry_run=args.dry_run)
+                print("  - project_index.yaml (rebuild) ✓")
+            except (OSError, RuntimeError) as e:
+                print(f"  [跳过] 项目索引重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_project_index.py 未找到")
 
 
 if __name__ == "__main__":

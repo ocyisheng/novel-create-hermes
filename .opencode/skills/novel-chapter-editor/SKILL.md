@@ -19,7 +19,15 @@ tags: ["novel", "chapter", "editor", "polish"]
 
 ## 上下文契约
 
-编排层在调用前按以下清单加载上下文：
+编排层在调用前按以下流程加载上下文。Task() 前必须执行 `last_100.py` 获取衔接文本，然后将结果作为 `{前章衔接}` 变量填入 prompt_template。
+
+```bash
+# 获取前一章衔接文本
+python .opencode/skills/novel-chapter/scripts/last_100.py \
+    --chapter chapters/第{N-1}章.txt
+```
+
+### 槽位清单
 
 | 槽位 | 内容 | 加载方式 |
 |------|------|---------|
@@ -28,7 +36,7 @@ tags: ["novel", "chapter", "editor", "polish"]
 | 编辑模式 | 自动判断：文笔优化 / 反馈修订 / 内容修改 | 编排层根据用户输入匹配 |
 | 本章分纲 | `outline/分纲/卷{卷号}/第{N}章.yaml` 关键字段 | read（场景、出场角色、冲突、转折） |
 | 出场角色档案 | 出场角色完整档案 | project_index.yaml → read |
-| 前章衔接 | 第{N-1}章最后 100 字 | `last_100.py` |
+| 前章衔接 | 第{N-1}章最后 100 字 | `last_100.py`（必须） |
 | 活跃风格 | config.yaml `活跃风格` → 风格文件 | read 全文件（≤30行） |
 
 ## 三种模式的区分
@@ -62,7 +70,7 @@ tags: ["novel", "chapter", "editor", "polish"]
 ## 输出
 
 - 编辑后的 `chapters/第{N}章.txt`（edit 写入）
-- 不修改 `chapters/.metas/` 元数据文件，不涉及 auto_update
+- 不修改 `chapters/.metas/` 元数据文件，不涉及 chapter_tracking
 
 ## 参考
 

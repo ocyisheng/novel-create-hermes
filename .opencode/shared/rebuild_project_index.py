@@ -56,7 +56,7 @@ def _load_yaml_safe(path: Path) -> dict | None:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else None
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return None
 
 

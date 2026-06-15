@@ -8,12 +8,12 @@
 ├── chapters/                # 章节正文（.txt 纯文本）
 │   ├── 第1章.txt            # 第{编号}章.txt
 │   ├── 第2章.txt
-│   └── .metas/              # 章节元数据标记（被 auto_update 自动维护）
+│   └── .metas/              # 章节元数据标记（被 chapter_tracking 自动维护）
 │       ├── 第1章.txt
 │       └── ...
 ├── characters/              # 角色档案（.yaml，按角色名命名）
 │   ├── 林默.yaml
-│   └── 角色统计.yaml        # 角色出场统计（被 auto_update 自动修改）
+│   └── 角色统计.yaml        # 角色出场统计（被 chapter_tracking 自动修改）
 ├── ideation/                # 创意构思产物（P1 生成）
 │   ├── 需求分析.yaml        # 边界条件和目标
 │   ├── 约束集.yaml          # 6 大类约束
@@ -34,7 +34,7 @@
 │   │   │   └── ...
 │   │   ├── 卷2/
 │   │   └── ...
-│   └── 追踪/                # 运行时数据（被 auto_update 自动修改）
+│   └── 追踪/                # 运行时数据（被 chapter_tracking 自动修改）
 │       ├── 伏笔.yaml
 │       └── 时间线.yaml
 ├── project_index.yaml       # 项目索引（由 rebuild_project_index.py 重建）
@@ -70,7 +70,7 @@
 ```
 
 该配置影响初始化时生成的文件结构和总纲模板，但后续可由用户在 config.yaml 中自由修改。
-工具链（`rebuild_project_index.py`, `auto_update.py`）通过 glob 动态发现分纲目录，无需感知具体卷数。
+工具链（`rebuild_project_index.py`, `chapter_tracking.py`）通过 glob 动态发现分纲目录，无需感知具体卷数。
 
 ## 各文件内容说明
 
@@ -80,10 +80,10 @@
 | `outline/总纲.yaml` | 故事结构（幕列表）、分卷概览、节奏说明（P2） | `init.py`（骨架）+ `novel-outline`（P2 填充） |
 | `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P3） | `init.py`（骨架）+ `novel-outline`（P3 填充） |
 | `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P4） |
-| `outline/追踪/伏笔.yaml` | 伏笔设置与回收追踪 | `auto_update.py` |
-| `outline/追踪/时间线.yaml` | 事件时序 | `auto_update.py` |
-| `chapters/.metas/` | 章节元数据标记（摘要/伏笔/出场角色） | `novel-chapter`（P8 写作时）+ `auto_update.py` |
-| `characters/角色统计.yaml` | 角色出场统计 | `auto_update.py` |
+| `outline/追踪/伏笔.yaml` | 伏笔设置与回收追踪 | `chapter_tracking.py` |
+| `outline/追踪/时间线.yaml` | 事件时序 | `chapter_tracking.py` |
+| `chapters/.metas/` | 章节元数据标记（摘要/伏笔/出场角色） | `novel-chapter`（P8 写作时）+ `chapter_tracking.py` |
+| `characters/角色统计.yaml` | 角色出场统计 | `chapter_tracking.py` |
 | `quality/` | 质量检测分路报告 + 综合报告（P9） | `novel-quality` |
 | `styles/index.yaml` | 风格清单 | `style_manager.py` |
 

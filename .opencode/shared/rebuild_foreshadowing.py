@@ -2,6 +2,8 @@
 """
 rebuild_foreshadowing.py — 从分纲+章节元数据重建伏笔。
 
+全量重建模式，对应的增量更新函数在 _tracking.py（update_foreshadowing）。
+
 用法：
     python rebuild_foreshadowing.py --project-root NOVELS_ROOT/项目名
     python rebuild_foreshadowing.py --project-root NOVELS_ROOT/项目名 --dry-run
@@ -23,7 +25,7 @@ import sys
 from pathlib import Path
 
 try:
-    from _utils import load_yaml, save_yaml
+    from _utils import load_yaml, save_yaml, extract_chapter_number
 except ImportError:
     import importlib.util
     _utils_path = Path(__file__).parent / "_utils.py"
@@ -32,14 +34,7 @@ except ImportError:
     spec.loader.exec_module(_utils)
     load_yaml = _utils.load_yaml
     save_yaml = _utils.save_yaml
-
-
-def _extract_chapter_number(filename: str) -> int:
-    """从文件名提取章节号。"""
-    match = re.search(r"第(\d+)章", filename)
-    if match:
-        return int(match.group(1))
-    return 0
+    extract_chapter_number = _utils.extract_chapter_number
 
 
 def _extract_foreshadowing_from_meta(meta_path: Path) -> list[dict]:
@@ -146,7 +141,7 @@ def rebuild_foreshadowing(project_root: Path, dry_run: bool = False) -> dict:
     records = []
     if fengang_dir.is_dir():
         for f in sorted(fengang_dir.glob("*.yaml")):
-            chapter_num = _extract_chapter_number(f.name)
+            chapter_num = extract_chapter_number(f.name)
             if chapter_num == 0:
                 continue
 
@@ -158,7 +153,7 @@ def rebuild_foreshadowing(project_root: Path, dry_run: bool = False) -> dict:
     # 2. 扫描章节元数据（覆盖分纲中的数据）
     if meta_dir.is_dir():
         for meta_file in sorted(meta_dir.glob("*.txt")):
-            chapter_num = _extract_chapter_number(meta_file.name)
+            chapter_num = extract_chapter_number(meta_file.name)
             if chapter_num == 0:
                 continue
 

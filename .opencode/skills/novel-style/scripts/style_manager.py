@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Novel Style Manager — 风格文件维护脚本。
 
-对标: rebuild_project_index.py（维护 project_index.yaml）、auto_update.py（维护 config.yaml + 追踪数据）
+对标: rebuild_project_index.py（维护 project_index.yaml）、chapter_tracking.py（维护 config.yaml + 追踪数据）
 
 5 个子命令:
   register   — 注册风格到 styles/index.yaml

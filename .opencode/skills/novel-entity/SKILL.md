@@ -64,11 +64,20 @@ worldbuilding/ 下 7 个文件（基本信息、核心规则、力量体系、�
 - `references/worldview_examples.md` — 世界观工作流示例
 - `assets/character.yaml` `assets/worldview.yaml` — 实体模板
 
-## 维护
+## 写后处理
 
-> 由编排层执行，子 Agent 无需调用。
+输出写入后执行以下脚本：
 
 ```bash
+# 1. YAML 格式修正
+python .opencode/shared/fix_yaml_indent.py "characters/{新文件名}.yaml"
+# 或批量修正
+python .opencode/shared/fix_yaml_indent.py --dir characters/
+
+# 2. 实体一致性校验（角色档案 vs 分纲出场角色）
+python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
+
+# 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 ```
 

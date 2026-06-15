@@ -51,6 +51,8 @@
 角色名1, 角色名2
 ```
 
+> 以下上下文由编排层通过 extract_template.py 注入。如果出现未填充的 `{变量名}`，说明编排层未提供该数据，请自行 read 获取。不要自己调用 extract_template.py。
+
 ## HARD CONSTRAINTS
 
 1. NO shortcut language — NEVER use "考虑到时间和复杂性", "采用简化方案"等措辞
@@ -60,7 +62,5 @@
 5. COMPLETENESS = SUCCESS — Incomplete output = FAILED task
 6. 字数控制在分纲 `字数目标` 范围内（±20%）
 7. 禁止重复前一章内容
-8. 禁止中英混杂
-9. 禁止空洞内心独白
-10. 角色关系以完整档案为准 — 不得仅凭摘要脑补关系状态
-11. 使用 `write` 一次性写入，写完前不反复修改
+8. 角色关系以完整档案为准 — 不得仅凭摘要脑补关系状态
+9. 使用 `write` 一次性写入，写完前不反复修改

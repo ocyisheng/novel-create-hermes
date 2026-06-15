@@ -101,17 +101,19 @@ tags: ["novel", "entity", "editor", "modification"]
 | `entity_schema.py` | 检测实体类型、列出可编辑字段 | 编辑前（检测类型）、编辑后（验证） |
 | `entity_diff.py` | 比较编辑前后的 YAML 语义化 diff | 编辑后（展示变更摘要） |
 
-### 后处理链（编排层在编辑后调用）
+## 写后处理
+
+输出写入后执行以下脚本：
 
 ```bash
 # 1. YAML 格式修正
 python .opencode/shared/fix_yaml_indent.py "{实体文件路径}"
 
 # 2. 实体一致性校验（仅角色和分纲变更时需要）
-python .opencode/shared/validate_entity_consistency.py --project-root "{项目路径}"
+python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
 
 # 3. 项目索引重建
-python .opencode/shared/rebuild_project_index.py --project-root "{项目路径}"
+python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 ```
 
 ## 参考文件

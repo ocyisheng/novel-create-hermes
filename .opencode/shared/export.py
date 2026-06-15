@@ -31,12 +31,6 @@ except ImportError:
 
 from _utils import find_project_root
 
-try:
-    import yaml
-except ImportError:
-    print("错误: 需要 PyYAML，请运行 novel-env-setup 安装依赖")
-    sys.exit(1)
-
 
 def load_config(project_root: Path) -> dict:
     """加载项目配置"""

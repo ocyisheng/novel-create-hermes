@@ -1,6 +1,8 @@
 ## TASK
 为项目 {项目名} 执行 {检测类型}。
 
+> 以下上下文由编排层通过 extract_template.py 注入。如果出现未填充的 `{变量名}`，说明编排层未提供该数据，请自行 read 获取。不要自己调用 extract_template.py。
+
 ## CONTEXT
 ### 目标章节正文
 {章节正文}

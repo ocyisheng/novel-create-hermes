@@ -16,16 +16,16 @@
 
 ## YAML 格式约束
 
-以下规则适用于所有输出的实体 YAML 文件（`characters/*.yaml`、`worldbuilding/*.yaml`）：
-
 1. **缩进**：统一 2 空格，禁止使用 tab
 2. **引号**：所有字符串值必须用双引号 `""` 包裹
-3. **多段落文本**（标注 `|` 的字段）：使用 YAML literal block scalar，正文比字段名多缩进 2 空格，段落间空行保持同等缩进
+3. **多段落文本**：使用 YAML literal block scalar（`|`），正文比字段名多缩进 2 空格，段落间空行保持同等缩进
 4. **列表项**：`-` 比父级键多缩进 2 空格
 5. **顶层键间空行**：`_meta:`、`索引信息:`、`摘要:`、`完整档案:` 之间保留空行分割
 
 ## MUST DO
 - 按 `assets/character.yaml` 或 `assets/worldview.yaml` 模板格式创建实体文件
+
+> 以下上下文由编排层通过 extract_template.py 注入。如果出现未填充的 `{变量名}`，说明编排层未提供该数据，请自行 read 获取。不要自己调用 extract_template.py。
 
 ## HARD CONSTRAINTS
 
@@ -34,3 +34,4 @@
 3. NO placeholder content — NEVER use "[待补充]" or similar
 4. NO partial delivery — Output MUST be 100% complete
 5. COMPLETENESS = SUCCESS — Incomplete output = FAILED task
+6. YAML文件由写后处理脚本统一维护，不需要手动校验

@@ -2,6 +2,8 @@
 """
 rebuild_plot_progress.py — 从情节线文件重建进度。
 
+全量重建模式，对应的增量更新函数在 _tracking.py（update_plot_threads）。
+
 用法：
     python rebuild_plot_progress.py --project-root NOVELS_ROOT/项目名
     python rebuild_plot_progress.py --project-root NOVELS_ROOT/项目名 --dry-run

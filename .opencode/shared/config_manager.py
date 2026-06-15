@@ -23,11 +23,17 @@ def load_config(project_root: Path) -> dict:
         print(f"Error: config.yaml not found at {project_root}", file=sys.stderr)
         sys.exit(1)
     with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or {}
 
 
 def save_config(project_root: Path, data: dict) -> None:
     config_path = project_root / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if config_path.exists():
+        bak = config_path.with_suffix(".yaml.bak")
+        if bak.exists():
+            bak.unlink()
+        config_path.rename(bak)
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 

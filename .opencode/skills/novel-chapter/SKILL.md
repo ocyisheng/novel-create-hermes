@@ -27,16 +27,20 @@ tags: ["novel", "chapter", "writing"]
 
 ## 上下文契约
 
-编排层在调用前按以下清单加载，`extract_template.py` 填充到模板变量中。
+编排层在调用前按以下流程加载上下文，`extract_template.py` 填充到模板变量中。
 
-**快捷方式**：使用 `chapter_context.py` 一次性收集全部上下文：
+### 上下文加载流程（强制性）
+
+编排层在 Task() 前必须执行以下脚本：
+
+**Step 1** — 使用 `chapter_context.py` 一次性收集全部上下文：
 
 ```bash
 python .opencode/shared/chapter_context.py \
     --project-root {PROJECT_PATH} --chapter {章节号} --output /tmp/context.json
 ```
 
-然后用 `extract_template.py` 填充：
+**Step 2** — 用 `extract_template.py` 填充 prompt 模板：
 
 ```bash
 python .opencode/shared/extract_template.py \
@@ -48,37 +52,46 @@ python .opencode/shared/extract_template.py \
     < /tmp/context.json
 ```
 
-**槽位清单**：
+**Step 3** — 将 extract_template.py 输出的完整 prompt 传给 Task()。
 
-| 槽位 | 内容 | 加载方式 |
+### 槽位清单
+
+所有槽位由 chapter_context.py 一次性提供。以下为清单和文件来源参考：
+
+| 槽位 | 内容 | 文件来源 |
 |------|------|---------|
-| 本章分纲 | `outline/分纲/卷{卷号}/第{N}章.yaml` | `chapter_context.py` 或 read |
-| 前章摘要 | `outline/追踪/章节摘要.yaml` 中第{N-1}章的摘要 | `chapter_context.py` 或 read |
-| 前一章衔接 | 最后 100 字 + 悬念钩子 | `chapter_context.py` 或 `last_100.py` |
-| 出场角色档案 | 从分纲提取角色名 → 读完整档案 | `chapter_context.py` 或 project_index.yaml → read |
-| 世界观相关实体 | 按分纲"世界观补充"字段 | `chapter_context.py` 或 read worldbuilding/ |
-| 待处理伏笔 | `outline/追踪/伏笔.yaml` | `chapter_context.py` 或 read |
-| 时间线上下文 | `outline/追踪/时间线.yaml` | read 筛选本章附近章节的事件（±5章） |
-| 相关支线 | 活跃支线当前节点 | `chapter_context.py` 或 project_index.yaml → read |
-| 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在）→ 多线交织总图中匹配本章的条目 | read 筛选 |
-| 已知问题 | `novel-issues.md` 相关条目 | `chapter_context.py` 或 read |
-| 活跃风格 | config.yaml `活跃风格` → 风格文件 | `chapter_context.py` 或 read |
+| 本章分纲 | `outline/分纲/卷{卷号}/第{N}章.yaml` | chapter_context.py |
+| 前章摘要 | `outline/追踪/章节摘要.yaml` 中第{N-1}章的摘要 | chapter_context.py |
+| 前一章衔接 | 最后 100 字 + 悬念钩子 | chapter_context.py 或 last_100.py |
+| 出场角色档案 | 从分纲提取角色名 → 读完整档案 | chapter_context.py |
+| 世界观相关实体 | 按分纲"世界观补充"字段 | chapter_context.py |
+| 待处理伏笔 | `outline/追踪/伏笔.yaml` | chapter_context.py |
+| 时间线上下文 | `outline/追踪/时间线.yaml` | chapter_context.py（筛选±5章） |
+| 相关支线 | 活跃支线当前节点 | chapter_context.py |
+| 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在） | chapter_context.py |
+| 已知问题 | `novel-issues.md` 相关条目 | chapter_context.py |
+| 活跃风格 | config.yaml `活跃风格` → 风格文件 | chapter_context.py |
 
 ## 输出
 
 - `chapters/第X章.txt` — 纯正文（UTF-8）
 - `chapters/.metas/第X章.txt` — 元数据标记（保留不删，格式见 `templates/prompt_template.md` §OUTPUT）
 
-## 维护
+## 写后处理
 
-> 由编排层执行，子 Agent 无需调用。
+输出写入后执行以下脚本：
 
 ```bash
-python .opencode/shared/auto_update.py \
+# 追踪数据 — 增量更新伏笔/时间线/角色统计/情节线进度/章节摘要
+python .opencode/shared/chapter_tracking.py \
     --project-root {PROJECT_PATH} --chapter chapters/第X章.txt
+
+# 创作进度 — 更新当前章节号和最后编辑时间
+python .opencode/shared/config_manager.py set 创作进度.当前章节 {N} --project-root {PROJECT_PATH}
+python .opencode/shared/config_manager.py set 最后编辑 "{now}" --project-root {PROJECT_PATH}
 ```
 
-一个脚本完成全部：伏笔追踪、时间线、角色统计、config 进度、章节摘要、项目索引重建。省略 `--chapter` 则自动扫描所有待处理章节。
+> 项目索引不在此维护；字数通过 word_count.py 按需查询。
 
 ## 写作效率
 

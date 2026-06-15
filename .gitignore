@@ -40,6 +40,9 @@ Thumbs.db
 .omo/notepads/projects/
 docs/
 novels/
+
+# ----- 测试和覆盖率 -----
+.pytest_cache
 tests/
 .coverage
 pyproject.toml

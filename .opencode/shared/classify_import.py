@@ -64,7 +64,7 @@ def _load_yaml_safe(path: Path) -> Optional[dict]:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else None
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return None
 
 
@@ -279,7 +279,7 @@ def classify_file(file_path: Path) -> dict:
     if suffix == ".txt":
         try:
             text = file_path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             text = ""
 
         if _is_narrative_text(text):
@@ -417,7 +417,7 @@ def classify_file(file_path: Path) -> dict:
     # ── 其他格式（.md, .json, 无扩展名等） ────────────────────────────
     try:
         text = file_path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
+    except OSError:
         text = ""
 
     if _is_narrative_text(text):

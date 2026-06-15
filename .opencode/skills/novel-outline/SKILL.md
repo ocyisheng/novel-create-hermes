@@ -98,13 +98,20 @@ tags: ["novel", "outline", "plot"]
 - `references/plot_examples.md` — 情节设计示例
 - `references/foreshadowing.md` — 伏笔设计参考
 
-## 维护
+## 写后处理
+
+输出写入后执行以下脚本：
 
 ```bash
-python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
-```
+# 1. YAML 格式修正
+python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 
-由编排层在 P3/P7 实体创建后执行，子 Agent 无需调用。
+# 2. 项目索引重建
+python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
+
+# 3. 阶段切换（仅 P2→P3 和 P7→P8 时）
+python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
+```
 
 ## HARD CONSTRAINTS
 

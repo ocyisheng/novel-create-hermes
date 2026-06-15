@@ -1,7 +1,18 @@
 """追踪数据维护
 
-负责章节写后更新伏笔、时间线、角色统计、情节线进度和 config 进度。
-所有函数独立可测，被 auto_update.py 的 CLI 编排层调用。
+负责章节写后更新伏笔、时间线、角色统计、情节线进度和章节摘要。
+所有函数独立可测，被 chapter_tracking.py 的 CLI 编排层调用。
+
+增量 vs 全量对照：
+  本模块提供增量更新函数（update_*），由 chapter_tracking.py 在每章写后调用。
+  对应的全量重建函数在 rebuild_*.py 中，用于手动恢复或从文件系统扫描重建。
+  关系对照：
+    update_foreshadowing()      ↔  rebuild_foreshadowing.rebuild_foreshadowing()
+    update_timeline()           ↔  rebuild_timeline.rebuild_timeline()
+    update_character_stats()    ↔  rebuild_character_stats.rebuild_character_stats()
+    update_plot_threads()       ↔  rebuild_plot_progress.rebuild_plot_progress()
+    update_chapter_summary()    ↔  rebuild_chapter_summaries.rebuild_chapter_summaries()
+    update_config_progress()    （独立于追踪，由 config_manager.py update-progress 调用）
 """
 
 import re

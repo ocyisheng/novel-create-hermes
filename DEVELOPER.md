@@ -102,7 +102,7 @@ novel-create-hermes/
 
 | 脚本 | 用途 |
 |------|------|
-| `auto_update.py` | 章节写后元数据维护 |
+| `chapter_tracking.py` | 章节写后元数据维护 |
 | `chapter_context.py` | 章节写作上下文收集 |
 | `rebuild_project_index.py` | 项目索引重建 |
 | `rebuild_character_stats.py` | 角色统计重建 |
@@ -134,9 +134,9 @@ python .opencode/shared/chapter_context.py --project-root NOVELS_ROOT/项目名 
 python .opencode/shared/export.py --project-root NOVELS_ROOT/项目名 --format txt html
 
 # 维护
-python .opencode/shared/auto_update.py --project-root NOVELS_ROOT/项目名
+python .opencode/shared/chapter_tracking.py --project-root NOVELS_ROOT/项目名
 python .opencode/shared/rebuild_project_index.py --project-root NOVELS_ROOT/项目名
 
 # 重建追踪
-python .opencode/shared/auto_update.py --project-root NOVELS_ROOT/项目名 --rebuild-all
+python .opencode/shared/chapter_tracking.py --project-root NOVELS_ROOT/项目名 --rebuild-all
 ```

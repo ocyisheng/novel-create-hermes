@@ -53,7 +53,9 @@ def save_yaml(path: Path, data: dict) -> None:
 
 # ── 章节号 ───────────────────────────────────────────────────────────────────
 
-def extract_chapter_number(filepath: Path) -> int:
+def extract_chapter_number(filepath: Path | str) -> int:
     """从文件名提取章节号。如 "第5章.txt" → 5，"第12章.yaml" → 12。"""
+    if isinstance(filepath, str):
+        filepath = Path(filepath)
     m = re.search(r"(\d+)", filepath.stem)
     return int(m.group(1)) if m else 0

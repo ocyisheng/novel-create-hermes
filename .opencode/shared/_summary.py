@@ -1,6 +1,8 @@
 """元数据标记提取与摘要处理
 
 从 chapters/.metas/ 目录读取章节元数据，提取伏笔、角色、摘要等信息。
+
+对应的全量重建脚本：rebuild_chapter_summaries.py
 """
 
 import re

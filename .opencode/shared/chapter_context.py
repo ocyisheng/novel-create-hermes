@@ -36,18 +36,10 @@ except ImportError:
     print("错误: 需要 PyYAML，请运行 novel-env-setup 安装依赖", file=sys.stderr)
     sys.exit(1)
 
+from _utils import load_yaml
 
-# ── YAML 工具 ─────────────────────────────────────────────────────────────────
 
-def load_yaml(path: Path) -> dict:
-    """安全读取 YAML 文件，不存在或格式错误时返回 {}。"""
-    if not path.exists():
-        return {}
-    try:
-        with open(path, encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-    except yaml.YAMLError:
-        return {}
+# ── 字典工具 ─────────────────────────────────────────────────────────────────
 
 
 def get_nested(data: dict, dot_path: str):

@@ -37,6 +37,8 @@
 - 内容修改：精确执行修改指令，不波及无关段落
 - 修改后重新确认与前后章的衔接
 
+> 以下上下文由编排层通过 extract_template.py 注入。如果出现未填充的 `{变量名}`，说明编排层未提供该数据，请自行 read 获取。不要自己调用 extract_template.py。
+
 ## HARD CONSTRAINTS
 
 1. NO shortcut language

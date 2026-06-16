@@ -8,10 +8,6 @@ tags: ["novel", "chapter", "writing"]
 
 # 章节写作技能
 
-## PROMPT_TEMPLATE
-
-> 模板定义在 `templates/prompt_template.md`。编排层使用 `extract_template.py` 加载并填充变量。
-
 ## 核心职责
 
 按编排层传入的 CONTEXT 撰写章节正文。`{PROJECT_PATH}` 替换为 CONTEXT 中的 `PROJECT PATH` 值。
@@ -104,7 +100,3 @@ python .opencode/shared/config_manager.py set 最后编辑 "{now}" --project-roo
 - `references/writing_principles.md` — 核心写作原则
 - `references/scene-guide.md` — 场景写作指南
 - `references/foreshadowing.md` — 伏笔设计
-
-## HARD CONSTRAINTS
-
-> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入 LLM prompt。

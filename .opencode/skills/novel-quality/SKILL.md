@@ -13,9 +13,6 @@ tags: ["novel", "quality"]
 
 按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析。如需修正，由编排层调度 novel-chapter-editor 执行文笔优化或内容修改。
 
-## PROMPT_TEMPLATE
-
-> 模板定义在 `templates/prompt_template.md`。编排层使用 `extract_template.py` 加载并填充变量。
 
 ## 上下文契约
 
@@ -202,6 +199,17 @@ tags: ["novel", "quality"]
  9. 完成质量报告
 ```
 
+## 写后处理
+
+输出写入后执行以下脚本：
+
+```bash
+# 阶段切换（P9→完成）
+python .opencode/shared/config_manager.py set 当前阶段 "已完成" --project-root {PROJECT_PATH}
+```
+
+> `{PROJECT_PATH}` 由编排层在 Task() prompt CONTEXT 中传入。
+
 ## 参考文件
 
 - `references/ai_flavor_rules.md`
@@ -217,8 +225,4 @@ tags: ["novel", "quality"]
 - `references/drop-off_indicators.md`
 - `references/quality_mode.md`
 
----
 
-## HARD CONSTRAINTS
-
-> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入 LLM prompt。

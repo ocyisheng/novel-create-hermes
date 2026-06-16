@@ -9,10 +9,6 @@ tags: ["novel", "character", "worldbuilding", "entity"]
 
 # 角色与世界观技能
 
-## PROMPT_TEMPLATE
-
-> 模板定义在 `templates/prompt_template.md`。编排层使用 `extract_template.py` 加载并填充变量。
-
 ## 核心职责
 
 按编排 Agent 传入的 CONTEXT 执行角色创建和世界观建设任务。
@@ -79,8 +75,9 @@ python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_P
 
 # 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
+
+# 4. 阶段切换（P2→P3 世界观建设→角色创建 / P3→P4 角色创建→总纲撰写）
+python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
 ```
 
-## HARD CONSTRAINTS
 
-> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入 LLM prompt。

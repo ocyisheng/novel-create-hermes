@@ -13,9 +13,6 @@ tags: ["novel", "ideation"]
 
 按编排 Agent 传入的 CONTEXT 执行创意构思任务。覆盖约束管理、类型分析、模板生成、创意发散、评估筛选。
 
-## PROMPT_TEMPLATE
-
-> 模板定义在 `templates/prompt_template.md`。编排层使用 `extract_template.py` 加载并填充变量。
 
 ## 上下文契约
 
@@ -138,6 +135,17 @@ tags: ["novel", "ideation"]
 - 创意简报中 `选定: true` 标记被选中的方向
 - novel-outline 读取 `ideation/最终创意方案.yaml` 作为创作起点
 
+## 写后处理
+
+输出写入后执行以下脚本：
+
+```bash
+# 阶段切换（P1→P2：创意构思→世界观建设）
+python .opencode/shared/config_manager.py set 当前阶段 "世界观建设" --project-root {PROJECT_PATH}
+```
+
+> `{PROJECT_PATH}` 由编排层在 Task() prompt CONTEXT 中传入。
+
 ## 参考文件
 
 ### 核心指南
@@ -176,6 +184,3 @@ tags: ["novel", "ideation"]
 - `references/ideation_mode.md` — 创意模式
 - `references/writing_mode.md` — 写作模式
 
-## HARD CONSTRAINTS
-
-> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入 LLM prompt。

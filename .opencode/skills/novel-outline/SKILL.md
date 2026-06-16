@@ -109,7 +109,7 @@ python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 # 2. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 阶段切换（仅 P4→P5 和 P7→P8 时）
+# 3. 阶段切换（P4→P5 总纲→情节 / P5→P6 情节→分卷 / P6→P7 分卷→分纲 / P7→P8 分纲→章节）
 python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
 ```
 

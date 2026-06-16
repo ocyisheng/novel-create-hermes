@@ -3,7 +3,7 @@
 读取 chapters/.metas/ 标记，增量更新伏笔/时间线/角色统计/情节线进度/摘要。
 
 职责边界：本脚本只维护 outline/追踪/ 下的追踪数据。项目索引（project_index.yaml）
-由各创作阶段的 post-processing 链负责（P4/P5/P6/P7/P13），或通过 --rebuild-index 手动触发。
+由各创作阶段的 post-processing 链负责（P2/P3/P5/P7/P13），或通过 --rebuild-index 手动触发。
 
 用法:
   # 增量更新（默认 — 仅追踪数据）

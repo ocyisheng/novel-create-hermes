@@ -19,13 +19,13 @@
 │   ├── 约束集.yaml          # 6 大类约束
 │   ├── 创意简报.yaml        # 3-5 个创意方向
 │   ├── 评估报告.yaml        # 4 维度评分
-│   └── 最终创意方案.yaml    # 选定创意的完整方案（供 P2/P3 读取）
+│   └── 最终创意方案.yaml    # 选定创意的完整方案（供 P4/P6 读取）
 ├── outline/                 # 大纲文件
-│   ├── 总纲.yaml            # 故事宏观骨架：故事结构（幕列表）、分卷概览、节奏（P2 生成）
-│   ├── 分卷/                # 各卷大纲（P3 生成，每卷独立文件）
+│   ├── 总纲.yaml            # 故事宏观骨架：故事结构（幕列表）、分卷概览、节奏（P4 生成）
+│   ├── 分卷/                # 各卷大纲（P6 生成，每卷独立文件）
 │   │   ├── 卷1_开端.yaml    # 卷{N}_{名称}.yaml，含微弧/POV/叙事任务/卷末钩子
 │   │   └── ...
-│   ├── 情节线/              # 情节线实体（P4 生成）
+│   ├── 情节线/              # 情节线实体（P5 生成）
 │   │   ├── 主线.yaml        # 主线情节
 │   │   └── 支线_*.yaml      # 支线情节（多条）
 │   ├── 分纲/                # 分章节大纲（P7 生成，按卷拆分目录）
@@ -47,7 +47,7 @@
 ├── styles/                  # 写作风格定义
 │   ├── index.yaml           # 风格清单（由 style_manager.py 维护）
 │   └── {名称}.yaml          # 7 维度风格文件（每风格 ≤30 行）
-└── worldbuilding/           # 世界观文件（.yaml，P5 生成）
+└── worldbuilding/           # 世界观文件（.yaml，P2 生成）
     ├── 基本信息.yaml
     ├── 核心规则.yaml
     ├── 力量体系.yaml
@@ -77,9 +77,9 @@
 | 文件 | 内容 | 写入者 |
 |------|------|--------|
 | `ideation/` | 创意构思 5 个阶段文件 | `novel-ideation` |
-| `outline/总纲.yaml` | 故事结构（幕列表）、分卷概览、节奏说明（P2） | `init.py`（骨架）+ `novel-outline`（P2 填充） |
-| `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P3） | `init.py`（骨架）+ `novel-outline`（P3 填充） |
-| `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P4） |
+| `outline/总纲.yaml` | 故事结构（幕列表）、分卷概览、节奏说明（P4） | `init.py`（骨架）+ `novel-outline`（P4 填充） |
+| `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P5） |
+| `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P6） | `init.py`（骨架）+ `novel-outline`（P6 填充） |
 | `outline/追踪/伏笔.yaml` | 伏笔设置与回收追踪 | `chapter_tracking.py` |
 | `outline/追踪/时间线.yaml` | 事件时序 | `chapter_tracking.py` |
 | `chapters/.metas/` | 章节元数据标记（摘要/伏笔/出场角色） | `novel-chapter`（P8 写作时）+ `chapter_tracking.py` |

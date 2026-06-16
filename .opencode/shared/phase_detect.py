@@ -15,11 +15,11 @@ Example:
     P9 可深度检查           chapters/ 文件数 >= 目标章节数
     P8 章节写作进行中        chapters/ 下有 .txt 文件
     P7 分纲已就绪            outline/分纲/ 下有文件
-    P6 角色已创建            characters/ 下有角色 .yaml
-    P5 世界观已建设          worldbuilding/ 基础文件存在
-    P4 情节线已设计          outline/情节线/ 下有文件
-    P3 分卷大纲已生成        outline/分卷/ 下有文件
-    P2 大纲已规划            outline/总纲.yaml 有内容
+    P6 分卷大纲已生成        outline/分卷/ 下有文件
+    P5 情节线已设计          outline/情节线/ 下有文件
+    P4 大纲已规划            outline/总纲.yaml 有内容
+    P3 角色已创建            characters/ 下有角色 .yaml
+    P2 世界观已建设          worldbuilding/ 基础文件存在
     P1 创意构思中            ideation/ 有内容但无最终方案
     P0 新建项目              config.yaml 存在但无产出
 """
@@ -72,20 +72,20 @@ def detect_phase(project_root: Path) -> tuple[str, str]:
     if fengang_dir.is_dir() and list(fengang_dir.rglob("*.yaml")):
         return ("P7 分纲已就绪", "outline/分纲/ 下有文件")
 
-    if count_files(characters_dir) > 0:
-        return ("P6 角色已创建", f"characters/ 下有 {count_files(characters_dir)} 个文件")
-
-    if worldbuilding_dir.is_dir() and list(worldbuilding_dir.glob("*.yaml")):
-        return ("P5 世界观已建设", "worldbuilding/ 基础文件存在")
+    if volume_dir.is_dir() and list(volume_dir.glob("*.yaml")):
+        return ("P6 分卷大纲已生成", "outline/分卷/ 下有文件")
 
     if plot_dir.is_dir() and list(plot_dir.glob("*.yaml")):
-        return ("P4 情节线已设计", "outline/情节线/ 下有文件")
-
-    if volume_dir.is_dir() and list(volume_dir.glob("*.yaml")):
-        return ("P3 分卷大纲已生成", "outline/分卷/ 下有文件")
+        return ("P5 情节线已设计", "outline/情节线/ 下有文件")
 
     if content_exists(zonggang):
-        return ("P2 大纲已规划", "outline/总纲.yaml 有内容")
+        return ("P4 大纲已规划", "outline/总纲.yaml 有内容")
+
+    if count_files(characters_dir) > 0:
+        return ("P3 角色已创建", f"characters/ 下有 {count_files(characters_dir)} 个文件")
+
+    if worldbuilding_dir.is_dir() and list(worldbuilding_dir.glob("*.yaml")):
+        return ("P2 世界观已建设", "worldbuilding/ 基础文件存在")
 
     if ideation_dir.is_dir() and list(ideation_dir.glob("*.yaml")):
         final = ideation_dir / "最终创意方案.yaml"

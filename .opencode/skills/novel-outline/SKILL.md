@@ -1,6 +1,6 @@
 ---
 name: "novel-outline"
-description: "大纲与分纲：总纲撰写（P2）、分卷大纲生成（P3）、情节构建（P4）、分纲撰写（P7）。触发词：大纲、总纲、分卷、分纲、情节、主线、支线、框架、结构"
+description: "大纲与分纲：总纲撰写（P4）、情节构建（P5）、分卷大纲生成（P6）、分纲撰写（P7）。触发词：大纲、总纲、分卷、分纲、情节、主线、支线、框架、结构"
 license: "MIT"
 version: "2.1.0"
 compatibility: "OpenCode"
@@ -19,9 +19,9 @@ tags: ["novel", "outline", "plot"]
 
 | 阶段 | 任务 | 输出 |
 |------|------|------|
-| P2 | 总纲撰写 | `outline/总纲.yaml` |
-| P3 | 分卷大纲生成 | `outline/分卷/卷{N}_{名称}.yaml` |
-| P4 | 情节构建 | `outline/情节线/*.yaml` |
+| P4 | 总纲撰写 | `outline/总纲.yaml` |
+| P5 | 情节构建 | `outline/情节线/*.yaml` |
+| P6 | 分卷大纲生成 | `outline/分卷/卷{N}_{名称}.yaml` |
 | P7 | 分纲撰写 | `outline/分纲/卷{卷号}/第{N}章.yaml` |
 
 > **路径说明**：下文所有 `{PROJECT_PATH}` 替换为编排层 CONTEXT 中传入的 `PROJECT PATH` 值。
@@ -30,7 +30,7 @@ tags: ["novel", "outline", "plot"]
 
 编排层在调用本技能前按以下清单加载上下文。
 
-### P2 总纲撰写
+### P4 总纲撰写
 
 读取创意方案，输出总纲骨架。
 
@@ -40,7 +40,7 @@ tags: ["novel", "outline", "plot"]
 
 输出：`outline/总纲.yaml`，参见 `assets/outline.yaml` 模板。
 
-### P3 分卷大纲生成
+### P6 分卷大纲生成
 
 读取总纲+创意方案，为每卷输出完整大纲。
 
@@ -52,7 +52,7 @@ tags: ["novel", "outline", "plot"]
 
 输出：`outline/分卷/卷{N}_{名称}.yaml`（每卷独立文件），参见 `assets/volume.yaml` 模板。每卷必须包含：卷信息（卷号/卷名/所属阶段/章节范围/时间跨度/核心冲突）、叙事任务、主角状态（起点/终点/年龄）、微弧分割（2-4弧×章节范围/核心事件/高潮）、POV分布（主视角+POV角色及功能）、间奏章节、关键事件清单（分类）、角色发展、本卷节奏（基调/情感曲线）、卷末钩子。
 
-### P4 情节构建
+### P5 情节构建
 
 读取总纲，设计主线+支线。
 
@@ -82,10 +82,10 @@ tags: ["novel", "outline", "plot"]
 
 | 阶段 | 文件 | 模板 | 写入方式 |
 |------|------|------|---------|
-| P2 | `outline/总纲.yaml` | `assets/outline.yaml` | `write` / `edit` |
-| P3 | `outline/分卷/卷{N}_{名称}.yaml` | `assets/volume.yaml` | `write` / `edit` |
-| P4 | `outline/情节线/主线.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
-| P4 | `outline/情节线/支线_{名称}.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
+| P4 | `outline/总纲.yaml` | `assets/outline.yaml` | `write` / `edit` |
+| P5 | `outline/情节线/主线.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
+| P5 | `outline/情节线/支线_{名称}.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
+| P6 | `outline/分卷/卷{N}_{名称}.yaml` | `assets/volume.yaml` | `write` / `edit` |
 | P7 | `outline/分纲/卷{卷号}/第{N}章.yaml` | `assets/chapter.yaml` | `write` / `edit` |
 
 写入规则：新文件用 `write`，已有文件用 `edit` 增量修改，覆盖前先创建 `.bak` 备份。
@@ -109,7 +109,7 @@ python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 # 2. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 阶段切换（仅 P2→P3 和 P7→P8 时）
+# 3. 阶段切换（仅 P4→P5 和 P7→P8 时）
 python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
 ```
 

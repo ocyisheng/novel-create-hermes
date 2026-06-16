@@ -34,6 +34,7 @@ Thumbs.db
 
 # ----- 其他 -----
 .omo/run-continuation/
+.omo/plans/
 .omo/notepads/novel-context.md
 .omo/notepads/novel-issues.md
 .omo/notepads/novel-learnings.md

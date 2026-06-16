@@ -898,11 +898,13 @@ chapters: {{}}
 # 当前阶段 → P 编号标签（与 .omo/plans/novel-creation.md 命名一致）
 PHASE_TO_P_TAG = {
     "创意构思": "P1",
-    "总纲撰写": "P2",
-    "大纲规划": "P2",           # 旧名兼容
-    "分卷大纲生成": "P3",
-    "卷大纲生成": "P3",         # 旧名兼容
-    "情节构建": "P4",
+    "世界观建设": "P2",
+    "角色创建": "P3",
+    "总纲撰写": "P4",
+    "大纲规划": "P4",           # 旧名兼容
+    "情节构建": "P5",
+    "分卷大纲生成": "P6",
+    "卷大纲生成": "P6",         # 旧名兼容
     "分纲构建": "P7",
     "分纲撰写": "P7",
     "章节写作": "P8",
@@ -1131,7 +1133,7 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
         return "已完成"
 
     def _volume_status() -> str:
-        """分卷大纲生成（P3）状态"""
+        """分卷大纲生成（P6）状态"""
         if not outline_done or vol_outline_count == 0:
             return "未开始"
         if volume_count and vol_outline_count >= volume_count:
@@ -1192,16 +1194,16 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
             if not ideation_done:
                 return ["- 项目处于初始化阶段，可启动 P1 创意构思"]
             if not outline_done:
-                return ["- 总纲未就绪，可启动 P2 总纲撰写"]
+                return ["- 总纲未就绪，可启动 P4 总纲撰写"]
             if vol_outline_count < (volume_count or 1):
                 return [
-                    "- 总纲已就绪，可启动 P3 分卷大纲生成",
+                    "- 总纲已就绪，可启动 P6 分卷大纲生成",
                     f"- 当前仅 {vol_outline_count}/{volume_count or '?'} 卷有内容",
                 ]
             if outline_files_count == 0:
                 return [
                     "- 分卷大纲已就绪，可启动 P7 分纲构建",
-                    "- 或先创建角色和世界观（P5/P6）再开始分纲",
+                    "- 或先创建角色和世界观（P2/P3）再开始分纲",
                 ]
         # 已在 P8（章节写作阶段）或更后
         if total_chapters_target and actual >= total_chapters_target:

@@ -293,7 +293,7 @@ def main():
     plot_dir = project_root / "outline" / "情节线"
 
     if not plot_dir.is_dir():
-        print("错误: outline/情节线/ 目录不存在，请先完成 P4 情节构建")
+        print("错误: outline/情节线/ 目录不存在，请先完成 P5 情节构建")
         sys.exit(1)
 
     # 检查是否有情节线文件

@@ -23,7 +23,7 @@ tags: ["novel", "character", "worldbuilding", "entity"]
 
 编排层（或手工操作者）在调用本技能前按以下清单加载上下文：
 
-### P5 世界观建设
+### P2 世界观建设
 
 | 槽位 | 文件路径 | 提取字段 | 加载方式 |
 |------|---------|---------|---------|
@@ -31,7 +31,7 @@ tags: ["novel", "character", "worldbuilding", "entity"]
 | 总纲 | `outline/总纲.yaml` | 世界观相关 `关键设定` `势力格局` `地理信息` | `read` 全文件 |
 | 已有实体 | `project_index.yaml` | `worldbuilding` 段（已有实体 ID + `name` `subtype`） | `read` 避免重复创建 |
 
-### P6 角色创建
+### P3 角色创建
 
 | 槽位 | 文件路径 | 提取字段 | 加载方式 |
 |------|---------|---------|---------|

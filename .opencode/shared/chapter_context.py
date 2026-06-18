@@ -18,6 +18,7 @@ Output (JSON):
         "出场角色档案": "...",
         "世界观相关实体": "...",
         "伏笔状态": "...",
+        "时间线规划": "...",
         "支线状态": "...",
         "已知问题": "...",
         "活跃风格": "..."
@@ -221,23 +222,138 @@ def load_worldbuilding_entities(project_root: Path, chapter_num: int) -> str:
     return "\n".join(parts) if parts else ""
 
 
-# ── 待处理伏笔 ───────────────────────────────────────────────────────────────
+# ── 待处理伏笔（规划 + 追踪合并） ────────────────────────────────────────────
 
 def load_foreshadowing(project_root: Path, chapter_num: int) -> str:
-    """从 outline/追踪/伏笔.yaml 筛选进行中/需回收的伏笔。"""
-    fs_path = project_root / "outline" / "追踪" / "伏笔.yaml"
-    data = load_yaml(fs_path)
+    """从规划文件 + 追踪文件合并加载伏笔上下文。
+
+    规划数据（outline/伏笔规划.yaml）提供完整设计意图（编号/名称/关联情节线/回收位置），
+    追踪数据（outline/追踪/伏笔.yaml）提供实际写后状态（状态/回收章节）。
+    若追踪文件不存在或为空，仅返回规划数据。
+
+    Returns:
+        格式化字符串，包含全局伏笔规划和当前待处理伏笔状态。
+    """
+    plan_path = project_root / "outline" / "伏笔规划.yaml"
+    track_path = project_root / "outline" / "追踪" / "伏笔.yaml"
 
     parts = []
-    for item in data.get("伏笔", []):
-        status = item.get("状态", "")
-        if status in ("进行中", "需回收"):
-            line = f"- {item.get('伏笔ID', '')}: {item.get('描述', '')}"
-            if item.get("预期回收章节"):
-                line += f"（预期回收：第{item['预期回收章节']}章）"
+    track_lookup = {}  # 描述 → 追踪条目（用于合并状态）
+
+    # 1. 加载追踪数据，建立描述→状态的查询表
+    track_data = load_yaml(track_path)
+    if track_data:
+        for item in track_data.get("伏笔", []):
+            desc = item.get("描述", "")
+            if desc:
+                track_lookup[desc] = item
+
+    # 2. 从规划文件加载全局设计意图
+    plan_data = load_yaml(plan_path)
+    if plan_data and plan_data.get("伏笔规划"):
+        parts.append("【全局伏笔规划】")
+        for item in plan_data["伏笔规划"]:
+            name = item.get("名称", "")
+            desc = item.get("描述", "")
+            relate = item.get("关联情节线", "")
+            set_pos = item.get("设置位置", "")
+            rec_pos = item.get("回收位置", "")
+            roles = item.get("涉及角色", [])
+            expected = item.get("预期回收状态", "")
+
+            # 在追踪数据中查找同名伏笔的当前状态
+            tracking_status = ""
+            for t_desc, t_item in track_lookup.items():
+                if name and name in t_desc:
+                    ts = t_item.get("状态", "")
+                    if ts:
+                        tracking_status = f"（追踪状态：{ts}）"
+                    break
+
+            line = f"- {item.get('编号', '')} | {name}"
+            if relate:
+                line += f" [{relate}]"
+            line += f"\n  描述：{desc.strip()}"
+            if set_pos:
+                line += f"\n  设置：{set_pos}"
+            if rec_pos:
+                line += f"\n  回收：{rec_pos}"
+            if roles:
+                line += f"\n  涉及：{'、'.join(roles) if isinstance(roles, list) else roles}"
+            if expected:
+                line += f"\n  预期：{expected}"
+            if tracking_status:
+                line += f"\n  {tracking_status}"
             parts.append(line)
 
-    return "\n".join(parts) if parts else ""
+    # 3. 从追踪文件筛选当前待处理的活跃伏笔
+    if track_data:
+        active_items = []
+        for item in track_data.get("伏笔", []):
+            status = item.get("状态", "")
+            if status in ("待回收", "进行中", "需回收"):
+                active_items.append(item)
+
+        if active_items:
+            parts.append("\n【当前待处理伏笔（追踪）】")
+            for item in active_items:
+                desc = item.get("描述", "")
+                # 尝试查找规划编号
+                plan_id = item.get("编号", "")
+                if plan_id:
+                    line = f"- {plan_id}: {desc}"
+                else:
+                    line = f"- {desc}"
+                if item.get("预期回收章节"):
+                    line += f"（预期回收：第{item['预期回收章节']}章）"
+                parts.append(line)
+
+    return "\n".join(parts) if parts else "（无伏笔数据）"
+
+
+# ── 时间线规划 ───────────────────────────────────────────────────────────────
+
+def load_timeline_plan(project_root: Path) -> str:
+    """从 outline/时间线设计.yaml 加载全局时间线规划。
+
+    按时代/阶段结构化的时间线设计，提供写前的时间线世界观参考。
+
+    Returns:
+        格式化字符串，包含全局时间线设计的简要呈现。
+    """
+    plan_path = project_root / "outline" / "时间线设计.yaml"
+    data = load_yaml(plan_path)
+    if not data:
+        return "（无时间线设计数据）"
+
+    parts = []
+    desc = data.get("设计说明", "")
+    calendar = data.get("纪年体系", "")
+    if desc:
+        parts.append(f"设计说明：{desc}")
+    if calendar:
+        parts.append(f"纪年体系：{calendar}")
+
+    timeline = data.get("时间线设计", [])
+    if timeline:
+        parts.append("")
+        for era in timeline:
+            era_name = era.get("时代", "")
+            era_desc = era.get("说明", "")
+            title = f"【{era_name}】" if era_name else ""
+            if title and era_desc:
+                title += f" — {era_desc}"
+            if title:
+                parts.append(title)
+            for event in era.get("事件", []):
+                event_time = event.get("时间", "")
+                event_desc = event.get("事件", "")
+                if event_time and event_desc:
+                    parts.append(f"  {event_time} | {event_desc}")
+                elif event_desc:
+                    parts.append(f"  {event_desc}")
+
+    return "\n".join(parts) if parts else "（无时间线设计数据）"
 
 
 # ── 支线状态 ─────────────────────────────────────────────────────────────────
@@ -352,10 +468,13 @@ def collect_context(project_root: Path, chapter_num: int) -> dict:
     # 5. 世界观相关实体
     context["世界观相关实体"] = load_worldbuilding_entities(project_root, chapter_num)
 
-    # 6. 待处理伏笔
+    # 6. 待处理伏笔（规划+追踪合并）
     context["伏笔状态"] = load_foreshadowing(project_root, chapter_num)
 
-    # 7. 支线状态
+    # 7. 时间线规划
+    context["时间线规划"] = load_timeline_plan(project_root)
+
+    # 8. 支线状态
     context["支线状态"] = load_plot_threads(project_root, chapter_num)
 
     # 8. 已知问题
@@ -417,7 +536,7 @@ def main():
         vars = [
             "本章分纲内容", "前章摘要", "前一章衔接",
             "出场角色档案", "世界观相关实体", "伏笔状态",
-            "支线状态", "已知问题", "活跃风格",
+            "时间线规划", "支线状态", "已知问题", "活跃风格",
         ]
         for v in vars:
             print(v)

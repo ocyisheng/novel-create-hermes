@@ -1,21 +1,25 @@
 style_name: "新派武侠风"
-description: "新派武侠叙事，文白兼具现代感，意境与动作并重，人物立体多面"
+description: "新派武侠叙事（复合风格：融合金庸典雅与古龙锋利），文白兼具现代感，意境与动作并重，人物立体多面"
 category: "武侠"
 dimensions:
   narrative_tone:
     description: "第三人称有限为主，既有古典韵味又有现代心理刻画"
     keywords: ["融合", "立体", "意境", "成长"]
+    example: "他望着手中的剑，想起了师父的话。"
   sentence_structure:
     description: "长短灵活切换，打斗用短句营造速度，抒情用长句渲染意境"
     avg_sentence_length: "mixed"
     characteristics: ["长短灵活", "打斗短句", "意境长句"]
+    example: "剑光如虹，直取对方咽喉。他侧身躲过，反手一刺。"
   pacing:
     description: "打斗有节奏感（起承转合），情感转折细写，境界提升做高潮"
     pattern: "江湖冲突 → 内心挣扎 → 境界突破 → 道义抉择"
+    example: "【打斗】详细描写招式（3-5句）→【内心】师父教诲（2-3句）→【抉择】道义选择（1-2句）"
   dialogue_style:
     description: "融合金庸的典雅和古龙的锋利，人物各有腔调"
     attribution_pattern: "适时切换，气氛紧张时用极简标签"
     speech_patterns: ["身份分明", "文白适度", "哲思点缀"]
+    example: "这一剑，为谁？为天下。"
   vocabulary_register:
     description: "文白适度融合，现代词汇适度出现，不突兀"
     register_level: "mixed"

@@ -5,7 +5,7 @@
 
 5 个子命令:
   register   — 注册风格到 styles/index.yaml
-  validate   — 验证 style.yaml 结构（7维度齐全 + ≤30行 + 合法YAML）
+  validate   — 验证 style.yaml 结构（7维度齐全 + ≤32行 + 合法YAML）
 activate   — 设置 config.yaml 活跃风格
 deactivate — 清除 config.yaml 活跃风格
   list       — 列出 styles/index.yaml 中所有风格名
@@ -85,8 +85,8 @@ def validate_style(file_path: Path) -> None:
 
     if not errors:
         line_count = content.count("\n") + 1
-        if line_count > 30:
-            errors.append(f"line count {line_count} exceeds limit 30")
+        if line_count > 32:
+            errors.append(f"line count {line_count} exceeds limit 32")
         # category is recommended, warn if missing
         if not data.get("category"):
             print(f"warning: missing recommended field 'category'", file=sys.stderr)

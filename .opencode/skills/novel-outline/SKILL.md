@@ -19,8 +19,8 @@ tags: ["novel", "outline", "plot"]
 
 | 阶段 | 任务 | 输出 |
 |------|------|------|
-| P4 | 总纲撰写 | `outline/总纲.yaml` |
-| P5 | 情节构建 | `outline/情节线/*.yaml` |
+| P4 | 总纲撰写 | `outline/总纲.yaml` + `outline/时间线设计.yaml`（新增） |
+| P5 | 情节构建 | `outline/情节线/*.yaml` + `outline/伏笔规划.yaml`（新增）+ `outline/角色出场规划.yaml`（可选新增） |
 | P6 | 分卷大纲生成 | `outline/分卷/卷{N}_{名称}.yaml` |
 | P7 | 分纲撰写 | `outline/分纲/卷{卷号}/第{N}章.yaml` |
 
@@ -32,13 +32,15 @@ tags: ["novel", "outline", "plot"]
 
 ### P4 总纲撰写
 
-读取创意方案，输出总纲骨架。
+读取创意方案，输出总纲骨架 + 时间线设计。
 
 | 槽位 | 文件路径 | 提取字段 | 加载方式 |
 |------|---------|---------|---------|
 | 创意方案 | `ideation/最终创意方案.yaml` | `最终方案.一句话概述` `最终方案.主角设定` `最终方案.核心冲突` `最终方案.世界观概述` | `read` 全文件后提取以上字段 |
 
-输出：`outline/总纲.yaml`，参见 `assets/outline.yaml` 模板。
+输出：
+- `outline/总纲.yaml`，参见 `assets/outline.yaml` 模板
+- `outline/时间线设计.yaml`，参见 `assets/timeline_plan.yaml` 模板（基于总纲中的世界背景和故事时间跨度生成）
 
 ### P6 分卷大纲生成
 
@@ -54,15 +56,19 @@ tags: ["novel", "outline", "plot"]
 
 ### P5 情节构建
 
-读取总纲，设计主线+支线。
+读取总纲，设计主线+支线，并生成全局伏笔规划。
 
 | 槽位 | 文件路径 | 提取字段 | 加载方式 |
 |------|---------|---------|---------|
 | 总纲 | `outline/总纲.yaml` | `幕结构` `分卷` `关键事件` `节奏安排` | `read` 全文件 |
 | 已有情节线 | `outline/情节线/*.yaml` | 每条线的 `索引信息.实体ID` | `glob` + `read` 摘要段 |
 | 情节线进度 | `outline/追踪/情节线进度.yaml` | 进度列表 | `read` 筛选活跃线 |
+| 时间线设计 | `outline/时间线设计.yaml` | `时间线设计` 段（如存在，作为伏笔设置的时序参考） | `read` 全文件 |
 
-输出：`outline/情节线/主线.yaml` + `outline/情节线/支线_{名称}.yaml`，参见 `assets/plot_thread.yaml` 模板。
+输出：
+- `outline/情节线/主线.yaml` + `outline/情节线/支线_{名称}.yaml`，参见 `assets/plot_thread.yaml` 模板
+- `outline/伏笔规划.yaml`，参见 `assets/foreshadowing_plan.yaml` 模板（汇总各情节线文件的 `伏笔清单.计划伏笔` + 允许跨线补充）
+- `outline/角色出场规划.yaml`（可选），参见 `assets/character_appearance_plan.yaml` 模板（基于角色档案的关键章节分布生成）
 
 ### P7 分纲构建
 
@@ -83,8 +89,11 @@ tags: ["novel", "outline", "plot"]
 | 阶段 | 文件 | 模板 | 写入方式 |
 |------|------|------|---------|
 | P4 | `outline/总纲.yaml` | `assets/outline.yaml` | `write` / `edit` |
+| P4 | `outline/时间线设计.yaml` | `assets/timeline_plan.yaml` | `write` / `edit` |
 | P5 | `outline/情节线/主线.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
 | P5 | `outline/情节线/支线_{名称}.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
+| P5 | `outline/伏笔规划.yaml` | `assets/foreshadowing_plan.yaml` | `write` / `edit` |
+| P5 | `outline/角色出场规划.yaml`（可选） | `assets/character_appearance_plan.yaml` | `write` / `edit` |
 | P6 | `outline/分卷/卷{N}_{名称}.yaml` | `assets/volume.yaml` | `write` / `edit` |
 | P7 | `outline/分纲/卷{卷号}/第{N}章.yaml` | `assets/chapter.yaml` | `write` / `edit` |
 

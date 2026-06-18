@@ -27,13 +27,30 @@ def load_style(style_path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def _fmt(v: dict) -> str:
-    """将维度字典渲染为自然语言。"""
-    parts = []
+def _quantify_sentence_length(length: str) -> str:
+    """将句长描述转换为更具体的指导。"""
+    mapping = {
+        "short": "15字以内",
+        "medium": "15-30字",
+        "long": "30字以上",
+        "mixed": "长短交错（15-30字为主）"
+    }
+    return mapping.get(length, length)
+
+
+def _fmt_dimension(label: str, v: dict, add_examples: bool = True) -> list:
+    """将单个维度渲染为多行格式，每个字段独立成行。"""
+    lines = []
     desc = v.get("description", "")
+    
+    # 根据维度类型添加优先级标记
+    priority = "[必须]" if label in ["句子结构", "词汇选择", "禁止模式"] else "[建议]"
+    
     if desc:
-        parts.append(desc)
-    for key, label in [
+        lines.append(f"  {priority} {desc}")
+    
+    # 处理各个字段
+    for key, field_label in [
         ("keywords", "关键词"), ("characteristics", "特征"),
         ("avg_sentence_length", "句长"), ("pattern", "模式"),
         ("attribution_pattern", "标记"), ("speech_patterns", "对话特征"),
@@ -43,19 +60,52 @@ def _fmt(v: dict) -> str:
     ]:
         val = v.get(key)
         if val:
-            parts.append(f"{label}：{'、'.join(val) if isinstance(val, list) else val}")
-    return "；".join(parts)
+            # 量化句长描述
+            if key == "avg_sentence_length":
+                val = _quantify_sentence_length(val)
+                field_label = "句长（每句）"
+            
+            # 格式化列表值
+            if isinstance(val, list):
+                val_str = "、".join(val)
+            else:
+                val_str = val
+            
+            # 为推荐用词和禁用词添加强调
+            if key == "distinctive_vocab":
+                lines.append(f"  ✓ 优先使用：{val_str}")
+            elif key == "forbidden_vocab":
+                lines.append(f"  ✗ 绝对禁止：{val_str}")
+            elif key == "patterns":
+                lines.append(f"  ✗ 绝对禁止：{val_str}")
+            else:
+                lines.append(f"  {field_label}：{val_str}")
+    
+    # 添加具体示例（从模板文件中读取）
+    if add_examples:
+        example = _get_example_from_dimension(v)
+        if example:
+            lines.append(f"  示例：{example}")
+    
+    return lines
+
+
+def _get_example_from_dimension(v: dict) -> str:
+    """从维度字典中获取示例字段。"""
+    return v.get("example", "")
 
 
 def render_chapter(style: dict) -> str:
     """渲染为章节写作的 STYLE REFERENCE 段。"""
     d = style.get("dimensions", {})
+    style_name = style.get('style_name', '')
+    description = style.get('description', '')
+    
     lines = [
-        f"-风格：{style.get('style_name', '')} — {style.get('description', '')}",
-        "",
-        "以下 7 个维度定义本风格的写作特征，写作时严格遵循：",
+        f"**{style_name}** — {description}",
         "",
     ]
+    
     for label, key in [
         ("叙事基调", "narrative_tone"), ("句子结构", "sentence_structure"),
         ("节奏", "pacing"), ("对话风格", "dialogue_style"),
@@ -64,9 +114,37 @@ def render_chapter(style: dict) -> str:
     ]:
         v = d.get(key)
         if v:
-            lines.append(f"- {label}：{_fmt(v)}")
-    lines.append("")
-    lines.append("> 以上风格定义适用于叙述者，不影响角色对话的个性化声音。")
+            # 使用简洁格式：一行描述 + 关键约束
+            desc = v.get("description", "")
+            priority = "⚠️" if label in ["句子结构", "词汇选择", "禁止模式"] else "•"
+            
+            # 构建关键约束
+            constraints = []
+            if label == "句子结构":
+                length = v.get("avg_sentence_length", "")
+                if length:
+                    constraints.append(f"句长：{_quantify_sentence_length(length)}")
+            elif label == "词汇选择":
+                distinctive = v.get("distinctive_vocab", [])
+                forbidden = v.get("forbidden_vocab", [])
+                if distinctive:
+                    constraints.append(f"用{'、'.join(distinctive[:3])}")
+                if forbidden:
+                    constraints.append(f"禁{'、'.join(forbidden[:2])}")
+            elif label == "禁止模式":
+                patterns = v.get("patterns", [])
+                if patterns:
+                    constraints.append(f"禁{'、'.join(patterns[:3])}")
+            
+            # 获取示例
+            example = v.get("example", "")
+            
+            # 构建输出行
+            constraint_str = f"（{'；'.join(constraints)}）" if constraints else ""
+            example_str = f" 示例：{example}" if example else ""
+            
+            lines.append(f"{priority} **{label}**：{desc}{constraint_str}{example_str}")
+    
     return "\n".join(lines)
 
 
@@ -80,6 +158,7 @@ def render_check(style: dict) -> str:
         "逐维度评估本章的偏离程度。每个维度必须引用 1-2 句本章原文作为证据。",
         "",
     ]
+    
     for label, key, question in [
         ("叙事基调", "narrative_tone", "叙述视角、情感距离、氛围是否匹配"),
         ("句子结构", "sentence_structure", "句长分布、句式复杂度是否匹配"),
@@ -93,7 +172,8 @@ def render_check(style: dict) -> str:
         if not v:
             continue
         lines.append(f"### {label}")
-        lines.append(f"风格要求：{_fmt(v)}")
+        lines.append(f"风格要求：")
+        lines.extend(_fmt_dimension(label, v, add_examples=False))
         lines.append(f"检查项：{question}")
         lines.append(f"偏离：[ ] 无偏离  [ ] 轻微  [ ] 明显  [ ] 严重")
         lines.append(f"证据（必须引用本章原文）：")

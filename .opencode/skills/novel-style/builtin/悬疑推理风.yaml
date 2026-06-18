@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "第三人称有限或第一人称，信息刻意隐藏，气氛压抑紧张"
     keywords: ["悬疑", "紧张", "暗线", "反转"]
+    example: "他看着现场，眉头紧锁。凶手就在附近。"
   sentence_structure:
     description: "短句为主，节奏越来越快，关键时刻一句一段"
     avg_sentence_length: "short"
     characteristics: ["短句加速", "一句一段", "留白悬念"]
+    example: "他看着现场。眉头紧锁。凶手就在附近。"
   pacing:
     description: "线索发现时放慢精描，追凶搏斗加快节奏，反转处急停"
     pattern: "线索埋设 → 紧张追逐 → 反转急停 → 真相复盘"
+    example: "【线索】发现线索放慢（3-5句）→【追逐】追凶加快节奏（2-3句）→【反转】急停真相大白（1-2句）"
   dialogue_style:
     description: "审讯对话层层递进，每一句话都可能是线索或误导"
     attribution_pattern: "沉声道、低声道营造紧张气氛"
     speech_patterns: ["层层递进", "线索式", "误导性"]
+    example: "你昨晚在哪？在家。有人证明吗？没有。"
   vocabulary_register:
     description: "精准口语，法医学/侦查术语自然嵌入"
     register_level: "mixed"

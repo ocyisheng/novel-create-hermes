@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "全知叙述者将奇迹当日常讲述，不动声色中天地翻覆"
     keywords: ["魔幻", "史诗", "寓言", "宿命"]
+    example: "那天下午，他发现自己变成了蝴蝶，飞过了整个镇子。"
   sentence_structure:
     description: "长句如蔓藤缠绕延伸，从句套从句，一气呵成"
     avg_sentence_length: "long"
     characteristics: ["长句蔓藤", "从句叠加", "一气呵成"]
+    example: "那天下午，他发现自己变成了蝴蝶，飞过了整个镇子，没有人觉得奇怪。"
   pacing:
     description: "时间自由跳跃，百年压缩为一段，一个瞬间展开为章节"
     pattern: "时间折叠 + 循环往复"
+    example: "【魔幻】详细描写奇迹场景（5-7句）→【日常】无缝衔接普通生活（3-5句）→【循环】时间折叠（2-3句）"
   dialogue_style:
     description: "直白叙述中穿插对话，魔幻事件与日常闲聊无缝衔接"
     attribution_pattern: "说、问极少修饰，融入叙述流"
     speech_patterns: ["魔幻如常", "日常如谜"]
+    example: "你看见那只蝴蝶了吗？看见了。那是你爷爷。"
   vocabulary_register:
     description: "繁复密集的具象名词，感官冲击强，颜色和气味词丰富"
     register_level: "literary"

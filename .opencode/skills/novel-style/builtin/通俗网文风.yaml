@@ -1,21 +1,25 @@
 style_name: "通俗网文风"
-description: "轻松口语化的网文叙事，快节奏高爽感，代入感强"
+description: "轻松口语化的通用网文叙事，节奏快、爽感强，幽默接地气，主打代入感和娱乐性（默认风格）"
 category: "网文"
 dimensions:
   narrative_tone:
     description: "第三人称有限，偶尔切换内心吐槽，轻松幽默"
     keywords: ["轻松", "代入", "爽感"]
+    example: "他笑了。稳了。这波不亏。"
   sentence_structure:
     description: "短句为主，口语化断句，短段多见"
     avg_sentence_length: "short"
     characteristics: ["口语化断句", "段落短", "感叹号多见"]
+    example: "他出手了。对手傻了。观众惊了。"
   pacing:
     description: "升级打脸快节奏，装逼桥段迭起"
     pattern: "小冲突 + 打脸 + 升级循环"
+    example: "【冲突】反派挑衅（1-2句）→【打脸】主角碾压（1-2句）→【爽点】众人震惊（1句）"
   dialogue_style:
     description: "口语化对白，信息量适中，时有搞笑"
     attribution_pattern: "简单标签：说、道、问"
     speech_patterns: ["口语化", "简短", "有梗"]
+    example: "就这？你很强？我还没用力。"
   vocabulary_register:
     description: "日常口语，少量网文术语"
     register_level: "colloquial"

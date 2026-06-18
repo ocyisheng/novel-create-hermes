@@ -32,7 +32,7 @@ tags: ["novel", "style", "infrastructure"]
 
 ### 核心约束
 
-1. **总行数 ≤ 30**：保持 prompt 注入时的 token 效率
+1. **总行数 ≤ 32**：保持 prompt 注入时的 token 效率
 2. **7 个维度必须齐全**：`narrative_tone` `sentence_structure` `pacing` `dialogue_style` `vocabulary_register` `rhetorical_features` `forbidden_patterns`
 3. **每个维度至少一个非空字段**
 4. **参考文本原文不存储**：只在提取 prompt 中分析
@@ -88,7 +88,7 @@ register   --project-root PATH --name NAME --file FILE
            → 注册风格到 styles/index.yaml
 
 validate   --file FULL_PATH
-           → 验证 style.yaml：7维度齐全 + ≤30行 + 合法YAML
+           → 验证 style.yaml：7维度齐全 + ≤32行 + 合法YAML
 
 activate   --project-root PATH --name NAME
            → 设置 config.yaml 活跃风格（支持内置风格名称，无需先 copy）
@@ -114,16 +114,16 @@ builtin    copy --project-root PATH --name NAME
 |------|--------|---------|
 | **网文类** | | |
 | 凡人修仙风 | `凡人修仙风.yaml` | 冷峻克制、实用主义修仙文 |
-| 经典男频风 | `经典男频风.yaml` | 快节奏强爽感，升级打脸 |
+| 经典男频风 | `经典男频风.yaml` | 升级突破、装逼打脸、碾压对手 |
 | 经典女频风 | `经典女频风.yaml` | 情感细腻，关系驱动 |
-| 通俗网文风 | `通俗网文风.yaml` | 轻松口语、快节奏高爽感 |
+| 通俗网文风 | `通俗网文风.yaml` | 轻松口语、快节奏强爽感、通用娱乐（默认） |
 | **武侠类** | | |
 | 金庸武侠风 | `金庸武侠风.yaml` | 文白夹杂、第三人称全知 |
 | 古龙武侠风 | `古龙武侠风.yaml` | 极简断句，留白如刀，冷峻浪漫 |
-| 新派武侠风 | `新派武侠风.yaml` | 文白兼具现代感，意境与动作并重 |
+| 新派武侠风 | `新派武侠风.yaml` | 复合风格：融合金庸典雅与古龙锋利 |
 | **古典类** | | |
-| 古典名著风 | `古典名著风.yaml` | 明清章回体，说书人口吻 |
-| 历史演义风 | `历史演义风.yaml` | 宏大史诗，文白庄重，权谋韬略 |
+| 古典名著风 | `古典名著风.yaml` | 世情冷暖，闲笔判词，日常见深意 |
+| 历史演义风 | `历史演义风.yaml` | 庙堂权谋，沙场征伐，忠义韬略并重 |
 | 神魔志怪风 | `神魔志怪风.yaml` | 奇诡瑰丽，亦庄亦谐，借妖魔写人 |
 | 文艺古风 | `文艺古风.yaml` | 唯美抒情、古典韵味 |
 | **近现代类** | | |
@@ -132,7 +132,7 @@ builtin    copy --project-root PATH --name NAME
 | 老舍式风 | `老舍式风.yaml` | 京味鲜活，市井烟火 |
 | 张爱玲式风 | `张爱玲式风.yaml` | 冷艳机锋，华丽苍凉 |
 | **外国类** | | |
-| 西方经典文学风 | `西方经典文学风.yaml` | 简洁克制，反讽含蓄 |
+| 西方经典文学风 | `西方经典文学风.yaml` | 20世纪现代主义，冰山留白，反讽含蓄 |
 | 俄罗斯文学风 | `俄罗斯文学风.yaml` | 深沉厚重，灵魂拷问 |
 | 日本文学风 | `日本文学风.yaml` | 极简唯美，物哀留白 |
 | 拉美魔幻风 | `拉美魔幻风.yaml` | 魔幻如常，百年孤独 |
@@ -174,7 +174,7 @@ python .opencode/skills/novel-style/scripts/style_manager.py builtin copy \
 
 ## HARD CONSTRAINTS
 
-1. style.yaml 总行数 ≤ 30 — 超出则 validate 报错
+1. style.yaml 总行数 ≤ 32 — 超出则 validate 报错
 2. 7 个维度必须全部存在且命名精确匹配 — 缺一则 validate 报错
 3. 参考文本原文不写入项目 — 仅在提取 prompt 中临时使用
 4. styles/index.yaml 仅由 style_manager.py 维护 — 禁止 Agent 手动 write/edit

@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "第一/三人称主观视角，情感充沛，时有抒情"
     keywords: ["唯美", "抒情", "古典"]
+    example: "月色如水，洒落庭院。她独坐窗前，轻抚琴弦。"
   sentence_structure:
     description: "长短交织，四六句式点缀，注重音韵节奏"
     avg_sentence_length: "mixed"
     characteristics: ["长短交织", "骈句点缀", "音韵感"]
+    example: "月色如水，洒落庭院。她独坐窗前，轻抚琴弦。一曲终了，泪已两行。"
   pacing:
     description: "环境心境细描，事件推进缓，意境营造优先"
     pattern: "景物渲染 + 心境描摹交替推进"
+    example: "【景物】详细描写环境（3-5句）→【心境】情感渲染（2-3句）→【事件】一笔带过"
   dialogue_style:
     description: "含蓄优雅，话中有话，留白多"
     attribution_pattern: "动作+神态先行，对话在后"
     speech_patterns: ["含蓄", "留白", "意境化"]
+    example: "公子，此去经年，何时归来？待到春暖花开时。"
   vocabulary_register:
     description: "文白融合，典故雅词，色彩触感词丰富"
     register_level: "literary"

@@ -17,7 +17,7 @@ tags: ["novel", "chapter", "writing"]
 3. **角色一致性** → 对话和行为符合完整档案设定，不得仅凭摘要脑补关系状态
 4. **情节展开** → 按四段式结构展开情节点
 5. **场景写作** → 用动作、感官细节、环境描写替代内心独白（Show, Not Tell）
-6. **伏笔处理** → 检查 `{伏笔状态}`，回收到期伏笔，设置新伏笔
+6. **伏笔处理** → 检查 `{伏笔状态}`（含规划文件中的全局伏笔意图 + 追踪文件中的写后状态），回收到期伏笔，设置新伏笔；参考 `{时间线规划}` 确认当前在整体时间线中的位置
 7. **悬念设置** → 在章节结尾自然设置悬念钩子
 8. **文风优化** → 禁止重复句式、中英混杂、空洞内心独白
 
@@ -44,7 +44,7 @@ python .opencode/shared/extract_template.py \
     --var 项目名 "{项目名}" --var 章节号 "{章节号}" \
     --var 本章分纲内容 - --var 前章摘要 - --var 前一章衔接 - \
     --var 出场角色档案 - --var 世界观相关实体 - --var 伏笔状态 - \
-    --var 支线状态 - --var 已知问题 - --var 活跃风格 - \
+    --var 时间线规划 - --var 支线状态 - --var 已知问题 - --var 活跃风格 - \
     < /tmp/context.json
 ```
 
@@ -61,8 +61,8 @@ python .opencode/shared/extract_template.py \
 | 前一章衔接 | 最后 100 字 + 悬念钩子 | chapter_context.py 或 last_100.py |
 | 出场角色档案 | 从分纲提取角色名 → 读完整档案 | chapter_context.py |
 | 世界观相关实体 | 按分纲"世界观补充"字段 | chapter_context.py |
-| 待处理伏笔 | `outline/追踪/伏笔.yaml` | chapter_context.py |
-| 时间线上下文 | `outline/追踪/时间线.yaml` | chapter_context.py（筛选±5章） |
+| 伏笔状态（规划+追踪） | `outline/伏笔规划.yaml`（规划设计） + `outline/追踪/伏笔.yaml`（追踪状态），合并加载 | chapter_context.py（load_foreshadowing 改造后） |
+| 时间线规划 | `outline/时间线设计.yaml`（按时代分组的全局时间线设计） | chapter_context.py（load_timeline_plan 新增） |
 | 相关支线 | 活跃支线当前节点 | chapter_context.py |
 | 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在） | chapter_context.py |
 | 已知问题 | `novel-issues.md` 相关条目 | chapter_context.py |

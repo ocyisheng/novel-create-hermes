@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "第三人称有限，贴近当下生活，冷静但不冷血"
     keywords: ["当下", "精准", "日常", "关系"]
+    example: "他打开手机，看到未读消息99+。叹了口气。"
   sentence_structure:
     description: "自然白话，口语化但不随意，节奏如日常呼吸"
     avg_sentence_length: "mixed"
     characteristics: ["自然白话", "口语不随意", "节奏从容"]
+    example: "他打开手机。看到未读消息99+。叹了口气。"
   pacing:
     description: "人物关系和情感转折详写，日常工作生活简写"
     pattern: "日常往复 → 关系破裂 → 反思成长"
+    example: "【日常】工作生活铺陈（3-5句）→【冲突】关系破裂（2-3句）→【反思】成长领悟（1-2句）"
   dialogue_style:
     description: "真实对话感，微信/电话/面对面各有腔调，话里有生活"
     attribution_pattern: "说、笑了笑、顿了顿等生活化标签"
     speech_patterns: ["真实感", "生活化", "各具职业腔"]
+    example: "加班？嗯。吃饭了吗？没。走，一起。"
   vocabulary_register:
     description: "规范口语，当代生活词汇，拒绝文绉绉"
     register_level: "colloquial"

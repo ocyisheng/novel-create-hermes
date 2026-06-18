@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "全知或第三人称深厚介入，叙述者自身常在思考，庄严而悲悯"
     keywords: ["深沉", "悲悯", "思辨", "救赎"]
+    example: "他坐在书房里，思考着人生的意义，觉得一切都是虚无。"
   sentence_structure:
     description: "长句为主，从句层层推进，逻辑链条完整"
     avg_sentence_length: "long"
     characteristics: ["长句推进", "多层次从句", "逻辑链条"]
+    example: "他坐在书房里，思考着人生的意义，觉得一切都是虚无，但又不甘心就这样放弃。"
   pacing:
     description: "心理活动和哲学思辨极详，行动段落反而简练"
     pattern: "内心风暴 → 行动爆发 → 沉思回响"
+    example: "【内心】详细描写心理活动（5-7句）→【行动】爆发式行动（2-3句）→【沉思】哲学反思（3-5句）"
   dialogue_style:
     description: "长篇对话承载思想交锋，人物各代表一种世界观"
     attribution_pattern: "动作神态丰富前置，对话段落长"
     speech_patterns: ["思辨性", "世界观碰撞", "灵魂自白"]
+    example: "你觉得人生有意义吗？我不知道。但我还在寻找。"
   vocabulary_register:
     description: "书面语为主，抽象名词多见，情感词深沉"
     register_level: "literary"

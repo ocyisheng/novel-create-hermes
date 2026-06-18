@@ -5,17 +5,21 @@ dimensions:
   narrative_tone:
     description: "冷峻克制，极少修辞，贴着主角视线走"
     keywords: ["克制", "实用主义", "有限视角"]
+    example: "他站在山巅，望着远方。风起。云涌。"
   sentence_structure:
     description: "短句为主，少用复合句，句间靠动作推进"
     avg_sentence_length: "short"
     characteristics: ["短句密集", "少关联词", "动作链驱动"]
+    example: "他抬手。灵力涌出。法器碎裂。"
   pacing:
     description: "修炼过程极详（灵药炼制、突破瓶颈），战斗快节奏"
     pattern: "修炼慢镜头 + 战斗快切"
+    example: "【修炼】详细描写炼丹过程（3-5句）→【战斗】3句内结束"
   dialogue_style:
     description: "直白简练，少修饰语，对话自带信息量"
     attribution_pattern: "极少标签，仅说、道"
     speech_patterns: ["信息密集型", "少有废话"]
+    example: "灵石不够。够了。不够。"
   vocabulary_register:
     description: "朴素口语，力量体系术语精准，少成语"
     register_level: "colloquial"

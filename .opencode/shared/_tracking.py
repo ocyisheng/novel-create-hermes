@@ -23,6 +23,22 @@ from pathlib import Path
 from _utils import find_project_root, load_yaml, save_yaml, extract_chapter_number
 
 
+def _match_plan_foreshadowing(project_root: Path, desc: str) -> str:
+    """尝试在伏笔规划文件中匹配描述，返回匹配的编号（如 F001），找不到返回空。"""
+    plan_path = project_root / "outline" / "伏笔规划.yaml"
+    plan_data = load_yaml(plan_path)
+    if not plan_data:
+        return ""
+    for item in plan_data.get("伏笔规划", []):
+        plan_name = item.get("名称", "")
+        plan_desc = item.get("描述", "")
+        if plan_name and plan_name in desc:
+            return item.get("编号", "")
+        if plan_desc and any(word in plan_desc for word in desc.split(" ")):
+            return item.get("编号", "")
+    return ""
+
+
 def update_foreshadowing(
     chapter_path: Path,
     foreshadowing_data: dict | None = None,
@@ -31,6 +47,7 @@ def update_foreshadowing(
     """更新伏笔.yaml。
 
     若 foreshadowing_data 中的项包含 关联实体ID 字段，自动回链到对应情节线文件。
+    新增伏笔时，自动尝试匹配 outline/伏笔规划.yaml 中的编号并写入。
     """
     project_root = find_project_root(chapter_path)
     foreshadowing_file = project_root / "outline" / "追踪" / "伏笔.yaml"
@@ -55,6 +72,12 @@ def update_foreshadowing(
                 print(f"  跳过重复伏笔: '{desc}'")
                 continue
             f["章节"] = chapter_num
+            # 尝试关联规划编号：如果未显式提供编号，则自动匹配
+            if "编号" not in f or not f.get("编号"):
+                matched_id = _match_plan_foreshadowing(project_root, desc)
+                if matched_id:
+                    f["编号"] = matched_id
+                    print(f"  关联规划编号: {matched_id}")
             data["伏笔"].append(f)
             existing_descriptions.add(desc)
 

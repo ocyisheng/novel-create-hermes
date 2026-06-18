@@ -31,7 +31,7 @@ task(category="artistry", load_skills=["novel-style"],
 3. 每个维度输出 description + 证据（引用文本具体句子）作为注释
 
 ## CONSTRAINTS
-- 总行数 ≤ 30
+- 总行数 ≤ 32
 - 每个维度必须有 evidence 支撑
 - forbidden_patterns 必须列出 3-5 条
 - 参考文本原文不写入项目（仅在 prompt 中分析）

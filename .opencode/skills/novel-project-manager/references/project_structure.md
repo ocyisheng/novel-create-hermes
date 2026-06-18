@@ -20,23 +20,29 @@
 │   ├── 创意简报.yaml        # 3-5 个创意方向
 │   ├── 评估报告.yaml        # 4 维度评分
 │   └── 最终创意方案.yaml    # 选定创意的完整方案（供 P4/P6 读取）
-├── outline/                 # 大纲文件
+├── outline/                 # 大纲文件（规划目录）
 │   ├── 总纲.yaml            # 故事宏观骨架：故事结构（幕列表）、分卷概览、节奏（P4 生成）
+│   ├── 时间线设计.yaml      # ★ 规划：全局时间线设计，按时代/阶段分组的结构化世界年表（P4 新增）
 │   ├── 分卷/                # 各卷大纲（P6 生成，每卷独立文件）
 │   │   ├── 卷1_开端.yaml    # 卷{N}_{名称}.yaml，含微弧/POV/叙事任务/卷末钩子
 │   │   └── ...
 │   ├── 情节线/              # 情节线实体（P5 生成）
 │   │   ├── 主线.yaml        # 主线情节
 │   │   └── 支线_*.yaml      # 支线情节（多条）
+│   ├── 伏笔规划.yaml        # ★ 规划：全局伏笔设计总表，跨情节线管理（P5 新增）
+│   ├── 角色出场规划.yaml    # ☆ 规划（可选）：角色出场预期分布（P5 可选新增）
 │   ├── 分纲/                # 分章节大纲（P7 生成，按卷拆分目录）
 │   │   ├── 卷1/             # 卷1 的分纲文件
 │   │   │   ├── 第1章.yaml
 │   │   │   └── ...
 │   │   ├── 卷2/
 │   │   └── ...
-│   └── 追踪/                # 运行时数据（被 chapter_tracking 自动修改）
-│       ├── 伏笔.yaml
-│       └── 时间线.yaml
+│   └── 追踪/                # ★ 记录目录（写后自动维护，不接受规划数据）
+│       ├── 伏笔.yaml        # 记录：实际埋设/回收记录（扁平追加）
+│       ├── 时间线.yaml      # 记录：实际事件（扁平追加）
+│       ├── 角色统计.yaml    # 记录：实际出场（扁平追加）
+│       ├── 情节线进度.yaml  # 记录：实际进度（扁平追加）
+│       └── 章节摘要.yaml    # 记录：实际摘要（扁平追加）
 ├── project_index.yaml       # 项目索引（由 rebuild_project_index.py 重建）
 ├── quality/                 # 质量检测报告（P9 生成）
 │   ├── 第{N}章_AI味道检测.yaml
@@ -78,12 +84,18 @@
 |------|------|--------|
 | `ideation/` | 创意构思 5 个阶段文件 | `novel-ideation` |
 | `outline/总纲.yaml` | 故事结构（幕列表）、分卷概览、节奏说明（P4） | `init.py`（骨架）+ `novel-outline`（P4 填充） |
+| `outline/时间线设计.yaml` | ★ 全局时间线设计（P4）：按时代分组的结构化世界年表 | `novel-outline`（P4 新增） |
 | `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P5） |
+| `outline/伏笔规划.yaml` | ★ 全局伏笔设计总表（P5）：跨情节线的完整伏笔规划 | `novel-outline`（P5 新增） |
+| `outline/角色出场规划.yaml` | ☆ 可选：角色出场预期分布（P5） | `novel-outline`（P5 可选创建） |
 | `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P6） | `init.py`（骨架）+ `novel-outline`（P6 填充） |
-| `outline/追踪/伏笔.yaml` | 伏笔设置与回收追踪 | `chapter_tracking.py` |
-| `outline/追踪/时间线.yaml` | 事件时序 | `chapter_tracking.py` |
+| `outline/追踪/伏笔.yaml` | 记录：实际埋设/回收记录（扁平追加） | `chapter_tracking.py` |
+| `outline/追踪/时间线.yaml` | 记录：实际事件日志（扁平追加） | `chapter_tracking.py` |
+| `outline/追踪/角色统计.yaml` | 记录：实际出场记录（扁平追加） | `chapter_tracking.py` |
+| `outline/追踪/情节线进度.yaml` | 记录：实际进度（扁平追加） | `chapter_tracking.py` |
+| `outline/追踪/章节摘要.yaml` | 记录：实际摘要（扁平追加） | `chapter_tracking.py` |
 | `chapters/.metas/` | 章节元数据标记（摘要/伏笔/出场角色） | `novel-chapter`（P8 写作时）+ `chapter_tracking.py` |
-| `characters/角色统计.yaml` | 角色出场统计 | `chapter_tracking.py` |
+| `characters/角色统计.yaml` | 角色出场统计（旧位置，逐步迁移到 `outline/追踪/`） | `chapter_tracking.py` |
 | `quality/` | 质量检测分路报告 + 综合报告（P9） | `novel-quality` |
 | `styles/index.yaml` | 风格清单 | `style_manager.py` |
 

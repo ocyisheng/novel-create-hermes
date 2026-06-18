@@ -1,21 +1,25 @@
 style_name: "西方经典文学风"
-description: "英语文学经典叙事，简洁克制，心理真实，反讽含蓄"
+description: "20世纪英语现代主义叙事，简洁克制，心理真实，冰山留白，反讽含蓄（源自海明威/卡佛等极简传统）"
 category: "外国"
 dimensions:
   narrative_tone:
     description: "第三人称有限或第一人称，叙述冷静，情感克制，反讽暗藏"
     keywords: ["克制", "反讽", "心理", "旁观"]
+    example: "他坐在窗边，看着外面的雨，想起了很多事情。"
   sentence_structure:
     description: "简洁精准，主谓宾干净，少从句嵌套"
     avg_sentence_length: "short"
     characteristics: ["主谓为主", "少从句", "一句一事"]
+    example: "他坐在窗边。看着外面的雨。想起了很多事情。"
   pacing:
     description: "关键对话和心理转折场面详写，过渡用叙事概括快进"
     pattern: "场景展现 + 叙事概括交替"
+    example: "【对话】关键对话详写（3-5句）→【心理】转折场面细描（2-3句）→【过渡】叙事概括快进"
   dialogue_style:
     description: "简短有力，潜台词丰富，极少修饰标签"
     attribution_pattern: "he said / she said 式极简标签"
     speech_patterns: ["简短", "潜台词", "问而不答"]
+    example: "你好。你好。最近怎么样？还行。"
   vocabulary_register:
     description: "日常口语，精确名词和动词，拒绝抽象形容词"
     register_level: "mixed"

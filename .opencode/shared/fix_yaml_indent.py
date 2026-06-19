@@ -9,15 +9,19 @@ fix_yaml_indent.py — YAML 缩进规范化（栈式建树）
 
 用法：
     python fix_yaml_indent.py <输入文件> [输出文件]
-    python fix_yaml_indent.py --dir DIR [--recursive]
+    python fix_yaml_indent.py --dir DIR [--recursive] [--check]
+    python fix_yaml_indent.py --staging-dir DIR [--recursive]
     python fix_yaml_indent.py --dir DIR --recursive --max-passes 3
+    python fix_yaml_indent.py <输入文件> --check
 
 要求：pip install pyyaml
 """
 
 import argparse
+import difflib
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 # ── 行分类正则 ──────────────────────────────────────────────────────────────
@@ -57,7 +61,7 @@ class LineType:
 
 class Line:
     """YAML 中的一行。"""
-    __slots__ = ('number', 'raw', 'indent', 'stripped', 'type_', 'parent')
+    __slots__ = ('number', 'raw', 'indent', 'stripped', 'type_', 'parent', 'value_parent_idx')
 
     def __init__(self, number: int, raw: str):
         self.number = number
@@ -66,6 +70,7 @@ class Line:
         self.stripped = raw.lstrip(' ')
         self.type_ = None
         self.parent = None  # 父节点 Line
+        self.value_parent_idx = None  # VALUE_CONT 行的 VALUE 父行索引（build_tree 中解析）
 
     def is_structural(self) -> bool:
         """是否参与树结构（作为潜在父节点）。"""
@@ -163,7 +168,7 @@ def _mark_value_continuations(lines: list[Line]) -> None:
                 break
             if nxt.indent >= base_indent:
                 nxt.type_ = LineType.VALUE_CONT
-                nxt.parent = line  # 续行的父节点是 VALUE 行本身
+                nxt.value_parent_idx = i  # 续行的 VALUE 父行索引（build_tree 中解析）
             else:
                 break
 
@@ -188,7 +193,9 @@ def _build_tree(lines: list[Line]) -> None:
             continue
 
         if line.type_ == LineType.VALUE_CONT:
-            # parent 已在 _mark_value_continuations 设置，不覆盖
+            # 从 value_parent_idx 解析父节点（由 _mark_value_continuations 记录）
+            if line.value_parent_idx is not None:
+                line.parent = lines[line.value_parent_idx]
             continue
 
         # 非根级键：向上查找父节点
@@ -205,7 +212,11 @@ def _build_tree(lines: list[Line]) -> None:
 # ── 缩进重写 ───────────────────────────────────────────────────────────────
 
 def _normalize_indent(lines: list[Line]) -> list[str]:
-    """根据父节点计算正确缩进并生成新行。"""
+    """根据父节点计算正确缩进并生成新行。
+
+    同步更新 line.indent 为规范化值，确保子节点始终使用父节点的规范化缩进
+    （而非原始文件中的旧缩进），使单轮输出即达到稳定状态。
+    """
     result = []
 
     for line in lines:
@@ -215,6 +226,7 @@ def _normalize_indent(lines: list[Line]) -> list[str]:
         if line.type_ == LineType.COMMENT:
             # 注释全部顶格
             result.append(line.stripped)
+            line.indent = 0
             continue
 
         if line.type_ == LineType.BLOCK_CONTENT:
@@ -224,10 +236,12 @@ def _normalize_indent(lines: list[Line]) -> list[str]:
             else:
                 indent = 2
             result.append(' ' * indent + line.stripped)
+            line.indent = indent
             continue
 
         if line.type_ == LineType.ROOT_KEY:
             result.append(line.stripped)  # 缩进 0
+            line.indent = 0
             continue
 
         # 其余：父节点缩进 + 2
@@ -236,8 +250,83 @@ def _normalize_indent(lines: list[Line]) -> list[str]:
         else:
             indent = 0
         result.append(' ' * indent + line.stripped)
+        line.indent = indent
 
     return result
+
+
+# ── 混排修复 ────────────────────────────────────────────────────────────────
+
+def _fix_mixed_children(lines: list[Line]) -> None:
+    """修复父节点下列表项与映射键混排导致的 YAML 结构错误。
+
+    同一父节点下，所有子节点的输出缩进均为 parent.indent + 2。
+    只要父节点同时有 LIST_ITEM 和非 LIST_ITEM 直接子节点，就会产生无效 YAML。
+    将非列表项全部重新挂到祖父节点，使其成为兄弟而非子节点。
+
+    场景：特殊区域: 下有列表项 - 名称: 乱星海，又有映射键 连接通道:
+          → 连接通道 提升到与 特殊区域 同级
+    """
+    children_by_parent: dict[int, list[Line]] = {}
+    for line in lines:
+        if line.parent is not None and line.type_ not in (LineType.EMPTY, LineType.COMMENT):
+            pid = id(line.parent)
+            if pid not in children_by_parent:
+                children_by_parent[pid] = []
+            children_by_parent[pid].append(line)
+
+    for pid, kids in children_by_parent.items():
+        parent = kids[0].parent
+
+        # 仅处理映射键父节点（KEY/ROOT_KEY/VALUE/BLOCK_INDICATOR）
+        # 列表项（LIST_ITEM）下的描述键是合法子节点，不触发混排修复
+        if parent.type_ == LineType.LIST_ITEM:
+            continue
+
+        has_list = any(k.type_ == LineType.LIST_ITEM for k in kids)
+        has_nonlist = any(
+            k.type_ in (LineType.KEY, LineType.VALUE, LineType.BLOCK_INDICATOR)
+            for k in kids
+        )
+        if not has_list or not has_nonlist:
+            continue
+
+        # 父节点下同时有列表项和非列表项 → 全部非列表项提升到祖父
+        fixed = 0
+        for k in kids:
+            if k.type_ != LineType.LIST_ITEM:
+                k.parent = parent.parent
+                fixed += 1
+
+        if fixed:
+            print(f"  [混排修复] L{parent.number+1} '{parent.stripped}' "
+                  f"下 {fixed} 个映射键提升到祖父节点")
+
+
+# ── 嵌套列表修复 ────────────────────────────────────────────────────────────
+
+def _fix_nested_lists(lines: list[Line]) -> None:
+    """修复列表项下错误嵌套的兄弟列表项（缩进错位导致）。
+
+    实体 YAML 中列表项应平级排列（缩进相同），不应嵌套。
+    当某列表项的父节点也是列表项时，将其提升为祖父节点的子节点（兄弟）。
+
+    场景：- 名称: 五龙海（缩进 4）
+            - 名称: 无边海（缩进 5，应为 4 → 被误判为子节点）
+          → 无边海 提升为与 五龙海 同级
+    """
+    fixed = 0
+    for line in lines:
+        if line.type_ != LineType.LIST_ITEM:
+            continue
+        if line.parent is None or line.parent.type_ != LineType.LIST_ITEM:
+            continue
+        # 列表项的父节点也是列表项 → 缩进错位，提升为兄弟
+        line.parent = line.parent.parent
+        fixed += 1
+
+    if fixed:
+        print(f"  [嵌套列表修复] {fixed} 个错位列表项提升为兄弟节点")
 
 
 # ── 修复入口 ────────────────────────────────────────────────────────────────
@@ -255,12 +344,83 @@ def _validate_yaml(filepath: str) -> tuple[bool, str | None]:
         return False, str(e)
 
 
-def fix_yaml_indent(filepath: str, output: str | None = None, max_passes: int = 3) -> bool:
+# ── 检查模式 ────────────────────────────────────────────────────────────────
+
+def _check_file(filepath: str, max_passes: int = 3) -> bool:
+    """检查模式：计算规范化输出，与原文对比 diff，PyYAML 校验。不写文件。
+
+    返回 True 表示无需修改（已规范），False 表示需要修改。
+    """
+    filepath_p = Path(filepath)
+
+    with open(filepath_p, 'r', encoding='utf-8') as f:
+        original_lines = [line.rstrip('\n') for line in f.readlines()]
+
+    # 运行一次完整管线
+    lines = [Line(i, raw) for i, raw in enumerate(original_lines)]
+    _fix_unclosed_quotes(lines)
+    for line in lines:
+        _classify(line)
+    _mark_block_content(lines)
+    _mark_value_continuations(lines)
+    _build_tree(lines)
+    _fix_mixed_children(lines)
+    _fix_nested_lists(lines)
+    normalized = _normalize_indent(lines)
+
+    # PyYAML 校验规范化输出
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.yaml', delete=False, encoding='utf-8'
+        ) as tmp:
+            tmp_path = tmp.name
+            for l in normalized:
+                tmp.write(l + '\n')
+        ok, err = _validate_yaml(tmp_path)
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    # 对比（原文去空行，规范化输出不含空行）
+    original_no_empty = [l for l in original_lines if l.strip()]
+    diff = list(difflib.unified_diff(
+        original_no_empty, normalized,
+        fromfile=f'{filepath} (原始)',
+        tofile=f'{filepath} (规范化)',
+        lineterm=''
+    ))
+
+    if not ok:
+        print(f"\n📄 {filepath}")
+        print(f"  ❌ YAML 校验失败: {err}")
+        if diff:
+            print(f"  📝 缩进差异（独立于结构错误）:")
+            for line in diff:
+                print(f"  {line}")
+        return False
+
+    if diff:
+        print(f"\n📄 {filepath}")
+        for line in diff:
+            print(line)
+        return False
+
+    print(f"✅ {filepath}: 缩进已规范，无需修改")
+    return True
+
+
+def fix_yaml_indent(filepath: str, output: str | None = None, max_passes: int = 3, check: bool = False) -> bool:
     """修复 YAML 缩进。
 
     多轮修复用于处理块标量内容行在重写后可能需要微调的情况。
     大多数文件一轮即可。
+
+    check=True 时仅对比差异 + PyYAML 校验，不写文件。
     """
+    if check:
+        return _check_file(filepath, max_passes)
+
     output_path = output or filepath
     filepath_p = Path(filepath)
 
@@ -288,6 +448,12 @@ def fix_yaml_indent(filepath: str, output: str | None = None, max_passes: int = 
         # 建树
         _build_tree(lines)
 
+        # 混排修复
+        _fix_mixed_children(lines)
+
+        # 嵌套列表修复
+        _fix_nested_lists(lines)
+
         # 重写
         normalized = _normalize_indent(lines)
 
@@ -313,8 +479,8 @@ def fix_yaml_indent(filepath: str, output: str | None = None, max_passes: int = 
     return False
 
 
-def fix_dir(dir_path: str, recursive: bool = False, max_passes: int = 3) -> int:
-    """批量修复目录。返回成功数。"""
+def fix_dir(dir_path: str, recursive: bool = False, max_passes: int = 3, check: bool = False) -> int:
+    """批量修复目录。返回成功数（检查模式下返回已规范数）。"""
     p = Path(dir_path).resolve()
     if not p.is_dir():
         print(f"错误: 目录不存在: {p}", file=sys.stderr)
@@ -331,11 +497,15 @@ def fix_dir(dir_path: str, recursive: bool = False, max_passes: int = 3) -> int:
 
     ok = fail = 0
     for f in yaml_files:
-        if fix_yaml_indent(str(f), str(f), max_passes=max_passes):
+        if fix_yaml_indent(str(f), str(f), max_passes=max_passes, check=check):
             ok += 1
         else:
             fail += 1
-    print(f"\n📝 完成: {ok} 通过, {fail} 失败 (共 {len(yaml_files)})")
+
+    if check:
+        print(f"\n📝 检查完成: {ok} 已规范, {fail} 需修复 (共 {len(yaml_files)})")
+    else:
+        print(f"\n📝 完成: {ok} 通过, {fail} 失败 (共 {len(yaml_files)})")
     return ok
 
 
@@ -344,17 +514,20 @@ def main():
     parser.add_argument("input", nargs="?", help="输入文件路径")
     parser.add_argument("output", nargs="?", help="输出文件路径（默认覆盖输入）")
     parser.add_argument("--dir", default="", help="批量修复目录")
+    parser.add_argument("--staging-dir", default="", help="批量修复目录（--dir 别名）")
     parser.add_argument("--recursive", action="store_true", help="递归子目录")
     parser.add_argument("--max-passes", type=int, default=3, help="最大修复轮数（默认 3）")
+    parser.add_argument("--check", action="store_true", help="检查模式：仅对比差异 + YAML 校验，不修改文件")
 
     args = parser.parse_args()
 
-    if args.dir:
-        fix_dir(args.dir, recursive=args.recursive, max_passes=args.max_passes)
+    target_dir = args.dir or args.staging_dir
+    if target_dir:
+        fix_dir(target_dir, recursive=args.recursive, max_passes=args.max_passes, check=args.check)
         return
 
     if args.input:
-        fix_yaml_indent(args.input, args.output, max_passes=args.max_passes)
+        fix_yaml_indent(args.input, args.output, max_passes=args.max_passes, check=args.check)
     else:
         parser.print_help()
         sys.exit(1)

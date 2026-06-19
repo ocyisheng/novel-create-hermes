@@ -50,7 +50,7 @@ tags: ["novel", "character", "worldbuilding", "entity"]
 
 ### 输出
 
-worldbuilding/ 下 7 个文件（基本信息、核心规则、力量体系、势力格局、地理位置、历史、文化）
+worldbuilding/ 下 10 个标准文件（基本信息、核心规则、力量体系、势力格局、地理位置、历史、文化、经济体系、政治制度、社会阶层）
 
 ## 参考
 

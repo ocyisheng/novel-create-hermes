@@ -23,7 +23,7 @@ tags: ["novel", "entity", "editor", "modification"]
   ↓
 ① 读取目标实体文件 → 获得当前完整 YAML
   ↓
-② 用 extract_template.py 加载 prompt_template.md，
+② 用 extract_template.py 加载 .opencode\skills\novel-entity-editor\templates\prompt_template.md ，
    注入 {当前实体内容}、{修改请求描述}、{实体类型} 等变量
   ↓
 ③ task(category="novel-write", load_skills=["novel-entity-editor"])
@@ -38,7 +38,7 @@ tags: ["novel", "entity", "editor", "modification"]
    ├─ python validate_entity_consistency.py → 一致性校验（角色状态/出场）
    └─ python rebuild_project_index.py → 索引更新
   ↓
-⑦ 用 entity_diff.py 展示变更摘要给用户
+⑦ 用 scripts/entity_diff.py 展示变更摘要给用户
 ```
 
 ## 上下文契约

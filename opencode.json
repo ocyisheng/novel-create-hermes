@@ -15,9 +15,8 @@
         "novel-chapter",
         "novel-quality",
         "novel-grill",
-        "novel-chapter-editor",
-        "novel-export",
-        "novel-entity-editor"
+        "novel-edit",
+        "novel-export"
       ],
       "tools": {
         "task": true,

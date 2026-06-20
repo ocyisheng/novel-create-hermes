@@ -1519,7 +1519,7 @@ class ProjectImporter:
         upgraded = {
             "_meta": {
                 "entity_type": subtype,
-                "schema_version": "1.0",
+                "schema_version": "3.0",
                 "created_at": "",
                 "updated_at": now,
             },
@@ -1664,7 +1664,7 @@ class ProjectImporter:
         # 1. 创建标准目录（与新项目结构一致）
         import_dirs = [
             "chapters", "characters",
-            "outline/总纲", "outline/分卷", "outline/情节线",
+            "outline/分卷", "outline/情节线",
             "outline/追踪", "worldbuilding",
         ]
         for v in range(1, self.volume_count + 1):
@@ -1740,7 +1740,7 @@ class ProjectImporter:
                 name = item.name
 
                 if name in ("故事结构.yaml", "故事结构.yml"):
-                    dest = self.project_path / "outline" / "总纲" / f"总纲{Path(item.name).suffix}"
+                    dest = self.project_path / "outline" / "总纲.yaml"
                     shutil.move(str(item), str(dest))
                     auto_moved += 1
                     continue
@@ -1823,39 +1823,39 @@ class ProjectImporter:
             print(f"✅ 项目 '{self.project_name}' 导入完成！")
 
         # 3b. 后处理：YAML 缩进修复 + 一致性校验 + 索引重建
-        if classify_ok:
-            print("\n🔧 后处理中...")
-            shared_dir = Path(__file__).resolve().parent.parent.parent.parent / "shared"
-            pp_dirs = ["characters", "worldbuilding", "outline/分纲"]
-            for pp_dir in pp_dirs:
-                target = self.project_path / pp_dir
-                if target.is_dir():
-                    fix_result = subprocess.run(
-                        [sys.executable, str(shared_dir / "fix_yaml_indent.py"),
-                         "--dir", str(target), "--recursive"],
-                        capture_output=True, text=True, timeout=60,
-                    )
-                    if fix_result.returncode == 0 and fix_result.stdout.strip():
-                        for line in fix_result.stdout.strip().splitlines():
-                            print(f"     {line}")
-            # 一致性校验
-            validate_result = subprocess.run(
-                [sys.executable, str(shared_dir / "validate_entity_consistency.py"),
-                 "--project-root", str(self.project_path.resolve())],
-                capture_output=True, text=True, timeout=60,
-            )
-            if validate_result.returncode == 0 and validate_result.stdout.strip():
-                for line in validate_result.stdout.strip().splitlines():
-                    print(f"     {line}")
-            # 索引重建
-            rebuild_result = subprocess.run(
-                [sys.executable, str(shared_dir / "rebuild_project_index.py"),
-                 "--project-root", str(self.project_path.resolve())],
-                capture_output=True, text=True, timeout=60,
-            )
-            if rebuild_result.returncode == 0:
-                for line in rebuild_result.stdout.strip().splitlines():
-                    print(f"     {line}")
+        # 无论走新版 classify_import 还是旧版降级，都执行后处理
+        print("\n🔧 后处理中...")
+        shared_dir = Path(__file__).resolve().parent.parent.parent.parent / "shared"
+        pp_dirs = ["characters", "worldbuilding", "outline/分纲"]
+        for pp_dir in pp_dirs:
+            target = self.project_path / pp_dir
+            if target.is_dir():
+                fix_result = subprocess.run(
+                    [sys.executable, str(shared_dir / "fix_yaml_indent.py"),
+                     "--dir", str(target), "--recursive"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if fix_result.returncode == 0 and fix_result.stdout.strip():
+                    for line in fix_result.stdout.strip().splitlines():
+                        print(f"     {line}")
+        # 一致性校验
+        validate_result = subprocess.run(
+            [sys.executable, str(shared_dir / "validate_entity_consistency.py"),
+             "--project-root", str(self.project_path.resolve())],
+            capture_output=True, text=True, timeout=60,
+        )
+        if validate_result.returncode == 0 and validate_result.stdout.strip():
+            for line in validate_result.stdout.strip().splitlines():
+                print(f"     {line}")
+        # 索引重建
+        rebuild_result = subprocess.run(
+            [sys.executable, str(shared_dir / "rebuild_project_index.py"),
+             "--project-root", str(self.project_path.resolve())],
+            capture_output=True, text=True, timeout=60,
+        )
+        if rebuild_result.returncode == 0:
+            for line in rebuild_result.stdout.strip().splitlines():
+                print(f"     {line}")
 
         # 4. 生成 config.yaml（如果不存在）
         config_path = self.project_path / "config.yaml"
@@ -1905,8 +1905,32 @@ chapters: {{}}
 """
             index_path.write_text(index_content, encoding='utf-8')
 
-        # 6. 清理暂存区
+        # 6. 清理暂存区（保留 needs_agent_review 文件）
         if staging_dir.exists():
+            report_path = self.project_path / "migration_report.yaml"
+            pending_dir = self.project_path / "_pending_review"
+            if report_path.exists():
+                try:
+                    with open(report_path, 'r', encoding='utf-8') as f:
+                        report_data = yaml.safe_load(f) or {}
+                    review_items = []
+                    # 新版 report 格式
+                    mr = report_data.get("migration_report", report_data)
+                    for item in mr.get("needs_agent_review", []):
+                        rel_path = item.get("path", "") if isinstance(item, dict) else ""
+                        if rel_path:
+                            review_items.append(rel_path)
+                    if review_items:
+                        pending_dir.mkdir(parents=True, exist_ok=True)
+                        for rel_path in review_items:
+                            src = staging_dir / rel_path
+                            if src.exists():
+                                dest = pending_dir / src.name
+                                shutil.move(str(src), str(dest))
+                                print(f"  📋 待审查文件已保留: {dest.name}")
+                        print(f"  📁 待审查目录: {pending_dir.relative_to(self.project_path)}")
+                except Exception:
+                    pass  # 解析失败则正常清理，不阻塞导入
             shutil.rmtree(staging_dir)
         return True
 

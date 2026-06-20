@@ -61,8 +61,7 @@ novel-create-hermes/
 | `novel-outline` | 总纲/情节构建/分卷大纲/分纲 | P4-P7 | `task()` | `novel-write` |
 | `novel-entity` | 世界观建设、角色创建 | P2-P3 | `task()` | `novel-write` |
 | `novel-chapter` | 章节写作 | P8 | `task()` | `novel-write` |
-| `novel-chapter-editor` | 章节编辑 | P12 | `task()` | `novel-write` |
-| `novel-entity-editor` | 实体编辑 | P13 | `task()` | `novel-write` |
+| `novel-edit` | 编辑已有内容 | P12-P13 | `skill()` | — |
 | `novel-export` | 格式化导出 | P11 | `task()` | `novel-write` |
 | `novel-quality` | AI味/情节/角色/世界观检测 | P9 | `task()` | `novel-review` |
 
@@ -90,8 +89,8 @@ novel-create-hermes/
 | P9 | 质量检测 | 检测AI味/review/质量 | `task(novel-quality)` |
 | P10 | 风格提取 | 提取风格/分析文风 | `task(novel-style)` |
 | P11 | 导出 | 导出/发布/export | `task(novel-export)` |
-| P12 | 章节编辑 | 润色/修订/修改章节 | `task(novel-chapter-editor)` |
-| P13 | 实体编辑 | 编辑/更新角色/世界观 | `task(novel-entity-editor)` |
+| P12 | 章节编辑 | 润色/修订/修改章节 | `skill("novel-edit")` |
+| P13 | 实体编辑 | 编辑/更新角色/世界观 | `skill("novel-edit")` |
 | P14 | 意图澄清 | 以上均不匹配 | 询问用户 |
 
 **连续创作**：`ulw 写第3-5章` — 批量生成章节，完成后自动质检。

@@ -55,7 +55,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 1. **分析依赖链** → 将计划拆分为原子交付物，标注每个交付物的上游依赖。
 2. **按依赖分组并行** → 同一组内无依赖的交付物 `Task(..., run_in_background=true)` 并行委托；不同组之间串行。
 3. **每次 Task() prompt 必须包含**：`CURRENT PROJECT`、`PROJECT PATH`、目标文件路径、上游交付物的实体 ID（供下游引用）。
-4. **交付物→Task 映射**：角色 → `category="novel-write", load_skills=["novel-entity"]`；大纲/分纲/情节线 → `category="novel-write", load_skills=["novel-outline"]`；章节 → `category="novel-write", load_skills=["novel-chapter"]`；世界观 → `category="novel-write", load_skills=["novel-entity"]`；实体编辑 → `category="novel-write", load_skills=["novel-entity-editor"]`。
+4. **交付物→Task 映射**：角色 → `category="novel-write", load_skills=["novel-entity"]`；大纲/分纲/情节线 → `category="novel-write", load_skills=["novel-outline"]`；章节 → `category="novel-write", load_skills=["novel-chapter"]`；世界观 → `category="novel-write", load_skills=["novel-entity"]`；实体/章节编辑 → `skill("novel-edit")`。
 5. **全部 Task() 完成后** → 统一执行后处理链（§5.4），不得在中间步骤单独执行。
 6. **禁止**：① 用户确认前执行 ② 用 `write`/`edit` 绕过 Task() 直接写实体文件 ③ 将多个交付物合并到一次 Task() ④ 将实体写入与后处理混合在同一 Task() 中。
 
@@ -84,13 +84,9 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → Task(novel-outline) → rebuild_project_index.py + set-phase(P7→P8)
   │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → Task(novel-chapter) → chapter_tracking
   │   ├─ P9 质量检测（全模糊请求，如"看看写得怎么样""帮我 review 一下"）→ skill("novel-grill", user_message="mode=quality-fuzzy") → quality 检测
-  │   ├─ P12 章节编辑（模糊修改请求，如"改改第5章""第8章读着怪怪的"）→ skill("novel-grill", user_message="mode=chapter-edit-fuzzy") → Task(novel-chapter-editor)
-  │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → Task(novel-entity-editor) → 实体后处理（§5.4）
-  │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ 编辑模式：
-  │   │   ├─ P4/P5/P6/P7(总纲/情节/分卷/分纲) → outline 修订模式
-  │   │   ├─ P2/P3/P13(世界观/角色/实体) → novel-entity-editor → 实体后处理（§5.4）
-  │   │   ├─ P8(章节正文，明确修改指令，如"把第3段对话改自然""第5章节奏调快")→ novel-chapter-editor
-  │   │   └─ P12(章节正文，模糊修改，如"改改第5章")→ 已在上方 P12 模糊分支处理
+  │   ├─ P12 章节编辑（模糊修改请求，如"改改第5章""第8章读着怪怪的"）→ skill("novel-grill", user_message="mode=chapter-edit-fuzzy") → skill("novel-edit")
+  │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → skill("novel-edit")
+  │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ skill("novel-edit")：
   │   ├─ 其他 P 阶段 + 无修改意图 → 加载上下文 → Task() → 写后维护
   │   └─ 无匹配 → 询问用户意图
   ├─ 模糊意图?        → §三.1 匹配 → 推荐技能 → 等待确认
@@ -125,8 +121,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P9 | 质量检测（检测AI味/review/质量/评估/看看写得怎么样） | 明确类型→`category="novel-review", load_skills=["novel-quality"]`；全模糊（"看看写得怎么样"）→`skill("novel-grill", user_message="mode=quality-fuzzy")` → quality 检测 | 明确类型时无；全模糊时无需额外加载（grill 自行处理） | 无（只写报告） |
 | P10 | 风格提取（提取风格/分析文风/模仿风格） | `category="novel-ideate", load_skills=["novel-style"]` | — | `style_manager.py validate → register → activate`（编排层执行） |
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `category="novel-write", load_skills=["novel-export"]` | — | 无（调用 `export.py`） |
-| P12 | 章节编辑（润色/修订/反馈/修改章节） | 明确修改→`category="novel-write", load_skills=["novel-chapter-editor"]`；模糊修改（"改改""读着怪怪的"）→`skill("novel-grill", user_message="mode=chapter-edit-fuzzy")` → chapter-editor | 明确时先运行 `last_100.py` 获取衔接后填入 prompt；模糊时 grill 自行处理 | 无（不改元数据） |
-| P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill")` → `category="novel-write", load_skills=["novel-entity-editor"]`；明确→直接 Task | `entity_schema.py detect` 检测实体类型 | novel-entity-editor SKILL.md 后处理链 |
+| P12 | 章节编辑（润色/修订/反馈/修改章节） | 明确修改→`skill("novel-edit")`；模糊修改→`skill("novel-grill", user_message="mode=chapter-edit-fuzzy")` → `skill("novel-edit")` | 明确时先运行 `last_100.py` 获取衔接后填入 prompt；模糊时 grill 自行处理 | `skill("novel-edit")` 内置后处理 |
+| P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill", user_message="mode=entity-editor")` → `skill("novel-edit")`；明确→直接 `skill("novel-edit")` | —（`skill("novel-edit")` 内部读取文件处理） | `skill("novel-edit")` 内置后处理 |
 | P14 | 以上均不匹配 | 询问用户意图 | — | — |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
@@ -185,8 +181,8 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | P7 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲+分卷+情节+角色+主索引)/输出规格 | config.yaml + outline/*.yaml + project_index.yaml + outline/情节线/主索引.yaml（如存在） |
 | P10 | novel-style | novel-ideate | 参考文本 | 用户提供 |
 | P11 | novel-export | novel-write | 项目名/项目路径/导出格式/作者名 | config.yaml + 用户输入 |
-| P12 | novel-chapter-editor | novel-write | 章节号/章节正文/分纲/角色/衔接（last_100.py 必须先行） | chapters/ + outline/分纲/ + characters/ + last_100.py |
-| P13 | novel-entity-editor | novel-write | 项目路径/实体类型/实体文件/当前内容/修改请求/编辑指南/grill_编辑方案 | entity_schema.py detect + read + quality/grill/entity-editor_需求_*.yaml（如触发grill） |
+| P12 | novel-edit | skill() | 章节号/章节正文/分纲/角色/衔接（last_100.py 先行） / grill_编辑方案（如触发grill） | chapters/ + outline/分纲/ + characters/ + last_100.py |
+| P13 | novel-edit | skill() | 实体文件路径/当前内容/修改请求/意图日志（可选）/grill_编辑方案（如触发grill） | read 目标文件 + outline/追踪/intent/（如存在）+ quality/grill/entity-editor_需求_*.yaml（如触发grill） |
 
 ### P8 章节写作（详细）
 
@@ -295,10 +291,14 @@ python .opencode/shared/extract_template.py \
 |------|------|
 | Task() 返回不完整 | `Task(Task_id="ses_...", prompt="fix: [具体问题]")` |
 | chapter_tracking 失败 | 检查项目根目录/.venv，手动确认 |
-| 章节质量不达标 | novel-quality 单路检测 → novel-chapter-editor 修订 |
+| 章节质量不达标 | novel-quality 单路检测 → `skill("novel-edit")` 修订 |
 | 用户要求重写 | 回退 progress 标记，保留旧文件，重新调度 |
 
 **读者反馈**：用户以 "反馈/读者说/有人提了" 开头 → 确认章节号 → edit 追加到 `novel-feedback.md`（`## 第{N}章 反馈`）。修订时读取对应条目注入 prompt。
+
+## 七、编辑
+
+编辑通过 `skill("novel-edit")` 完成，见 `.opencode/skills/novel-edit/SKILL.md`。
 
 ## 完成标志
 

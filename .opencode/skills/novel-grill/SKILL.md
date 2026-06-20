@@ -90,9 +90,9 @@ tags: ["novel", "grill"]
 4. **展示成果总结**：向用户展示需求确认摘要——"根据你刚才的回答，我将在创作时遵循以下方向：[核心基调/重点关注/排除方向/其他设定]。如果没问题，我开始创作了？"——让用户看到"我说的话被用了"，提升参与感和掌控感。
 5. **传递需求**：用户确认后，编排层将需求清单直接注入后续 task() 的 prompt CONTEXT
 - `ideation` / `character` / `chapter` 模式 → 注入 task() 的 `{grill_需求}` 槽位
-- `entity-editor` 模式 → 注入 novel-entity-editor 的 CONTEXT `{grill_编辑方案}` 槽位
+- `entity-editor` 模式 → 注入 skill("novel-edit") 的 CONTEXT `{grill_编辑方案}` 槽位
 - `worldbuilding` 模式 → 注入 novel-entity 的 CONTEXT `{grill_世界观需求}` 槽位
-- `chapter-edit-fuzzy` 模式 → 注入 novel-chapter-editor 的 CONTEXT `{grill_编辑方案}` 槽位
+- `chapter-edit-fuzzy` 模式 → 注入 skill("novel-edit") 的 CONTEXT `{grill_编辑方案}` 槽位
 - `quality-fuzzy` 模式 → 注入 novel-quality 的 CONTEXT `{grill_检测焦点}` 槽位
 
 **追问风格**：逐个提问，每问附推荐答案（基于类型常识和项目已有背景），用户确认或修正后记录结论再进下一问题，走完所有分支为止。

@@ -10,7 +10,7 @@
 ```
 novel-create-hermes/              ← 工具项目根目录
 ├── AGENTS.md                      ← 本文件 — Sisyphus 上下文指引
-├── opencode.json                  ← 项目级配置（已注册 12 个 skill）
+├── opencode.json                  ← 项目级配置（已注册 11 个 skill）
 ├── .opencode/
 │   ├── agents/
 │   │   └── novel-writer.md        ← 主调度 Agent prompt
@@ -44,10 +44,9 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-outline` | 大纲/总纲/分卷/分纲/情节主线支线 | `Task(category="novel-write", load_skills=["novel-outline"], ...)` |
 | `novel-entity` | 角色档案/世界观建设 | `Task(category="novel-write", load_skills=["novel-entity"], ...)` |
 | `novel-chapter` | 章节写作 | `Task(category="novel-write", load_skills=["novel-chapter"], ...)` |
-| `novel-chapter-editor` | 章节编辑：文笔优化/反馈修订/内容修改 | `Task(category="novel-write", load_skills=["novel-chapter-editor"], ...)` |
+| `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `skill("novel-edit")` |
 | `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(category="novel-write", load_skills=["novel-export"], ...)` |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
-| `novel-entity-editor` | 实体编辑：修改角色档案/世界观设定 | `Task(category="novel-write", load_skills=["novel-entity-editor"], ...)` |
 | `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(category="novel-review", load_skills=["novel-quality"], ...)` |
 
 

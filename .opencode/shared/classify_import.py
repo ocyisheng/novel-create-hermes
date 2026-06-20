@@ -563,7 +563,7 @@ def _convert_worldbuilding(data: dict, eid: str, ename: str,
     upgraded = {
         "_meta": {
             "entity_type": subtype,
-            "schema_version": "1.0",
+            "schema_version": "3.0",
             "created_at": now,
             "updated_at": now,
         },

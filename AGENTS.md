@@ -3,7 +3,7 @@
 ## 项目性质
 
 这是一个基于 OhMyOpenCode Skills 的小说创作工具。当前项目**不是被创作的小说本身**，
-而是一个"创作引擎"——提供 11 个技能帮助用户完成从环境安装、创意构思、写作执行、风格管理到质量把控的全流程。
+而是一个"创作引擎"——提供 13 个技能帮助用户完成从环境安装、创意构思、写作执行、风格管理到质量把控的全流程。
 
 ## 目录结构
 
@@ -14,7 +14,7 @@ novel-create-hermes/              ← 工具项目根目录
 ├── .opencode/
 │   ├── agents/
 │   │   └── novel-writer.md        ← 主调度 Agent prompt
-│   └── skills/                    ← 11 个创作技能（详见下文）
+│   └── skills/                    ← 13 个创作技能（详见下文）
 ├── .omo/
 │   ├── plans/                     ← 小说创作工作计划（非本项目开发计划）
 │   └── notepads/                  ← 创作上下文持久化
@@ -41,8 +41,11 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-env-setup` | 环境初始化 / .venv 故障修复 |  `skill("novel-env-setup")` |
 | `novel-ideation` | 无创意 / 需要脑洞/灵感/构思 | `Task(category="novel-ideate", load_skills=["novel-ideation"], ...)` |
 | `novel-style` | 风格提取/切换/查看内置风格 | `Task(category="novel-ideate", load_skills=["novel-style"], ...)` |
-| `novel-outline` | 大纲/总纲/分卷/分纲/情节主线支线 | `Task(category="novel-write", load_skills=["novel-outline"], ...)` |
-| `novel-entity` | 角色档案/世界观建设 | `Task(category="novel-write", load_skills=["novel-entity"], ...)` |
+| `novel-worldbuilding` | 世界观建设/设定/规则/力量体系 | `Task(category="novel-write", load_skills=["novel-worldbuilding"], ...)` |
+| `novel-character` | 角色档案/人物创建 | `Task(category="novel-write", load_skills=["novel-character"], ...)` |
+| `novel-synopsis` | 总纲撰写/故事框架/叙事策略 | `Task(category="novel-write", load_skills=["novel-synopsis"], ...)` |
+| `novel-plot` | 情节/主线/支线/故事线 | `Task(category="novel-write", load_skills=["novel-plot"], ...)` |
+| `novel-outline` | 分卷大纲/分纲/章节大纲 | `Task(category="novel-write", load_skills=["novel-outline"], ...)` |
 | `novel-chapter` | 章节写作 | `Task(category="novel-write", load_skills=["novel-chapter"], ...)` |
 | `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `skill("novel-edit")` |
 | `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(category="novel-write", load_skills=["novel-export"], ...)` |

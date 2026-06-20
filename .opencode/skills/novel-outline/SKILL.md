@@ -1,67 +1,26 @@
 ---
 name: "novel-outline"
-description: "大纲与分纲：总纲撰写（P4）、情节构建（P5）、分卷大纲生成（P6）、分纲撰写（P7）。触发词：大纲、总纲、分卷、分纲、情节、主线、支线、框架、结构"
+description: "分卷大纲与分纲：分卷大纲生成（P6）和分纲撰写（P7）。触发词：分卷、分纲、章节大纲、章纲、卷大纲"
 license: "MIT"
-version: "2.1.0"
+version: "2.2.0"
 compatibility: "OpenCode"
-tags: ["novel", "outline", "plot"]
+tags: ["novel", "outline", "volume", "chapter"]
 ---
 
-# 大纲与分纲技能
-
-## PROMPT_TEMPLATE
-
-> 模板定义在 `templates/prompt_template.md`。编排层使用 `extract_template.py` 加载并填充变量。
+# 分卷大纲与分纲技能
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行四个阶段的创作任务：
+按编排 Agent 传入的 CONTEXT 执行两个阶段的创作任务：
 
 | 阶段 | 任务 | 输出 |
 |------|------|------|
-| P4 | 总纲撰写 | `outline/总纲.yaml` + `outline/时间线设计.yaml`（新增） |
-| P4.5 | 叙事策略设计 | `outline/叙事策略.yaml`（新增） |
-| P5 | 情节构建 | `outline/情节线/*.yaml` + `outline/伏笔规划.yaml`（新增）+ `outline/角色出场规划.yaml`（可选新增） |
 | P6 | 分卷大纲生成 | `outline/分卷/卷{N}_{名称}.yaml` |
 | P7 | 分纲撰写 | `outline/分纲/卷{卷号}/第{N}章.yaml` |
 
 > **路径说明**：下文所有 `{PROJECT_PATH}` 替换为编排层 CONTEXT 中传入的 `PROJECT PATH` 值。
 
 ## 上下文契约
-
-编排层在调用本技能前按以下清单加载上下文。
-
-### P4 总纲撰写
-
-读取创意方案，输出总纲骨架 + 时间线设计。
-
-| 槽位 | 文件路径 | 提取字段 | 加载方式 |
-|------|---------|---------|---------|
-| 创意方案 | `ideation/最终创意方案.yaml` | `最终方案.一句话概述` `最终方案.主角设定` `最终方案.核心冲突` `最终方案.世界观概述` | `read` 全文件后提取以上字段 |
-
-输出：
-- `outline/总纲.yaml`，参见 `assets/outline.yaml` 模板
-- `outline/时间线设计.yaml`，参见 `assets/timeline_plan.yaml` 模板（基于总纲中的世界背景和故事时间跨度生成）
-
-### P4.5 叙事策略设计
-
-在 P4 总纲完成后、P5 情节构建前执行。读取总纲 + 创意方案，输出叙事策略定义。
-
-| 槽位 | 文件路径 | 提取字段 | 加载方式 |
-|------|---------|---------|---------|
-| 总纲 | `outline/总纲.yaml` | `核心概念` `故事结构` `分卷` | `read` 全文件 |
-| 创意方案 | `ideation/最终创意方案.yaml` | `最终方案.类型` `最终方案.基调` `最终方案.主角设定` | `read` 全文件 |
-
-输出：`outline/叙事策略.yaml`，参见 `references/narrative_strategy.yaml` 模板。
-
-**叙事策略定义以下维度**：
-- 视角选择（主视角类型、锚定角色、切换规则）
-- 叙事手法（主要手法、辅助手法、禁忌手法）
-- 信息分配（戏剧反讽、悬念管理、误导策略）
-- 展示与讲述（场景类型分类、比例建议）
-- 笔法控制（冷笔/热笔场景、切换规则）
-
-下游消费：P5 情节构建、P6 分卷大纲、P7 分纲、P8 章节写作均需读取此文件作为约束。
 
 ### P6 分卷大纲生成
 
@@ -73,24 +32,9 @@ tags: ["novel", "outline", "plot"]
 | 创意方案 | `ideation/最终创意方案.yaml` | `主角设定` `核心冲突` `世界观概述` `情节主线` | `read` 全文件 |
 | 已有分卷文件 | `outline/分卷/*.yaml` | 已存在分卷的 `卷信息.核心冲突` `卷信息.章节范围` | `glob` + `read` 摘要段 |
 
-输出：`outline/分卷/卷{N}_{名称}.yaml`（每卷独立文件），参见 `assets/volume.yaml` 模板。每卷必须包含：卷信息（卷号/卷名/所属阶段/章节范围/时间跨度/核心冲突）、叙事任务、主角状态（起点/终点/年龄）、微弧分割（2-4弧×章节范围/核心事件/高潮）、POV分布（主视角+POV角色及功能）、间奏章节、关键事件清单（分类）、角色发展、本卷节奏（基调/情感曲线）、卷末钩子。
+输出：`outline/分卷/卷{N}_{名称}.yaml`（每卷独立文件），参见 `assets/volume.yaml` 模板。
 
-### P5 情节构建
-
-读取总纲 + 叙事策略，设计主线+支线，并生成全局伏笔规划。
-
-| 槽位 | 文件路径 | 提取字段 | 加载方式 |
-|------|---------|---------|---------|
-| 总纲 | `outline/总纲.yaml` | `幕结构` `分卷` `关键事件` `节奏安排` | `read` 全文件 |
-| 叙事策略 | `outline/叙事策略.yaml` | `信息分配.戏剧反讽` `信息分配.悬念管理` `叙事手法` | `read` 全文件 |
-| 已有情节线 | `outline/情节线/*.yaml` | 每条线的 `索引信息.实体ID` | `glob` + `read` 摘要段 |
-| 情节线进度 | `outline/追踪/情节线进度.yaml` | 进度列表 | `read` 筛选活跃线 |
-| 时间线设计 | `outline/时间线设计.yaml` | `时间线设计` 段（如存在，作为伏笔设置的时序参考） | `read` 全文件 |
-
-输出：
-- `outline/情节线/主线.yaml` + `outline/情节线/支线_{名称}.yaml`，参见 `assets/plot_thread.yaml` 模板
-- `outline/伏笔规划.yaml`，参见 `assets/foreshadowing_plan.yaml` 模板（汇总各情节线文件的 `伏笔清单.计划伏笔` + 允许跨线补充）
-- `outline/角色出场规划.yaml`（可选），参见 `assets/character_appearance_plan.yaml` 模板（基于角色档案的关键章节分布生成）
+每卷必须包含：卷信息（卷号/卷名/所属阶段/章节范围/时间跨度/核心冲突）、叙事任务、主角状态（起点/终点/年龄）、微弧分割（2-4弧×章节范围/核心事件/高潮）、POV分布（主视角+POV角色及功能）、间奏章节、关键事件清单（分类）、角色发展、本卷节奏（基调/情感曲线）、卷末钩子。
 
 ### P7 分纲构建
 
@@ -111,12 +55,6 @@ tags: ["novel", "outline", "plot"]
 
 | 阶段 | 文件 | 模板 | 写入方式 |
 |------|------|------|---------|
-| P4 | `outline/总纲.yaml` | `assets/outline.yaml` | `write` / `edit` |
-| P4 | `outline/时间线设计.yaml` | `assets/timeline_plan.yaml` | `write` / `edit` |
-| P5 | `outline/情节线/主线.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
-| P5 | `outline/情节线/支线_{名称}.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
-| P5 | `outline/伏笔规划.yaml` | `assets/foreshadowing_plan.yaml` | `write` / `edit` |
-| P5 | `outline/角色出场规划.yaml`（可选） | `assets/character_appearance_plan.yaml` | `write` / `edit` |
 | P6 | `outline/分卷/卷{N}_{名称}.yaml` | `assets/volume.yaml` | `write` / `edit` |
 | P7 | `outline/分纲/卷{卷号}/第{N}章.yaml` | `assets/chapter.yaml` | `write` / `edit` |
 
@@ -124,12 +62,8 @@ tags: ["novel", "outline", "plot"]
 
 ## 参考文件
 
-- `references/structure_comparison.md` — 三幕/五幕结构详解
 - `references/outline_templates.md` — 分纲模板与命名规则
 - `references/outline_examples.md` — 分纲示例
-- `references/plot_examples.md` — 情节设计示例
-- `references/foreshadowing.md` — 伏笔设计参考
-- `references/narrative_strategy.yaml` — P4.5 叙事策略模板（视角/手法/信息分配/展示讲述/笔法控制）
 
 ## 写后处理
 
@@ -142,10 +76,10 @@ python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 # 2. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 阶段切换（P4→P5 总纲→情节 / P5→P6 情节→分卷 / P6→P7 分卷→分纲 / P7→P8 分纲→章节）
+# 3. 阶段切换（P6→P7 分卷→分纲 / P7→P8 分纲→章节）
 python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
 ```
 
 ## HARD CONSTRAINTS
 
-> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入 LLM prompt。
+> 约束已移入 `templates/prompt_template.md`。编排层通过 `extract_template.py` 加载模板时一并注入。

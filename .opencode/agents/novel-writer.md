@@ -55,7 +55,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 1. **分析依赖链** → 将计划拆分为原子交付物，标注每个交付物的上游依赖。
 2. **按依赖分组并行** → 同一组内无依赖的交付物 `Task(..., run_in_background=true)` 并行委托；不同组之间串行。
 3. **每次 Task() prompt 必须包含**：`CURRENT PROJECT`、`PROJECT PATH`、目标文件路径、上游交付物的实体 ID（供下游引用）。
-4. **交付物→Task 映射**：角色 → `category="novel-write", load_skills=["novel-entity"]`；大纲/分纲/情节线 → `category="novel-write", load_skills=["novel-outline"]`；章节 → `category="novel-write", load_skills=["novel-chapter"]`；世界观 → `category="novel-write", load_skills=["novel-entity"]`；实体/章节编辑 → `skill("novel-edit")`。
+4. **交付物→Task 映射**：角色 → `category="novel-write", load_skills=["novel-character"]`；世界观 → `category="novel-write", load_skills=["novel-worldbuilding"]`；总纲/叙事策略 → `category="novel-write", load_skills=["novel-synopsis"]`；情节线 → `category="novel-write", load_skills=["novel-plot"]`；分卷/分纲 → `category="novel-write", load_skills=["novel-outline"]`；章节 → `category="novel-write", load_skills=["novel-chapter"]`；实体/章节编辑 → `skill("novel-edit")`。
 5. **全部 Task() 完成后** → 统一执行后处理链（§5.4），不得在中间步骤单独执行。
 6. **禁止**：① 用户确认前执行 ② 用 `write`/`edit` 绕过 Task() 直接写实体文件 ③ 将多个交付物合并到一次 Task() ④ 将实体写入与后处理混合在同一 Task() 中。
 
@@ -76,11 +76,11 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
   │   ├─ 需求发现（grill/需求发现）→ 询问模式 → skill("novel-grill")
   │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → Task() → 写后维护
-  │   ├─ P2 世界观建设（模糊需求，如"帮我建个世界观""搭个设定"）→ skill("novel-grill", user_message="mode=worldbuilding") → Task(novel-entity) → 实体后处理
-  │   ├─ P3 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → Task() → 写后维护
-  │   ├─ P4 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(novel-outline) → rebuild_project_index.py + set-phase(P4→P4.5)
-  │   ├─ P4.5 叙事策略设计（P4完成后自动触发）→ skill("novel-grill", user_message="mode=narrative_strategy") → Task(novel-outline) → set-phase(P4.5→P5)
-  │   ├─ P5 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → Task(novel-outline) → rebuild_project_index.py + rebuild_plot_progress.py
+  │   ├─ P2 世界观建设（模糊需求，如"帮我建个世界观""搭个设定"）→ skill("novel-grill", user_message="mode=worldbuilding") → Task(novel-worldbuilding) → 实体后处理
+  │   ├─ P3 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → Task(category="novel-write", load_skills=["novel-character"]) → 写后维护
+  │   ├─ P4 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(category="novel-write", load_skills=["novel-synopsis"]) → rebuild_project_index.py + set-phase(P4→P4.5)
+  │   ├─ P4.5 叙事策略设计（P4完成后自动触发）→ skill("novel-grill", user_message="mode=narrative_strategy") → Task(category="novel-write", load_skills=["novel-synopsis"]) → set-phase(P4.5→P5)
+  │   ├─ P5 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → Task(category="novel-write", load_skills=["novel-plot"]) → rebuild_project_index.py + rebuild_plot_progress.py
   │   ├─ P6 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → Task(novel-outline) → rebuild_project_index.py
   │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → Task(novel-outline) → rebuild_project_index.py + set-phase(P7→P8)
   │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → Task(novel-chapter) → chapter_tracking
@@ -112,11 +112,11 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 |--------|---------|------|-----------------|-------------------|
 | P-3 | 需求发现（嵌入 P1/P2/P3/P4/P5/P6/P7/P8/P13 模糊分支 或 独立 grill/需求发现入口） | `skill("novel-grill")` | — | 无 |
 | P1 | 创意构思（没想法/没灵感/脑洞/构思） | `category="novel-ideate", load_skills=["novel-ideation"]` | — | novel-ideation SKILL.md 后处理链（如有新实体） |
-| P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `category="novel-write", load_skills=["novel-entity"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-entity SKILL.md 后处理链 |
-| P3 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-entity"]` | — | novel-entity SKILL.md 后处理链 |
-| P4 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
-| P4.5 | 叙事策略设计（P4完成后自动触发） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 + set-phase(P4.5→P5) |
-| P5 | 情节构建（情节/主线/支线/故事线） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 + `rebuild_plot_progress.py`（编排层独有） |
+| P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `category="novel-write", load_skills=["novel-worldbuilding"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-worldbuilding SKILL.md 后处理链 |
+| P3 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-character"]` | — | novel-character SKILL.md 后处理链 |
+| P4 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-synopsis"]` | `config_manager get 当前阶段` 确认阶段 | novel-synopsis SKILL.md 后处理链 |
+| P4.5 | 叙事策略设计（P4完成后自动触发） | `category="novel-write", load_skills=["novel-synopsis"]` | — | novel-synopsis SKILL.md 后处理链 + set-phase(P4.5→P5) |
+| P5 | 情节构建（情节/主线/支线/故事线） | `category="novel-write", load_skills=["novel-plot"]` | — | novel-plot SKILL.md 后处理链 + `rebuild_plot_progress.py`（编排层独有） |
 | P6 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
 | P7 | 分纲构建（分纲/章节大纲/章纲） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 |
 | P8 | 章节写作（第X章/写第）+ 分纲存在 | `category="novel-write", load_skills=["novel-chapter"]` | **先运行** `chapter_context.py` + `extract_template.py` 收集上下文后注入 prompt | novel-chapter SKILL.md 后处理链 |
@@ -166,8 +166,10 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 Prompt 变量通过 `extract_template.py` 从各技能模板填充。编排层查此表确定加载内容后调用 `Task()`。
 
 ```bash
-python .opencode/shared/extract_template.py --skill novel-outline --list-vars         # 查看变量
-python .opencode/shared/extract_template.py --skill novel-outline --var 项目名 "..."  # 填充
+python .opencode/shared/extract_template.py --skill novel-synopsis --list-vars       # 查看变量（总纲）
+python .opencode/shared/extract_template.py --skill novel-plot --list-vars           # 查看变量（情节）
+python .opencode/shared/extract_template.py --skill novel-outline --list-vars        # 查看变量（分卷/分纲）
+python .opencode/shared/extract_template.py --skill novel-synopsis --var 项目名 "..."  # 填充
 ```
 
 ### 通用阶段变量
@@ -175,10 +177,10 @@ python .opencode/shared/extract_template.py --skill novel-outline --var 项目�
 | 阶段 | 技能 | category | 关键变量 | 数据来源 |
 |------|------|----------|---------|---------|
 | P1 | novel-ideation | novel-ideate | 项目名/项目类型/已有实体/创意方向/grill | config.yaml / project_index.yaml / ideation/ / quality/grill/ |
-| P2 | novel-entity | novel-write | 项目名/任务描述/创意方案/总纲/已有实体列表 | config.yaml + ideation + outline + project_index.yaml |
-| P3 | novel-entity | novel-write | 项目名/任务描述/创意方案/总纲/已有实体/grill | config.yaml + ideation + outline + project_index + quality/grill/ |
-| P4 | novel-outline | novel-write | 项目名/任务描述+上下文(创意方案)/输出规格 | config.yaml + ideation/最终创意方案.yaml |
-| P5 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲)/输出规格(情节线文件) | config.yaml + outline/总纲.yaml |
+| P2 | novel-worldbuilding | novel-write | 项目名/任务描述/创意方案/总纲/已有实体列表 | config.yaml + ideation + outline + project_index.yaml |
+| P3 | novel-character | novel-write | 项目名/任务描述/创意方案/总纲/已有实体/grill | config.yaml + ideation + outline + project_index + quality/grill/ |
+| P4 | novel-synopsis | novel-write | 项目名/任务描述+上下文(创意方案)/输出规格 | config.yaml + ideation/最终创意方案.yaml |
+| P5 | novel-plot | novel-write | 项目名/任务描述+上下文(总纲)/输出规格(情节线文件) | config.yaml + outline/总纲.yaml |
 | P6 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲+创意)/输出规格(分卷文件) | config.yaml + outline/总纲.yaml + ideation/ |
 | P7 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲+分卷+情节+角色+主索引)/输出规格 | config.yaml + outline/*.yaml + project_index.yaml + outline/情节线/主索引.yaml（如存在） |
 | P10 | novel-style | novel-ideate | 参考文本 | 用户提供 |
@@ -244,7 +246,7 @@ python .opencode/shared/extract_template.py \
 
 `ulw` / `ultrawork` 前缀（如 "ulw 写第3-5章"）：
 
-1. **入口**：未达 P8 则查 `writing_after_outline`，pause 拒绝启动
+1. **入口**：未达 P8 则 `config_manager.py get 当前阶段`，若阶段非"分纲构建"（即 P7 未完成）则 pause 拒绝启动
 2. **加载**：一次性 read 全部目标分纲，提取角色名 → 加载完整档案
 3. **循环**（不打断）：Task() 生成章节 → `chapter_tracking.py` 更新
 4. **完成**：启动 P9 质量检测

@@ -58,8 +58,11 @@ novel-create-hermes/
 | `novel-grill` | 需求发现（交互式追问） | P-3 | `skill()` | — |
 | `novel-ideation` | 创意构思、约束管理、评估 | P1 | `task()` | `novel-ideate` |
 | `novel-style` | 风格提取/激活 | P10 | `task()` | `novel-ideate` |
-| `novel-outline` | 总纲/情节构建/分卷大纲/分纲 | P4-P7 | `task()` | `novel-write` |
-| `novel-entity` | 世界观建设、角色创建 | P2-P3 | `task()` | `novel-write` |
+| `novel-worldbuilding` | 世界观建设 | P2 | `task()` | `novel-write` |
+| `novel-character` | 角色创建 | P3 | `task()` | `novel-write` |
+| `novel-synopsis` | 总纲撰写、叙事策略设计 | P4-P4.5 | `task()` | `novel-write` |
+| `novel-plot` | 情节构建 | P5 | `task()` | `novel-write` |
+| `novel-outline` | 分卷大纲、分纲构建 | P6-P7 | `task()` | `novel-write` |
 | `novel-chapter` | 章节写作 | P8 | `task()` | `novel-write` |
 | `novel-edit` | 编辑已有内容 | P12-P13 | `skill()` | — |
 | `novel-export` | 格式化导出 | P11 | `task()` | `novel-write` |
@@ -79,10 +82,10 @@ novel-create-hermes/
 | P-2 | 项目管理 | 新建/导入/切换/续写/删除 | `skill("novel-project-manager")` |
 | P-1 | 环境初始化 | 环境检测/安装依赖 | `skill("novel-env-setup")` |
 | P1 | 创意构思 | 没想法/没灵感/脑洞/构思 | `task(novel-ideation)` |
-| P2 | 世界观建设 | 设定/规则/体系/势力 | `task(novel-entity)` |
-| P3 | 角色创建 | 角色/人物/角色档案 | `task(novel-entity)` |
-| P4 | 总纲撰写 | 大纲/总纲/故事框架 | `task(novel-outline)` |
-| P5 | 情节构建 | 情节/主线/支线 | `task(novel-outline)` |
+| P2 | 世界观建设 | 设定/规则/体系/势力 | `task(novel-worldbuilding)` |
+| P3 | 角色创建 | 角色/人物/角色档案 | `task(novel-character)` |
+| P4 | 总纲撰写 | 大纲/总纲/故事框架 | `task(novel-synopsis)` |
+| P5 | 情节构建 | 情节/主线/支线 | `task(novel-plot)` |
 | P6 | 分卷大纲 | 分卷/卷大纲 | `task(novel-outline)` |
 | P7 | 分纲构建 | 分纲/章节大纲 | `task(novel-outline)` |
 | P8 | 章节写作 | 第X章/写第 | `task(novel-chapter)` |

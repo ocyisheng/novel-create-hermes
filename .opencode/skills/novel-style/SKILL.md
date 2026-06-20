@@ -17,7 +17,7 @@ tags: ["novel", "style", "infrastructure"]
 
 | 操作 | 驱动方式 | 工具 |
 |------|---------|------|
-| 参考文本 → 分析 → style.yaml | prompt | `task(category="artistry", load_skills=["novel-style"])` |
+| 参考文本 → 分析 → style.yaml | prompt（`templates/prompt_template.md`） | `task(category="artistry", load_skills=["novel-style"])` |
 | 章节 vs style.yaml → 一致性报告 | prompt | `task(category="ultrabrain", load_skills=["novel-quality"])` |
 | style.yaml 结构验证 | 脚本 | `python scripts/style_manager.py validate` |
 | styles/index.yaml 条目维护 | 脚本 | `python scripts/style_manager.py register` |

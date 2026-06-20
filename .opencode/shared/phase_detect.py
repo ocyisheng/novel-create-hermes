@@ -14,10 +14,11 @@ Example:
 优先级从高到低（后建设的阶段覆盖前阶段）：
     P9 可深度检查           chapters/ 文件数 >= 目标章节数
     P8 章节写作进行中        chapters/ 下有 .txt 文件
-    P7 分纲已就绪            outline/分纲/ 下有文件
-    P6 分卷大纲已生成        outline/分卷/ 下有文件
-    P5 情节线已设计          outline/情节线/ 下有文件
-    P4 大纲已规划            outline/总纲.yaml 有内容
+     P7 分纲已就绪            outline/分纲/ 下有文件
+     P6 分卷大纲已生成        outline/分卷/ 下有文件
+     P5 情节线已设计          outline/情节线/ 下有文件
+     P4.5 叙事策略设计        outline/总纲.yaml 有内容但 outline/叙事策略.yaml 未生成
+     P4 大纲已规划            outline/总纲.yaml 有内容
     P3 角色已创建            characters/ 下有角色 .yaml
     P2 世界观已建设          worldbuilding/ 基础文件存在
     P1 创意构思中            ideation/ 有内容但无最终方案
@@ -79,6 +80,9 @@ def detect_phase(project_root: Path) -> tuple[str, str]:
         return ("P5 情节线已设计", "outline/情节线/ 下有文件")
 
     if content_exists(zonggang):
+        narrative_strategy = outline_dir / "叙事策略.yaml"
+        if not content_exists(narrative_strategy):
+            return ("P4.5 叙事策略设计", "outline/总纲.yaml 有内容但叙事策略未生成")
         return ("P4 大纲已规划", "outline/总纲.yaml 有内容")
 
     if count_files(characters_dir) > 0:

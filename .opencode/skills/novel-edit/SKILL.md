@@ -125,3 +125,5 @@ path 使用点号分隔层级，如 `完整档案.性格.核心特质`。
 ## 参考文件
 
 - `references/change_set.md` — 变更集格式详细规范
+- `references/editing_principles.md` — 编辑原则（最小修改、风格保持、关联感知、可逆性）
+- `references/common_patterns.md` — 常见编辑模式（YAML 字段替换/列表操作、TXT 段落替换/润色、跨文件联动）

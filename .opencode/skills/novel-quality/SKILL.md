@@ -11,7 +11,7 @@ tags: ["novel", "quality"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析。如需修正，由编排层调度 novel-chapter-editor 执行文笔优化或内容修改。
+按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析、风格一致性检查、读者体验评估共 7 路检测。如需修正，由编排层调度 novel-chapter-editor 执行文笔优化或内容修改。
 
 
 ## 上下文契约
@@ -142,6 +142,29 @@ tags: ["novel", "quality"]
 
 参考: `references/pacing_guide.md`
 
+## 读者体验评估
+
+从读者视角评估章节的综合阅读体验，覆盖可读性、情感节奏、悬念管理、信息密度四个维度。
+
+### 4 个评估维度
+1. **可读性评估**：段落长度（50-120字理想）、句子长度（20-30字理想）、信息密度（每段≥1核心信息点）
+2. **情感节奏**：情感强度曲线（1-10级）、高潮分布（每章≥1个小高潮）、情感对比（相邻场景强度差≤5）
+3. **悬念管理**：章节钩子（每章结尾必须有）、悬念密度（每卷≥3个主要悬念）、读者期待管理
+4. **信息密度**：每章新信息点（2-3个）、重复信息间隔（≤10章）、信息遗忘检测
+
+### 输入素材
+- 章节正文：`chapters/第{N}章.txt`
+- 章节分纲：`outline/分纲/卷*/第{N}章.yaml`
+- 叙事策略：`outline/叙事策略.yaml`（如存在）
+
+### 评分标准
+- 优秀：90-100分
+- 良好：75-89分
+- 中等：60-74分
+- 较差：<60分
+
+参考: `references/reader_experience.md`
+
 ## 读者反馈
 
 本技能**不模拟读者反馈**（LLM 无法替代真实读者）。真实反馈由用户通过 `novel-feedback.md` 提供。
@@ -187,16 +210,20 @@ tags: ["novel", "quality"]
      输入：章节正文 + 分纲
      输出：quality/第{N}章_节奏分析报告.yaml
      ↓
-   6. 风格一致性检查（若 config.yaml 设了 活跃风格）
+   6. 读者体验评估
+      输入：章节正文 + 分纲 + 叙事策略（如存在）
+      输出：quality/第{N}章_读者体验评估.yaml
+      ↓
+   7. 风格一致性检查（若 config.yaml 设了 活跃风格）
       输入：章节正文 + styles/{active_style}.yaml
       输出：quality/第{N}章_风格一致性检查.yaml
       ↓
-   7. 问题整合 → 完整质量报告（YAML，含问题清单/优先级/修复建议）
+   8. 问题整合 → 完整质量报告（YAML，含问题清单/优先级/修复建议）
     输出：quality/第{N}章_综合质量报告.yaml
    ↓
-8. 修复执行 → 调度 novel-chapter-editor 执行文笔优化或内容修改
+9. 修复执行 → 调度 novel-chapter-editor 执行文笔优化或内容修改
    ↓
- 9. 完成质量报告
+ 10. 完成质量报告
 ```
 
 ## 写后处理
@@ -217,6 +244,7 @@ python .opencode/shared/config_manager.py set 当前阶段 "已完成" --project
 - `references/check_criteria.md`
 - `references/bug_criteria.md`
 - `references/pacing_guide.md`
+- `references/reader_experience.md`
 - `references/feedback_metrics.md`
 - `references/problem_examples.md`
 - `references/check_examples.md`

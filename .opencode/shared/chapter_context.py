@@ -442,6 +442,82 @@ def load_active_style(project_root: Path) -> str:
     return "\n".join(parts)
 
 
+# ── 叙事策略 ───────────────────────────────────────────────────────────────
+
+def load_narrative_strategy(project_root: Path) -> str:
+    """从 outline/叙事策略.yaml 加载叙事策略定义。
+
+    叙事策略由 P4.5 阶段生成，定义视角、叙事手法、信息分配、展示讲述、笔法控制等规则。
+    P8 章节写作时注入作为硬约束。
+
+    Returns:
+        格式化字符串，包含叙事策略的关键约束。
+    """
+    strategy_path = project_root / "outline" / "叙事策略.yaml"
+    data = load_yaml(strategy_path)
+    if not data:
+        return "（无叙事策略数据）"
+
+    parts = []
+
+    # 视角选择
+    pov = data.get("视角选择", {})
+    if pov:
+        main_pov = pov.get("主视角", "")
+        main角色 = pov.get("主视角角色", "")
+        if main_pov:
+            parts.append(f"视角：{main_pov}")
+        if main角色:
+            parts.append(f"视角锚定角色：{main角色}")
+
+        switch_rules = pov.get("切换规则", {})
+        if switch_rules:
+            max_switch = switch_rules.get("每章最多切换次数", 2)
+            parts.append(f"视角切换限制：每章最多 {max_switch} 次")
+
+    # 叙事手法
+    technique = data.get("叙事手法", {})
+    if technique:
+        main_tech = technique.get("主要手法", "")
+        if main_tech:
+            parts.append(f"叙事手法：{main_tech}")
+
+        forbidden = technique.get("禁忌手法", [])
+        if forbidden:
+            parts.append(f"禁忌手法：{'、'.join(forbidden)}")
+
+    # 信息分配
+    info = data.get("信息分配", {})
+    if info:
+        irony = info.get("戏剧反讽", {})
+        if irony.get("启用"):
+            parts.append("戏剧反讽：启用")
+
+        suspense = info.get("悬念管理", {})
+        if suspense:
+            hooks = suspense.get("章节钩子", "")
+            if hooks:
+                parts.append(f"悬念要求：{hooks}")
+
+    # 展示与讲述
+    show_tell = data.get("展示与讲述", {})
+    if show_tell:
+        ratio = show_tell.get("比例建议", {})
+        if ratio:
+            show_pct = ratio.get("展示", 70)
+            tell_pct = ratio.get("讲述", 30)
+            parts.append(f"展示/讲述比例：{show_pct}%/{tell_pct}%")
+
+    # 笔法控制
+    pen = data.get("笔法控制", {})
+    if pen:
+        hot_scenes = pen.get("热笔场景", [])
+        if hot_scenes:
+            parts.append(f"热笔场景：{'、'.join(hot_scenes[:3])}")
+
+    return "\n".join(parts) if parts else "（叙事策略数据为空）"
+
+
 # ── 主函数 ───────────────────────────────────────────────────────────────────
 
 def collect_context(project_root: Path, chapter_num: int) -> dict:
@@ -482,6 +558,9 @@ def collect_context(project_root: Path, chapter_num: int) -> dict:
 
     # 9. 活跃风格
     context["活跃风格"] = load_active_style(project_root)
+
+    # 10. 叙事策略
+    context["叙事策略"] = load_narrative_strategy(project_root)
 
     return context
 
@@ -537,6 +616,7 @@ def main():
             "本章分纲内容", "前章摘要", "前一章衔接",
             "出场角色档案", "世界观相关实体", "伏笔状态",
             "时间线规划", "支线状态", "已知问题", "活跃风格",
+            "叙事策略",
         ]
         for v in vars:
             print(v)

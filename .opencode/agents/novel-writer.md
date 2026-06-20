@@ -78,7 +78,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → Task() → 写后维护
   │   ├─ P2 世界观建设（模糊需求，如"帮我建个世界观""搭个设定"）→ skill("novel-grill", user_message="mode=worldbuilding") → Task(novel-entity) → 实体后处理
   │   ├─ P3 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → Task() → 写后维护
-  │   ├─ P4 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(novel-outline) → rebuild_project_index.py + set-phase(P4→P5)
+  │   ├─ P4 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(novel-outline) → rebuild_project_index.py + set-phase(P4→P4.5)
+  │   ├─ P4.5 叙事策略设计（P4完成后自动触发）→ skill("novel-grill", user_message="mode=narrative_strategy") → Task(novel-outline) → set-phase(P4.5→P5)
   │   ├─ P5 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → Task(novel-outline) → rebuild_project_index.py + rebuild_plot_progress.py
   │   ├─ P6 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → Task(novel-outline) → rebuild_project_index.py
   │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → Task(novel-outline) → rebuild_project_index.py + set-phase(P7→P8)
@@ -114,6 +115,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `category="novel-write", load_skills=["novel-entity"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-entity SKILL.md 后处理链 |
 | P3 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-entity"]` | — | novel-entity SKILL.md 后处理链 |
 | P4 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
+| P4.5 | 叙事策略设计（P4完成后自动触发） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 + set-phase(P4.5→P5) |
 | P5 | 情节构建（情节/主线/支线/故事线） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 + `rebuild_plot_progress.py`（编排层独有） |
 | P6 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
 | P7 | 分纲构建（分纲/章节大纲/章纲） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 |
@@ -203,7 +205,7 @@ python .opencode/shared/extract_template.py \
     --var 项目名 "{项目名}" --var 章节号 "{章节号}" \
     --var 本章分纲内容 - --var 前章摘要 - --var 前一章衔接 - \
     --var 出场角色档案 - --var 世界观相关实体 - --var 伏笔状态 - \
-    --var 支线状态 - --var 已知问题 - --var 活跃风格 - \
+    --var 支线状态 - --var 已知问题 - --var 活跃风格 - --var 叙事策略 - \
     < /tmp/context.json
 ```
 
@@ -219,6 +221,7 @@ python .opencode/shared/extract_template.py \
 | `{伏笔状态}` | chapter_context.py |
 | `{时间线上下文}` | chapter_context.py（筛选本章 ±5 章） |
 | `{支线状态}` | chapter_context.py |
+| `{叙事策略}` | chapter_context.py（读取 outline/叙事策略.yaml） |
 | `{本章交汇状态}` | chapter_context.py（如主索引存在） |
 | `{已知问题}` | chapter_context.py |
 | `{活跃风格}` | chapter_context.py（含 render_style.py） |

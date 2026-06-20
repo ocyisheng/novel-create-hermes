@@ -67,6 +67,8 @@ python .opencode/shared/extract_template.py \
 | 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在） | chapter_context.py |
 | 已知问题 | `novel-issues.md` 相关条目 | chapter_context.py |
 | 活跃风格 | config.yaml `活跃风格` → 风格文件 | chapter_context.py |
+| 叙事策略 | `outline/叙事策略.yaml`（P4.5 产物，含视角/手法/信息分配/展示讲述规则） | chapter_context.py |
+| 技法指南 | `references/technique_guide.md`（视角/对话/自由间接引语/象征/冷热笔法） | 直接读取参考文件 |
 
 ## 输出
 
@@ -100,3 +102,4 @@ python .opencode/shared/config_manager.py set 最后编辑 "{now}" --project-roo
 - `references/writing_principles.md` — 核心写作原则
 - `references/scene-guide.md` — 场景写作指南
 - `references/foreshadowing.md` — 伏笔设计
+- `references/technique_guide.md` — 写作技法指南（视角/对话/自由间接引语/象征/冷热笔法）

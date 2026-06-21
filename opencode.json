@@ -19,7 +19,8 @@
         "novel-quality",
         "novel-grill",
         "novel-edit",
-        "novel-export"
+        "novel-export",
+        "novel-search-analysis"
       ],
       "tools": {
         "task": true,

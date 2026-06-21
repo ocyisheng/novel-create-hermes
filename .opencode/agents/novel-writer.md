@@ -68,6 +68,13 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ P-1 环境待初始化? → skill("novel-env-setup")
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§3.3）→ 报告阶段
+  ├─ 搜索分析?        → 识别搜索分析意图（搜索/查找/分析/检查一下/找找/查一下/搜一下/核验/对齐/对比设定/看看有没有/哪里不对）
+  │   ├─ 明确模式（用户说了具体搜索词，如"搜一下天道宗""查查林昭的引用"）
+  │   │   → 解析关键词 → skill("novel-search-analysis", user_message="mode=auto, ...")
+  │   ├─ 模糊搜索（如"帮我查查看""分析一下"，无明确关键词）
+  │   │   → skill("novel-search-analysis", user_message="mode=guide")
+  │   └─ 搜索分析+修改联动（如"检查一下设定有没有冲突，有就改"）
+  │       → skill("novel-search-analysis", ...) → 展示报告 → 如有偏差 → skill("novel-edit")
   ├─ 计划执行模式?    → 当前轮对话中用户已确认你提出的多步骤方案（如"按照你的总结依次完成""按计划执行""好的"等确认指令）
   │   → 立即执行，不得再次确认
   │   → 按 §多步骤计划执行规则 → 拆分依赖 → 分组并行/串行 Task() 调度

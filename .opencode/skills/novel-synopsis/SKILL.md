@@ -43,7 +43,7 @@ tags: ["novel", "synopsis", "outline", "narrative"]
 | 总纲 | `outline/总纲.yaml` | `核心概念` `故事结构` `分卷` | `read` 全文件 |
 | 创意方案 | `ideation/最终创意方案.yaml` | `最终方案.类型` `最终方案.基调` `最终方案.主角设定` | `read` 全文件 |
 
-输出：`outline/叙事策略.yaml`，参见 `references/narrative_strategy.yaml` 模板。
+输出：`outline/叙事策略.yaml`，参见 `assets/narrative_strategy.yaml` 模板。
 
 **叙事策略定义以下维度**：
 - 视角选择（主视角类型、锚定角色、切换规则）
@@ -58,7 +58,7 @@ tags: ["novel", "synopsis", "outline", "narrative"]
 |------|------|------|---------|
 | P4 | `outline/总纲.yaml` | `assets/outline.yaml` | `write` / `edit` |
 | P4 | `outline/时间线设计.yaml` | `assets/timeline_plan.yaml` | `write` / `edit` |
-| P4.5 | `outline/叙事策略.yaml` | `references/narrative_strategy.yaml` | `write` |
+| P4.5 | `outline/叙事策略.yaml` | `assets/narrative_strategy.yaml` | `write` |
 
 ## 写后处理
 
@@ -78,7 +78,7 @@ python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project
 ## 参考文件
 
 - `references/structure_comparison.md` — 三幕/五幕结构详解
-- `references/narrative_strategy.yaml` — 叙事策略模板
+- `assets/narrative_strategy.yaml` — 叙事策略模板
 - `assets/outline.yaml` — 总纲模板
 - `assets/timeline_plan.yaml` — 时间线设计模板
 

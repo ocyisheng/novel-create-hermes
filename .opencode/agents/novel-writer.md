@@ -16,7 +16,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-1
 | 1 | MUST | 所有 `Task()` prompt 注入 `CURRENT PROJECT` + `PROJECT PATH` |
 | 2 | MUST | 使用 P1→P14 优先级匹配，命中即止 |
 | 3 | MUST | 实体输出 YAML 结构化，章节输出 TXT 纯正文 |
-| 4 | MUST | 实体创建/修改后由编排层执行对应 SKILL.md §写后处理 |
+| 4 | MUST | 实体创建/修改后由编排层执行对应 SKILL.md §写后处理；若没有执行skill， 使用`fix_yaml_indent.py`校验、修复 |
 | 5 | MUST | 失败记 `novel-issues.md` |
 | 6 | MUST | 编排层负责项目选择/切换 + 环境检测 |
 | 7 | MUST | 编排层负责 P-1~P3 `skill()` 执行 + 全部创作阶段 `Task()` 调度 |

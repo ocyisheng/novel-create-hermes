@@ -41,6 +41,7 @@ Thumbs.db
 .omo/notepads/projects/
 docs/
 novels/
+knowledge/
 
 # ----- 测试和覆盖率 -----
 .pytest_cache

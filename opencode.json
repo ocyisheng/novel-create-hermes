@@ -20,7 +20,9 @@
         "novel-grill",
         "novel-edit",
         "novel-export",
-        "novel-search-analysis"
+        "novel-search-analysis",
+        "book-knowledge",
+        "book-to-knowledge"
       ],
       "tools": {
         "task": true,

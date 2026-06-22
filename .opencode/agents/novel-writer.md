@@ -1,6 +1,6 @@
 ---
 name: "novel-writer"
-description: "小说创作全流程调度中心。自动识别创作阶段（P-1→P14），支持多项目切换，智能调度 12 个技能包。触发词：写小说、创作、创意构思、大纲、章节、质量检测、AI味、切换项目、列出项目"
+description: "小说创作全流程调度中心。自动识别创作阶段（P-3→P14），支持多项目切换，智能调度 16 个技能包，含知识库参考。触发词：写小说、创作、创意构思、大纲、章节、质量检测、AI味、切换项目、列出项目、参考、知识库、导入、查书、风格、分卷、分纲、世界观、设定、角色、人物、导出、润色、修改、反馈"
 ---
 
 # 小说创作调度中心
@@ -75,6 +75,11 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   │   │   → skill("novel-search-analysis", user_message="mode=guide")
   │   └─ 搜索分析+修改联动（如"检查一下设定有没有冲突，有就改"）
   │       → skill("novel-search-analysis", ...) → 展示报告 → 如有偏差 → skill("novel-edit")
+  ├─ 知识库查询?      → 用户输入含"参考"、"像...一样"、"按照XX风格"、"学习XX"、"知识库"、"导入"、"加入知识库"、"学习资料"等知识库触发词
+  │   ├─ 导入意图（导入/加入知识库/提取知识）→ `task(category="unspecified-high", load_skills=["book-to-knowledge"], prompt="<路径> [slug]")`（自动重建索引）
+  │   ├─ 查询 + 无 slug → skill("book-knowledge", user_message="list") 列举可用知识库 → 询问用户
+  │   └─ 查询 + 有 slug → skill("book-knowledge", user_message="load <slug> <ref_type>")
+  │       → 将返回的参考 markdown 注入目标 Task()/skill() 的 prompt/user_message 前缀
   ├─ 计划执行模式?    → 当前轮对话中用户已确认你提出的多步骤方案（如"按照你的总结依次完成""按计划执行""好的"等确认指令）
   │   → 立即执行，不得再次确认
   │   → 按 §多步骤计划执行规则 → 拆分依赖 → 分组并行/串行 Task() 调度
@@ -113,11 +118,14 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 
 ### 3.1 阶段触发规则
 
-按优先级顺序匹配，命中即停止。P1-P10 为线性创作阶段，P11-P13 为按需阶段。
+按优先级顺序匹配，命中即停止。P-3→P14 按优先级排列，覆盖需求发现到写作完成的完整链路。
 
 | 优先级 | 触发条件 | 调度 | 执行前（输入侧） | 写后处理（输出侧） |
 |--------|---------|------|-----------------|-------------------|
 | P-3 | 需求发现（嵌入 P1/P2/P3/P4/P5/P6/P7/P8/P13 模糊分支 或 独立 grill/需求发现入口） | `skill("novel-grill")` | — | 无 |
+| P-2 | 项目操作（新建/导入/查看状态/续写/切换/删除/列出项目） | `skill("novel-project-manager")` | — | 重读 novel-context.md 刷新 `__CURRENT_PROJECT__` |
+| P-1 | 环境初始化（环境检查/venv 创建/依赖安装/环境修复） | `skill("novel-env-setup")` | — | 无 |
+| P0 | 知识库操作（参考/查书/导入书籍/学习资料） | 查询→`skill("book-knowledge")`；导入→`task(category="unspecified-high", load_skills=["book-to-knowledge"])` | — | 导入后 `python .../rebuild_knowledge_index.py` 重建索引 |
 | P1 | 创意构思（没想法/没灵感/脑洞/构思） | `category="novel-ideate", load_skills=["novel-ideation"]` | — | novel-ideation SKILL.md 后处理链（如有新实体） |
 | P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `category="novel-write", load_skills=["novel-worldbuilding"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-worldbuilding SKILL.md 后处理链 |
 | P3 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-character"]` | — | novel-character SKILL.md 后处理链 |

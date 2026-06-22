@@ -3,18 +3,21 @@
 ## 项目性质
 
 这是一个基于 OhMyOpenCode Skills 的小说创作工具。当前项目**不是被创作的小说本身**，
-而是一个"创作引擎"——提供 13 个技能帮助用户完成从环境安装、创意构思、写作执行、风格管理到质量把控的全流程。
+而是一个"创作引擎"——提供 17 个技能帮助用户完成从环境安装、创意构思、写作执行、风格管理、知识库到质量把控的全流程。
 
 ## 目录结构
 
 ```
 novel-create-hermes/              ← 工具项目根目录
 ├── AGENTS.md                      ← 本文件 — Sisyphus 上下文指引
-├── opencode.json                  ← 项目级配置（已注册 11 个 skill）
+├── DEVELOPER.md                   ← 开发者文档（五层架构、技能表、工作流）
+├── opencode.json                  ← 项目级配置（已注册 17 个 skill）
+├── README.md                      ← 用户入门指南
+├── knowledge/                     ← 结构化知识库（由 book-to-knowledge 生成）
 ├── .opencode/
 │   ├── agents/
 │   │   └── novel-writer.md        ← 主调度 Agent prompt
-│   └── skills/                    ← 13 个创作技能（详见下文）
+│   └── skills/                    ← 17 个创作技能（详见下文）
 ├── .omo/
 │   ├── plans/                     ← 小说创作工作计划（非本项目开发计划）
 │   └── notepads/                  ← 创作上下文持久化
@@ -51,5 +54,8 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(category="novel-write", load_skills=["novel-export"], ...)` |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
 | `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(category="novel-review", load_skills=["novel-quality"], ...)` |
+| `novel-search-analysis` | 搜索分析：跨文件全文搜索、实体引用分析、Gap 分析 | `skill("novel-search-analysis")` |
+| `book-to-knowledge` | 将书籍（PDF/EPUB/TXT/HTML/MOBI）导入为结构化知识库 | `skill("book-to-knowledge")` |
+| `book-knowledge` | 知识库管理：检索、查询、引用已导入的知识 | `skill("book-knowledge")` |
 
 

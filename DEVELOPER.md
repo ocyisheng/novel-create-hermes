@@ -13,7 +13,7 @@ novel-writer.md（编排层）→ 阶段识别、task()调度、上下文加载
 oh-my-openagent.json（插件层）→ category → 模型路由 + fallback 链
         │ sisyphus-junior + SKILL.md
         ▼
-12 个 SKILL.md（执行层）→ 各自领域工作，Context Contract 声明输入
+17 个 SKILL.md（执行层）→ 各自领域工作，Context Contract 声明输入
         │ read / write / bash
         ▼
 Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
@@ -23,7 +23,7 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 
 | 层 | 职责 | 边界 |
 |----|------|------|
-| **编排层** | P-1→P14 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
+| **编排层** | P-3→P14 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
 | **插件层** | category → 模型路由、fallback 链 | 只作用于 task() 子 Agent |
 | **执行层** | 按 SKILL.md + Context Contract 执行 | 不做编排决策、不调度其他技能 |
 | **工具层** | 索引、追踪、导出、配置 | 不碰状态决策 |
@@ -35,21 +35,22 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 
 ```
 novel-create-hermes/
-├── opencode.json                    ← agent + 12 个技能 + tools
+├── opencode.json                    ← agent + 17 个技能 + tools
 ├── .omo/
-│   ├── plans/novel-creation.md      ← 工作流计划
+│   ├── plans/                       ← 创作工作计划
 │   └── notepads/                    ← 运行时记忆
 ├── .opencode/
 │   ├── shared/                      ← 项目维护脚本
 │   ├── agents/novel-writer.md       ← 主编排 Agent prompt
-│   └── skills/                      ← 12 个创作技能
+│   └── skills/                      ← 17 个创作技能
+├── knowledge/                       ← 结构化知识库
 ├── novels/                          ← 所有小说项目
 └── docs/                            ← 开发文档
 ```
 
 ---
 
-## 12 个技能
+## 17 个技能
 
 | 技能 | 作用 | 阶段 | 调度 | category |
 |------|------|------|------|----------|
@@ -67,6 +68,9 @@ novel-create-hermes/
 | `novel-edit` | 编辑已有内容 | P12-P13 | `skill()` | — |
 | `novel-export` | 格式化导出 | P11 | `task()` | `novel-write` |
 | `novel-quality` | AI味/情节/角色/世界观检测 | P9 | `task()` | `novel-review` |
+| `novel-search-analysis` | 跨文件搜索/实体引用/Gap 分析 | — | `skill()` | — |
+| `book-to-knowledge` | 书籍导入为结构化知识库 | P0 | `skill()` | — |
+| `book-knowledge` | 知识库检索/查询/引用 | P0 | `skill()` | — |
 
 **调度方式**：
 - `skill()` — 主 Agent 上下文执行，支持交互
@@ -81,6 +85,7 @@ novel-create-hermes/
 | P-3 | 需求发现 | 嵌入模糊分支，或 `grill` | `skill("novel-grill")` |
 | P-2 | 项目管理 | 新建/导入/切换/续写/删除 | `skill("novel-project-manager")` |
 | P-1 | 环境初始化 | 环境检测/安装依赖 | `skill("novel-env-setup")` |
+| P0 | 知识库操作 | 参考/查书/导入书籍/学习资料 | 查询→`skill("book-knowledge")`；导入→`skill("book-to-knowledge")` |
 | P1 | 创意构思 | 没想法/没灵感/脑洞/构思 | `task(novel-ideation)` |
 | P2 | 世界观建设 | 设定/规则/体系/势力 | `task(novel-worldbuilding)` |
 | P3 | 角色创建 | 角色/人物/角色档案 | `task(novel-character)` |

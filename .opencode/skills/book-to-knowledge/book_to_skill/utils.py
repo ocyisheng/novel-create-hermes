@@ -50,13 +50,65 @@ def estimate_tokens(text: str) -> int:
     return int(len(text.split()) / WORDS_PER_TOKEN)
 
 
+_CHUNK_MAX_TOKENS = 50_000  # target tokens per chunk
+
+
+def split_large_text(full_text: str, output_dir: Path) -> dict | None:
+    """Split text into ~50K-token chunks and write to output_dir/full_text.chunks/.
+
+    Returns a manifest dict with chunk metadata, or None if the text is too small
+    to split (under 60K tokens). Each chunk is a plain .txt file; the manifest
+    maps chunk IDs to line ranges and token estimates.
+    """
+    total_tokens = estimate_tokens(full_text)
+    if total_tokens < _CHUNK_MAX_TOKENS * 1.2:
+        return None  # not large enough to warrant chunking
+
+    chunks_dir = output_dir / "full_text.chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+
+    lines = full_text.splitlines(keepends=True)
+    total_lines = len(lines)
+    chunks_meta: list[dict] = []
+    chunk_id = 1
+    start_line = 0
+    acc_tokens = 0
+
+    for i, line in enumerate(lines):
+        acc_tokens += estimate_tokens(line)
+        if acc_tokens >= _CHUNK_MAX_TOKENS or i == total_lines - 1:
+            chunk_lines = lines[start_line : i + 1]
+            chunk_text = "".join(chunk_lines)
+            chunk_name = f"chunk-{chunk_id:03d}.txt"
+            (chunks_dir / chunk_name).write_text(chunk_text, encoding="utf-8")
+            chunks_meta.append({
+                "id": f"chunk-{chunk_id:03d}",
+                "file": chunk_name,
+                "start_line": start_line + 1,
+                "end_line": i + 1,
+                "tokens": estimate_tokens(chunk_text),
+            })
+            chunk_id += 1
+            start_line = i + 1
+            acc_tokens = 0
+
+    manifest = {
+        "total_tokens": total_tokens,
+        "total_lines": total_lines,
+        "chunks": chunks_meta,
+    }
+    manifest_path = chunks_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    return manifest
+
+
 # Explicit chapter heading: "Chapter 5", "Capítulo 5: ...", "Chapter 1. Intro".
 # Also French/German/Italian/Dutch chapter words (chapitre/kapitel/capitolo/
 # hoofdstuk), matching the ToC languages added alongside. "ch.?" stays last so
-# the longer words match in full. Captures the number (bounded to 1..99 — drops
+# the longer words match in full. Captures the number (bounded to 1..9999 — drops
 # years like "2025.") and whatever follows it on the line, so we can reject prose.
 _EXPLICIT_CHAPTER = re.compile(
-    r"^\s*(?:chapter|chapitre|kapitel|cap[ií]tulo|capitolo|hoofdstuk|ch\.?)\s*(\d{1,2})\b(?P<rest>.*)$",
+    r"^\s*(?:chapter|chapitre|kapitel|cap[ií]tulo|capitolo|hoofdstuk|ch\.?)\s*(\d{1,4})\b(?P<rest>.*)$",
     re.IGNORECASE,
 )
 # A heading's number is followed by end-of-line, punctuation (". : - —"), or a
@@ -182,10 +234,10 @@ def _structural_chapter_count(text: str) -> int:
 
 
 def _cn_numeral_to_int(s: str) -> int | None:
-    """Parse a Chinese (or ASCII-digit) chapter numeral into an int (1..999)."""
+    """Parse a Chinese (or ASCII-digit) chapter numeral into an int (1..9999)."""
     if s.isdigit():
         n = int(s)
-        return n if 1 <= n <= 999 else None
+        return n if 1 <= n <= 9999 else None
     section = current = 0
     for ch in s:
         if ch in _CN_NUM_VALUES:
@@ -196,7 +248,7 @@ def _cn_numeral_to_int(s: str) -> int | None:
         else:
             return None
     total = section + current
-    return total if 1 <= total <= 999 else None
+    return total if 1 <= total <= 9999 else None
 
 
 def _int_to_roman(n: int) -> str:
@@ -221,7 +273,7 @@ def _roman_to_int(s: str) -> int | None:
             return None
         total += -v if v < prev else v
         prev = max(prev, v)
-    if total == 0 or total > 200:
+    if total == 0 or total > 3999:
         return None
     # Reject non-canonical forms ("IIII", "VV") by round-tripping.
     return total if _int_to_roman(total) == s else None
@@ -609,6 +661,11 @@ def main():
     
     # Write combined text
     OUTPUT_TEXT.write_text(consolidated_text, encoding="utf-8")
+    
+    # Split large text into ~50K-token chunks for efficient per-chapter access
+    chunk_manifest = split_large_text(consolidated_text, OUTPUT_DIR)
+    if chunk_manifest:
+        print(f"   Chunks : {len(chunk_manifest['chunks'])} (~50K tokens each)")
     
     # Consolidate metadata
     total_file_size_mb = sum(src["file_size_mb"] for src in extracted_sources)

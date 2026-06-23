@@ -1,6 +1,6 @@
 ---
 name: book-to-knowledge
-description: "将书籍和文档（PDF、EPUB、DOCX、HTML、Markdown、纯文本、RTF、MOBI/AZW）转换为结构化知识库，提取框架、思维模型、原则、技术和反模式。输出到 knowledge/<slug>/。触发词：导入知识库、导入书籍、知识库导入、学习资料、book-to-knowledge、extract、提取知识"
+description: "Convert books and documents (PDF, EPUB, DOCX, HTML, Markdown, plain text, RTF, MOBI/AZW) into structured knowledge bases by extracting frameworks, mental models, principles, techniques, and anti-patterns. Output to knowledge/<slug>/. Triggers: import book, knowledge base, extract, book-to-knowledge"
 ---
 
 <!--
@@ -97,6 +97,19 @@ Throughout the workflow:
 - If the last argument is not a file, folder, or glob that exists or matches any files, and it looks like a slug (e.g. lowercase hyphens, alphanumeric), treat it as `KNOWLEDGE_SLUG`.
 - Treat all other arguments as the list of `INPUT_PATHS`.
 - If any input path is an existing knowledge directory (contains `knowledge.md` and a `chapters/` sub-folder), or if `KNOWLEDGE_SLUG` matches an existing slug in `KNOWLEDGE_ROOT`, flag this run as an **Update/Fold-in** operation (Mode 4).
+
+**Optional parameter — `--chapter-range <start>-<end>`**:
+Declares the chapter number range that the input files cover. When provided in an Update/Fold-in operation, this skips the text-based "revision vs addition" analysis in Step 2 of the Update workflow, and uses the declared range directly for numbering new chapter files.
+
+```bash
+# Example: import vol-2 as chapters 101-250
+book-to-knowledge vol-2.epub my-novel --chapter-range 101-250
+
+# Example: revision pass for vol-1 (replaces existing chapters 1-100)
+book-to-knowledge vol-1-revised.epub my-novel --chapter-range 1-100 --revision
+```
+
+Use `--revision` together with `--chapter-range` to mark the content as an update to existing chapters rather than new additions.
 
 ---
 
@@ -224,6 +237,22 @@ Use this approach for Step 3 (structure analysis), Step 7 (per-chapter summaries
 
 Why this matters: a 200-page book is ~75k tokens. Re-reading it once per chapter (28 passes) costs ~2M input tokens; using grep + sed to pull only relevant slices keeps generation cost proportional to the output, not the source.
 
+**Auto-chunking for very large texts (500K+ tokens):**
+When the extracted text exceeds ~60K tokens, `extract.py` automatically splits it into ~50K-token chunks saved under `full_text.chunks/` with a `manifest.json`. Use the manifest to locate which chunk contains your target chapter:
+
+```bash
+# Read manifest to find the right chunk
+cat "$OUTPUT_DIR/full_text.chunks/manifest.json"
+
+# Read a specific chunk
+cat "$OUTPUT_DIR/full_text.chunks/chunk-001.txt"
+
+# Grep within a chunk instead of the full file
+grep -n "Chapter 150" "$OUTPUT_DIR/full_text.chunks/chunk-003.txt"
+```
+
+This avoids loading the entire multi-megabyte text when only a few chapters are needed for Step 7 generation.
+
 ---
 
 ## Step 3 — Analyze book structure
@@ -309,11 +338,43 @@ If the user selects **Update / Fold-in**, proceed immediately to the **Update / 
 
 ```bash
 mkdir -p "$OUTPUT_DIR/chapters"
+# For books organized in volumes (e.g. 1000+ chapter novels), create per-volume
+# subdirectories so each volume's files are grouped together:
+# mkdir -p "$OUTPUT_DIR/chapters/vol-01"
+# mkdir -p "$OUTPUT_DIR/chapters/vol-02"
+# ...
 ```
 
 ---
 
 ## Step 7 — Generate chapter summaries
+
+### 7a — Choose generation mode (large chapter count branch)
+
+If `chapters_detected` from Step 2's metadata exceeds 200, enter **extra-large chapter mode** and prompt the user to choose a strategy:
+
+```
+<N> chapters detected. Recommended: volume-level aggregation.
+Estimated 80% token savings vs full generation.
+Volume overviews + key chapter deep-dives. Chapter-level search still works.
+Choose: (A) Volume aggregation / (B) Sparse sampling / (C) Full generation?
+```
+
+**A. Volume aggregation (recommended)**
+- Generate a per-volume summary file: `vol-<VV>-<slug>-summary.md` for each volume, covering the volume's overall narrative arc, key events, and major frameworks.
+- Select 3-5 key chapters per volume for full single-chapter summaries (identified by significance of frameworks introduced or plot milestones).
+- For remaining chapters, record only the title + 1-2 sentence core event + framework tags (stored in `chapters/index.md`, no separate `.md` file).
+
+**B. Sparse sampling**
+- Let the user specify a sampling density (e.g. "every 10th chapter", "first 50 + last 50 + key plot milestones").
+- Only sampled chapters get full summaries; the rest get title + key event + framework tags (stored in `chapters/index.md`).
+
+**C. Full generation (not recommended)**
+- Follow the standard per-chapter generation path below for every chapter. Warn the user about estimated time and cost before proceeding.
+
+If chapters ≤ 200, proceed directly to the standard per-chapter generation without prompting.
+
+### 7b — Per-chapter generation (standard mode)
 
 **TOKEN BUDGET RULE — CRITICAL (adaptive):**
 
@@ -339,7 +400,7 @@ For EACH chapter/major section identified in Step 3:
 
 Read the corresponding section of the extracted `full_text.txt` (use character offsets or grep for chapter headings).
 
-Create `$OUTPUT_DIR/chapters/ch<NN>-<slug>.md` using the structure below.
+Create `$OUTPUT_DIR/chapters/ch-<NNNN>-<slug>.md` (or `$OUTPUT_DIR/chapters/vol-<VV>/ch-<NNNN>-<slug>.md` when using volume subdirectories) using the structure below.
 
 **Adapt emphasis based on `BOOK_TYPE`:**
 - `technical` → prioritize "Code Examples", "Reference Tables", and "Commands & APIs" sections; preserve exact syntax
@@ -394,6 +455,59 @@ Create `$OUTPUT_DIR/chapters/ch<NN>-<slug>.md` using the structure below.
 - **<Concept>**: <external concept or standard it connects with>
 ```
 
+### Generate chapters/index.md
+
+After generating all chapter summary files, create `$OUTPUT_DIR/chapters/index.md` as a standalone chapter index. This replaces the inline chapter table that previously lived in `knowledge.md`, so the master file stays within its 4,000-token budget regardless of chapter count.
+
+```markdown
+# Chapter Index
+> Auto-generated. Do not edit manually.
+
+- Total: <N> chapters, <V> volumes
+- Volume-level summaries: see each `vol-<NN>/README.md`
+
+---
+
+## Volume 1: <Title> (chapters <start>-<end>)
+
+| # | Title | Frameworks | File |
+|---|-------|------------|------|
+| 0001 | <Title> | <framework1>, <framework2> | [vol-01/ch-0001-<slug>.md](vol-01/ch-0001-<slug>.md) |
+| 0002 | <Title> | <framework1>, <framework2> | [vol-01/ch-0002-<slug>.md](vol-01/ch-0002-<slug>.md) |
+| ... | ... | ... | ... |
+
+---
+
+## Volume 2: <Title> (chapters <start>-<end>)
+
+| # | Title | Frameworks | File |
+|---|-------|------------|------|
+| 0101 | <Title> | <framework1>, <framework2> | [vol-02/ch-0101-<slug>.md](vol-02/ch-0101-<slug>.md) |
+| ... | ... | ... | ... |
+```
+
+For books with no volume subdivision, place all chapters under a single section:
+
+```markdown
+## Body (chapters 1-<N>)
+
+| # | Title | Frameworks | File |
+|---|-------|------------|------|
+| 0001 | <Title> | <framework1>, <framework2> | [ch-0001-<slug>.md](ch-0001-<slug>.md) |
+```
+
+The topic index (previously in `knowledge.md`) also moves here. Append after the volume listing:
+
+```markdown
+---
+
+## Topic Index
+
+- **<Term>** → ch-<NNNN>[, ch-<NNNN>]
+```
+
+Use the data collected during Step 7 (each chapter's title, frameworks, key terms, and file path) to populate the index. This file serves as the navigation entry point for book-knowledge queries.
+
 ---
 
 ## Step 8 — Generate supporting files
@@ -437,10 +551,10 @@ Compaction truncates from the END — put the most important content FIRST.
 Create `$OUTPUT_DIR/knowledge.md`:
 
 ```markdown
-# <Full Title> — 知识库
-**作者**: <Author(s)> | **章节**: <N> | **生成日期**: <YYYY-MM-DD>
+# <Full Title> — Knowledge Base
+**Author**: <Author(s)> | **Chapters**: <N> | **Volumes**: <V> | **Generated**: <YYYY-MM-DD>
 
-## 核心框架
+## Core Frameworks
 <!-- ~2,000 tokens: the author's most important named frameworks and principles.
      Preserve exact names. Write as "Use X when Y", "Prefer X over Y because Z".
      This is a toolkit, not a summary. -->
@@ -449,24 +563,23 @@ Create `$OUTPUT_DIR/knowledge.md`:
 
 ---
 
-## 章节索引
+## Chapter Index
 
-| # | 标题 | 关键框架 |
-|---|------|---------|
-| [ch01](chapters/ch01-<slug>.md) | <Title> | <framework1>, <framework2> |
-| [ch02](chapters/ch02-<slug>.md) | <Title> | <framework1>, <framework2> |
-...
+<N> chapters across <V> volumes.
+Full per-chapter index (frameworks, terms, file links) in [chapters/index.md](chapters/index.md).
 
-## 主题索引
+| Volume | Chapters | Key Topics |
+|--------|----------|------------|
+| 1 | 1-100 | <topic1>, <topic2> |
+| 2 | 101-250 | <topic3>, <topic4> |
+| ... | ... | ... |
 
-<!-- Alphabetical. Major terms/frameworks → chapter(s) that cover them. -->
-- **<Term>** → ch<N>[, ch<N>]
+## Supporting Files
 
-## 辅助文件
-
-- [glossary.md](glossary.md) — 术语表
-- [patterns.md](patterns.md) — 叙事模式与技法
-- [cheatsheet.md](cheatsheet.md) — 决策速查
+- [chapters/index.md](chapters/index.md) — Per-chapter index
+- [glossary.md](glossary.md) — Glossary of terms
+- [patterns.md](patterns.md) — Patterns & techniques
+- [cheatsheet.md](cheatsheet.md) — Quick reference
 ```
 
 Note: unlike agent skill SKILL.md files, knowledge.md uses plain markdown with no YAML frontmatter. This makes it directly readable by any tool, agent, or human without platform-specific parsing.
@@ -481,7 +594,7 @@ Create `$OUTPUT_DIR/source.yaml` with the original source metadata:
 
 ```yaml
 # knowledge/<slug>/source.yaml
-knowledge_version: "1.0"
+knowledge_version: "1.1"
 slug: "<slug>"
 title: "<Full Title>"
 author: "<Author(s)>"
@@ -491,7 +604,16 @@ chapter_count: <N>
 generated_date: "<YYYY-MM-DD>"
 tags: ["<tag1>", "<tag2>"]
 content_type: "<text|technical>"
+volumes:
+  - number: 1
+    title: "<Volume Title>"
+    chapter_start: <N>
+    chapter_end: <N>
+    source_file: "<filename>"
+    import_date: "<YYYY-MM-DD>"
 ```
+
+`volumes` is optional — omit for single-volume books or when volume information is not available. When present, each entry records a volume's title, chapter range, source file, and import date to support batch imports and per-volume queries.
 
 ### 10b — Rebuild knowledge index
 
@@ -539,19 +661,22 @@ PY
 📄 Chapters: <N>
 
 Files generated:
-  knowledge.md      — core frameworks + index   (~X tokens)
-  source.yaml       — source metadata
-  chapters/         — <N> chapter summaries     (~X tokens each, ~X total)
-  glossary.md       — key terms                 (~X tokens)
-  patterns.md       — techniques & patterns     (~X tokens)
-  cheatsheet.md     — quick reference           (~X tokens)
+  knowledge.md              — core frameworks + volume index  (~X tokens)
+  source.yaml               — source metadata
+  chapters/index.md         — full chapter index + topic index
+  chapters/                 — <N> chapter summaries           (~X tokens each, ~X total)
+  glossary.md               — key terms                       (~X tokens)
+  patterns.md               — techniques & patterns           (~X tokens)
+  cheatsheet.md             — quick reference                 (~X tokens)
   ─────────────────────────────────────────────────────
   Total: ~X tokens (loaded on-demand, not all at once)
 
 Usage:
-  book-knowledge load <slug>            → load core frameworks
-  book-knowledge query <slug> <topic>   → find and explain a topic
-  book-knowledge chapter <slug> ch<N>   → dive into a specific chapter
+  book-knowledge load <slug>                        → load core frameworks
+  book-knowledge query <slug> <topic>               → find and explain a topic
+  book-knowledge chapter <slug> <ch-NNNN>           → dive into a specific chapter
+  grep "| <NNNN> |" chapters/index.md               → locate chapter file by number
+  grep "<topic>" chapters/index.md                  → find chapters covering a topic
 ```
 
 ---
@@ -563,19 +688,21 @@ When performing an Update/Fold-in operation on an existing knowledge base at `$O
 ### 1. Read Existing Structure
 Read and parse the existing knowledge files:
 - Read `$OUTPUT_DIR/knowledge.md` to parse the existing **Chapter Index**, **Topic Index**, metadata (author, total chapters), and **Core Frameworks**.
-- List all files in `$OUTPUT_DIR/chapters/` to find the highest chapter number (e.g. `ch12`).
+- Read `$OUTPUT_DIR/chapters/index.md` to find the existing chapter range (or scan `$OUTPUT_DIR/chapters/` if no index.md exists yet). The highest existing chapter number determines where new chapters start.
 - Read `$OUTPUT_DIR/glossary.md`, `$OUTPUT_DIR/patterns.md`, and `$OUTPUT_DIR/cheatsheet.md` to see what terms and frameworks are already indexed.
 
 ### 2. Match Content & Identify Revisions vs. Additions
 Analyze the new extracted text in `<tempdir>/book_skill_work/full_text.txt` to identify if the new content represents:
 - **Updates/Revisions to existing chapters**: If a section of the new content directly updates or expands an existing chapter's topic, read the existing chapter file, merge the new details into it, and rewrite the file.
-- **New additions**: If the content introduces new chapters, papers, or separate sections, create **new chapter summary files** under `chapters/`. Start numbering these files after the highest existing chapter number (e.g. if the existing chapters stop at `ch12`, create `ch13-*.md`, `ch14-*.md`, etc.).
+- **New additions**: If the content introduces new chapters, papers, or separate sections, create **new chapter summary files** under `chapters/` (or the appropriate `chapters/vol-<VV>/` subdirectory). Start numbering these files after the highest existing chapter number (e.g. if the existing chapters stop at `ch-0012`, create `ch-0013-*.md`, `ch-0014-*.md`, etc.). If a `--chapter-range` was provided, use the declared range instead of auto-numbering.
 
 ### 3. Generate or Update Chapter Summary Files
 For each new or revised chapter:
 - Read the corresponding section of the extracted new text.
 - Follow the formatting guidelines in **Step 7** to build the summary.
-- Write/update the file in `$OUTPUT_DIR/chapters/`.
+- Write/update the file in `$OUTPUT_DIR/chapters/` (or the appropriate `vol-<VV>/` subdirectory).
+
+After all new/revised chapters are written, **regenerate `$OUTPUT_DIR/chapters/index.md`** to reflect the updated chapter list, incorporating any new entries and merging the topic index. Follow the same format described in Step 7's "Generate chapters/index.md" section.
 
 ### 4. Merge Supporting Files
 - **Merge glossary.md**:
@@ -595,10 +722,10 @@ For each new or revised chapter:
 
 ### 5. Re-generate the Master knowledge.md
 Update the master knowledge file `$OUTPUT_DIR/knowledge.md`:
-- **Metadata**: Increment the chapter count, update the estimated page count, and add the new source names if appropriate. Update the `Generated` date to the current date.
+- **Metadata**: Increment the chapter count, update the volume list, and add the new source names if appropriate. Update the `Generated` date to the current date.
 - **Core Frameworks**: Fold in the most high-impact mental models or principles from the new content (ensuring the overall file remains under 4,000 tokens).
-- **Chapter Index**: Append the new chapters to the index table, linking to the newly created files.
-- **Topic Index**: Merge the new topics alphabetically. If an existing topic is also covered in the new chapters, append the new chapter links to its line (e.g. `- **Topic** → ch05, ch13`).
+- **Chapter Index (per-volume summary)**: Update the per-volume summary table (volume / chapter range / key topics). The per-chapter detail is already handled by the regenerated `chapters/index.md` and does not belong here.
+- **Auxiliary Files**: Ensure the link to `chapters/index.md` is present.
 
 ### 6. Proceed to Step 10
 Once the files are successfully written and merged, skip to **Step 10** to generate source.yaml, rebuild the index, cleanup, and print an update report summarizing the newly added chapters, merged glossary terms, and updated indices.

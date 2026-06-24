@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
 """
-chapter_context.py — 收集章节写作所需的全部上下文
+chapter_context.py — 收集章节写作所需的全部上下文 + 上下文完整性评分
 
-一次性收集 novel-chapter 技能所需的 12 个上下文槽位，
+一次性收集 novel-chapter 技能所需的 13+ 个上下文槽位，
 输出 JSON 格式供 extract_template.py 填充变量。
+新增 assess_context_completeness() 评估数据维度缺口。
 
 Usage:
     python chapter_context.py --project-root NOVELS_ROOT/项目名 --chapter 5
     python chapter_context.py --project-root NOVELS_ROOT/项目名 --chapter 5 --output /tmp/context.json
     python chapter_context.py --project-root NOVELS_ROOT/项目名 --chapter 5 --list-vars
-
-Output (JSON):
-    {
-        "本章分纲内容": "...",
-        "前章摘要": "...",
-        "前一章衔接": "...",
-        "出场角色档案": "...",
-        "世界观相关实体": "...",
-        "伏笔状态": "...",
-        "时间线规划": "...",
-        "支线状态": "...",
-        "已知问题": "...",
-        "活跃风格": "..."
-    }
+    python chapter_context.py --project-root NOVELS_ROOT/项目名 --chapter 5 --assess  # 仅输出完整性评分
 """
 
 import argparse
@@ -518,6 +506,137 @@ def load_narrative_strategy(project_root: Path) -> str:
     return "\n".join(parts) if parts else "（叙事策略数据为空）"
 
 
+# ── 上下文完整性评分 ─────────────────────────────────────────────────────────
+
+def assess_context_completeness(context: dict) -> dict:
+    """评估上下文完整性，返回综合评分和缺口列表。
+
+    维度权重（满分100）：
+      - 场域规划 20分：场景级蓝图是高质量叙述的基础
+      - 张力曲线 15分：量化节奏指导
+      - 叙事策略 15分：视角/手法/信息分配规则
+      - 伏笔状态 15分：伏笔一致性
+      - 角色档案 10分：出场角色深度
+      - 活跃风格 10分：风格一致性约束
+      - 时间线规划 5分：时间线一致性
+      - 支线状态 5分：主线/支线交叉感知
+      - 对话规划 5分：对话节拍/潜台词（加分项）
+
+    Returns:
+        {"score": int, "gaps": [str], "suggestion": str}
+    """
+    score = 0
+    gaps = []
+
+    # 1. 场域规划 (20分)
+    outline_yaml = context.get("本章分纲内容", "")
+    has_scene = "场域规划" in outline_yaml and "场域名:" in outline_yaml
+    if has_scene:
+        score += 20
+    else:
+        gaps.append("缺少场域规划 (P7 场域蓝图) → 输出可能场景模糊、缺乏感官锚点")
+
+    # 2. 张力曲线 (15分)
+    has_tension = "张力曲线" in outline_yaml and "开场:" in outline_yaml
+    if has_tension:
+        score += 15
+    else:
+        gaps.append("缺少张力曲线 → 输出可能节奏平坦、缺乏起伏设计")
+
+    # 3. 叙事策略 (15分)
+    narrative = context.get("叙事策略", "")
+    if narrative and narrative != "（无叙事策略数据）":
+        score += 15
+    else:
+        gaps.append("缺少叙事策略 → 视角/手法/信息分配缺少约束")
+
+    # 4. 伏笔状态 (15分)
+    foreshadowing = context.get("伏笔状态", "")
+    if foreshadowing and foreshadowing != "（无伏笔数据）":
+        score += 15
+    else:
+        gaps.append("缺少伏笔状态 → 伏笔回收/设置可能脱节")
+
+    # 5. 角色档案 (10分)
+    profiles = context.get("出场角色档案", "")
+    if profiles:
+        score += 10
+    else:
+        gaps.append("缺少出场角色档案 → 角色行为可能偏离设定")
+
+    # 6. 活跃风格 (10分)
+    style = context.get("活跃风格", "")
+    if style:
+        score += 10
+    else:
+        gaps.append("缺少活跃风格 → 文风一致性无约束")
+
+    # 7. 时间线规划 (5分)
+    timeline = context.get("时间线规划", "")
+    if timeline and timeline != "（无时间线设计数据）":
+        score += 5
+    else:
+        gaps.append("缺少时间线规划 → 时间线一致性缺少参考")
+
+    # 8. 支线状态 (5分)
+    threads = context.get("支线状态", "")
+    if threads:
+        score += 5
+
+    # 9. 对话规划 (加分项，5分)
+    has_dialogue = "对话规划" in outline_yaml and "对话节拍:" in outline_yaml
+    if has_dialogue:
+        score += 5
+
+    # 汇总
+    if score >= 85:
+        suggestion = "上下文完整性良好，可直接进入写作。"
+    elif score >= 60:
+        suggestion = "上下文基本完整，建议补充缺失维度以提升输出质量。"
+    elif score >= 40:
+        suggestion = "上下文缺口较多，强烈建议补充场域规划和张力曲线后再开始写作。"
+    else:
+        suggestion = "上下文严重不完整，大量关键维度缺失，请先完善分纲数据。"
+
+    return {"score": min(score, 100), "gaps": gaps, "suggestion": suggestion}
+
+
+def load_scene_beat_plan(project_root: Path, chapter_num: int) -> str:
+    """从分纲提取场域规划数据。"""
+    outline_path = find_chapter_outline(project_root, chapter_num)
+    if not outline_path:
+        return ""
+    data = load_yaml(outline_path)
+    scene_plan = get_nested(data, "完整档案.场域规划")
+    if not scene_plan:
+        return ""
+    return yaml.dump(scene_plan, allow_unicode=True, default_flow_style=False)
+
+
+def load_tension_curve(project_root: Path, chapter_num: int) -> str:
+    """从分纲提取张力曲线数据。"""
+    outline_path = find_chapter_outline(project_root, chapter_num)
+    if not outline_path:
+        return ""
+    data = load_yaml(outline_path)
+    tension = get_nested(data, "完整档案.张力曲线")
+    if not tension:
+        return ""
+    return yaml.dump(tension, allow_unicode=True, default_flow_style=False)
+
+
+def load_dialogue_plan(project_root: Path, chapter_num: int) -> str:
+    """从分纲提取对话规划数据（可选）。"""
+    outline_path = find_chapter_outline(project_root, chapter_num)
+    if not outline_path:
+        return ""
+    data = load_yaml(outline_path)
+    dialogue = get_nested(data, "完整档案.对话规划")
+    if not dialogue:
+        return ""
+    return yaml.dump(dialogue, allow_unicode=True, default_flow_style=False)
+
+
 # ── 主函数 ───────────────────────────────────────────────────────────────────
 
 def collect_context(project_root: Path, chapter_num: int) -> dict:
@@ -562,6 +681,18 @@ def collect_context(project_root: Path, chapter_num: int) -> dict:
     # 10. 叙事策略
     context["叙事策略"] = load_narrative_strategy(project_root)
 
+    # 11. 场域规划
+    context["场域规划"] = load_scene_beat_plan(project_root, chapter_num)
+
+    # 12. 张力曲线
+    context["张力曲线"] = load_tension_curve(project_root, chapter_num)
+
+    # 13. 对话规划（可选）
+    context["对话规划"] = load_dialogue_plan(project_root, chapter_num)
+
+    # 14. 上下文完整性评分
+    context["上下文完整性"] = assess_context_completeness(context)
+
     return context
 
 
@@ -603,6 +734,11 @@ def main():
         action="store_true",
         help="仅列出模板变量名，不输出内容",
     )
+    parser.add_argument(
+        "--assess",
+        action="store_true",
+        help="仅输出上下文完整性评分，不输出完整上下文",
+    )
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -616,13 +752,20 @@ def main():
             "本章分纲内容", "前章摘要", "前一章衔接",
             "出场角色档案", "世界观相关实体", "伏笔状态",
             "时间线规划", "支线状态", "已知问题", "活跃风格",
-            "叙事策略",
+            "叙事策略", "场域规划", "张力曲线", "对话规划",
+            "上下文完整性",
         ]
         for v in vars:
             print(v)
         return
 
     context = collect_context(project_root, args.chapter)
+
+    # --assess 模式：仅输出完整性评分
+    if args.assess:
+        assessment = assess_context_completeness(context)
+        print(json.dumps(assessment, ensure_ascii=False, indent=2))
+        return
 
     if args.output:
         out_path = Path(args.output)

@@ -1,20 +1,75 @@
 #!/usr/bin/env python3
 """
 config_manager.py — 安全读写 config.yaml 字段，支持 dot notation 嵌套访问。
+                    含阶段验证（支持 P-0.5 pre_style 阶段）。
+
+阶段模型（v3.1.0）：
+  主阶段: P-3 → P-2 → P-1 → P0 → P1 → P-0.5(可选) → P2 → P3 → P4 → P4.5 → P5 → P6 → P7 → P8 → P9 → P10 → P11 → P12 → P13 → P14
+  活跃子阶段（P2 支持）: [角色, 世界观, 总纲, 情节, ...]
 
 Usage:
     python config_manager.py get <field> --project-root PATH
     python config_manager.py set <field> <value> --project-root PATH
+    python config_manager.py validate-stage <stage>   # 验证阶段名称是否合法
 
 Examples:
     python config_manager.py get 当前阶段 --project-root NOVELS_ROOT/项目名
     python config_manager.py get 创作进度.当前章节 --project-root NOVELS_ROOT/项目名
     python config_manager.py set 当前阶段 章节写作 --project-root NOVELS_ROOT/项目名
+    python config_manager.py validate-stage pre_style --project-root NOVELS_ROOT/项目名
 """
 
 import sys
 from pathlib import Path
 import yaml
+
+# ── 合法阶段列表（v3.1.0） ──────────────────────────────────────────────────
+VALID_STAGES = [
+    "pre_setup",           # P-3 需求发现
+    "project_setup",       # P-2 项目操作
+    "env_setup",           # P-1 环境初始化
+    "knowledge_base",      # P0 知识库
+    "ideation",            # P1 创意构思
+    "pre_style",           # P-0.5 风格提取（可选，在P1之后）
+    "world_building",      # P2 世界观建设
+    "characters",          # P3 角色创建
+    "synopsis",            # P4 总纲撰写
+    "narrative_strategy",  # P4.5 叙事策略
+    "plot",                # P5 情节构建
+    "volume_outline",      # P6 分卷大纲
+    "chapter_outline",     # P7 分纲构建
+    "chapter_writing",     # P8 章节写作
+    "quality_check",       # P9 质量检测
+    "style_verify",        # P10 风格验证
+    "export",              # P11 导出
+    "chapter_edit",        # P12 章节编辑
+    "entity_edit",         # P13 实体编辑
+    "other",               # P14 其他
+]
+
+# 阶段映射：中文名 → 英文ID（用于 validate-stage 兼容）
+STAGE_ALIASES = {
+    "需求发现": "pre_setup",
+    "项目操作": "project_setup",
+    "环境初始化": "env_setup",
+    "知识库": "knowledge_base",
+    "创意构思": "ideation",
+    "风格提取": "pre_style",
+    "世界观建设": "world_building",
+    "角色创建": "characters",
+    "总纲撰写": "synopsis",
+    "叙事策略": "narrative_strategy",
+    "情节构建": "plot",
+    "分卷大纲": "volume_outline",
+    "分纲构建": "chapter_outline",
+    "章节写作": "chapter_writing",
+    "质量检测": "quality_check",
+    "风格验证": "style_verify",
+    "导出": "export",
+    "章节编辑": "chapter_edit",
+    "实体编辑": "entity_edit",
+    "其他": "other",
+}
 
 
 def load_config(project_root: Path) -> dict:
@@ -72,6 +127,10 @@ def main():
     p_set.add_argument("value", help="新值")
     p_set.add_argument("--project-root", required=True, help="项目根目录")
 
+    p_validate = sub.add_parser("validate-stage", help="验证阶段名称是否合法")
+    p_validate.add_argument("stage", help="阶段名（中文或英文ID）")
+    p_validate.add_argument("--project-root", required=True, help="项目根目录")
+
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -83,6 +142,26 @@ def main():
             print(f"Warning: field '{args.field}' not found in config.yaml", file=sys.stderr)
             sys.exit(1)
         print(val)
+    elif args.command == "validate-stage":
+        stage = args.stage
+        # Try exact match in valid stages
+        if stage in VALID_STAGES:
+            print(f"✅ 合法阶段: {stage}")
+            return
+        # Try alias lookup
+        if stage in STAGE_ALIASES:
+            mapped = STAGE_ALIASES[stage]
+            print(f"✅ 合法阶段: {stage} → {mapped}")
+            return
+        # Try fuzzy match
+        for valid in VALID_STAGES:
+            if stage.lower() in valid.lower() or valid.lower() in stage.lower():
+                print(f"❓ 未精确匹配，您是否想用: {valid}？")
+                print(f"   合法阶段列表: {', '.join(VALID_STAGES)}")
+                sys.exit(1)
+        print(f"❌ 非法阶段: {stage}")
+        print(f"   合法阶段列表: {', '.join(VALID_STAGES)}")
+        sys.exit(1)
     elif args.command == "set":
         old = _get_nested(data, args.field)
         _set_nested(data, args.field, args.value)

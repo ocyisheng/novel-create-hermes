@@ -2,14 +2,38 @@
 name: "novel-style"
 description: "写作风格提取与应用。从参考文本中提炼结构化风格特征，指导章节写作的风格一致性。触发词：风格、文风、模仿、风格提取、style、writing style、风格分析、提炼风格"
 license: "MIT"
-version: "2.0.0"
+version: "2.1.0"
 compatibility: "OpenCode"
 tags: ["novel", "style", "infrastructure"]
 ---
 
-# novel-style — 写作风格技能
+# novel-style — 写作风格技能（双模式）
 
 本项目**风格管理的唯一入口**。其他技能禁止自行定义风格格式或提取逻辑。
+
+## 双模式架构（P-0.5 + P10 验证）
+
+风格技能拆分为两个操作模式：
+
+| 模式 | 阶段 | 调用时机 | 产出 |
+|------|------|---------|------|
+| **提取模式** | P-0.5 | 创意构思（P1）之后，用户提供参考文本时 | `styles/{名称}.yaml` + 写入 `config.yaml.活跃风格` |
+| **验证模式** | P10（原 P9 之后） | 章节写作（P8）完成后，需要检查风格一致性 | 风格偏差报告 |
+
+### 提取模式（P-0.5）
+
+在 P1 创意构思之后、P2 世界观之前调用。用户提供 2-3 段参考文本，生成新风格定义。
+
+- 此模式可随时调用，不依赖任何阶段
+- 生成的风格文件自动写入 `styles/{名称}.yaml`，并设为活跃风格
+- 如果没有参考文本，跳过 P-0.5，使用内置风格（默认"通俗网文风"）
+
+### 验证模式（P10 / 原位置）
+
+章节写作完成后，检查已写章节与已激活风格的一致性。不生成新风格，只输出偏差报告。
+
+- 验证结果可内联到 P9 质量检测中
+- 仅在 `active_style` 非空时运行
 
 ## 核心思想：prompt + 脚本分工
 
@@ -17,8 +41,8 @@ tags: ["novel", "style", "infrastructure"]
 
 | 操作 | 驱动方式 | 工具 |
 |------|---------|------|
-| 参考文本 → 分析 → style.yaml | prompt（`templates/prompt_template.md`） | `task(category="artistry", load_skills=["novel-style"])` |
-| 章节 vs style.yaml → 一致性报告 | prompt | `task(category="ultrabrain", load_skills=["novel-quality"])` |
+| 参考文本 → 分析 → style.yaml（提取模式） | prompt（`templates/prompt_template.md`） | `task(category="artistry", load_skills=["novel-style"])` |
+| 章节 vs style.yaml → 一致性报告（验证模式） | prompt | `task(category="ultrabrain", load_skills=["novel-quality"])` |
 | style.yaml 结构验证 | 脚本 | `python scripts/style_manager.py validate` |
 | styles/index.yaml 条目维护 | 脚本 | `python scripts/style_manager.py register` |
 | config.yaml 活跃风格 读写 | 脚本 | `python scripts/style_manager.py activate` |
@@ -42,16 +66,35 @@ tags: ["novel", "style", "infrastructure"]
 
 ## 使用方式
 
-### 风格提取（文本 → style.yaml）
+### 提取模式（P-0.5：文本 → style.yaml，可选）
 
-用户提供 2-3 段参考文本，Agent 通过 P2.5 触发提取流程。详细工作流见 `references/style_extraction.md`。
+在 P1 创意构思之后触发。用户提供 2-3 段参考文本，Agent 通过 P-0.5 提取流程生成新风格。详细工作流见 `references/style_extraction.md`。
 
 ```
+触发条件:
+  - 用户提供了参考文本（"用这个风格写"、"模仿这个文风"）
+  - 用户要求换风格（"换一种风格"）
+
 Step A: task(category="artistry", load_skills=["novel-style"])
-        → 子 Agent 按 7 维度分析 → write styles/{名称}.yaml
+        → 子 Agent 按 7 维度分析参考文本 → write styles/{名称}.yaml
 
 Step B: bash style_manager.py validate → register → activate
         → 脚本自动维护 index.yaml 和 config.yaml
+        → 新风格写入 config.yaml.活跃风格，P8 写作时自动使用
+```
+
+> P-0.5 是可选阶段。如果用户没有提供参考文本，跳过此阶段，使用内置风格（默认"通俗网文风"）。
+
+### 验证模式（原 P10：章节 vs style.yaml → 一致性报告）
+
+在章节写作（P8）和基础质量检测（P9）之后触发。检查已写章节与已激活风格的一致性。
+
+```
+Step A: task(category="ultrabrain", load_skills=["novel-quality"])
+        → 子 Agent 对比章节正文 vs 活跃风格 → 输出一致性报告
+
+Step B: 报告可内联到 P9 质量检测结果
+        → 仅当 active_style 非空时运行
 ```
 
 ### 风格应用（P8 章节写作时）
@@ -65,7 +108,7 @@ python .opencode/skills/novel-style/scripts/render_style.py \
 
 输出可直接内联到章节写作 prompt 的 `### 活跃风格` 段（由编排层 novel-writer.md 在 P8 调度时注入）。
 
-### 风格一致性检查（P9 质量检测时）
+### 风格一致性检查（验证模式 / P10 质量检测时）
 
 ```bash
 python .opencode/skills/novel-style/scripts/render_style.py \
@@ -167,10 +210,10 @@ python .opencode/skills/novel-style/scripts/style_manager.py builtin copy \
 
 | 技能 | 负责 | 不负责 |
 |------|------|--------|
-| novel-style | 格式定义 + 提取工作流 + 脚本维护 + 应用/检查规范 | 实际写作、实际质量检测 |
+| novel-style | 格式定义 + 提取工作流（P-0.5） + 验证工作流（P10） + 脚本维护 | 实际写作、实际质量检测 |
 | novel-chapter | 写章节时遵循 prompt 中的写作约束 | 定义 style.yaml 格式 |
 | novel-quality | 执行风格一致性检查（通过 prompt） | 定义检查维度和标准 |
-| novel-writer.md | 检测 活跃风格 → 加载注入 prompt → 调度检查（P9） | 定义风格数据 |
+| novel-writer.md | 检测 活跃风格 → P-0.5 调度 → 加载注入 prompt → 调度验证（P10） | 定义风格数据 |
 
 ## HARD CONSTRAINTS
 

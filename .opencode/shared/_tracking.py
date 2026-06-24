@@ -307,6 +307,42 @@ def _extract_characters_from_fengang(project_root: Path, chapter_num: int) -> li
     if not fengang_dir.is_dir():
         return []
 
+    target_filename = f"第{chapter_num}章.yaml"
+    for f in sorted(fengang_dir.rglob(target_filename)):
+        data = load_yaml(f)
+        if not data:
+            continue
+        # 优先: 完整档案.出场角色 (新模板)
+        full = data.get("完整档案", {})
+        role_list = full.get("出场角色", [])
+        if isinstance(role_list, list) and role_list:
+            result = []
+            for item in role_list:
+                if isinstance(item, dict):
+                    name = item.get("角色名", "")
+                    if name:
+                        result.append(name)
+                elif isinstance(item, str):
+                    result.append(item)
+            if result:
+                return result
+        # 降级: 顶层字段 (旧格式)
+        for field in ["出场角色", "角色", "characters"]:
+            chars = data.get(field, [])
+            if isinstance(chars, list) and chars:
+                result = [c for c in chars if isinstance(c, str)]
+                if result:
+                    return result
+        # 再降级: 摘要.出场角色
+        summary = data.get("摘要", {})
+        chars = summary.get("出场角色", [])
+        if isinstance(chars, list) and chars:
+            result = [c for c in chars if isinstance(c, str)]
+            if result:
+                return result
+
+    return []
+
 
 def _extract_chapter_time(project_root: Path, chapter_num: int) -> str:
     """从分纲文件中提取本章的故事时间。"""
@@ -328,21 +364,93 @@ def _extract_chapter_time(project_root: Path, chapter_num: int) -> str:
             return st
     return ""
 
-    target_filename = f"第{chapter_num}章.yaml"
-    for f in sorted(fengang_dir.rglob(target_filename)):
-        data = load_yaml(f)
-        if not data:
-            continue
-        for field in ["出场角色", "角色", "characters"]:
-            chars = data.get(field, [])
-            if isinstance(chars, list) and chars:
-                return chars
-        summary = data.get("摘要", {})
-        chars = summary.get("出场角色", [])
-        if isinstance(chars, list) and chars:
-            return chars
 
-    return []
+def update_worldbuilding_usage(
+    chapter_path: Path,
+    locations: list[str] | None = None,
+    worldbuilding_refs: list[str] | None = None,
+) -> dict:
+    """增量更新世界构建章节映射。
+
+    每章写后调用，从分纲或显式参数提取涉及地点/世界观实体，
+    追加到 outline/追踪/世界构建章节映射.yaml。
+
+    Args:
+        chapter_path: 章节文件路径
+        locations: 本章涉及地点列表（可选，从分纲自动提取）
+        worldbuilding_refs: 本章涉及的世界构建实体名列表（可选）
+
+    Returns:
+        {"updated": int, "entities": list[str]}
+    """
+    project_root = find_project_root(chapter_path)
+    chapter_num = extract_chapter_number(chapter_path)
+    mapping_file = project_root / "outline" / "追踪" / "世界构建章节映射.yaml"
+
+    # 如果没有显式提供地点，从分纲提取
+    if locations is None:
+        fengang_dir = project_root / "outline" / "分纲"
+        target = f"第{chapter_num}章.yaml"
+        for f in sorted(fengang_dir.rglob(target)):
+            data = load_yaml(f)
+            if data:
+                full = data.get("完整档案", {})
+                locs = full.get("涉及地点", [])
+                if isinstance(locs, list):
+                    locations = [str(l) for l in locs if l]
+                # 也提取世界观补充
+                supplements = full.get("世界观补充", [])
+                if isinstance(supplements, list) and worldbuilding_refs is None:
+                    refs = []
+                    for item in supplements:
+                        if isinstance(item, dict):
+                            content = item.get("内容描述", "")
+                            if content:
+                                refs.append(content)
+                    worldbuilding_refs = refs
+            break
+
+    if not locations and not worldbuilding_refs:
+        return {"updated": 0, "entities": []}
+
+    # 加载现有映射
+    data = load_yaml(mapping_file)
+    if not data:
+        data = {"worldbuilding_usage": {}}
+
+    usage = data.setdefault("worldbuilding_usage", {})
+    updated_entities = []
+
+    # 更新地点
+    if locations:
+        for loc in locations:
+            key = f"地点_{loc}"
+            if key not in usage:
+                usage[key] = {"chapters": [], "first_chapter": 0, "last_chapter": 0, "usage_count": 0}
+            if chapter_num not in usage[key]["chapters"]:
+                usage[key]["chapters"].append(chapter_num)
+                usage[key]["chapters"].sort()
+                usage[key]["first_chapter"] = usage[key]["chapters"][0]
+                usage[key]["last_chapter"] = usage[key]["chapters"][-1]
+                usage[key]["usage_count"] = len(usage[key]["chapters"])
+                updated_entities.append(key)
+
+    # 更新世界观补充引用
+    if worldbuilding_refs:
+        for ref in worldbuilding_refs:
+            key = f"引用_{ref[:30]}"
+            if key not in usage:
+                usage[key] = {"chapters": [], "first_chapter": 0, "last_chapter": 0, "usage_count": 0}
+            if chapter_num not in usage[key]["chapters"]:
+                usage[key]["chapters"].append(chapter_num)
+                usage[key]["chapters"].sort()
+                usage[key]["first_chapter"] = usage[key]["chapters"][0]
+                usage[key]["last_chapter"] = usage[key]["chapters"][-1]
+                usage[key]["usage_count"] = len(usage[key]["chapters"])
+                updated_entities.append(key)
+
+    save_yaml(mapping_file, data)
+    return {"updated": len(updated_entities), "entities": updated_entities}
 
 
 def update_chapter_summary(

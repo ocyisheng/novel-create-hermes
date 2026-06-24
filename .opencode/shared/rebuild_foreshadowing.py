@@ -186,21 +186,69 @@ def rebuild_foreshadowing(project_root: Path, dry_run: bool = False) -> dict:
     pending = sum(1 for r in records if r.get("状态") == "待回收")
     resolved = sum(1 for r in records if r.get("状态") == "已回收")
 
-    # 7. 写入文件
+    # 7. 构建伏笔回收完整性报告
+    overdues = []
+    by_chapter = defaultdict(lambda: {"设": 0, "回收": 0})
+    for record in records:
+        chapter = record.get("章节", 0)
+        status = record.get("状态", "")
+        if status == "待回收":
+            by_chapter[chapter]["设"] += 1
+        elif status == "已回收":
+            by_chapter[chapter]["回收"] += 1
+
+    # 检测逾期伏笔（有预期回收章节，但当前进度超过该章节）
+    for record in records:
+        expected_chapter = record.get("预期回收章节", 0)
+        if expected_chapter and expected_chapter < max_chapter:
+            if record.get("状态") == "待回收":
+                overdues.append({
+                    "编号": record.get("编号", ""),
+                    "名称": record.get("描述", "")[:30],
+                    "计划回收章节": expected_chapter,
+                    "当前章节": max_chapter,
+                    "状态": "逾期",
+                })
+
+    quality_report = {
+        "统计": {
+            "总伏笔数": len(records),
+            "已设置": len(records) - resolved,
+            "已回收": resolved,
+            "待回收": pending,
+            "逾期未回收": len(overdues),
+        },
+        "逾期伏笔": overdues,
+        "按章节统计": {
+            f"第{k}章": v for k, v in sorted(by_chapter.items())
+        },
+    }
+
+    quality_path = project_root / "quality" / "伏笔回收完整性.yaml"
+
+    # 8. 写入文件
     if dry_run:
         print("=== DRY RUN ===")
         print(f"扫描到 {len(records)} 条记录，{len(unique_descs)} 个唯一伏笔，最高章节: {max_chapter}")
-        print(f"  待回收: {pending}, 已回收: {resolved}")
-        for record in records[:10]:  # 只显示前10条
+        print(f"  待回收: {pending}, 已回收: {resolved}, 逾期: {len(overdues)}")
+        for record in records[:10]:
             print(f"  第{record.get('章节', '?')}章: {record.get('描述', '?')[:30]}...")
         if len(records) > 10:
             print(f"  ... 还有 {len(records) - 10} 条")
+        if overdues:
+            print(f"\n⚠️  逾期伏笔 {len(overdues)} 个:")
+            for od in overdues[:5]:
+                print(f"  {od['编号']}: 计划第{od['计划回收章节']}章, 当前第{od['当前章节']}章")
         return output
 
     save_yaml(foreshadowing_path, output)
     print(f"📝 伏笔重建完成: {len(records)} 条记录，{len(unique_descs)} 个唯一伏笔")
-    print(f"   待回收: {pending}, 已回收: {resolved}")
-    print(f"   写入: {foreshadowing_path}")
+    print(f"   待回收: {pending}, 已回收: {resolved}, 逾期: {len(overdues)}")
+
+    save_yaml(quality_path, quality_report)
+    print(f"📝 伏笔回收完整性报告: {quality_path}")
+    print(f"   总伏笔: {len(records)}, 已回收: {resolved}, 逾期未回收: {len(overdues)}")
+
     return output
 
 

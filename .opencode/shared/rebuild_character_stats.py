@@ -123,19 +123,49 @@ def rebuild_character_stats(project_root: Path, dry_run: bool = False) -> dict:
     unique_chars = set(r["角色"] for r in records)
     max_chapter = max(r["章节"] for r in records) if records else 0
 
-    # 5. 写入文件
+    # 5. 构建聚合数据（角色→章节列表字典）
+    aggregation = {}
+    for char_name in sorted(unique_chars):
+        char_records = [r for r in records if r["角色"] == char_name]
+        chapters = sorted(set(r["章节"] for r in char_records))
+        # 获取最新状态（最后出场时的状态）
+        latest_status = None
+        for r in reversed(char_records):
+            if "状态" in r:
+                latest_status = r["状态"]
+                break
+        entry = {
+            "chapters": chapters,
+            "total": len(chapters),
+        }
+        if latest_status:
+            entry["status"] = latest_status
+        aggregation[char_name] = entry
+
+    # 6. 写入主文件
+    agg_path = project_root / "outline" / "追踪" / "角色登场聚合.yaml"
+    agg_output = {"角色登场聚合": aggregation}
+
     if dry_run:
         print("=== DRY RUN ===")
         print(f"扫描到 {len(records)} 条记录，涉及 {len(unique_chars)} 个角色，最高章节: {max_chapter}")
         for char in sorted(unique_chars):
-            char_records = [r for r in records if r["角色"] == char]
-            chapters = [r["章节"] for r in char_records]
-            print(f"  {char}: 出场 {len(chapters)} 次，章节 {chapters}")
+            chap_list = aggregation[char]["chapters"]
+            print(f"  {char}: 出场 {len(chap_list)} 次，章节 {chap_list}")
         return output
 
     save_yaml(stats_path, output)
     print(f"📝 角色统计重建完成: {len(records)} 条记录，{len(unique_chars)} 个角色")
     print(f"   写入: {stats_path}")
+
+    save_yaml(agg_path, agg_output)
+    print(f"📝 角色登场聚合重建完成: {len(aggregation)} 个角色")
+    print(f"   写入: {agg_path}")
+
+    for char in sorted(unique_chars):
+        chap_list = aggregation[char]["chapters"]
+        print(f"  {char}: 出场 {len(chap_list)} 次，章节 {chap_list}")
+
     return output
 
 

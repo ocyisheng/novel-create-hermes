@@ -124,6 +124,66 @@ novel-create-hermes/
 
 ---
 
+## 追踪文件体系（outline/追踪/）
+
+追踪文件是**工具层**（Python 脚本）的输出产物，每章写后自动维护，存储于项目目录的 `outline/追踪/`。
+
+### 设计原则
+
+- **写后只追加**：增量更新（`_tracking.py`）每章写后被 `chapter_tracking.py` 调用，追加扁平记录，不改旧数据
+- **全量重建（`rebuild_*.py`）**：从分纲和章节元数据扫描重建，输出与增量一致，用于修复或恢复
+- **两类文件**：扁平记录（事件级，追加）和聚合视图（实体→章节映射，覆写），分开存储
+
+### 扁平记录文件
+
+| 文件 | 回答的问题 | 增量更新函数 | 全量重建脚本 |
+|------|-----------|-------------|-------------|
+| `伏笔.yaml` | **伏笔设在哪章，回收了没有**：`{编号, 描述, 章节, 状态}` | `update_foreshadowing()` | `rebuild_foreshadowing.py` |
+| `时间线.yaml` | **每章发生了什么时间线事件**：`{描述, 章节, 时间}` | `update_timeline()` | `rebuild_timeline.py` |
+| `角色统计.yaml` | **每章有哪些角色出场、什么状态**：`{角色, 章节, 状态}` | `update_character_stats()` | `rebuild_character_stats.py` |
+| `章节摘要.yaml` | **每章的摘要**：`{章节, 摘要}` | `update_chapter_summary()` | `rebuild_chapter_summaries.py` |
+| `情节线进度.yaml` | **情节线在哪些章节活跃**：`{情节线, 章节, 时间}` | `update_plot_threads()` | `rebuild_plot_progress.py` |
+
+### 聚合视图文件
+
+聚合文件由对应的 `rebuild_*.py` 从扁平记录中 group by 生成，增量更新时就地修改单条，全量重建时全部重算。
+
+| 文件 | 回答的问题 | 数据源 |
+|------|-----------|--------|
+| `角色登场聚合.yaml` | **角色出场章节总览**：`{角色名 → {chapters[], total, status}}` | `角色统计.yaml` |
+| `情节线活跃章节聚合.yaml` | **每条情节线覆盖章节范围**：`{情节线ID → {chapters[], active_count}}` | `情节线进度.yaml` |
+| `世界构建章节映射.yaml` | **世界观实体在哪些章节被引用**：`{实体ID → {chapters[], first, last, count}}` | `分纲/*.yaml` 的 `涉及地点` |
+
+### 关键区分：伏笔 vs 情节线进度
+
+| | 伏笔.yaml | 情节线进度.yaml |
+|--|----------|--------------|
+| 回答 | **伏笔本身生命周期**（设在哪、回收没） | **情节线活跃范围**（覆盖哪些章节） |
+| 一条记录 | `{编号: "F001", 章节: 3, 状态: "待回收"}` | `{情节线: "主线", 章节: 3}` |
+| 主键 | 伏笔编号（F001, F002...） | 情节线ID + 章节号 |
+| 关注点 | 伏笔的**设→回收**过程 | 情节线的**活跃→不活跃**区间 |
+
+### 数据流向
+
+```
+章节写后
+  │
+  ├→ `chapter_tracking.py` → `_tracking.py` 的增量函数
+  │     ├→ update_foreshadowing()        → 伏笔.yaml（追加）
+  │     ├→ update_timeline()             → 时间线.yaml（追加）
+  │     ├→ update_character_stats()      → 角色统计.yaml（追加）
+  │     ├→ update_plot_threads()         → 情节线进度.yaml（追加）
+  │     ├→ update_chapter_summary()      → 章节摘要.yaml（追加）
+  │     ├→ update_worldbuilding_usage()  → 世界构建章节映射.yaml（覆写）
+  │     └→ 触发聚合重建                    → 角色登场聚合.yaml / 情节线活跃章节聚合.yaml（覆写）
+  │
+  └─ 手动全量修复
+        python chapter_tracking.py --rebuild-all
+        → 调用所有 rebuild_*.py，从分纲和 .metas/ 扫描重建
+```
+
+---
+
 ## 命令行用法
 
 ```bash

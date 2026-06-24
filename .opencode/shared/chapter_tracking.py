@@ -30,7 +30,10 @@ import sys
 from pathlib import Path
 
 from _utils import find_project_root
-from _tracking import update_foreshadowing, update_timeline, update_character_stats, update_plot_threads, update_chapter_summary
+from _tracking import (
+    update_foreshadowing, update_timeline, update_character_stats,
+    update_plot_threads, update_chapter_summary, update_worldbuilding_usage,
+)
 from _summary import extract_markers
 
 
@@ -59,6 +62,11 @@ try:
     from rebuild_foreshadowing import rebuild_foreshadowing
 except ImportError:
     rebuild_foreshadowing = None
+
+try:
+    from rebuild_worldbuilding_mapping import rebuild_worldbuilding_mapping
+except ImportError:
+    rebuild_worldbuilding_mapping = None
 
 try:
     from rebuild_timeline import rebuild_timeline
@@ -94,7 +102,9 @@ def main():
     parser.add_argument("--rebuild-timeline", action="store_true",
                         help="重建时间线（从分纲+章节元数据）")
     parser.add_argument("--rebuild-plot-progress", action="store_true",
-                        help="重建情节线进度（从情节线文件）")
+                        help="重建情节线进度（从分纲角色匹配）")
+    parser.add_argument("--rebuild-worldbuilding", action="store_true",
+                        help="重建世界构建章节映射（从分纲+project_index）")
     parser.add_argument("--rebuild-summaries", action="store_true",
                         help="重建章节摘要（从章节元数据）")
     parser.add_argument("--rebuild-all", action="store_true",
@@ -150,6 +160,7 @@ def main():
         update_timeline(cp, events_data)
         update_character_stats(cp, char_list)
         plot_result = update_plot_threads(cp, char_list)
+        wb_result = update_worldbuilding_usage(cp)
 
         print(f"已更新元数据: {cp.name}")
         print("  - 伏笔.yaml ✓")
@@ -159,6 +170,8 @@ def main():
             print(f"  - 情节线进度 ✓ ({plot_result['updated']} 条)")
             for detail in plot_result["details"]:
                 print(f"    {detail}")
+        if wb_result["updated"] > 0:
+            print(f"  - 世界构建章节映射 ✓ ({wb_result['updated']} 个实体)")
 
         # 重建角色统计（从实体文件同步）
         if args.rebuild_stats and rebuild_character_stats is not None:
@@ -180,6 +193,16 @@ def main():
             print("  - 章节摘要 ✓")
 
     # 处理重建参数
+    if args.rebuild_all or args.rebuild_worldbuilding:
+        if rebuild_worldbuilding_mapping is not None:
+            try:
+                rebuild_worldbuilding_mapping(project_root, dry_run=args.dry_run)
+                print("  - 世界构建章节映射.yaml (rebuild) ✓")
+            except (OSError, RuntimeError) as e:
+                print(f"  [跳过] 世界构建映射重建失败: {e}")
+        else:
+            print("  [跳过] rebuild_worldbuilding_mapping.py 未找到")
+
     if args.rebuild_all or args.rebuild_foreshadowing:
         if rebuild_foreshadowing is not None:
             try:

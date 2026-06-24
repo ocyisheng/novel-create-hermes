@@ -37,14 +37,19 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
       bash python .opencode/shared/fix_yaml_indent.py "{实体路径}"
       bash python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
       bash python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
-   b. 日志记录：
+   b. 【可选】级联影响分析（建议对角色/世界观重大修改时运行）：
+      bash python .opencode/shared/cascade_impact.py
+        --project-root {PROJECT_PATH}
+        --changed-file {实体相对路径}
+      → 阅读输出 → 如果发现高置信度影响章节，询问是否检查
+   c. 日志记录：
       bash .opencode/shared/update_intent_log.py
         --project-root {PROJECT_PATH}
         --entity-path {实体相对路径}
         --user-request "{用户原始请求}"
         --change-set '{变更集 JSON}'
         --status pending
-   c. 展示变更摘要给用户，询问方向确认
+   d. 展示变更摘要给用户，询问方向确认
 ⑦ 如果 apply_changes 失败（路径不存在/值冲突）：
    - 阅读错误信息，修正变更集后重试
    - 或报告用户具体问题

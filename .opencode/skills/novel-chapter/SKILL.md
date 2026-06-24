@@ -12,14 +12,16 @@ tags: ["novel", "chapter", "writing"]
 
 按编排层传入的 CONTEXT 撰写章节正文。`{PROJECT_PATH}` 替换为 CONTEXT 中的 `PROJECT PATH` 值。
 
-1. **分纲解析** → 理解情节点、角色、转折
+1. **分纲解析** → 理解场域规划、角色、转折。优先使用 `{场域规划}` 中的结构化场景蓝图（含POV、感官锚点、节奏控制、进入/退出方式），而非扁平情节点列表
 2. **前章衔接** → 从同一场景/情绪状态自然延续（参考 `{前一章衔接}` 中的最后 100 字和悬念钩子）
-3. **角色一致性** → 对话和行为符合完整档案设定，不得仅凭摘要脑补关系状态
-4. **情节展开** → 按四段式结构展开情节点
-5. **场景写作** → 用动作、感官细节、环境描写替代内心独白（Show, Not Tell）
-6. **伏笔处理** → 检查 `{伏笔状态}`（含规划文件中的全局伏笔意图 + 追踪文件中的写后状态），回收到期伏笔，设置新伏笔；参考 `{时间线规划}` 确认当前在整体时间线中的位置
-7. **悬念设置** → 在章节结尾自然设置悬念钩子
-8. **文风优化** → 禁止重复句式、中英混杂、空洞内心独白
+3. **角色一致性** → 对话和行为符合完整档案设定，不得仅凭摘要脑补关系状态；参考 `{出场角色档案}` 中角色当前状态
+4. **张力控制** → 严格遵循 `{张力曲线}` 的量化节奏指标（开场→第一场域→中点→高潮→结尾），在每个场域中通过笔法切换（冷笔/热笔/对话）实现张力升降
+5. **场景写作** → 按 `{场域规划}` 每个场域块的要求：使用指定 POV 视角、嵌入感官锚点、按进入/退出方式过渡，Show Not Tell
+6. **对话规划** → 如果 `{对话规划}` 非空，参考对话节拍、声线提醒和潜台词提示撰写对话；确保每个角色有差异化声线
+7. **伏笔处理** → 检查 `{伏笔状态}`（含规划文件中的全局伏笔意图 + 追踪文件中的写后状态），回收到期伏笔，设置新伏笔；参考 `{时间线规划}` 确认当前在整体时间线中的位置
+8. **悬念设置** → 在章节结尾自然设置悬念钩子
+9. **风格一致性** → 严格遵循 `{活跃风格}` 的 7 维度约束（叙事基调、句子结构、节奏、对话风格、词汇选择、修辞特征、禁止模式）
+10. **文风优化** → 禁止重复句式、中英混杂、空洞内心独白
 
 ## 上下文契约
 
@@ -45,6 +47,7 @@ python .opencode/shared/extract_template.py \
     --var 本章分纲内容 - --var 前章摘要 - --var 前一章衔接 - \
     --var 出场角色档案 - --var 世界观相关实体 - --var 伏笔状态 - \
     --var 时间线规划 - --var 支线状态 - --var 已知问题 - --var 活跃风格 - \
+    --var 叙事策略 - --var 场域规划 - --var 张力曲线 - --var 对话规划 - \
     < /tmp/context.json
 ```
 
@@ -61,14 +64,17 @@ python .opencode/shared/extract_template.py \
 | 前一章衔接 | 最后 100 字 + 悬念钩子 | chapter_context.py 或 last_100.py |
 | 出场角色档案 | 从分纲提取角色名 → 读完整档案 | chapter_context.py |
 | 世界观相关实体 | 按分纲"世界观补充"字段 | chapter_context.py |
-| 伏笔状态（规划+追踪） | `outline/伏笔规划.yaml`（规划设计） + `outline/追踪/伏笔.yaml`（追踪状态），合并加载 | chapter_context.py（load_foreshadowing 改造后） |
-| 时间线规划 | `outline/时间线设计.yaml`（按时代分组的全局时间线设计） | chapter_context.py（load_timeline_plan 新增） |
+| 伏笔状态（规划+追踪） | `outline/伏笔规划.yaml`（规划设计） + `outline/追踪/伏笔.yaml`（追踪状态），合并加载 | chapter_context.py |
+| 时间线规划 | `outline/时间线设计.yaml`（按时代分组的全局时间线设计） | chapter_context.py |
 | 相关支线 | 活跃支线当前节点 | chapter_context.py |
 | 本章交汇状态 | `outline/情节线/主索引.yaml`（如存在） | chapter_context.py |
 | 已知问题 | `novel-issues.md` 相关条目 | chapter_context.py |
 | 活跃风格 | config.yaml `活跃风格` → 风格文件 | chapter_context.py |
-| 叙事策略 | `outline/叙事策略.yaml`（P4.5 产物，含视角/手法/信息分配/展示讲述规则） | chapter_context.py |
-| 技法指南 | `references/technique_guide.md`（视角/对话/自由间接引语/象征/冷热笔法） | 直接读取参考文件 |
+| 叙事策略 | `outline/叙事策略.yaml`（P4.5 产物） | chapter_context.py |
+| 场域规划 | 从分纲 `完整档案.场域规划` 提取（含 POV/氛围/节奏/感官锚点） | chapter_context.py（load_scene_beat_plan 新增） |
+| 张力曲线 | 从分纲 `完整档案.张力曲线` 提取（量化 1-10 节奏指标） | chapter_context.py（load_tension_curve 新增） |
+| 对话规划 | 从分纲 `完整档案.对话规划` 提取（可选，对话节拍/声线/潜台词） | chapter_context.py（load_dialogue_plan 新增） |
+| 上下文完整性 | 综合评分 + 缺口列表 | chapter_context.py（assess_context_completeness 新增） |
 
 ## 输出
 

@@ -206,7 +206,10 @@ Read `<tempdir>/book_skill_work/metadata.json` and present the user with an esti
   - Per-chapter budget midpoint by `BOOK_TYPE` (DEPTH is decided later in Step 4 and can raise it): `text` ≈ 1,000, `technical` ≈ 1,800. If the user has already indicated reference-only vs deep study, use the matching row of the Step 7 matrix.
 - Price: Sonnet input=$3/MTok output=$15/MTok — Haiku input=$0.80/MTok output=$4/MTok
 
-Wait for the user to confirm before proceeding. If they say "analyze only", switch to Mode 2.
+Wait for the user to confirm before proceeding:
+- If they say "analyze only" or similar: switch to Mode 2, then proceed to Step 3.
+- If they say "proceed", "yes", "full conversion", or similar: continue in Mode 1, then proceed to Step 3.
+- If they indicate updating an existing knowledge base: switch to Mode 4, then proceed to Step 5.
 
 ---
 
@@ -288,6 +291,9 @@ Then read the Table of Contents section if present to map all chapters.
 | # | Title | Main Frameworks |
 ```
 
+**If mode is Full Conversion (Mode 1):** Proceed to Step 4.
+**If mode is Analyze Only (Mode 2):** Stop here — the extraction report is the final output.
+
 ---
 
 ## Step 4 — Ask purpose (Full Conversion only)
@@ -358,11 +364,13 @@ If `chapters_detected` from Step 2's metadata exceeds 200, enter **extra-large c
 Estimated 80% token savings vs full generation.
 Volume overviews + key chapter deep-dives. Chapter-level search still works.
 Choose: (A) Volume aggregation / (B) Sparse sampling / (C) Full generation?
+If A: How many key chapters per volume? (default: auto ~10% of volume chapters, range 5-30)
 ```
 
 **A. Volume aggregation (recommended)**
 - Generate a per-volume summary file: `vol-<VV>-<slug>-summary.md` for each volume, covering the volume's overall narrative arc, key events, and major frameworks.
-- Select 3-5 key chapters per volume for full single-chapter summaries (identified by significance of frameworks introduced or plot milestones).
+- Select key chapters per volume for full single-chapter summaries. Default calculation: `max(5, min(30, round(volume_chapters × 0.10)))`. User can override with a specific number. These chapters are identified by significance of frameworks introduced or plot milestones.
+- **DEPTH applies**: The key chapter summaries use the `DEPTH` determined in Step 4. If `DEPTH=study`, include worked examples and expanded framework details; if `DEPTH=reference`, keep lean with only decision-ready essentials.
 - For remaining chapters, record only the title + 1-2 sentence core event + framework tags (stored in `chapters/index.md`, no separate `.md` file).
 
 **B. Sparse sampling**
@@ -453,7 +461,7 @@ Create `$OUTPUT_DIR/chapters/ch-<NNNN>-<slug>.md` (or `$OUTPUT_DIR/chapters/vol-
 ## Connects To
 - **Ch N**: <why this chapter relates>
 - **<Concept>**: <external concept or standard it connects with>
-```
+
 
 ### Generate chapters/index.md
 
@@ -512,22 +520,67 @@ Use the data collected during Step 7 (each chapter's title, frameworks, key term
 
 ## Step 8 — Generate supporting files
 
-### glossary.md
-Create `$OUTPUT_DIR/glossary.md`:
-- Every significant term from the book, alphabetically sorted
-- Format: `**Term** — definition (Ch N)`
-- Max 1,500 tokens
+### Directory structure
 
-### patterns.md
-Create `$OUTPUT_DIR/patterns.md`:
-- All concrete techniques, design patterns, algorithms from the book
-- Format: `## Pattern Name\n**When to use**: ...\n**How**: ...\n**Trade-offs**: ...`
-- Max 2,000 tokens
+Create subdirectories for supporting files to support layered architecture (matching the `chapters/` pattern):
 
-### cheatsheet.md
-Create `$OUTPUT_DIR/cheatsheet.md`:
+```bash
+mkdir -p "$OUTPUT_DIR/glossary"
+mkdir -p "$OUTPUT_DIR/patterns"
+mkdir -p "$OUTPUT_DIR/cheatsheet"
+```
+
+### glossary
+
+**Entry file** — `$OUTPUT_DIR/glossary.md`:
+- Volume-level summary of high-frequency terms
+- Format: per-volume sections with `**Term**: definition (Ch N, Ch M...)`
+- Max 1,500 tokens (compaction truncates from end)
+- Links to full index: `Full index in glossary/index.md`
+
+**Full index** — `$OUTPUT_DIR/glossary/index.md`:
+- Every significant term from the book, alphabetically sorted by first letter
+- Format: `## A\n- **Term**: Ch N, Ch M...` (no definitions, just chapter references)
+- No token limit (loaded on-demand)
+
+**Per-chapter files** — `$OUTPUT_DIR/glossary/ch-NNNN.md`:
+- All terms introduced in chapter NNNN
+- Format: `**Term**: definition (1 sentence)`
+- Generated during Step 7 chapter summary generation
+
+### patterns
+
+**Entry file** — `$OUTPUT_DIR/patterns.md`:
+- Volume-level summary of core patterns
+- Format: per-volume sections with pattern names and when-to-use
+- Max 2,000 tokens (compaction truncates from end)
+- Links to full index: `Full index in patterns/index.md`
+
+**Full index** — `$OUTPUT_DIR/patterns/index.md`:
+- All concrete techniques, design patterns from the book
+- Format: `## Pattern Name\n**When to use**: ...\n**Chapters**: N, M...`
+- No token limit (loaded on-demand)
+
+**Per-volume files** — `$OUTPUT_DIR/patterns/vol-NN.md`:
+- Detailed pattern analysis for volume NN
+- Includes worked examples and trade-offs
+
+### cheatsheet
+
+**Entry file** — `$OUTPUT_DIR/cheatsheet.md`:
 
 **This is the most differentiated layer of the knowledge base — treat it as a reasoning aid, not a keyword list.** Anyone can grep the glossary for a term. The cheatsheet captures the author's *judgment*: the decisions they'd make and why. It's the file that turns "I know the words" into "I'd act the way the author would".
+
+- Volume-level summary of decision rules
+- Max 1,200 tokens (compaction truncates from end)
+- Links to full index: `Full index in cheatsheet/index.md`
+
+**Full index** — `$OUTPUT_DIR/cheatsheet/index.md`:
+- Complete decision rules, trade-off matrices, thresholds
+- No token limit (loaded on-demand)
+
+**Per-volume files** — `$OUTPUT_DIR/cheatsheet/vol-NN.md`:
+- Detailed decision trees and flowcharts for volume NN
 
 Prioritize, in order:
 1. **Decision rules** — "When X, do Y, because Z." The if/then logic the author applies, stated so the reader can apply it without re-reading the book.
@@ -538,8 +591,7 @@ Prioritize, in order:
 
 Avoid: bare term→definition rows (that's the glossary), and prose paragraphs (that's the chapters). Every line should help the reader *decide* something.
 
-- Format mostly as compact tables and decision rules; the content you'd want on a single printed page kept beside you while working.
-- Max 1,200 tokens.
+Format mostly as compact tables and decision rules; the content you'd want on a single printed page kept beside you while working.
 
 ---
 
@@ -577,9 +629,9 @@ Full per-chapter index (frameworks, terms, file links) in [chapters/index.md](ch
 ## Supporting Files
 
 - [chapters/index.md](chapters/index.md) — Per-chapter index
-- [glossary.md](glossary.md) — Glossary of terms
-- [patterns.md](patterns.md) — Patterns & techniques
-- [cheatsheet.md](cheatsheet.md) — Quick reference
+- [glossary/index.md](glossary/index.md) — Glossary of terms (full index)
+- [patterns/index.md](patterns/index.md) — Patterns & techniques (full index)
+- [cheatsheet/index.md](cheatsheet/index.md) — Quick reference (full index)
 ```
 
 Note: unlike agent skill SKILL.md files, knowledge.md uses plain markdown with no YAML frontmatter. This makes it directly readable by any tool, agent, or human without platform-specific parsing.
@@ -665,9 +717,15 @@ Files generated:
   source.yaml               — source metadata
   chapters/index.md         — full chapter index + topic index
   chapters/                 — <N> chapter summaries           (~X tokens each, ~X total)
-  glossary.md               — key terms                       (~X tokens)
-  patterns.md               — techniques & patterns           (~X tokens)
-  cheatsheet.md             — quick reference                 (~X tokens)
+  glossary.md               — glossary entry (per-volume)     (~X tokens)
+  glossary/index.md         — full glossary index             (on-demand)
+  glossary/                 — per-chapter term files          (~N files)
+  patterns.md               — patterns entry (per-volume)     (~X tokens)
+  patterns/index.md         — full patterns index             (on-demand)
+  patterns/                 — per-volume pattern details      (~V files)
+  cheatsheet.md             — cheatsheet entry (per-volume)   (~X tokens)
+  cheatsheet/index.md       — full cheatsheet index           (on-demand)
+  cheatsheet/               — per-volume cheatsheet details   (~V files)
   ─────────────────────────────────────────────────────
   Total: ~X tokens (loaded on-demand, not all at once)
 
@@ -677,6 +735,8 @@ Usage:
   book-knowledge chapter <slug> <ch-NNNN>           → dive into a specific chapter
   grep "| <NNNN> |" chapters/index.md               → locate chapter file by number
   grep "<topic>" chapters/index.md                  → find chapters covering a topic
+  grep "<term>" glossary/index.md                   → find term chapter references
+  grep "<pattern>" patterns/index.md                → find pattern usage
 ```
 
 ---
@@ -689,7 +749,9 @@ When performing an Update/Fold-in operation on an existing knowledge base at `$O
 Read and parse the existing knowledge files:
 - Read `$OUTPUT_DIR/knowledge.md` to parse the existing **Chapter Index**, **Topic Index**, metadata (author, total chapters), and **Core Frameworks**.
 - Read `$OUTPUT_DIR/chapters/index.md` to find the existing chapter range (or scan `$OUTPUT_DIR/chapters/` if no index.md exists yet). The highest existing chapter number determines where new chapters start.
-- Read `$OUTPUT_DIR/glossary.md`, `$OUTPUT_DIR/patterns.md`, and `$OUTPUT_DIR/cheatsheet.md` to see what terms and frameworks are already indexed.
+- Read `$OUTPUT_DIR/glossary.md`, `$OUTPUT_DIR/glossary/index.md` to see what terms are already indexed. Scan `$OUTPUT_DIR/glossary/ch-*.md` for per-chapter term files.
+- Read `$OUTPUT_DIR/patterns.md`, `$OUTPUT_DIR/patterns/index.md` to see what patterns are already indexed. Scan `$OUTPUT_DIR/patterns/vol-*.md` for per-volume pattern files.
+- Read `$OUTPUT_DIR/cheatsheet.md`, `$OUTPUT_DIR/cheatsheet/index.md` to see what rules are already indexed. Scan `$OUTPUT_DIR/cheatsheet/vol-*.md` for per-volume cheatsheet files.
 
 ### 2. Match Content & Identify Revisions vs. Additions
 Analyze the new extracted text in `<tempdir>/book_skill_work/full_text.txt` to identify if the new content represents:
@@ -705,20 +767,36 @@ For each new or revised chapter:
 After all new/revised chapters are written, **regenerate `$OUTPUT_DIR/chapters/index.md`** to reflect the updated chapter list, incorporating any new entries and merging the topic index. Follow the same format described in Step 7's "Generate chapters/index.md" section.
 
 ### 4. Merge Supporting Files
-- **Merge glossary.md**:
-  - Read the existing `$OUTPUT_DIR/glossary.md`.
-  - Extract all new terms and definitions from the new content (Step 8 glossary guidelines).
-  - Combine and alphabetize the list of existing and new terms.
-  - If a term already exists, append the new chapter/source references to it (e.g. `**Term** — definition (Ch 4, Ch 13)`).
-  - Rewrite `$OUTPUT_DIR/glossary.md` with the fully merged, alphabetized list.
-- **Merge patterns.md**:
-  - Read existing `$OUTPUT_DIR/patterns.md`.
-  - Extract any new techniques, algorithms, or patterns from the new content.
-  - Append the new patterns, ensuring consistent formatting, and keeping the total length concise (under 2,500 tokens).
-- **Merge cheatsheet.md**:
-  - Read existing `$OUTPUT_DIR/cheatsheet.md`.
-  - Extract new comparison rules, decision tables, or parameter guides.
-  - Integrate them cleanly into the cheatsheet structure.
+
+#### Glossary merge
+- **Read existing structure**:
+  - Read `$OUTPUT_DIR/glossary.md` (entry file with volume summary)
+  - Read `$OUTPUT_DIR/glossary/index.md` (full index)
+  - Scan `$OUTPUT_DIR/glossary/ch-*.md` for existing per-chapter files
+- **Extract new terms**: From new content, extract all terms following Step 8 glossary guidelines
+- **Write per-chapter files**: Create `$OUTPUT_DIR/glossary/ch-NNNN.md` for each new chapter
+- **Update full index**: Merge new terms into `$OUTPUT_DIR/glossary/index.md`, alphabetically sorted
+- **Update entry file**: Regenerate `$OUTPUT_DIR/glossary.md` with updated volume summary (keep under 1,500 tokens)
+
+#### Patterns merge
+- **Read existing structure**:
+  - Read `$OUTPUT_DIR/patterns.md` (entry file with volume summary)
+  - Read `$OUTPUT_DIR/patterns/index.md` (full index)
+  - Scan `$OUTPUT_DIR/patterns/vol-*.md` for existing per-volume files
+- **Extract new patterns**: From new content, extract techniques, algorithms, patterns
+- **Write per-volume files**: Create or update `$OUTPUT_DIR/patterns/vol-NN.md` with detailed analysis
+- **Update full index**: Merge new patterns into `$OUTPUT_DIR/patterns/index.md`
+- **Update entry file**: Regenerate `$OUTPUT_DIR/patterns.md` with updated volume summary (keep under 2,000 tokens)
+
+#### Cheatsheet merge
+- **Read existing structure**:
+  - Read `$OUTPUT_DIR/cheatsheet.md` (entry file with volume summary)
+  - Read `$OUTPUT_DIR/cheatsheet/index.md` (full index)
+  - Scan `$OUTPUT_DIR/cheatsheet/vol-*.md` for existing per-volume files
+- **Extract new rules**: From new content, extract decision rules, trade-off matrices, thresholds
+- **Write per-volume files**: Create or update `$OUTPUT_DIR/cheatsheet/vol-NN.md` with detailed decision trees
+- **Update full index**: Merge new rules into `$OUTPUT_DIR/cheatsheet/index.md`
+- **Update entry file**: Regenerate `$OUTPUT_DIR/cheatsheet.md` with updated volume summary (keep under 1,200 tokens)
 
 ### 5. Re-generate the Master knowledge.md
 Update the master knowledge file `$OUTPUT_DIR/knowledge.md`:

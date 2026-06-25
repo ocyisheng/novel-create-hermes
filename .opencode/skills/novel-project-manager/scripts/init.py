@@ -921,7 +921,7 @@ chapters: {{}}
 
 
     def _persist_old_project_context(self, notepad_dir):
-        """如果 novel-context.md 已有旧项目内容，先保存到 projects/ 目录。"""
+        """如果 novel-context.md 已有旧项目内容，先保存到 projects/ 目录（含 issues）。"""
         context_path = notepad_dir / "novel-context.md"
         if not context_path.is_file():
             return
@@ -934,11 +934,16 @@ chapters: {{}}
         old_project = match.group(1).strip()
         if old_project == self.project_name:
             return  # 同一项目，不保存
-        # 持久化到 projects/{旧项目名}.md
-        projects_dir = notepad_dir / "projects"
-        projects_dir.mkdir(parents=True, exist_ok=True)
-        save_path = projects_dir / f"{old_project}.md"
-        save_path.write_text(old_content, encoding="utf-8")
+        # 持久化到 projects/{旧项目名}/ 目录
+        project_dir = notepad_dir / "projects" / old_project
+        project_dir.mkdir(parents=True, exist_ok=True)
+        ctx_save = project_dir / "context.md"
+        ctx_save.write_text(old_content, encoding="utf-8")
+        # 同步保存 issues
+        issues_path = notepad_dir / "novel-issues.md"
+        if issues_path.is_file():
+            issues_save = project_dir / "issues.md"
+            issues_save.write_text(issues_path.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _init_notepad_files(self):
         """从模板初始化 .omo/notepads/ 下的三个运行时文件。"""
@@ -946,20 +951,21 @@ chapters: {{}}
         template_dir = script_root / ".omo" / "notepads" / "templates"
         notepad_dir = script_root / ".omo" / "notepads"
 
+        # 迁移旧平铺格式（如有）
+        _migrate_flat_projects(notepad_dir)
         # 持久化旧项目上下文（如果存在且不是同一项目）
         self._persist_old_project_context(notepad_dir)
 
         templates = {
             "novel-context.template.md": "novel-context.md",
             "novel-issues.template.md": "novel-issues.md",
-            "novel-learnings.template.md": "novel-learnings.md",
         }
 
         for tpl_name, out_name in templates.items():
             tpl_path = template_dir / tpl_name
             if tpl_path.is_file():
                 out_path = notepad_dir / out_name
-                # novel-context.md 总是覆盖为新项目；issues/learnings 首次创建后保留
+                # novel-context.md 总是覆盖为新项目；issues 首次创建后保留
                 if out_name != "novel-context.md" and out_path.is_file():
                     continue
                 content = tpl_path.read_text(encoding="utf-8")
@@ -1089,22 +1095,41 @@ def _run_tool(tool_name: str, project_path: str, timeout: int = 30,
         return (1, "", f"工具 {tool_name} 异常: {e}")
 
 
-def _persist_current_context(notepad_dir: Path, current_project: str) -> Optional[Path]:
-    """把 novel-context.md 持久化到 projects/{current_project}.md。
+def _migrate_flat_projects(notepad_dir: Path) -> None:
+    """将 projects/{name}.md 平铺文件迁移为 projects/{name}/context.md 目录结构（幂等）。"""
+    projects_dir = notepad_dir / "projects"
+    if not projects_dir.is_dir():
+        return
+    for entry in sorted(projects_dir.iterdir()):
+        if entry.is_file() and entry.suffix == ".md" and entry.stem != ".gitkeep":
+            project_name = entry.stem
+            target_dir = projects_dir / project_name
+            if not target_dir.is_dir():
+                target_dir.mkdir(parents=True, exist_ok=True)
+                entry.rename(target_dir / "context.md")
+                print(f"  📦 迁移: {entry.name} → {project_name}/context.md")
 
-    Returns: 写入路径；None 表示无内容可持久化。
+
+def _persist_current_context(notepad_dir: Path, current_project: str) -> Optional[Path]:
+    """把 novel-context.md + novel-issues.md 持久化到 projects/{current_project}/ 目录。
+
+    Returns: context.md 的写入路径；None 表示无内容可持久化。
     """
     if not current_project:
         return None
+    project_dir = notepad_dir / "projects" / current_project
+    project_dir.mkdir(parents=True, exist_ok=True)
+    # 保存 context
     context_path = notepad_dir / "novel-context.md"
-    if not context_path.is_file():
-        return None
-    content = context_path.read_text(encoding="utf-8")
-    projects_dir = notepad_dir / "projects"
-    projects_dir.mkdir(parents=True, exist_ok=True)
-    save_path = projects_dir / f"{current_project}.md"
-    save_path.write_text(content, encoding="utf-8")
-    return save_path
+    if context_path.is_file():
+        ctx_save = project_dir / "context.md"
+        ctx_save.write_text(context_path.read_text(encoding="utf-8"), encoding="utf-8")
+    # 保存 issues（项目级隔离）
+    issues_path = notepad_dir / "novel-issues.md"
+    if issues_path.is_file():
+        issues_save = project_dir / "issues.md"
+        issues_save.write_text(issues_path.read_text(encoding="utf-8"), encoding="utf-8")
+    return project_dir / "context.md"
 
 
 def _parse_phase_detect_output(stdout: str) -> Optional[str]:
@@ -1117,8 +1142,8 @@ def _parse_phase_detect_output(stdout: str) -> Optional[str]:
         m2 = re.search(r"推导阶段[:：]\s*\S+\s+(\S+(?:\s\S+)*?)(?=\n|$)", stdout)
         if m2:
             stage = m2.group(1).strip()
-            # 去掉结尾修饰词（进行中/已完结/未开始）
-            for suffix in ("进行中", "已完结", "未开始", "完成"):
+            # 去掉结尾修饰词
+            for suffix in ("进行中", "已完结", "未开始", "完成", "已生成", "已就绪", "已创建", "已设计", "已建设", "已规划"):
                 if stage.endswith(suffix):
                     stage = stage[: -len(suffix)].strip()
             return stage
@@ -1403,10 +1428,20 @@ def _build_context_from_project(project_path: Path, project_name: str) -> str:
 
 
 def _write_notepad(notepad_dir: Path, project_path: Path, project_name: str) -> Path:
-    """写入完整的 notepad 上下文（从项目状态推导）。"""
+    """写入完整的 notepad 上下文（从项目状态推导），并恢复项目级 issues。"""
     content = _build_context_from_project(project_path, project_name)
     context_path = notepad_dir / "novel-context.md"
     context_path.write_text(content, encoding="utf-8")
+    # 恢复项目级 issues（如存在）
+    issues_src = notepad_dir / "projects" / project_name / "issues.md"
+    issues_dst = notepad_dir / "novel-issues.md"
+    if issues_src.is_file():
+        issues_dst.write_text(issues_src.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        # 无项目级 issues，写入空模板
+        template_path = notepad_dir / "templates" / "novel-issues.template.md"
+        if template_path.is_file():
+            issues_dst.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
     return context_path
 
 
@@ -2012,6 +2047,10 @@ class ProjectResume:
             print(f"❌ config.yaml 不存在！")
             return False
 
+        # 迁移旧平铺格式（如有）
+        notepad_dir = _load_notepad_dir()
+        _migrate_flat_projects(notepad_dir)
+
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
@@ -2103,6 +2142,8 @@ class ProjectSwitcher:
             return False
 
         notepad_dir = _load_notepad_dir()
+        # 迁移旧平铺格式（如有）
+        _migrate_flat_projects(notepad_dir)
         old_project = _detect_current_project(notepad_dir)
         same_project = (old_project == self.project_name)
 

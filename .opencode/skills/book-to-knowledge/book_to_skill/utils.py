@@ -295,7 +295,25 @@ def _chapter_number(line: str) -> int | None:
     rm = _ROMAN_HEAD.match(s)
     if rm:
         return _roman_to_int(rm.group(1))
-    cm = _CN_CHAPTER.match(s) or _MD_CN_HEADING.match(s)
+
+    # Chinese headings: prefer chapter-level classifiers (章/回/节/篇/讲)
+    # over volume-level (卷).  When the same line reads both "第X卷…第Y章",
+    # e.g. "第一卷 七玄门风云 第一章 山边小村", we want Y (the chapter),
+    # not X (the volume).  re.search finds the chapter classifier anywhere
+    # on the line, while _CN_CHAPTER.match (anchored to line start) would
+    # hit the volume first.
+    _CN_CHAPTER_CLS = re.compile(
+        rf"第\s*([0-9{_FW_DIGITS}{_CN_NUM_CLASS}]+)\s*[章回节篇讲]"
+    )
+    cm = _CN_CHAPTER_CLS.search(s)
+    if cm:
+        return _cn_numeral_to_int(cm.group(1))
+    # Fall back to volume-level (卷) anchored to line start, so a prose
+    # sentence that happens to contain "第X卷" is not mistaken.
+    cm = _CN_CHAPTER.match(s)
+    if cm:
+        return _cn_numeral_to_int(cm.group(1))
+    cm = _MD_CN_HEADING.match(s)
     if cm:
         return _cn_numeral_to_int(cm.group(1))
     return None

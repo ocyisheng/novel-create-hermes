@@ -19,7 +19,9 @@ Manage and query structured knowledge bases under `knowledge/`. Each knowledge b
 |-----------|--------|
 | List all books | Read `knowledge/index.yaml` or scan `knowledge/*/source.yaml` |
 | Load by slug | Read `knowledge/<slug>/knowledge.md` |
-| Search by pattern | `grep knowledge/*/patterns.md` |
+| Search by pattern | `grep knowledge/*/patterns/index.md` (new format) or `grep knowledge/*/patterns.md` (legacy) |
+| Search by term | `grep knowledge/*/glossary/index.md` (new format) or `grep knowledge/*/glossary.md` (legacy) |
+| Search by cheatsheet rule | `grep knowledge/*/cheatsheet/index.md` (new format) or `grep knowledge/*/cheatsheet.md` (legacy) |
 | Filter by tag | Filter by `tags` field in `index.yaml`/`source.yaml` |
 | Find specific chapter | Look up `knowledge/<slug>/chapters/index.md` to locate file path |
 | Find chapters by topic | `grep <topic> knowledge/<slug>/chapters/index.md` |
@@ -27,8 +29,9 @@ Manage and query structured knowledge bases under `knowledge/`. Each knowledge b
 ### 2. Content Query
 
 - **"What is the power system in Panlong?"** → Read Core Frameworks section from `knowledge/panlong/knowledge.md`
-- **"Find examples of underdog arcs"** → `grep knowledge/*/patterns.md` for matching patterns
-- **"Show Xingchen Bian cheatsheet"** → Read `knowledge/xingchen-bian/cheatsheet.md`
+- **"Find examples of underdog arcs"** → `grep knowledge/*/patterns/index.md` for matching patterns (new) or `grep knowledge/*/patterns.md` (legacy)
+- **"Show Xingchen Bian cheatsheet"** → Read `knowledge/xingchen-bian/cheatsheet/index.md` (new) or `knowledge/xingchen-bian/cheatsheet.md` (legacy)
+- **"What does '玄天功' mean?"** → `grep "玄天功" knowledge/*/glossary/index.md` (new) or `grep "玄天功" knowledge/*/glossary.md` (legacy)
 
 ### 3. Output Format
 
@@ -58,22 +61,83 @@ Query type: <power-system|narrative-pattern|character-archetype|pacing|chapter-s
 
 1. Resolve slug list and query type
 2. Read `knowledge/<slug>/source.yaml` to verify existence
-3. Read files based on query type:
-   - **Power system** → Filter Core Frameworks section from `knowledge.md`
-   - **Narrative pattern** → `patterns.md`
-   - **Character archetype** → Chapter summaries from `chapters/` involving protagonist/antagonist
-   - **Pacing** → `cheatsheet.md`
-   - **Chapter summary** → Look up `chapters/index.md` for file path → read `chapters/<file>.md`
-   - **Query by chapter number** → `grep "| <NNNN> |" chapters/index.md` to get filename and framework tags
-   - **Query by topic** → `grep <topic> chapters/index.md` to match chapter rows, extract file links
-   - **All** → `knowledge.md` + `patterns.md` + `cheatsheet.md`
-4. Assemble and return standardized markdown reference fragment
+3. Detect format version (new layered vs legacy):
+   - **New format**: `knowledge/<slug>/glossary/index.md` exists → layered structure
+   - **Legacy format**: `knowledge/<slug>/glossary/index.md` does not exist → single-file structure
+4. Read files based on query type:
+
+   **Power system** → Filter Core Frameworks section from `knowledge.md` (same for both formats)
+
+   **Narrative pattern**:
+   - New: `grep <pattern> knowledge/<slug>/patterns/index.md` → read `knowledge/<slug>/patterns/vol-NN.md` for details
+   - Legacy: `grep <pattern> knowledge/<slug>/patterns.md`
+
+   **Character archetype** → Chapter summaries from `chapters/` involving protagonist/antagonist (same for both formats)
+
+   **Pacing / Cheatsheet**:
+   - New: `grep <topic> knowledge/<slug>/cheatsheet/index.md` → read `knowledge/<slug>/cheatsheet/vol-NN.md` for details
+   - Legacy: `grep <topic> knowledge/<slug>/cheatsheet.md`
+
+   **Term lookup**:
+   - New: `grep <term> knowledge/<slug>/glossary/index.md` → read `knowledge/<slug>/glossary/ch-NNNN.md` for definition
+   - Legacy: `grep <term> knowledge/<slug>/glossary.md`
+
+   **Chapter summary** → Look up `chapters/index.md` for file path → read `chapters/<file>.md` (same for both formats)
+
+   **Query by chapter number** → `grep "| <NNNN> |" chapters/index.md` to get filename and framework tags (same for both formats)
+
+   **Query by topic** → `grep <topic> chapters/index.md` to match chapter rows, extract file links (same for both formats)
+
+   **All** → `knowledge.md` + index files (`patterns/index.md`, `cheatsheet/index.md`, `glossary/index.md` for new; or `patterns.md`, `cheatsheet.md`, `glossary.md` for legacy)
+
+5. Assemble and return standardized markdown reference fragment
 
 ### Constraints
 
 - Read-only: never modifies files under `knowledge/`
 - Index maintenance handled by book-to-knowledge import workflow (`rebuild_knowledge_index.py`)
 - Return a clear error with available book list when slug is not found
+
+---
+
+## Layered Structure (New Format)
+
+Knowledge bases generated with the updated `book-to-knowledge` skill use a layered directory structure for supporting files. This enables handling of very long novels (500+ chapters) without hitting token limits.
+
+### Structure Comparison
+
+| File | Legacy Format | New Layered Format |
+|------|--------------|-------------------|
+| Glossary | `glossary.md` (1,500 tokens max) | `glossary.md` (entry) + `glossary/index.md` (full) + `glossary/ch-*.md` (per-chapter) |
+| Patterns | `patterns.md` (2,000 tokens max) | `patterns.md` (entry) + `patterns/index.md` (full) + `patterns/vol-*.md` (per-volume) |
+| Cheatsheet | `cheatsheet.md` (1,200 tokens max) | `cheatsheet.md` (entry) + `cheatsheet/index.md` (full) + `cheatsheet/vol-*.md` (per-volume) |
+
+### Query Patterns
+
+**New format queries:**
+```bash
+# Search all books for a term
+grep "玄天功" knowledge/*/glossary/index.md
+
+# Search for a pattern across all books
+grep "升级节奏" knowledge/*/patterns/index.md
+
+# Read a specific volume's cheatsheet
+cat knowledge/xingchen-bian/cheatsheet/vol-01.md
+
+# Find which chapters mention a term
+grep "玄天功" knowledge/panlong/glossary/index.md
+# Output: - **玄天功**: Ch 3, Ch 12, Ch 45...
+```
+
+**Legacy format queries (still supported):**
+```bash
+# Search all books for a term
+grep "玄天功" knowledge/*/glossary.md
+
+# Search for a pattern
+grep "升级节奏" knowledge/*/patterns.md
+```
 
 ---
 

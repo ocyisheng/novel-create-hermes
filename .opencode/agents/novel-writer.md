@@ -16,7 +16,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-3
 | 1 | MUST | 所有 `Task()` prompt 注入 `CURRENT PROJECT` + `PROJECT PATH` |
 | 2 | MUST | 使用 P1→P14 优先级匹配，命中即止 |
 | 3 | MUST | 实体输出 YAML 结构化，章节输出 TXT 纯正文 |
-| 4 | MUST | 实体创建/修改后由编排层执行对应 SKILL.md §写后处理；若没有执行skill， 使用`fix_yaml_indent.py`校验、修复 |
+| 4 | MUST | 实体创建/修改后由编排层确保对应 SKILL.md §写后处理执行（标准步骤含 `fix_yaml_indent.py` YAML 格式修正 + `rebuild_project_index.py` 索引重建 + `config_manager.py` 阶段更新） |
 | 5 | MUST | 失败记 `novel-issues.md` |
 | 6 | MUST | 编排层负责项目选择/切换 + 环境检测 |
 | 7 | MUST | 编排层负责 P-1~P3 `skill()` 执行 + 全部创作阶段 `Task()` 调度 |
@@ -86,23 +86,24 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   │   → 全部完成后统一执行后处理链（§5.4）
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
-  │   ├─ 需求发现（grill/需求发现）→ 询问模式 → skill("novel-grill")
-  │   ├─ P1 创意构思（模糊需求）→ skill("novel-grill", user_message="mode=ideation") → Task() → 写后维护
+  │   ├─ P-3 需求发现（grill/需求发现/需求发现入口）→ skill("novel-grill")
+  │   ├─ P1 创意构思（没想法/没灵感/脑洞/构思）→ 明确→Task(category="novel-ideate", load_skills=["novel-ideation"]) | 模糊→§P-3 → 写后维护
   │   ├─ P-0.5 风格提取（含"风格/文风/模仿/提取风格"）+ 用户提供参考文本 → Task(category="novel-ideate", load_skills=["novel-style"]) → style_manager.py validate/register/activate
-  │   ├─ P2 世界观建设（模糊需求，如"帮我建个世界观""搭个设定"）→ skill("novel-grill", user_message="mode=worldbuilding") → Task(novel-worldbuilding) → 实体后处理
-  │   ├─ P3 角色创建（模糊需求）→ skill("novel-grill", user_message="mode=character") → Task(category="novel-write", load_skills=["novel-character"]) → 写后维护
-  │   ├─ P4 总纲撰写（模糊需求，如"写个大纲"）→ skill("novel-grill", user_message="mode=outline_synopsis") → Task(category="novel-write", load_skills=["novel-synopsis"]) → rebuild_project_index.py + set-phase(P4→P4.5)
-  │   ├─ P4.5 叙事策略设计（P4完成后自动触发）→ skill("novel-grill", user_message="mode=narrative_strategy") → Task(category="novel-write", load_skills=["novel-synopsis"]) → set-phase(P4.5→P5)
-  │   ├─ P5 情节构建（模糊需求，如"设计情节线"）→ skill("novel-grill", user_message="mode=plot") → Task(category="novel-write", load_skills=["novel-plot"]) → rebuild_project_index.py + rebuild_plot_progress.py
-  │   ├─ P6 分卷大纲（模糊需求，如"生成分卷"）→ skill("novel-grill", user_message="mode=volume") → Task(novel-outline) → rebuild_project_index.py
-  │   ├─ P7 分纲构建（模糊需求，如"写分纲"）→ skill("novel-grill", user_message="mode=chapter_outline") → Task(novel-outline) → rebuild_project_index.py + set-phase(P7→P8)
-  │   ├─ P8 章节写作（模糊需求，如"继续写""下一章"）→ skill("novel-grill", user_message="mode=chapter") → Task(novel-chapter) → chapter_tracking
-  │   ├─ P9 质量检测（全模糊请求，如"看看写得怎么样""帮我 review 一下"）→ skill("novel-grill", user_message="mode=quality-fuzzy") → quality 检测
-  │   ├─ P12 章节编辑（模糊修改请求，如"改改第5章""第8章读着怪怪的"）→ skill("novel-grill", user_message="mode=chapter-edit-fuzzy") → skill("novel-edit")
+  │   ├─ P2 世界观建设（设定/规则/体系/势力）→ 模糊→skill("novel-grill", user_message="mode=worldbuilding") → Task | 明确→直接 Task → 实体后处理
+  │   ├─ P3 角色创建（角色/人物/角色档案）→ 明确→Task(category="novel-write", load_skills=["novel-character"]) | 模糊→§P-3 → 写后维护
+  │   ├─ P4 总纲撰写（大纲/总纲/故事框架）→ 明确→Task(category="novel-write", load_skills=["novel-synopsis"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py + set-phase(P4→P4.5)
+  │   ├─ P4.5 叙事策略设计（P4完成后自动触发，不独立匹配用户输入）→ Task(category="novel-write", load_skills=["novel-synopsis"]) → set-phase(P4.5→P5)
+  │   ├─ P5 情节构建（情节/主线/支线/故事线）→ 明确→Task(category="novel-write", load_skills=["novel-plot"]) | 模糊→§P-3 → rebuild_project_index.py + rebuild_plot_progress.py
+  │   ├─ P6 分卷大纲（分卷/卷大纲）+ 总纲已存在 → 明确→Task(category="novel-write", load_skills=["novel-outline"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py
+  │   ├─ P7 分纲构建（分纲/章节大纲/章纲）→ 明确→Task(category="novel-write", load_skills=["novel-outline"]) | 模糊→§P-3 → rebuild_project_index.py + set-phase(P7→P8)
+  │   ├─ P8 章节写作（第X章/写第）+ 分纲存在 → 明确→先 chapter_context.py + extract_template.py 收集上下文 → Task(category="novel-write", load_skills=["novel-chapter"]) | 模糊→§P-3 → chapter_tracking（详细配置见§4 P8 章节写作）
+│   ├─ P9 质量检测（全模糊请求，如"看看写得怎么样""帮我 review 一下"）→ skill("novel-grill", user_message="mode=quality-fuzzy") → quality 检测（详细配置见§4 P9 质量检测）
+│   ├─ P10 风格验证（风格一致性检查）+ 活跃风格非空 → Task(category="novel-review", load_skills=["novel-quality"])（验证模式）→ 输出风格偏差报告
+│   ├─ P12 章节编辑（模糊修改请求，如"改改第5章""第8章读着怪怪的"）→ skill("novel-grill", user_message="mode=chapter-edit-fuzzy") → skill("novel-edit")
   │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → skill("novel-edit")
   │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ skill("novel-edit")：
   │   ├─ 其他 P 阶段 + 无修改意图 → 加载上下文 → Task() → 写后维护
-  │   └─ 无匹配 → 询问用户意图
+  │   └─ P14 无匹配 → 询问用户意图
   ├─ 模糊意图?        → §三.1 匹配 → 推荐技能 → 等待确认
   ├─ 导出快捷?        → 识别导出意图（导出/发布/publish/export/epub/pdf/html/txt）
   │   → 解析格式和作者名 → read config.yaml → Task(category="novel-write", load_skills=["novel-export"]) → output/
@@ -192,6 +193,11 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   # - "总纲"              # 未活跃则不列出
 ```
 
+**写入时机**（编排层在实体后处理链中维护）：
+- P2/P3 世界观/角色创建后 → `config_manager.py set 活跃子阶段 '["世界观"]' / '["角色"]'`
+- P13 实体编辑后 → 根据编辑目标类型更新对应子阶段
+- P8 章节写作启动前 → 自动清除（进入专注写作模式，不做额外提示）
+
 **上下文影响**：
 - 如果 `活跃子阶段` 包含"角色" → P8 写作提示中追加"⚠️ 当前角色档案活跃编辑中，请注意角色一致性"
 - 如果 `活跃子阶段` 包含"世界观" → P8 写作提示中追加"⚠️ 当前世界观活跃编辑中，请注意设定一致性"
@@ -224,12 +230,14 @@ python .opencode/shared/extract_template.py --skill novel-synopsis --var 项目�
 | P5 | novel-plot | novel-write | 项目名/任务描述+上下文(总纲)/输出规格(情节线文件) | config.yaml + outline/总纲.yaml |
 | P6 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲+创意)/输出规格(分卷文件) | config.yaml + outline/总纲.yaml + ideation/ |
 | P7 | novel-outline | novel-write | 项目名/任务描述+上下文(总纲+分卷+情节+角色+主索引)/输出规格 | config.yaml + outline/*.yaml + project_index.yaml + outline/情节线/主索引.yaml（如存在） |
+| P8 | novel-chapter | novel-write | 项目名/章节号（其余变量见下节 P8 表） | chapter_context.py + extract_template.py |
+| P9 | novel-quality | novel-review | 项目名/章节正文 | config.yaml + chapters/（4 路并行 run_in_background=true：AI味道/情节逻辑/角色一致性/世界观漏洞；active_style非空追加风格检查） |
 | P10 | novel-style | novel-ideate | 参考文本 | 用户提供 |
 | P11 | novel-export | novel-write | 项目名/项目路径/导出格式/作者名 | config.yaml + 用户输入 |
 | P12 | novel-edit | skill() | 章节号/章节正文/分纲/角色/衔接（last_100.py 先行） / grill_编辑方案（如触发grill） | chapters/ + outline/分纲/ + characters/ + last_100.py |
 | P13 | novel-edit | skill() | 实体文件路径/当前内容/修改请求/意图日志（可选）/grill_编辑方案（如触发grill） | read 目标文件 + outline/追踪/intent/（如存在）+ quality/grill/entity-editor_需求_*.yaml（如触发grill） |
 
-### P8 章节写作（详细）
+### P8 章节写作（扩展变量）
 
 **活跃子阶段感知**：Task() 前检查 `config.yaml` 的 `活跃子阶段` 字段。如果非空，在 extract_template 输出中追加：
 
@@ -281,19 +289,6 @@ python .opencode/shared/extract_template.py \
 | `{对话规划}` | chapter_context.py（从分纲 `完整档案.对话规划` 提取，可选） |
 | `{上下文完整性}` | chapter_context.py（`assess_context_completeness()` 综合评分） |
 
-### P9 质量检测（四路并行）
-
-`run_in_background=true`，全部完成后整合。共享变量：`{项目名}`=config.yaml，`{章节正文}`=read `chapters/第{N}章.txt`。
-
-| 检测类型 | `{检测类型}` | `{相关素材}` | `{输出规格}` |
-|---------|------------|------------|------------|
-| AI 味道检测 | `"AI 味道检测"` | 无 | `quality/第{N}章_AI味道检测.yaml` |
-| 情节逻辑 | `"情节逻辑检测"` | `outline/追踪/伏笔.yaml` `时间线.yaml` `情节线/*.yaml` `情节线/主索引.yaml`（如存在） | `quality/第{N}章_情节逻辑检测.yaml` |
-| 角色一致性 | `"角色一致性检查"` | `project_index.yaml` `characters/`（摘要优先） `outline/追踪/角色统计.yaml` | `quality/第{N}章_角色一致性检查.yaml` |
-| 世界观漏洞 | `"世界观漏洞检测"` | `worldbuilding/*.yaml` | `quality/第{N}章_世界观漏洞检测.yaml` |
-
-若 active_style 非空，追加风格一致性检查：`{检测类型}`=`"风格一致性检查"`，`{相关素材}`=`render_style.py --mode check` 输出的 7 维度评估表。
-
 ### 连续创作模式（Ultrawork）
 
 `ulw` / `ultrawork` 前缀（如 "ulw 写第3-5章"）：
@@ -305,9 +300,11 @@ python .opencode/shared/extract_template.py \
 
 ## 五、状态维护
 
-### 5.1 写后维护
+### 5.1 全局维护
 
-维护后检查：发现矛盾 → `novel-issues.md`；更新 `novel-context.md` 时间快照；可复用技巧 → `novel-learnings.md`。
+每轮创作完成后执行全局维护（不重复实体级后处理）：
+- **时间快照**：更新 `novel-context.md` 最后活动时间
+- **不覆盖实体级后处理**：YAML 格式化、索引重建、阶段切换由各 SKILL.md §写后处理 负责，归属 §5.4 调度
 
 ### 5.2 阶段状态回写
 
@@ -332,15 +329,19 @@ python .opencode/shared/extract_template.py \
 | `novel-context.md` | 当前状态 | 会话开始读，阶段切换更新 |
 | `novel-issues.md` | 已知矛盾 | 检测或发现矛盾时 |
 | `novel-feedback.md` | 读者反馈 | 用户提供反馈时追加 |
-| `novel-learnings.md` | 跨项目技巧 | 发现可复用技巧时 |
 
 > 不复制 config.yaml 进度数值到 novel-context.md——以 config.yaml 为单一真相源。
 
-### 5.4 实体后处理标准流程
+### 5.4 实体后处理调度
 
-所有实体创建/修改后，编排层按各 SKILL.md §写后处理 的指令执行脚本——具体脚本命令以 skill 文件为准，编排层不在此重复定义。
+编排层在各实体 Task() 完成后，执行对应 SKILL.md §写后处理 中定义的后处理脚本链。编排层不在此重复脚本命令——以 skill 文件为准。
 
-编排层职责：确保子 Agent 返回后，对应 skill 的后处理链被执行；发现矛盾则记 `novel-issues.md`。
+**编排层责任清单**：
+1. 确保子 Agent 返回后对应后处理脚本链被执行（YAML 格式化 → 索引重建 → 阶段更新）
+2. 后处理过程中或完成后发现矛盾 → 记 `novel-issues.md`
+3. 实体编辑（novel-edit）后执行 `apply_changes.py` + `update_intent_log.py` + 可选 `cascade_impact.py`
+
+> 注意：各 SKILL.md §写后处理 是具体的脚本命令源头，编排层只负责触发和异常上报，不在本文件重复定义脚本细节。
 
 ## 六、故障恢复与反馈
 

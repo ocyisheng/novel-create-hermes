@@ -422,7 +422,17 @@ Create `$OUTPUT_DIR/chapters/ch-<NNNN>-<slug>.md` (or `$OUTPUT_DIR/chapters/vol-
 
 **Adapt emphasis based on `BOOK_TYPE`:**
 - `technical` → prioritize "Code Examples", "Reference Tables", and "Commands & APIs" sections; preserve exact syntax
-- `text` → prioritize "Frameworks Introduced", "Mental Models", and "Key Takeaways"; skip empty technical sections
+- `text` → All sections apply; map them to narrative content:
+
+  | Template Field | Novel / Prose Mapping |
+  |---|---|
+  | **Core Idea** | 1–2 sentence summary of the chapter's narrative core |
+  | **Frameworks Introduced** | New systems, techniques, factions, artifacts, or worldbuilding elements introduced |
+  | **Key Concepts** | Characters appearing + new terms with definitions |
+  | **Mental Models** | Character decision logic, survival strategies, combat formulas, recurring patterns in the narrative |
+  | **Anti-patterns** | Mistakes, traps, or wrong choices characters make (or avoid) — what not to do |
+  | **Key Takeaways** | Plot progression points, revelations, setup for future events |
+  | **Connects To** | Cross-references to related chapters, setups, or payoffs |
 
 ```markdown
 # Chapter N: <Full Title>

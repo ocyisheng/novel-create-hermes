@@ -63,6 +63,10 @@ def _parse_source_yaml(path: Path, slug: str) -> dict | None:
 
     We avoid pulling in PyYAML as a dependency.  The source.yaml format is
     simple enough to parse with basic string operations.
+
+    Only top-level keys (no leading whitespace) are processed.  This avoids
+    accidental field overrides from nested blocks like ``volumes:`` and
+    prevents volume list items from being mis-parsed as tags.
     """
     meta: dict[str, str | list[str] | int | None] = {
         "slug": slug,
@@ -74,6 +78,7 @@ def _parse_source_yaml(path: Path, slug: str) -> dict | None:
         "generated_date": None,
         "tags": [],
         "content_type": None,
+        "depth": None,
     }
 
     try:
@@ -82,18 +87,31 @@ def _parse_source_yaml(path: Path, slug: str) -> dict | None:
         return None  # skip unreadable files
 
     for line in text.splitlines():
+        # Only process top-level lines (zero indent).  This naturally skips
+        # everything inside ``volumes:`` and other nested blocks, preventing
+        # volume titles from overwriting the book title and volume list items
+        # from being mis-parsed as tags.
+        if not line or line[0].isspace():
+            continue
+
         stripped = line.strip()
         # skip comments and empty lines
         if not stripped or stripped.startswith("#"):
             continue
-        # skip list items (they belong to tags)
-        if stripped.startswith("- "):
-            tag = stripped[2:].strip().strip('"').strip("'")
-            if tag:
-                existing = meta.setdefault("tags", [])
-                if isinstance(existing, list):
-                    existing.append(tag)
+
+        # Handle inline arrays:  tags: ["tag1", "tag2"]
+        if stripped.startswith("tags:"):
+            _, _, raw_val = stripped.partition(": ")
+            raw_val = raw_val.strip()
+            if raw_val.startswith("[") and raw_val.endswith("]"):
+                inner = raw_val[1:-1].strip()
+                meta["tags"] = (
+                    [t.strip().strip('"').strip("'") for t in inner.split(",") if t.strip()]
+                    if inner
+                    else []
+                )
             continue
+
         # key: value  (simple scalar, no nesting)
         if ": " not in stripped:
             continue
@@ -101,7 +119,7 @@ def _parse_source_yaml(path: Path, slug: str) -> dict | None:
         key = key.strip()
         val = raw_val.strip().strip('"').strip("'")
 
-        if key in ("title", "author", "source_format", "generated_date", "slug", "content_type"):
+        if key in ("title", "author", "source_format", "generated_date", "slug", "content_type", "depth"):
             meta[key] = val
         elif key == "word_count":
             try:
@@ -141,6 +159,7 @@ def generate_index_yaml(entries: list[dict], knowledge_root: Path) -> str:
         tags = entry.get("tags") or []
         generated = entry.get("generated_date") or "-"
         content_type = entry.get("content_type") or "text"
+        depth = entry.get("depth") or "flat"
         tags_str = ", ".join(tags)
 
         lines.append(f"  - slug: \"{slug}\"")
@@ -152,6 +171,7 @@ def generate_index_yaml(entries: list[dict], knowledge_root: Path) -> str:
         lines.append(f"    generated_date: \"{generated}\"")
         lines.append(f"    tags: [{tags_str}]")
         lines.append(f"    content_type: \"{content_type}\"")
+        lines.append(f"    depth: \"{depth}\"")
         lines.append("")
 
     return "\n".join(lines)

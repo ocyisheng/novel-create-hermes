@@ -344,12 +344,19 @@ If the user selects **Update / Fold-in**, proceed immediately to the **Update / 
 
 ```bash
 mkdir -p "$OUTPUT_DIR/chapters"
+mkdir -p "$OUTPUT_DIR/glossary"
+mkdir -p "$OUTPUT_DIR/patterns"
+mkdir -p "$OUTPUT_DIR/cheatsheet"
 # For books organized in volumes (e.g. 1000+ chapter novels), create per-volume
 # subdirectories so each volume's files are grouped together:
 # mkdir -p "$OUTPUT_DIR/chapters/vol-01"
 # mkdir -p "$OUTPUT_DIR/chapters/vol-02"
 # ...
 ```
+
+Create all four subdirectories up front so the generation steps don't need to
+check for their existence later.  This also acts as a visual reminder that all
+four auxiliary file layers (glossary, patterns, cheatsheet) are mandatory.
 
 ---
 
@@ -368,7 +375,10 @@ If A: How many key chapters per volume? (default: auto ~10% of volume chapters, 
 ```
 
 **A. Volume aggregation (recommended)**
-- Generate a per-volume summary file: `vol-<VV>-<slug>-summary.md` for each volume, covering the volume's overall narrative arc, key events, and major frameworks.
+- Generate a per-volume summary file: `vol-<VV>-<slug>.md` for each volume (placed directly in `chapters/`, e.g. `chapters/vol-01-七玄门风云.md`), covering the volume's overall narrative arc, key events, and major frameworks.
+- Group consecutive chapters into batch summary files (typically 8–15 chapters per batch, no more than 30). Each batch gets ONE `.md` file.
+  - **Filename convention**: `ch-<NNNN>-<NNNN>-<short-title>.md` where both start and end chapter numbers are **4-digit zero-padded** (e.g. `ch-0001-0010-山边小村到入门.md`, not `ch-1-10-....md` or `ch001-010-....md`).
+  - Place batch files under `chapters/vol-<VV>/` (e.g. `chapters/vol-01/ch-0001-0010-山边小村到入门.md`).
 - Select key chapters per volume for full single-chapter summaries. Default calculation: `max(5, min(30, round(volume_chapters × 0.10)))`. User can override with a specific number. These chapters are identified by significance of frameworks introduced or plot milestones.
 - **DEPTH applies**: The key chapter summaries use the `DEPTH` determined in Step 4. If `DEPTH=study`, include worked examples and expanded framework details; if `DEPTH=reference`, keep lean with only decision-ready essentials.
 - For remaining chapters, record only the title + 1-2 sentence core event + framework tags (stored in `chapters/index.md`, no separate `.md` file).
@@ -516,6 +526,15 @@ The topic index (previously in `knowledge.md`) also moves here. Append after the
 
 Use the data collected during Step 7 (each chapter's title, frameworks, key terms, and file path) to populate the index. This file serves as the navigation entry point for book-knowledge queries.
 
+**Topic Index minimum density**: At least 1 entry per 50 chapters. A 2,000-chapter
+book must have ≥ 40 Topic Index entries. Cover all major characters, settings,
+artifacts, and recurring concepts — not just the top 10. The Topic Index is how
+book-knowledge queries find the right chapter; a sparse index defeats its purpose.
+
+**Frameworks column is REQUIRED.** The column must list the key frameworks,
+concepts, or events introduced or resolved in each chapter/batch. Do not omit it.
+This is the primary search key for book-knowledge queries.
+
 ---
 
 ## Step 8 — Generate supporting files
@@ -543,9 +562,9 @@ mkdir -p "$OUTPUT_DIR/cheatsheet"
 - Format: `## A\n- **Term**: Ch N, Ch M...` (no definitions, just chapter references)
 - No token limit (loaded on-demand)
 
-**Per-chapter files** — `$OUTPUT_DIR/glossary/ch-NNNN.md`:
-- All terms introduced in chapter NNNN
-- Format: `**Term**: definition (1 sentence)`
+**Per-volume files** — `$OUTPUT_DIR/glossary/vol-NN.md`:
+- All terms introduced in volume NN
+- Format: `**Term**: definition (1 sentence) — first appears in ch-NNNN`
 - Generated during Step 7 chapter summary generation
 
 ### patterns
@@ -592,6 +611,31 @@ Prioritize, in order:
 Avoid: bare term→definition rows (that's the glossary), and prose paragraphs (that's the chapters). Every line should help the reader *decide* something.
 
 Format mostly as compact tables and decision rules; the content you'd want on a single printed page kept beside you while working.
+
+### Step 8z — Completeness validation
+
+**MANDATORY: Before leaving Step 8, verify that ALL of the following files exist
+and have content (not just headers or stubs).**
+
+For a single-volume book:
+```
+$OUTPUT_DIR/glossary.md              — entry file (≥ 500 tokens)
+$OUTPUT_DIR/glossary/index.md        — full index (≥ 20 entries)
+$OUTPUT_DIR/patterns.md              — entry file (≥ 500 tokens)
+$OUTPUT_DIR/patterns/index.md        — full index (≥ 5 patterns)
+$OUTPUT_DIR/cheatsheet.md            — entry file (≥ 300 tokens)
+$OUTPUT_DIR/cheatsheet/index.md      — full index (≥ 5 decision rules)
+```
+
+For multi-volume books, additionally verify per-volume files:
+```
+$OUTPUT_DIR/glossary/vol-*.md        — at least one per volume with content
+$OUTPUT_DIR/patterns/vol-*.md        — at least one per volume with content
+$OUTPUT_DIR/cheatsheet/vol-*.md      — at least one per volume with content
+```
+
+If any required file is missing or is a stub (empty or just a heading), create it
+with properly extracted content before proceeding to Step 9.
 
 ---
 
@@ -646,7 +690,7 @@ Create `$OUTPUT_DIR/source.yaml` with the original source metadata:
 
 ```yaml
 # knowledge/<slug>/source.yaml
-knowledge_version: "1.1"
+knowledge_version: "1.2"
 slug: "<slug>"
 title: "<Full Title>"
 author: "<Author(s)>"
@@ -656,6 +700,7 @@ chapter_count: <N>
 generated_date: "<YYYY-MM-DD>"
 tags: ["<tag1>", "<tag2>"]
 content_type: "<text|technical>"
+depth: "<volume|flat>"
 volumes:
   - number: 1
     title: "<Volume Title>"
@@ -664,6 +709,11 @@ volumes:
     source_file: "<filename>"
     import_date: "<YYYY-MM-DD>"
 ```
+
+`depth` indicates whether the knowledge base has per-volume files in its auxiliary layers
+(glossary/patterns/cheatsheet).  Set to `"volume"` when volume aggregation mode (Step 7a)
+was used (chapters > 200).  Set to `"flat"` for single-volume books (≤ 200 chapters) where
+only entry files and full indexes are generated.
 
 `volumes` is optional — omit for single-volume books or when volume information is not available. When present, each entry records a volume's title, chapter range, source file, and import date to support batch imports and per-volume queries.
 
@@ -710,24 +760,24 @@ PY
 ✅ Knowledge base created: $OUTPUT_DIR/
 
 📚 Book: <Full Title> — <Author>
-📄 Chapters: <N>
+📄 Chapters: <N> | Volumes: <V>
 
-Files generated:
-  knowledge.md              — core frameworks + volume index  (~X tokens)
-  source.yaml               — source metadata
-  chapters/index.md         — full chapter index + topic index
-  chapters/                 — <N> chapter summaries           (~X tokens each, ~X total)
-  glossary.md               — glossary entry (per-volume)     (~X tokens)
-  glossary/index.md         — full glossary index             (on-demand)
-  glossary/                 — per-chapter term files          (~N files)
-  patterns.md               — patterns entry (per-volume)     (~X tokens)
-  patterns/index.md         — full patterns index             (on-demand)
-  patterns/                 — per-volume pattern details      (~V files)
-  cheatsheet.md             — cheatsheet entry (per-volume)   (~X tokens)
-  cheatsheet/index.md       — full cheatsheet index           (on-demand)
-  cheatsheet/               — per-volume cheatsheet details   (~V files)
-  ─────────────────────────────────────────────────────
-  Total: ~X tokens (loaded on-demand, not all at once)
+Completeness Check:
+  knowledge.md              — ✅ (~X tokens)
+  source.yaml               — ✅
+  chapters/index.md         — ✅ (entries: <N>, topic index: <M> entries)
+  chapters/                 — ✅ (<N> summary files)
+  glossary.md               — ✅ (~X tokens)
+  glossary/index.md         — ✅ (<N> terms)
+  glossary/vol-*.md         — ✅/⚠ (<N> files)
+  patterns.md               — ✅ (~X tokens)
+  patterns/index.md         — ✅ (<N> patterns)
+  patterns/vol-*.md         — ✅/⚠ (<N> files)
+  cheatsheet.md             — ✅ (~X tokens)
+  cheatsheet/index.md       — ✅ (<N> rules)
+  cheatsheet/vol-*.md       — ✅/⚠ (<N> files)
+  ─────────────────
+  All required layers: ✅
 
 Usage:
   book-knowledge load <slug>                        → load core frameworks
@@ -749,7 +799,7 @@ When performing an Update/Fold-in operation on an existing knowledge base at `$O
 Read and parse the existing knowledge files:
 - Read `$OUTPUT_DIR/knowledge.md` to parse the existing **Chapter Index**, **Topic Index**, metadata (author, total chapters), and **Core Frameworks**.
 - Read `$OUTPUT_DIR/chapters/index.md` to find the existing chapter range (or scan `$OUTPUT_DIR/chapters/` if no index.md exists yet). The highest existing chapter number determines where new chapters start.
-- Read `$OUTPUT_DIR/glossary.md`, `$OUTPUT_DIR/glossary/index.md` to see what terms are already indexed. Scan `$OUTPUT_DIR/glossary/ch-*.md` for per-chapter term files.
+- Read `$OUTPUT_DIR/glossary.md`, `$OUTPUT_DIR/glossary/index.md` to see what terms are already indexed. Scan `$OUTPUT_DIR/glossary/vol-*.md` for per-volume term files.
 - Read `$OUTPUT_DIR/patterns.md`, `$OUTPUT_DIR/patterns/index.md` to see what patterns are already indexed. Scan `$OUTPUT_DIR/patterns/vol-*.md` for per-volume pattern files.
 - Read `$OUTPUT_DIR/cheatsheet.md`, `$OUTPUT_DIR/cheatsheet/index.md` to see what rules are already indexed. Scan `$OUTPUT_DIR/cheatsheet/vol-*.md` for per-volume cheatsheet files.
 
@@ -772,9 +822,9 @@ After all new/revised chapters are written, **regenerate `$OUTPUT_DIR/chapters/i
 - **Read existing structure**:
   - Read `$OUTPUT_DIR/glossary.md` (entry file with volume summary)
   - Read `$OUTPUT_DIR/glossary/index.md` (full index)
-  - Scan `$OUTPUT_DIR/glossary/ch-*.md` for existing per-chapter files
+  - Scan `$OUTPUT_DIR/glossary/vol-*.md` for existing per-volume files
 - **Extract new terms**: From new content, extract all terms following Step 8 glossary guidelines
-- **Write per-chapter files**: Create `$OUTPUT_DIR/glossary/ch-NNNN.md` for each new chapter
+- **Write per-volume files**: Create or update `$OUTPUT_DIR/glossary/vol-NN.md` for each affected volume
 - **Update full index**: Merge new terms into `$OUTPUT_DIR/glossary/index.md`, alphabetically sorted
 - **Update entry file**: Regenerate `$OUTPUT_DIR/glossary.md` with updated volume summary (keep under 1,500 tokens)
 
@@ -805,8 +855,17 @@ Update the master knowledge file `$OUTPUT_DIR/knowledge.md`:
 - **Chapter Index (per-volume summary)**: Update the per-volume summary table (volume / chapter range / key topics). The per-chapter detail is already handled by the regenerated `chapters/index.md` and does not belong here.
 - **Auxiliary Files**: Ensure the link to `chapters/index.md` is present.
 
-### 6. Proceed to Step 10
-Once the files are successfully written and merged, skip to **Step 10** to generate source.yaml, rebuild the index, cleanup, and print an update report summarizing the newly added chapters, merged glossary terms, and updated indices.
+### 6. Completeness validation (Update)
+Run the same completeness checklist defined in **Step 8z** against the updated output
+directory.  Verify that merged per-volume pattern files, per-volume cheatsheet files,
+and per-chapter glossary files all exist after the merge.  If any merged layer is
+missing content (e.g. a `patterns/vol-01.md` that was updated but has no new entries),
+go back and fill it before proceeding.
+
+### 7. Proceed to Step 10
+Once the files are successfully written, merged, and validated, skip to **Step 10** to
+generate source.yaml, rebuild the index, cleanup, and print an update report summarizing
+the newly added chapters, merged glossary terms, and updated indices.
 
 ---
 
@@ -820,3 +879,5 @@ Once the files are successfully written and merged, skip to **Step 10** to gener
 6. **Chapter files are on-demand** — they don't count against token budget until loaded
 7. **Never copy raw book text** — always synthesize, summarize, extract signal
 8. **Topic index is critical** — it's how the query tool navigates to the right chapter file
+9. **Topic index minimum density** — at least 1 Topic Index entry per 50 chapters. A 2,000-chapter book needs ≥ 40 entries. Cover characters, settings, artifacts, techniques, and recurring concepts — not just the first 10 that come to mind.
+10. **Completeness before proceeding** — never leave Step 8 without verifying that all four auxiliary layers (glossary, patterns, cheatsheet) have both entry files and per-volume/per-chapter depth files with real content. Run the checklist in Step 8z before moving on.

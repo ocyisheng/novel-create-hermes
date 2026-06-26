@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 config_manager.py — 安全读写 config.yaml 字段，支持 dot notation 嵌套访问。
-                    含阶段验证（支持 P-0.5 pre_style 阶段）。
+                    含阶段验证（支持 P-1.5 pre_style 阶段）。
 
 阶段模型（v3.1.0）：
-  主阶段: P-3 → P-2 → P-1 → P0 → P1 → P-0.5(可选) → P2 → P3 → P4 → P4.5 → P5 → P6 → P7 → P8 → P9 → P10 → P11 → P12 → P13 → P14
+  主阶段: P-3 → P-2 → P-1 → P0 → P1 → P-1.5(可选) → P2 → P3 → P4 → P4.5 → P5 → P6 → P7 → P8 → P9 → P10 → P11 → P12 → P13 → P14 → P15
   活跃子阶段（P2 支持）: [角色, 世界观, 总纲, 情节, ...]
 
 Usage:
@@ -30,7 +30,7 @@ VALID_STAGES = [
     "env_setup",           # P-1 环境初始化
     "knowledge_base",      # P0 知识库
     "ideation",            # P1 创意构思
-    "pre_style",           # P-0.5 风格提取（可选，在P1之后）
+    "pre_style",           # P-1.5 风格提取（可选，在P1之后）
     "world_building",      # P2 世界观建设
     "characters",          # P3 角色创建
     "synopsis",            # P4 总纲撰写
@@ -44,7 +44,8 @@ VALID_STAGES = [
     "export",              # P11 导出
     "chapter_edit",        # P12 章节编辑
     "entity_edit",         # P13 实体编辑
-    "other",               # P14 其他
+    "search_analysis",     # P14 搜索分析
+    "other",               # P15 其他
 ]
 
 # 阶段映射：中文名 → 英文ID（用于 validate-stage 兼容）
@@ -68,6 +69,7 @@ STAGE_ALIASES = {
     "导出": "export",
     "章节编辑": "chapter_edit",
     "实体编辑": "entity_edit",
+    "搜索分析": "search_analysis",
     "其他": "other",
 }
 

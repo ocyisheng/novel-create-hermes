@@ -9,7 +9,7 @@
 
 <h1 align="center">📖 novel-create-hermes</h1>
 <p align="center"><strong>跟 AI 聊着天，就把小说写了</strong></p>
-<p align="center"><strong>软件免费、TOKEN免费</strong></p>
+<p align="center"><strong>opencode平台免费、本软件免费、TOKEN花费免费</strong></p>
 <p align="center">像发微信一样说出你的想法，Hermes 自动完成从创意构思到章节写作再到格式导出的全部流程。<br>
 不用学工具、不用记命令、不用纠结先做什么后做什么——开口说话就行。</p>
 

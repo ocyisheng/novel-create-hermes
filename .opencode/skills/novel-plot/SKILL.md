@@ -61,6 +61,8 @@ python .opencode/shared/rebuild_plot_progress.py --project-root {PROJECT_PATH}
 python .opencode/shared/config_manager.py set 当前阶段 "分卷大纲生成" --project-root {PROJECT_PATH}
 ```
 
+> **禁止**：不要用 `edit`/`write` 手工修正 YAML 缩进或格式——交给 fix_yaml_indent.py 统一处理。你写完文件、标记好内容即可，脚本会自动格式化。
+
 ## 参考文件
 
 - `references/plot_examples.md` — 情节设计示例

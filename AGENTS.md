@@ -50,7 +50,7 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-plot` | 情节/主线/支线/故事线 | `Task(subagent_type="novel-crafter", load_skills=["novel-plot"], ...)` |
 | `novel-outline` | 分卷大纲/分纲/章节大纲 | `Task(subagent_type="novel-crafter", load_skills=["novel-outline"], ...)` |
 | `novel-chapter` | 章节写作 | `Task(subagent_type="novel-crafter", load_skills=["novel-chapter"], ...)` |
-| `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `skill("novel-edit")` |
+| `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"], ...)` |
 | `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(subagent_type="novel-crafter", load_skills=["novel-export"], ...)` |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
 | `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(subagent_type="novel-reviewer", load_skills=["novel-quality"], ...)` |

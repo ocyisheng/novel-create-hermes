@@ -1,6 +1,6 @@
 ---
 name: "novel-edit"
-description: "编辑已有内容：修改角色档案、世界观设定、大纲等 YAML 实体，或润色修订章节正文。不依赖子 Agent，skill() 直接执行。触发词：改、修改、编辑、调整、润色、修订、把...改成、更新、改动"
+description: "编辑已有内容：修改角色档案、世界观设定、大纲等 YAML 实体，或润色修订章节正文。通过 Task() 子 Agent 调用。触发词：改、修改、编辑、调整、润色、修订、把...改成、更新、改动"
 ---
 
 # 编辑技能
@@ -8,7 +8,10 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
 ## 定位
 
 在已有内容上做精确修改。不是从零创建——不生成新实体、不写新章节。
-通过 `skill("novel-edit")` 调用，指令注入主 Agent 上下文后直接执行。
+通过 `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` 调用。
+编排层负责在 Task() prompt 中注入：编辑目标、文件路径、修改说明、grill 输出（如有）。
+
+> 编辑需求模糊时，编排层会先走 `skill("novel-grill")` 澄清需求，然后将 grill 输出注入 Task() prompt 的 `{grill_编辑方案}` 变量。本技能不需要再自行问询用户。
 
 ## 工作流
 
@@ -49,11 +52,13 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
         --user-request "{用户原始请求}"
         --change-set '{变更集 JSON}'
         --status pending
-   d. 展示变更摘要给用户，询问方向确认
+    d. 在回复中输出变更摘要（含 `diff` 或新旧值对照），供编排层呈现给用户确认方向
 ⑦ 如果 apply_changes 失败（路径不存在/值冲突）：
-   - 阅读错误信息，修正变更集后重试
-   - 或报告用户具体问题
+    - 阅读错误信息，修正变更集后重试
+    - 或报告用户具体问题
 ```
+
+> 不要用 `edit`/`write` 手工修正 YAML 缩进或格式——上面的后处理链中 `fix_yaml_indent.py` 会自动处理。
 
 ### 第三步：TXT 章节编辑
 
@@ -71,20 +76,21 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
 ④ chapter_tracking.py 更新（如需）
 ```
 
-### 第四步：方向确认（所有编辑通用）
+### 第四步：返回结果（所有编辑通用）
 
-编辑完成后，展示变更摘要并确认方向：
+编辑完成后，在回复中输出变更摘要，格式如下：
 
 ```
-已按你的要求修改：
+变更摘要：
   ✏️ {字段1}: {旧值} → {新值}
   ...
-这是你想要的方向吗？(是/继续调整/方向不对，回退)
+是否需要级联影响分析：{YAML 编辑建议运行 cascade_impact.py / TXT 编辑无需}
 ```
 
-- "是" → 调用 `update_intent_log.py --status confirmed_by_user`
-- "继续调整" → 进入下一轮编辑
-- "方向不对，回退" → 从 `.bak` 恢复，`update_intent_log.py --status rejected`
+编排层收到结果后负责：
+- 向用户展示摘要并确认方向
+- 用户确认后 → 编排层运行 `update_intent_log.py --status confirmed_by_user`
+- 用户要求回退 → 编排层从 `.bak` 恢复，运行 `update_intent_log.py --status rejected`
 
 ## 变更集格式（YAML 编辑）
 

@@ -54,6 +54,8 @@ python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 python .opencode/shared/config_manager.py set 当前阶段 "总纲撰写" --project-root {PROJECT_PATH}
 ```
 
+> **禁止**：不要用 `edit`/`write` 手工修正 YAML 缩进或格式——交给 fix_yaml_indent.py 统一处理。你写完文件、标记好内容即可，脚本会自动格式化。
+
 ## HARD CONSTRAINTS
 
 1. 每次创建 1 个 `characters/` 下的角色 YAML 文件

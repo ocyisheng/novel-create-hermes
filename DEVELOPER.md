@@ -97,8 +97,8 @@ novel-create-hermes/
 | P9 | 质量检测 | 检测AI味/review/质量 | `task(novel-quality)` |
 | P10 | 风格提取 | 提取风格/分析文风 | `task(novel-style)` |
 | P11 | 导出 | 导出/发布/export | `task(novel-export)` |
-| P12 | 章节编辑 | 润色/修订/修改章节 | `skill("novel-edit")` |
-| P13 | 实体编辑 | 编辑/更新角色/世界观 | `skill("novel-edit")` |
+| P12 | 章节编辑 | 润色/修订/修改章节 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` |
+| P13 | 实体编辑 | 编辑/更新角色/世界观 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` |
 | P14 | 意图澄清 | 以上均不匹配 | 询问用户 |
 
 **连续创作**：`ulw 写第3-5章` — 批量生成章节，完成后自动质检。

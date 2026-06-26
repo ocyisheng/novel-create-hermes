@@ -14,14 +14,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-3
 | # | 类型 | 约束 |
 |----|------|------|
 | 0 | MUST | 所有 `Task()` prompt 注入 `CURRENT PROJECT` + `PROJECT PATH` |
-| 1 | MUST | 所有涉及YAML的 `Task()` prompt **尾部追加** 以下段落（直接复制，替换 `{PROJECT_PATH}` `{输出文件路径}`）：
-> **YAML 格式要求**：
-> 1. 写入文件后，**不要**用 `edit`/`write` 手工修正 YAML 缩进或格式
-> 2. 改为运行：`python .opencode/shared/fix_yaml_indent.py --project-root {PROJECT_PATH} --file {输出文件路径}`
-> 3. 命令失败则在回复中报错，不退回手工修复
-> 4. 如果同一个 Task() 输出多个文件，对每个 YAML 文件都执行一次
->
-> 原因：后续后处理链也会运行 fix_yaml_indent.py，手工修复会覆盖脚本的标准格式化。 |
+| 1 | MUST | 所有涉及YAML的 `Task()` prompt **尾部追加** 以下段落（直接复制，替换 `{PROJECT_PATH}` `{输出文件路径}`）：<br><br>**YAML 格式要求**：<br>1. 写入文件后，**不要**用 `edit`/`write` 手工修正 YAML 缩进或格式<br>2. 改为运行：`python .opencode/shared/fix_yaml_indent.py --project-root {PROJECT_PATH} --file {输出文件路径}`<br>3. 命令失败则在回复中报错，不退回手工修复<br>4. 如果同一个 Task() 输出多个文件，对每个 YAML 文件都执行一次<br><br>原因：后续后处理链也会运行 fix_yaml_indent.py，手工修复会覆盖脚本的标准格式化。 |
 | 2 | MUST | 使用 P1→P15 优先级匹配，命中即止 |
 | 3 | MUST | 实体输出 YAML 结构化，章节输出 TXT 纯正文 |
 | 4 | MUST | 实体创建/修改后由编排层确保对应 SKILL.md §写后处理执行（标准步骤含 `fix_yaml_indent.py` YAML 格式修正 + `rebuild_project_index.py` 索引重建 + `config_manager.py` 阶段更新） |

@@ -42,18 +42,18 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 |------|------|---------|
 | `novel-project-manager` | 新建/导入/查看状态/续写/删除项目 | `skill("novel-project-manager")` |
 | `novel-env-setup` | 环境初始化 / .venv 故障修复 |  `skill("novel-env-setup")` |
-| `novel-ideation` | 无创意 / 需要脑洞/灵感/构思 | `Task(category="novel-ideate", load_skills=["novel-ideation"], ...)` |
-| `novel-style` | 风格提取/切换/查看内置风格 | `Task(category="novel-ideate", load_skills=["novel-style"], ...)` |
-| `novel-worldbuilding` | 世界观建设/设定/规则/力量体系 | `Task(category="novel-write", load_skills=["novel-worldbuilding"], ...)` |
-| `novel-character` | 角色档案/人物创建 | `Task(category="novel-write", load_skills=["novel-character"], ...)` |
-| `novel-synopsis` | 总纲撰写/故事框架/叙事策略 | `Task(category="novel-write", load_skills=["novel-synopsis"], ...)` |
-| `novel-plot` | 情节/主线/支线/故事线 | `Task(category="novel-write", load_skills=["novel-plot"], ...)` |
-| `novel-outline` | 分卷大纲/分纲/章节大纲 | `Task(category="novel-write", load_skills=["novel-outline"], ...)` |
-| `novel-chapter` | 章节写作 | `Task(category="novel-write", load_skills=["novel-chapter"], ...)` |
-| `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `skill("novel-edit")` |
-| `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(category="novel-write", load_skills=["novel-export"], ...)` |
+| `novel-ideation` | 无创意 / 需要脑洞/灵感/构思 | `Task(subagent_type="novel-ideator", load_skills=["novel-ideation"], ...)` |
+| `novel-style` | 风格提取/切换/查看内置风格 | `Task(subagent_type="novel-ideator", load_skills=["novel-style"], ...)` |
+| `novel-worldbuilding` | 世界观建设/设定/规则/力量体系 | `Task(subagent_type="novel-crafter", load_skills=["novel-worldbuilding"], ...)` |
+| `novel-character` | 角色档案/人物创建 | `Task(subagent_type="novel-crafter", load_skills=["novel-character"], ...)` |
+| `novel-synopsis` | 总纲撰写/故事框架/叙事策略 | `Task(subagent_type="novel-crafter", load_skills=["novel-synopsis"], ...)` |
+| `novel-plot` | 情节/主线/支线/故事线 | `Task(subagent_type="novel-crafter", load_skills=["novel-plot"], ...)` |
+| `novel-outline` | 分卷大纲/分纲/章节大纲 | `Task(subagent_type="novel-crafter", load_skills=["novel-outline"], ...)` |
+| `novel-chapter` | 章节写作 | `Task(subagent_type="novel-crafter", load_skills=["novel-chapter"], ...)` |
+| `novel-edit` | 编辑已有内容：角色/世界观/大纲/章节修改 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"], ...)` |
+| `novel-export` | 格式化导出 EPUB/PDF/HTML/TXT/DOCX | `Task(subagent_type="novel-crafter", load_skills=["novel-export"], ...)` |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
-| `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(category="novel-review", load_skills=["novel-quality"], ...)` |
+| `novel-quality` | AI味/情节/角色/世界观/节奏/风格/反馈 | `Task(subagent_type="novel-reviewer", load_skills=["novel-quality"], ...)` |
 | `novel-search-analysis` | 搜索分析：跨文件全文搜索、实体引用分析、Gap 分析 | `skill("novel-search-analysis")` |
 | `book-to-knowledge` | 将书籍（PDF/EPUB/TXT/HTML/MOBI）导入为结构化知识库 | `skill("book-to-knowledge")` |
 | `book-knowledge` | 知识库管理：检索、查询、引用已导入的知识 | `skill("book-knowledge")` |

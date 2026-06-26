@@ -8,9 +8,9 @@
 
 ```
 novel-writer.md（编排层）→ 阶段识别、task()调度、上下文加载
-        │ task(category="novel-*", load_skills=["..."])
+        │ task(subagent_type="novel-*", load_skills=["..."])
         ▼
-oh-my-openagent.json（插件层）→ category → 模型路由 + fallback 链
+opencode.json（配置层）→ subagent_type → 模型映射
         │ sisyphus-junior + SKILL.md
         ▼
 17 个 SKILL.md（执行层）→ 各自领域工作，Context Contract 声明输入
@@ -24,7 +24,7 @@ Python 脚本（工具层）→ 索引、追踪、导出、配置、模板提取
 | 层 | 职责 | 边界 |
 |----|------|------|
 | **编排层** | P-3→P14 阶段识别、task() 调度、上下文加载 | 不直接写项目文件 |
-| **插件层** | category → 模型路由、fallback 链 | 只作用于 task() 子 Agent |
+| **配置层** | subagent_type → 模型映射 | 只作用于 task() 子 Agent |
 | **执行层** | 按 SKILL.md + Context Contract 执行 | 不做编排决策、不调度其他技能 |
 | **工具层** | 索引、追踪、导出、配置 | 不碰状态决策 |
 | **状态层** | notepad + config.yaml | 只存不决策 |
@@ -52,22 +52,22 @@ novel-create-hermes/
 
 ## 17 个技能
 
-| 技能 | 作用 | 阶段 | 调度 | category |
+| 技能 | 作用 | 阶段 | 调度 | subagent_type |
 |------|------|------|------|----------|
 | `novel-project-manager` | 项目新建/导入/续写/删除 | P-2 | `skill()` | — |
 | `novel-env-setup` | .venv 环境初始化 | P-1 | `skill()` | — |
 | `novel-grill` | 需求发现（交互式追问） | P-3 | `skill()` | — |
-| `novel-ideation` | 创意构思、约束管理、评估 | P1 | `task()` | `novel-ideate` |
-| `novel-style` | 风格提取/激活 | P10 | `task()` | `novel-ideate` |
-| `novel-worldbuilding` | 世界观建设 | P2 | `task()` | `novel-write` |
-| `novel-character` | 角色创建 | P3 | `task()` | `novel-write` |
-| `novel-synopsis` | 总纲撰写、叙事策略设计 | P4-P4.5 | `task()` | `novel-write` |
-| `novel-plot` | 情节构建 | P5 | `task()` | `novel-write` |
-| `novel-outline` | 分卷大纲、分纲构建 | P6-P7 | `task()` | `novel-write` |
-| `novel-chapter` | 章节写作 | P8 | `task()` | `novel-write` |
+| `novel-ideation` | 创意构思、约束管理、评估 | P1 | `task()` | `novel-ideator` |
+| `novel-style` | 风格提取/激活 | P10 | `task()` | `novel-ideator` |
+| `novel-worldbuilding` | 世界观建设 | P2 | `task()` | `novel-crafter` |
+| `novel-character` | 角色创建 | P3 | `task()` | `novel-crafter` |
+| `novel-synopsis` | 总纲撰写、叙事策略设计 | P4-P4.5 | `task()` | `novel-crafter` |
+| `novel-plot` | 情节构建 | P5 | `task()` | `novel-crafter` |
+| `novel-outline` | 分卷大纲、分纲构建 | P6-P7 | `task()` | `novel-crafter` |
+| `novel-chapter` | 章节写作 | P8 | `task()` | `novel-crafter` |
 | `novel-edit` | 编辑已有内容 | P12-P13 | `skill()` | — |
-| `novel-export` | 格式化导出 | P11 | `task()` | `novel-write` |
-| `novel-quality` | AI味/情节/角色/世界观检测 | P9 | `task()` | `novel-review` |
+| `novel-export` | 格式化导出 | P11 | `task()` | `novel-crafter` |
+| `novel-quality` | AI味/情节/角色/世界观检测 | P9 | `task()` | `novel-reviewer` |
 | `novel-search-analysis` | 跨文件搜索/实体引用/Gap 分析 | — | `skill()` | — |
 | `book-to-knowledge` | 书籍导入为结构化知识库 | P0 | `skill()` | — |
 | `book-knowledge` | 知识库检索/查询/引用 | P0 | `skill()` | — |
@@ -97,8 +97,8 @@ novel-create-hermes/
 | P9 | 质量检测 | 检测AI味/review/质量 | `task(novel-quality)` |
 | P10 | 风格提取 | 提取风格/分析文风 | `task(novel-style)` |
 | P11 | 导出 | 导出/发布/export | `task(novel-export)` |
-| P12 | 章节编辑 | 润色/修订/修改章节 | `skill("novel-edit")` |
-| P13 | 实体编辑 | 编辑/更新角色/世界观 | `skill("novel-edit")` |
+| P12 | 章节编辑 | 润色/修订/修改章节 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` |
+| P13 | 实体编辑 | 编辑/更新角色/世界观 | `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` |
 | P14 | 意图澄清 | 以上均不匹配 | 询问用户 |
 
 **连续创作**：`ulw 写第3-5章` — 批量生成章节，完成后自动质检。

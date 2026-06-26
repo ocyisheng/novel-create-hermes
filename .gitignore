@@ -42,7 +42,7 @@ Thumbs.db
 docs/
 novels/
 knowledge/
-
+oh-my-openagent/
 # ----- 测试和覆盖率 -----
 .pytest_cache
 tests/

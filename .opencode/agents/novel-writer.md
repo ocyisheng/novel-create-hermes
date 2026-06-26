@@ -55,7 +55,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 1. **分析依赖链** → 将计划拆分为原子交付物，标注每个交付物的上游依赖。
 2. **按依赖分组并行** → 同一组内无依赖的交付物 `Task(..., run_in_background=true)` 并行委托；不同组之间串行。
 3. **每次 Task() prompt 必须包含**：`CURRENT PROJECT`、`PROJECT PATH`、目标文件路径、上游交付物的实体 ID（供下游引用）。
-4. **交付物→Task 映射**：角色 → `category="novel-write", load_skills=["novel-character"]`；世界观 → `category="novel-write", load_skills=["novel-worldbuilding"]`；总纲/叙事策略 → `category="novel-write", load_skills=["novel-synopsis"]`；情节线 → `category="novel-write", load_skills=["novel-plot"]`；分卷/分纲 → `category="novel-write", load_skills=["novel-outline"]`；章节 → `category="novel-write", load_skills=["novel-chapter"]`；实体/章节编辑 → `skill("novel-edit")`。
+4. **交付物→Task 映射**：角色 → `subagent_type="novel-crafter", load_skills=["novel-character"]`；世界观 → `subagent_type="novel-crafter", load_skills=["novel-worldbuilding"]`；总纲/叙事策略 → `subagent_type="novel-crafter", load_skills=["novel-synopsis"]`；情节线 → `subagent_type="novel-crafter", load_skills=["novel-plot"]`；分卷/分纲 → `subagent_type="novel-crafter", load_skills=["novel-outline"]`；章节 → `subagent_type="novel-crafter", load_skills=["novel-chapter"]`；实体/章节编辑 → `skill("novel-edit")`。
 5. **全部 Task() 完成后** → 统一执行后处理链（§5.4），不得在中间步骤单独执行。
 6. **禁止**：① 用户确认前执行 ② 用 `write`/`edit` 绕过 Task() 直接写实体文件 ③ 将多个交付物合并到一次 Task() ④ 将实体写入与后处理混合在同一 Task() 中。
 
@@ -87,18 +87,18 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ P-2 项目操作?    → skill("novel-project-manager") → 重读 novel-context.md 刷新 `__CURRENT_PROJECT__`
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
   │   ├─ P-3 需求发现（grill/需求发现/需求发现入口）→ skill("novel-grill")
-  │   ├─ P1 创意构思（没想法/没灵感/脑洞/构思）→ 明确→Task(category="novel-ideate", load_skills=["novel-ideation"]) | 模糊→§P-3 → 写后维护
-  │   ├─ P-0.5 风格提取（含"风格/文风/模仿/提取风格"）+ 用户提供参考文本 → Task(category="novel-ideate", load_skills=["novel-style"]) → style_manager.py validate/register/activate
+  │   ├─ P1 创意构思（没想法/没灵感/脑洞/构思）→ 明确→Task(subagent_type="novel-ideator", load_skills=["novel-ideation"]) | 模糊→§P-3 → 写后维护
+  │   ├─ P-0.5 风格提取（含"风格/文风/模仿/提取风格"）+ 用户提供参考文本 → Task(subagent_type="novel-ideator", load_skills=["novel-style"]) → style_manager.py validate/register/activate
   │   ├─ P2 世界观建设（设定/规则/体系/势力）→ 模糊→skill("novel-grill", user_message="mode=worldbuilding") → Task | 明确→直接 Task → 实体后处理
-  │   ├─ P3 角色创建（角色/人物/角色档案）→ 明确→Task(category="novel-write", load_skills=["novel-character"]) | 模糊→§P-3 → 写后维护
-  │   ├─ P4 总纲撰写（大纲/总纲/故事框架）→ 明确→Task(category="novel-write", load_skills=["novel-synopsis"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py + set-phase(P4→P4.5)
-  │   ├─ P4.5 叙事策略设计（P4完成后自动触发，不独立匹配用户输入）→ Task(category="novel-write", load_skills=["novel-synopsis"]) → set-phase(P4.5→P5)
-  │   ├─ P5 情节构建（情节/主线/支线/故事线）→ 明确→Task(category="novel-write", load_skills=["novel-plot"]) | 模糊→§P-3 → rebuild_project_index.py + rebuild_plot_progress.py
-  │   ├─ P6 分卷大纲（分卷/卷大纲）+ 总纲已存在 → 明确→Task(category="novel-write", load_skills=["novel-outline"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py
-  │   ├─ P7 分纲构建（分纲/章节大纲/章纲）→ 明确→Task(category="novel-write", load_skills=["novel-outline"]) | 模糊→§P-3 → rebuild_project_index.py + set-phase(P7→P8)
-  │   ├─ P8 章节写作（第X章/写第）+ 分纲存在 → 明确→先 chapter_context.py + extract_template.py 收集上下文 → Task(category="novel-write", load_skills=["novel-chapter"]) | 模糊→§P-3 → chapter_tracking（详细配置见§4 P8 章节写作）
+  │   ├─ P3 角色创建（角色/人物/角色档案）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-character"]) | 模糊→§P-3 → 写后维护
+  │   ├─ P4 总纲撰写（大纲/总纲/故事框架）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-synopsis"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py + set-phase(P4→P4.5)
+  │   ├─ P4.5 叙事策略设计（P4完成后自动触发，不独立匹配用户输入）→ Task(subagent_type="novel-crafter", load_skills=["novel-synopsis"]) → set-phase(P4.5→P5)
+  │   ├─ P5 情节构建（情节/主线/支线/故事线）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-plot"]) | 模糊→§P-3 → rebuild_project_index.py + rebuild_plot_progress.py
+  │   ├─ P6 分卷大纲（分卷/卷大纲）+ 总纲已存在 → 明确→Task(subagent_type="novel-crafter", load_skills=["novel-outline"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py
+  │   ├─ P7 分纲构建（分纲/章节大纲/章纲）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-outline"]) | 模糊→§P-3 → rebuild_project_index.py + set-phase(P7→P8)
+  │   ├─ P8 章节写作（第X章/写第）+ 分纲存在 → 明确→先 chapter_context.py + extract_template.py 收集上下文 → Task(subagent_type="novel-crafter", load_skills=["novel-chapter"]) | 模糊→§P-3 → chapter_tracking（详细配置见§4 P8 章节写作）
 │   ├─ P9 质量检测（全模糊请求，如"看看写得怎么样""帮我 review 一下"）→ skill("novel-grill", user_message="mode=quality-fuzzy") → quality 检测（详细配置见§4 P9 质量检测）
-│   ├─ P10 风格验证（风格一致性检查）+ 活跃风格非空 → Task(category="novel-review", load_skills=["novel-quality"])（验证模式）→ 输出风格偏差报告
+│   ├─ P10 风格验证（风格一致性检查）+ 活跃风格非空 → Task(subagent_type="novel-reviewer", load_skills=["novel-quality"])（验证模式）→ 输出风格偏差报告
 │   ├─ P12 章节编辑（模糊修改请求，如"改改第5章""第8章读着怪怪的"）→ skill("novel-grill", user_message="mode=chapter-edit-fuzzy") → skill("novel-edit")
   │   ├─ P13 实体编辑（模糊请求，如"改一下角色""世界观改一改"）→ skill("novel-grill", user_message="mode=entity-editor") → skill("novel-edit")
   │   ├─ 命中 P 阶段 + 修改意图（润色/反馈/调整/编辑/改动/更新）→ skill("novel-edit")：
@@ -106,7 +106,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   │   └─ P14 无匹配 → 询问用户意图
   ├─ 模糊意图?        → §三.1 匹配 → 推荐技能 → 等待确认
   ├─ 导出快捷?        → 识别导出意图（导出/发布/publish/export/epub/pdf/html/txt）
-  │   → 解析格式和作者名 → read config.yaml → Task(category="novel-write", load_skills=["novel-export"]) → output/
+  │   → 解析格式和作者名 → read config.yaml → Task(subagent_type="novel-crafter", load_skills=["novel-export"]) → output/
   └─ 不匹配?          → 询问用户意图
 ```
 
@@ -128,19 +128,19 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P-2 | 项目操作（新建/导入/查看状态/续写/切换/删除/列出项目） | `skill("novel-project-manager")` | — | 重读 novel-context.md 刷新 `__CURRENT_PROJECT__` |
 | P-1 | 环境初始化（环境检查/venv 创建/依赖安装/环境修复） | `skill("novel-env-setup")` | — | 无 |
 | P0 | 知识库操作（参考/查书/导入书籍/学习资料） | 查询→`skill("book-knowledge")`；导入→`skill("book-to-knowledge")` | — | 导入后 `python .../rebuild_knowledge_index.py` 重建索引 |
-| P1 | 创意构思（没想法/没灵感/脑洞/构思） | `category="novel-ideate", load_skills=["novel-ideation"]` | — | novel-ideation SKILL.md 后处理链（如有新实体） |
-| P-0.5 | 风格提取（风格/文风/模仿/风格提取）—— P1 之后可选触发。用户提供参考文本时在 P1→P2 之间插入 | `category="novel-ideate", load_skills=["novel-style"]`（提取模式） | 用户需提供 2-3 段参考文本 | `style_manager.py validate → register → activate` 将新风格设为活跃 |
-| P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `category="novel-write", load_skills=["novel-worldbuilding"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-worldbuilding SKILL.md 后处理链 |
-| P3 | 角色创建（角色/人物/角色档案） | `category="novel-write", load_skills=["novel-character"]` | — | novel-character SKILL.md 后处理链 |
-| P4 | 总纲撰写（大纲/总纲/故事框架） | `category="novel-write", load_skills=["novel-synopsis"]` | `config_manager get 当前阶段` 确认阶段 | novel-synopsis SKILL.md 后处理链 |
-| P4.5 | 叙事策略设计（P4完成后自动触发） | `category="novel-write", load_skills=["novel-synopsis"]` | — | novel-synopsis SKILL.md 后处理链 + set-phase(P4.5→P5) |
-| P5 | 情节构建（情节/主线/支线/故事线） | `category="novel-write", load_skills=["novel-plot"]` | — | novel-plot SKILL.md 后处理链 + `rebuild_plot_progress.py`（编排层独有） |
-| P6 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `category="novel-write", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
-| P7 | 分纲构建（分纲/章节大纲/章纲） | `category="novel-write", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 |
-| P8 | 章节写作（第X章/写第）+ 分纲存在 | `category="novel-write", load_skills=["novel-chapter"]` | **先运行** `chapter_context.py` + `extract_template.py` 收集上下文后注入 prompt | novel-chapter SKILL.md 后处理链 |
-| P9 | 质量检测（检测AI味/review/质量/评估/看看写得怎么样） | 明确类型→`category="novel-review", load_skills=["novel-quality"]`；全模糊（"看看写得怎么样"）→`skill("novel-grill", user_message="mode=quality-fuzzy")` → quality 检测 | 明确类型时无；全模糊时无需额外加载（grill 自行处理） | 无（只写报告） |
-| P10 | 风格验证（风格一致性检查）—— P8 后的验证模式，不再做提取 | `category="novel-review", load_skills=["novel-quality"]`（验证模式） | 需有活跃风格（`active_style` 非空） | 输出风格偏差报告；P-0.5 才是提取入口 |
-| P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `category="novel-write", load_skills=["novel-export"]` | — | 无（调用 `export.py`） |
+| P1 | 创意构思（没想法/没灵感/脑洞/构思） | `subagent_type="novel-ideator", load_skills=["novel-ideation"]` | — | novel-ideation SKILL.md 后处理链（如有新实体） |
+| P-0.5 | 风格提取（风格/文风/模仿/风格提取）—— P1 之后可选触发。用户提供参考文本时在 P1→P2 之间插入 | `subagent_type="novel-ideator", load_skills=["novel-style"]`（提取模式） | 用户需提供 2-3 段参考文本 | `style_manager.py validate → register → activate` 将新风格设为活跃 |
+| P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `subagent_type="novel-crafter", load_skills=["novel-worldbuilding"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-worldbuilding SKILL.md 后处理链 |
+| P3 | 角色创建（角色/人物/角色档案） | `subagent_type="novel-crafter", load_skills=["novel-character"]` | — | novel-character SKILL.md 后处理链 |
+| P4 | 总纲撰写（大纲/总纲/故事框架） | `subagent_type="novel-crafter", load_skills=["novel-synopsis"]` | `config_manager get 当前阶段` 确认阶段 | novel-synopsis SKILL.md 后处理链 |
+| P4.5 | 叙事策略设计（P4完成后自动触发） | `subagent_type="novel-crafter", load_skills=["novel-synopsis"]` | — | novel-synopsis SKILL.md 后处理链 + set-phase(P4.5→P5) |
+| P5 | 情节构建（情节/主线/支线/故事线） | `subagent_type="novel-crafter", load_skills=["novel-plot"]` | — | novel-plot SKILL.md 后处理链 + `rebuild_plot_progress.py`（编排层独有） |
+| P6 | 分卷大纲（分卷/卷大纲）+ 总纲已存在 | `subagent_type="novel-crafter", load_skills=["novel-outline"]` | `config_manager get 当前阶段` 确认阶段 | novel-outline SKILL.md 后处理链 |
+| P7 | 分纲构建（分纲/章节大纲/章纲） | `subagent_type="novel-crafter", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 |
+| P8 | 章节写作（第X章/写第）+ 分纲存在 | `subagent_type="novel-crafter", load_skills=["novel-chapter"]` | **先运行** `chapter_context.py` + `extract_template.py` 收集上下文后注入 prompt | novel-chapter SKILL.md 后处理链 |
+| P9 | 质量检测（检测AI味/review/质量/评估/看看写得怎么样） | 明确类型→`subagent_type="novel-reviewer", load_skills=["novel-quality"]`；全模糊（"看看写得怎么样"）→`skill("novel-grill", user_message="mode=quality-fuzzy")` → quality 检测 | 明确类型时无；全模糊时无需额外加载（grill 自行处理） | 无（只写报告） |
+| P10 | 风格验证（风格一致性检查）—— P8 后的验证模式，不再做提取 | `subagent_type="novel-reviewer", load_skills=["novel-quality"]`（验证模式） | 需有活跃风格（`active_style` 非空） | 输出风格偏差报告；P-0.5 才是提取入口 |
+| P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `subagent_type="novel-crafter", load_skills=["novel-export"]` | — | 无（调用 `export.py`） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | 明确修改→`skill("novel-edit")`；模糊修改→`skill("novel-grill", user_message="mode=chapter-edit-fuzzy")` → `skill("novel-edit")` | 明确时先运行 `last_100.py` 获取衔接后填入 prompt；模糊时 grill 自行处理 | `skill("novel-edit")` 内置后处理 |
 | P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill", user_message="mode=entity-editor")` → `skill("novel-edit")`；明确→直接 `skill("novel-edit")` | —（`skill("novel-edit")` 内部读取文件处理） | `skill("novel-edit")` 内置后处理 |
 | P14 | 以上均不匹配 | 询问用户意图 | — | — |

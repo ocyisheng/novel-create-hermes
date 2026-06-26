@@ -34,6 +34,37 @@
         "grep": true,
         "write": true
       }
+    },
+    "novel-crafter": {
+      "description": "小说内容创作子引擎，用于世界观、角色、总纲、情节、分纲、章节写作和导出",
+      "mode": "subagent",
+      "model": "opencode/deepseek-v4-flash-free",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "read": "allow",
+        "write": "allow"
+      }
+    },
+    "novel-reviewer": {
+      "description": "小说质量检测子引擎，用于AI味检测、情节逻辑检测、角色一致性检查",
+      "mode": "subagent",
+      "model": "opencode/deepseek-v4-flash-free",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "read": "allow"
+      }
+    },
+    "novel-ideator": {
+      "description": "小说创意构思子引擎，用于脑洞发散、风格提取",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow",
+        "read": "allow"
+      }
     }
   }
 }

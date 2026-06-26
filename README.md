@@ -77,12 +77,11 @@ Hermes 自动完成：
 
 ### 2. 装 OpenCode
 
-**桌面版（推荐）**：去 [opencode.ai](https://opencode.ai) 下载 → 打开 → **设置 → 插件** → 添加 `oh-my-openagent` → 启用
+**桌面版（推荐）**：去 [opencode.ai](https://opencode.ai) 下载 → 打开
 
 **命令行版**：
 ```bash
 npm install -g @opencode/cli
-opencode plugin add oh-my-openagent
 ```
 
 ### 3. 打开项目

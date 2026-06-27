@@ -80,10 +80,13 @@ tags: ["novel", "outline", "volume", "chapter"]
 # 1. YAML 格式修正
 python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 
-# 2. 项目索引重建
+# 2. 实体格式校验
+python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
+
+# 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 阶段切换（P6→P7 分卷→分纲 / P7→P8 分纲→章节）
+# 4. 阶段切换（P6→P7 分卷→分纲 / P7→P8 分纲→章节）
 python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project-root {PROJECT_PATH}
 ```
 

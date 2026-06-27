@@ -38,6 +38,7 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
 ⑥ 如果 apply_changes 成功：
    a. 后处理链：
       bash python .opencode/shared/fix_yaml_indent.py "{实体路径}"
+      bash python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
       bash python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
       bash python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
    b. 【可选】级联影响分析（建议对角色/世界观重大修改时运行）：

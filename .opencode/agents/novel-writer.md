@@ -17,7 +17,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-3
 | 1 | MUST | 所有涉及YAML的 `Task()` prompt **尾部追加** 以下段落（直接复制，替换 `{PROJECT_PATH}` `{输出文件路径}`）：<br><br>**YAML 格式要求**：<br>1. 写入文件后，**不要**用 `edit`/`write` 手工修正 YAML 缩进或格式<br>2. 改为运行：`python .opencode/shared/fix_yaml_indent.py --project-root {PROJECT_PATH} --file {输出文件路径}`<br>3. 命令失败则在回复中报错，不退回手工修复<br>4. 如果同一个 Task() 输出多个文件，对每个 YAML 文件都执行一次<br><br>原因：后续后处理链也会运行 fix_yaml_indent.py，手工修复会覆盖脚本的标准格式化。 |
 | 2 | MUST | 使用 P1→P15 优先级匹配，命中即止 |
 | 3 | MUST | 实体输出 YAML 结构化，章节输出 TXT 纯正文 |
-| 4 | MUST | 实体创建/修改后由编排层确保对应 SKILL.md §写后处理执行（标准步骤含 `fix_yaml_indent.py` YAML 格式修正 + `rebuild_project_index.py` 索引重建 + `config_manager.py` 阶段更新） |
+| 4 | MUST | 实体创建/修改后由编排层确保对应 SKILL.md §写后处理执行（标准步骤含 `fix_yaml_indent.py` YAML 格式修正 + `validate_entity_format.py` 格式校验 + `rebuild_project_index.py` 索引重建 + `config_manager.py` 阶段更新） |
 | 5 | MUST | 失败记 `novel-issues.md` |
 | 6 | MUST | 编排层负责项目选择/切换 + 环境检测 |
 | 7 | MUST | 编排层负责 P-1~P3 `skill()` 执行 + 创作阶段 `Task()` 调度（实体/章节编辑用 `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`，见 P12/P13） |
@@ -343,15 +343,15 @@ python .opencode/shared/extract_template.py \
 
 | 来源 | 触发条件 | 执行内容（按顺序） |
 |------|---------|-----------------|
-| novel-synopsis (P4) | Task() 返回后 | ① `fix_yaml_indent.py` ② `rebuild_project_index.py` ③ `config_manager.py set 当前阶段 P4→P4.5` |
-| novel-synopsis (P4.5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `rebuild_project_index.py` ③ `config_manager.py set 当前阶段 P4.5→P5` |
-| novel-plot (P5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `rebuild_project_index.py` ③ `rebuild_plot_progress.py` ④ `config_manager.py set 当前阶段 P5→P6` |
-| novel-outline (P6) | Task() 返回后 | ① `fix_yaml_indent.py` ② `rebuild_project_index.py` ③ `config_manager.py set 当前阶段 P6→P7` |
-| novel-outline (P7) | Task() 返回后 | ① `fix_yaml_indent.py` ② `rebuild_project_index.py` ③ `config_manager.py set 当前阶段 P7→P8` |
+| novel-synopsis (P4) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P4→P4.5` |
+| novel-synopsis (P4.5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P4.5→P5` |
+| novel-plot (P5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `rebuild_plot_progress.py` ⑤ `config_manager.py set 当前阶段 P5→P6` |
+| novel-outline (P6) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P6→P7` |
+| novel-outline (P7) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P7→P8` |
 | novel-chapter (P8) | Task() 返回后 | ① `chapter_tracking.py` ② `config_manager.py set 创作进度.当前章节 {N}` ③ `config_manager.py set 最后编辑 "{now}"` |
 | novel-quality (P9) | Task() 返回后 | ① `config_manager.py set 当前阶段 "已完成"`（或对应阶段）|
-| novel-ideation (P1) | Task() 返回后 | ①（如有新实体）`fix_yaml_indent.py` ② `rebuild_project_index.py` |
-| novel-edit (P12/P13) | Task() 返回后 | ① `apply_changes.py` ②（YAML 编辑则）`fix_yaml_indent.py` ③ `validate_entity_consistency.py` ④ `rebuild_project_index.py` ⑤（可选）`cascade_impact.py` ⑥ `update_intent_log.py` |
+| novel-ideation (P1) | Task() 返回后 | ①（如有新实体）`fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` |
+| novel-edit (P12/P13) | Task() 返回后 | ① `apply_changes.py` ②（YAML 编辑则）`fix_yaml_indent.py` ③ `validate_entity_format.py` ④ `validate_entity_consistency.py` ⑤ `rebuild_project_index.py` ⑥（可选）`cascade_impact.py` ⑦ `update_intent_log.py` |
 
 **编排层通用责任**：
 1. 按上表顺序依次执行脚本，任一失败则记 `novel-issues.md` 并继续下一项

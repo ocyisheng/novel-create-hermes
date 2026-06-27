@@ -96,6 +96,7 @@ ENTITY_SCAN_CONFIG = {
         "dir": "outline/情节线",
         "glob": "*.yaml",
         "skip": ["主索引.yaml"],
+        # 三层结构：_meta + 索引信息 + 摘要 + 完整档案
         "id_path": "索引信息.实体ID",
         "fields": {
             "name": "索引信息.名称",
@@ -126,22 +127,31 @@ ENTITY_SCAN_CONFIG = {
 }
 
 
-def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[dict, int]:
-    """按配置扫描一类实体，返回 (entries, count)。"""
+def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[dict, int, list]:
+    """按配置扫描一类实体，返回 (entries, count, warnings)。"""
     entries = {}
+    warnings = []
     scan_dir = project_root / config["dir"]
     if not scan_dir.is_dir():
-        return entries, 0
+        return entries, 0, warnings
 
     for fpath in sorted(scan_dir.rglob(config["glob"])):
         if fpath.name in config.get("skip", []):
             continue
         data = _load_yaml_safe(fpath)
         if data is None:
+            warnings.append({
+                "file": str(fpath.relative_to(project_root)),
+                "issue": "YAML 解析失败，无法索引",
+            })
             continue
 
         entity_id = _get_nested(data, config["id_path"])
         if not entity_id:
+            warnings.append({
+                "file": str(fpath.relative_to(project_root)),
+                "issue": f"缺少必填字段 '{config['id_path']}'，无法索引",
+            })
             continue
 
         entry = {
@@ -157,7 +167,7 @@ def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[di
 
         entries[entity_id] = entry
 
-    return entries, len(entries)
+    return entries, len(entries), warnings
 
 
 # ── Public API ──────────────────────────────────────────────────────────────
@@ -195,10 +205,13 @@ def rebuild_index(project_root: Path, dry_run: bool = False) -> dict:
     # Scan all entity types via config
     scan_results = {}
     entity_counts = {}
+    all_warnings = []
     for section_name, scan_config in ENTITY_SCAN_CONFIG.items():
-        entries, count = _scan_entity_section(project_root, scan_config, now)
+        entries, count, warnings = _scan_entity_section(project_root, scan_config, now)
         scan_results[section_name] = entries
         entity_counts[section_name] = count
+        for w in warnings:
+            all_warnings.append(f"  ⚠ [{section_name}] {w['file']}: {w['issue']}")
 
     # Build full index
     index_data = {
@@ -235,6 +248,11 @@ def rebuild_index(project_root: Path, dry_run: bool = False) -> dict:
 
     print(f"[OK] 项目索引已重建: {index_path}")
     print(f"  角色: {entity_counts['characters']} | 世界观: {entity_counts['worldbuilding']} | 情节线: {entity_counts['plot_threads']} | 章节: {entity_counts['chapters']}")
+
+    if all_warnings:
+        print(f"  ⚠ 扫描警告 ({len(all_warnings)}):")
+        for w in all_warnings:
+            print(w)
 
     return index_data
 

@@ -49,10 +49,13 @@ python .opencode/shared/fix_yaml_indent.py "worldbuilding/{新文件名}.yaml"
 # 或批量修正
 python .opencode/shared/fix_yaml_indent.py --dir worldbuilding/
 
-# 2. 项目索引重建
+# 2. 实体格式校验
+python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
+
+# 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 阶段切换（P2→P3 世界观建设→角色创建）
+# 4. 阶段切换（P2→P3 世界观建设→角色创建）
 python .opencode/shared/config_manager.py set 当前阶段 "角色创建" --project-root {PROJECT_PATH}
 ```
 

@@ -51,13 +51,16 @@ tags: ["novel", "plot", "thread"]
 # 1. YAML 格式修正
 python .opencode/shared/fix_yaml_indent.py "outline/{新文件路径}"
 
-# 2. 项目索引重建
+# 2. 实体格式校验
+python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
+
+# 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 3. 情节线进度重建（编排层独有）
+# 4. 情节线进度重建（编排层独有）
 python .opencode/shared/rebuild_plot_progress.py --project-root {PROJECT_PATH}
 
-# 4. 阶段切换（P5→P6 情节→分卷）
+# 5. 阶段切换（P5→P6 情节→分卷）
 python .opencode/shared/config_manager.py set 当前阶段 "分卷大纲生成" --project-root {PROJECT_PATH}
 ```
 

@@ -32,7 +32,8 @@ from typing import Optional, Dict, Any
 
 # 项目技能根目录
 SKILLS_DIR = Path(__file__).parent.parent
-TOOL_ROOT = SKILLS_DIR.parent.parent  # novel-create-hermes/
+TOOL_ROOT = SKILLS_DIR.parent.parent  # .opencode/
+TEMPLATES_DIR = TOOL_ROOT.parent / ".opencode" / "shared" / "templates"
 
 
 def find_novels_root() -> Path:
@@ -51,8 +52,8 @@ def find_novels_root() -> Path:
     # 3. CWD 的父目录
     if (cwd.parent / "novels").is_dir():
         return cwd.parent / "novels"
-    # 4. 工具根目录
-    return TOOL_ROOT / "novels"
+    # 4. 项目根目录
+    return TOOL_ROOT.parent / "novels"
 
 
 # ===========================================================================
@@ -97,6 +98,19 @@ class ProjectInitializer:
         self.act_names = self._get_act_names()
         self.volume_names = self._get_volume_names()
         self.chapter_distribution = self._calculate_chapter_distribution()
+
+    @staticmethod
+    def _read_template(*path_parts: str) -> str:
+        """读取模板文件内容。路径相对于 TEMPLATES_DIR。"""
+        return (TEMPLATES_DIR.joinpath(*path_parts)).read_text(encoding="utf-8")
+
+    def _write_from_template(self, dest_path: Path, *template_parts: str, **substitutions) -> None:
+        """读取模板，替换 {{VAR}} 占位符，写入目标路径。"""
+        content = self._read_template(*template_parts)
+        for key, value in substitutions.items():
+            content = content.replace("{{" + key + "}}", str(value))
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_text(content, encoding="utf-8")
 
     def _get_act_names(self) -> list[str]:
         """Return display names for each act based on structure type and count."""
@@ -216,325 +230,24 @@ styles: []
         (self.project_path / "config.yaml").write_text(config_content, encoding='utf-8')
 
     def create_worldbuilding_files(self):
-        """创建世界观实体文件，遵循 worldbuilding_schema.yaml 三层结构。
-        
-        每个文件包含:
-          - _meta (entity_type, schema_version)
-          - 索引信息 (实体ID, 名称, 实体子类型, 状态)
-          - 摘要 (一句话描述, 章节关联, 关键词)
-          - 完整档案 (原模板内容)
-        """
+        """从共享模板复制世界观文件。"""
         wb_path = self.project_path / "worldbuilding"
-        templates = {
-            "基本信息.yaml": (
-                "# 世界观基本信息\n\n"
-                "_meta:\n"
-                "  entity_type: \"world_overview\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"world_overview\"\n"
-                "  名称: \"世界观概览\"\n"
-                "  实体子类型: \"world_overview\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  世界名称: \"\"\n"
-                "  世界类型: \"\"\n"
-                "  时间背景: \"\"\n"
-                "  空间背景: \"\"\n"
-                "  核心设定: \"\"\n"
-                "  一句话概述: \"\"\n"
-            ),
-            "核心规则.yaml": (
-                "# 世界核心规则\n\n"
-                "_meta:\n"
-                "  entity_type: \"rule\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"core_rules\"\n"
-                "  名称: \"世界核心规则\"\n"
-                "  实体子类型: \"rule\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  物理法则: \"\"\n"
-                "  魔法或科技体系: \"\"\n"
-                "  禁忌与限制: \"\"\n"
-                "  因果规律: \"\"\n"
-                "  特殊机制: \"\"\n"
-            ),
-            "力量体系.yaml": (
-                "# 力量体系\n\n"
-                "_meta:\n"
-                "  entity_type: \"power_system\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"power_system\"\n"
-                "  名称: \"力量体系\"\n"
-                "  实体子类型: \"power_system\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  体系名称: \"\"\n"
-                "  等级划分:\n"
-                "    - 等级名: \"等级1\"\n"
-                "      描述: \"\"\n"
-                "  晋升条件: \"\"\n"
-                "  力量来源: \"\"\n"
-            ),
-            "势力格局.yaml": (
-                "# 势力格局\n\n"
-                "_meta:\n"
-                "  entity_type: \"faction\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"factions\"\n"
-                "  名称: \"势力格局\"\n"
-                "  实体子类型: \"faction\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  势力列表:\n"
-                "    - 名称: \"\"\n"
-                "      性质: \"\"\n"
-                "      核心目标: \"\"\n"
-                "  势力平衡: \"\"\n"
-                "  隐藏势力: \"\"\n"
-                "  冲突焦点: \"\"\n"
-            ),
-            "地理位置.yaml": (
-                "# 世界地理\n\n"
-                "_meta:\n"
-                "  entity_type: \"location\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"geography\"\n"
-                "  名称: \"世界地理\"\n"
-                "  实体子类型: \"location\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  版图总览: \"\"\n"
-                "  主要区域:\n"
-                "    - 名称: \"\"\n"
-                "      位置: \"\"\n"
-                "      气候: \"\"\n"
-                "  交通要道: \"\"\n"
-                "  危险区域: \"\"\n"
-                "  资源分布: \"\"\n"
-            ),
-            "历史.yaml": (
-                "# 世界历史\n\n"
-                "_meta:\n"
-                "  entity_type: \"history\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"history\"\n"
-                "  名称: \"世界历史\"\n"
-                "  实体子类型: \"history\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  纪元划分:\n"
-                "    - 名称: \"远古时代\"\n"
-                "      描述: \"\"\n"
-                "  重大事件:\n"
-                "    - 名称: \"\"\n"
-                "      时间: \"\"\n"
-                "      影响: \"\"\n"
-                "  传说与秘辛: \"\"\n"
-                "  历史遗留问题: \"\"\n"
-            ),
-            "文化.yaml": (
-                "# 世界文化\n\n"
-                "_meta:\n"
-                "  entity_type: \"culture\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"culture\"\n"
-                "  名称: \"世界文化\"\n"
-                "  实体子类型: \"culture\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  种族或民族:\n"
-                "    - 名称: \"\"\n"
-                "      特征: \"\"\n"
-                "  宗教与信仰:\n"
-                "    - 名称: \"\"\n"
-                "      教义: \"\"\n"
-                "  社会结构: \"\"\n"
-                "  风俗习惯: \"\"\n"
-                "  语言与文字: \"\"\n"
-                "  科技或文明水平: \"\"\n"
-            ),
-            "经济体系.yaml": (
-                "# 经济体系\n\n"
-                "_meta:\n"
-                "  entity_type: \"economic_system\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"economic_system\"\n"
-                "  名称: \"经济体系\"\n"
-                "  实体子类型: \"economic_system\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  经济体系名称: \"\"\n"
-                "  货币体系:\n"
-                "    - 货币名称: \"\"\n"
-                "      价值标准: \"\"\n"
-                "      发行机构: \"\"\n"
-                "  经济结构:\n"
-                "    - 主要产业: \"\"\n"
-                "      占比: \"\"\n"
-                "      代表势力: \"\"\n"
-                "  贸易网络:\n"
-                "    - 主要贸易路线: \"\"\n"
-                "      关键商品: \"\"\n"
-                "      贸易规则: \"\"\n"
-                "  资源分配:\n"
-                "    - 资源类型: \"\"\n"
-                "      分配方式: \"\"\n"
-                "      控制势力: \"\"\n"
-                "  经济矛盾:\n"
-                "    - 矛盾点: \"\"\n"
-                "      影响范围: \"\"\n"
-                "      解决方案: \"\"\n"
-            ),
-            "政治制度.yaml": (
-                "# 政治制度\n\n"
-                "_meta:\n"
-                "  entity_type: \"political_system\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"political_system\"\n"
-                "  名称: \"政治制度\"\n"
-                "  实体子类型: \"political_system\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  政治体系名称: \"\"\n"
-                "  政权结构:\n"
-                "    - 最高权力: \"\"\n"
-                "      权力机构: \"\"\n"
-                "      权力制衡: \"\"\n"
-                "  治理模式:\n"
-                "    - 统治方式: \"\"\n"
-                "      管理层级: \"\"\n"
-                "      法律体系: \"\"\n"
-                "  政治势力:\n"
-                "    - 政党或组织: \"\"\n"
-                "      政治立场: \"\"\n"
-                "      影响力: \"\"\n"
-                "  外交关系:\n"
-                "    - 外交政策: \"\"\n"
-                "      盟友关系: \"\"\n"
-                "      敌对关系: \"\"\n"
-                "  政治冲突:\n"
-                "    - 冲突类型: \"\"\n"
-                "      涉及方: \"\"\n"
-                "      影响程度: \"\"\n"
-            ),
-            "社会阶层.yaml": (
-                "# 社会阶层\n\n"
-                "_meta:\n"
-                "  entity_type: \"social_hierarchy\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"social_hierarchy\"\n"
-                "  名称: \"社会阶层\"\n"
-                "  实体子类型: \"social_hierarchy\"\n"
-                "  状态: \"active\"\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  章节关联: []\n"
-                "  关键词: []\n\n"
-                "完整档案:\n"
-                "  社会体系名称: \"\"\n"
-                "  阶层划分:\n"
-                "    - 阶层名称: \"\"\n"
-                "      权力等级: \"\"\n"
-                "      人口比例: \"\"\n"
-                "      特权: \"\"\n"
-                "      义务: \"\"\n"
-                "  流动机制:\n"
-                "    - 上升途径: \"\"\n"
-                "      下降原因: \"\"\n"
-                "      流动难度: \"\"\n"
-                "  社会矛盾:\n"
-                "    - 矛盾类型: \"\"\n"
-                "      涉及阶层: \"\"\n"
-                "      激化因素: \"\"\n"
-                "      缓解机制: \"\"\n"
-                "  文化认同:\n"
-                "    - 阶层文化: \"\"\n"
-                "      价值观念: \"\"\n"
-                "      行为规范: \"\"\n"
-            ),
-        }
-        for filename, content in templates.items():
-            (wb_path / filename).write_text(content, encoding='utf-8')
+        wb_templates = TEMPLATES_DIR / "worldbuilding"
+        for template_file in sorted(wb_templates.iterdir()):
+            if template_file.suffix.lower() == ".yaml":
+                content = template_file.read_text(encoding="utf-8")
+                (wb_path / template_file.name).write_text(content, encoding="utf-8")
 
     def create_outline_files(self):
-        """创建大纲文件，遵循三层结构：
-        
+        """创建大纲文件（从共享模板读取）。
+
         元文档（不索引）: 总纲.yaml / 分卷/
         实体文件（可索引）: 情节线/ (plot_thread) / 分纲/ (chapter)
         追踪文件: 追踪/伏笔.yaml / 追踪/时间线.yaml
         """
         ol_path = self.project_path / "outline"
-        now = datetime.now().strftime("%Y-%m-%d")
 
         # ── Calculate chapter ranges for each act ──
-        # Read target chapter count from config if available, fall back to 100
         total_chapters = 100
         config_path = self.project_path / "config.yaml"
         if config_path.is_file():
@@ -551,7 +264,6 @@ styles: []
         current_start = 1
         for i, (act_name, pct) in enumerate(zip(self.act_names, self.chapter_distribution)):
             ch_count = max(1, round(total_chapters * pct / 100))
-            # Last act takes remaining
             if i == len(self.act_names) - 1:
                 act_end = total_chapters
             else:
@@ -560,8 +272,7 @@ styles: []
             current_start = act_end + 1
 
         # ── Build acts section for 总纲.yaml ──
-        acts_lines = []
-        acts_lines.append("故事结构:")
+        acts_lines = ["故事结构:"]
         acts_lines.append(f"  结构类型: \"{self.structure_type}\"")
         acts_lines.append("  幕:")
         for i, (s, e, name) in enumerate(act_ranges, 1):
@@ -575,15 +286,13 @@ styles: []
 
         # ── Build 分卷 section for 总纲.yaml ──
         vol_dist = []
-        # Distribute total chapters evenly across volumes
         ch_per_vol = math.ceil(total_chapters / self.volume_count)
         for v in range(self.volume_count):
             vs = v * ch_per_vol + 1
             ve = min((v + 1) * ch_per_vol, total_chapters)
             vol_dist.append((vs, ve))
 
-        vol_list_lines = []
-        vol_list_lines.append("分卷:")
+        vol_list_lines = ["分卷:"]
         for v, (vs, ve) in enumerate(vol_dist):
             vol_list_lines.append(f"  - 卷号: {v + 1}")
             vol_list_lines.append(f"    卷名: \"{self.volume_names[v]}\"")
@@ -592,191 +301,49 @@ styles: []
             vol_list_lines.append(f"    主角转变: \"\"")
         vol_list_block = "\n".join(vol_list_lines)
 
-        # ── 总纲.yaml（元文档，遵循 novel-writing/assets/outline.yaml 模板） ──
-        (
-            ol_path / "总纲.yaml"
-        ).write_text(
-            f"# 总纲\n\n"
-            f"项目名称: \"{self.project_name}\"\n"
-            f"类型: \"{self.genre}\"\n"
-            f"目标字数: 100000\n"
-            f"预计章节数: {total_chapters}\n"
-            f"目标读者: \"\"\n\n"
-            f"核心概念:\n"
-            f"  一句话概述: \"\"\n"
-            f"  核心卖点: \"\"\n"
-            f"  主题关键词: []\n"
-            f"  主题:\n"
-            f"    核心: \"\"\n"
-            f"    呈现: \"\"\n\n"
-            f"人物与世界:\n"
-            f"  主角与世界的关系: \"\"\n"
-            f"  主角的特殊性: \"\"\n"
-            f"  世界规则对主角的约束: []\n"
-            f"  主角打破/利用世界规则的方式: \"\"\n"
-            f"  初始境况: \"\"\n\n"
-            f"{acts_block}\n\n"
-            f"{vol_list_block}\n\n"
-            f"节奏:\n"
-            f"  前期基调: \"\"\n"
-            f"  中期基调: \"\"\n"
-            f"  后期基调: \"\"\n"
-            f"  章节分布: {self.chapter_distribution}\n\n"
-            f"结局类型: \"\"\n"
-            f"结局设计: \"\"\n",
-            encoding="utf-8",
+        # ── 总纲.yaml：从模板读取，替换动态块 ──
+        self._write_from_template(
+            ol_path / "总纲.yaml", "outline", "总纲.yaml",
+            PROJECT_NAME=self.project_name,
+            GENRE=self.genre,
+            TOTAL_CHAPTERS=total_chapters,
+            ACTS_BLOCK=acts_block,
+            VOLUMES_BLOCK=vol_list_block,
+            CHAPTER_DISTRIBUTION=self.chapter_distribution,
         )
 
-        # ── 分卷/（元文档，遵循 novel-writing/assets/volume.yaml 模板） ──
+        # ── 分卷/：从模板读取，逐卷替换 ──
         vol_dir = ol_path / "分卷"
         for v in range(self.volume_count):
             vs, ve = vol_dist[v]
             vol_name = self.volume_names[v]
             vol_file_name = f"卷{v + 1}_{vol_name}.yaml"
-            (vol_dir / vol_file_name).write_text(
-                f"# 第{self._cn_ordinal(v + 1)}卷：{vol_name}\n\n"
-                f"分卷名称: \"{vol_name}\"\n"
-                f"卷号: {v + 1}\n"
-                f"章节范围: \"第{vs}章 - 第{ve}章\"\n\n"
-                f"概要: \"\"\n\n"
-                f"核心问题: \"\"\n\n"
-                f"关键情节点:\n"
-                f"  - 节点: \"\"\n"
-                f"    涉及章节: \"\"\n"
-                f"    角色: []\n"
-                f"    影响: \"\"\n\n"
-                f"卷内角色发展:\n"
-                f"  主角:\n"
-                f"    起始状态: \"\"\n"
-                f"    目标: \"\"\n"
-                f"    障碍: []\n"
-                f"    成长: \"\"\n"
-                f"    卷终状态: \"\"\n"
-                f"  重要配角: []\n\n"
-                f"势力变动: []\n"
-                f"世界观揭示: []\n\n"
-                f"本卷容易踩的坑: []\n"
-                f"与其他卷的衔接注意: \"\"\n",
-                encoding="utf-8",
+            self._write_from_template(
+                vol_dir / vol_file_name, "outline", "分卷", "卷N_名称.yaml",
+                VOLUME_NUMBER=v + 1,
+                VOLUME_CN_ORDINAL=self._cn_ordinal(v + 1),
+                VOLUME_NAME=vol_name,
+                CHAPTER_START=vs,
+                CHAPTER_END=ve,
             )
 
-        # ── 情节线/（实体，遵循 plot_thread_schema） ──
-        # 主线固定一个，支线可按需创建多个（支线_爱情线.yaml、支线_复仇线.yaml …）
+        # ── 情节线/：从模板目录复制 ──
         plot_dir = ol_path / "情节线"
-        plot_templates = {
-            "主线.yaml": (
-                "# 主线\n\n"
-                "_meta:\n"
-                "  entity_type: \"plot_thread\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"main_plot\"\n"
-                "  名称: \"主线\"\n"
-                "  类型: \"main\"\n"
-                "  状态: \"active\"\n"
-                "  起始章节: 1\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  当前境况: \"\"\n"
-                "  核心特质: []\n"
-                "  当前目标: \"\"\n"
-                "  关键关系: []\n"
-                "  当前区间: \"\"\n"
-                "  区间情节点: []\n"
-                "  关联角色: []\n\n"
-                "完整档案:\n"
-                "  描述: \"\"\n"
-                "  类型: \"主线\"\n"
-                "  冲突核心: \"\"\n"
-                "  关键事件: []\n"
-                "  关联支线: []\n"
-                "  终局设计: \"\"\n"
-                "  创作笔记:\n"
-                "    注意事项: []\n"
-            ),
-            "支线_示例.yaml": (
-                "# 支线示例（可按需创建多条：支线_爱情线.yaml、支线_复仇线.yaml …）\n\n"
-                "_meta:\n"
-                "  entity_type: \"plot_thread\"\n"
-                "  schema_version: \"3.0\"\n"
-                "  created_at: \"\"\n"
-                "  updated_at: \"\"\n\n"
-                "索引信息:\n"
-                "  实体ID: \"sub_plot_example\"\n"
-                "  名称: \"支线示例\"\n"
-                "  类型: \"sub\"\n"
-                "  状态: \"active\"\n"
-                "  起始章节: 0\n\n"
-                "摘要:\n"
-                "  一句话描述: \"\"\n"
-                "  当前境况: \"\"\n"
-                "  核心特质: []\n"
-                "  当前目标: \"\"\n"
-                "  关键关系: []\n"
-                "  当前区间: \"\"\n"
-                "  区间情节点: []\n"
-                "  关联角色: []\n\n"
-                "完整档案:\n"
-                "  描述: \"（删除此文件并创建自己的支线，如 支线_爱情线.yaml）\"\n"
-                "  类型: \"支线\"\n"
-                "  冲突核心: \"\"\n"
-                "  关键事件: []\n"
-                "  关联支线: []\n"
-                "  终局设计: \"\"\n"
-                "  创作笔记:\n"
-                "    注意事项: []\n"
-            ),
-        }
-        for filename, content in plot_templates.items():
-            (plot_dir / filename).write_text(content, encoding="utf-8")
+        plot_tpl_dir = TEMPLATES_DIR / "outline" / "情节线"
+        for tpl_file in sorted(plot_tpl_dir.iterdir()):
+            if tpl_file.suffix.lower() == ".yaml":
+                shutil.copy2(tpl_file, plot_dir / tpl_file.name)
 
-        # ── 追踪/（运行时数据） ──
+        # ── 写前规划文件：从模板复制 ──
+        for plan_file in ["角色出场规划.yaml", "伏笔规划.yaml", "时间线设计.yaml", "叙事策略.yaml"]:
+            shutil.copy2(TEMPLATES_DIR / "outline" / plan_file, ol_path / plan_file)
+
+        # ── 追踪/：从模板目录复制 ──
         track_dir = ol_path / "追踪"
-        track_templates = {
-            "伏笔.yaml": (
-                "# 伏笔记录\n\n"
-                "伏笔:\n"
-                "  # 每章写后追加记录\n"
-                "  # - 描述: \"伏笔内容\"\n"
-                "  #   章节: 1\n"
-                "  #   状态: \"待回收\"\n"
-            ),
-            "时间线.yaml": (
-                "# 时间线记录\n\n"
-                "事件:\n"
-                "  # 每章写后追加记录\n"
-                "  # - 描述: \"事件内容\"\n"
-                "  #   章节: 1\n"
-                "  #   时间: \"故事时间\"\n"
-            ),
-            "角色统计.yaml": (
-                "# 角色出场统计\n\n"
-                "出场:\n"
-                "  # 每章写后追加记录\n"
-                "  # - 角色: \"角色名\"\n"
-                "  #   章节: 1\n"
-                "  #   状态: \"重伤\"\n"
-            ),
-            "情节线进度.yaml": (
-                "# 情节线进度记录（每章写后追加）\n\n"
-                "进度:\n"
-                "  # 每章写后追加记录\n"
-                "  # - 情节线: \"main_plot\"\n"
-                "  #   章节: 1\n"
-                "  #   时间: \"2024-01-01T00:00:00\"\n"
-            ),
-            "章节摘要.yaml": (
-                "# 章节摘要记录（每章写后追加）\n\n"
-                "摘要:\n"
-                "  # 每章写后追加记录\n"
-                "  # - 章节: 1\n"
-                "  #   摘要: \"本章讲了什么\"\n"
-            ),
-        }
-        for filename, content in track_templates.items():
-            (track_dir / filename).write_text(content, encoding="utf-8")
+        track_tpl_dir = TEMPLATES_DIR / "outline" / "追踪"
+        for tpl_file in sorted(track_tpl_dir.iterdir()):
+            if tpl_file.suffix.lower() == ".yaml":
+                shutil.copy2(tpl_file, track_dir / tpl_file.name)
 
     @staticmethod
     def _cn_ordinal(n: int) -> str:
@@ -793,83 +360,16 @@ styles: []
         return f"{digits[tens]}十{digits[rem]}"
 
     def create_ideation_templates(self):
-        """创建创意构思目录及 5 个阶段模板文件"""
+        """从共享模板创建创意构思文件"""
         ideation_path = self.project_path / "ideation"
-
-        templates = {
-            "需求分析.yaml": f"""# 需求分析 — {self.project_name}
-# 此文件定义创作的边界条件和目标
-
-类型: "{self.genre}"
-目标读者: ""
-篇幅: ""
-基调: ""
-核心元素: []
-排斥元素: []
-创新诉求: ""
-""",
-            "约束集.yaml": """# 约束集
-# 6 大类约束，每类可包含多项
-
-结构约束: []
-内容约束: []
-角色约束: []
-设定约束: []
-形式约束: []
-主题约束: []
-""",
-            "创意简报.yaml": """# 创意简报
-# 3-5 个创意方向，选定后标记 选定: true
-
-- 方向编号: 1
-  一句话概述: ""
-  核心冲突: ""
-  主角设定: ""
-  亮点卖点: ""
-  选定: false
-- 方向编号: 2
-  一句话概述: ""
-  核心冲突: ""
-  主角设定: ""
-  亮点卖点: ""
-  选定: false
-- 方向编号: 3
-  一句话概述: ""
-  核心冲突: ""
-  主角设定: ""
-  亮点卖点: ""
-  选定: false
-""",
-            "评估报告.yaml": """# 评估报告
-# 4 维度评分（0-5 分），阈值：总分 ≥ 16，原创性 ≥ 4，吸引力 ≥ 4
-
-评估维度:
-  原创性: {}
-  可行性: {}
-  吸引力: {}
-  独特性: {}
-推荐方向: 0
-改进建议: []
-""",
-            "最终创意方案.yaml": f"""# 最终创意方案 — {self.project_name}
-# 选定创意方向后的完整方案，供 novel-writing 读取
-
-故事概念: ""
-类型: "{self.genre}"
-主角:
-  姓名: ""
-  角色类型: "主角"
-  一句话描述: ""
-  核心特质: []
-  当前目标: ""
-核心冲突: ""
-世界观关键词: []
-情节主线: ""
-预期章节数: 0
-""",
-        }
-        for filename, content in templates.items():
-            (ideation_path / filename).write_text(content, encoding='utf-8')
+        ideation_tpl_dir = TEMPLATES_DIR / "ideation"
+        for tpl_file in sorted(ideation_tpl_dir.iterdir()):
+            if tpl_file.suffix.lower() == ".yaml":
+                self._write_from_template(
+                    ideation_path / tpl_file.name, "ideation", tpl_file.name,
+                    PROJECT_NAME=self.project_name,
+                    GENRE=self.genre,
+                )
 
     def create_index_file(self):
         """创建空的项目索引骨架，供 context-service 逐步填充。
@@ -1005,6 +505,10 @@ chapters: {{}}
         for wb in ["基本信息", "核心规则", "力量体系", "势力格局", "地理位置", "历史", "文化", "经济体系", "政治制度", "社会阶层"]:
             print(f"  ✓ worldbuilding/{wb}.yaml")
         print("  ✓ outline/追踪/角色统计.yaml")
+        print("  ✓ outline/角色出场规划.yaml")
+        print("  ✓ outline/伏笔规划.yaml")
+        print("  ✓ outline/时间线设计.yaml")
+        print("  ✓ outline/叙事策略.yaml")
         print("  ✓ project_index.yaml")
         print("-" * 40)
         print(f"✅ 项目 '{self.project_name}' 创建完成！")

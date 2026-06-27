@@ -82,10 +82,8 @@ python .opencode/shared/config_manager.py set 当前阶段 {新阶段} --project
 
 ## 参考文件
 
-- `references/structure_comparison.md` — 三幕/五幕结构详解
-- `assets/narrative_strategy.yaml` — 叙事策略模板
-- `assets/outline.yaml` — 总纲模板
-- `assets/timeline_plan.yaml` — 时间线设计模板
+- `references/synopsis_design.md` — 总纲设计指导（P4）
+- `references/narrative_strategy_design.md` — 叙事策略设计指导（P4.5）
 
 ## HARD CONSTRAINTS
 

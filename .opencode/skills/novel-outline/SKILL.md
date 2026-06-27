@@ -69,8 +69,9 @@ tags: ["novel", "outline", "volume", "chapter"]
 
 ## 参考文件
 
-- `references/outline_templates.md` — 分纲模板与命名规则
-- `references/outline_examples.md` — 分纲示例
+- `references/volume_design.md` — 分卷大纲设计指导（P6）
+- `references/chapter_design.md` — 分纲设计指导（P7）
+- `references/opening_chapter_design.md` — 分纲开篇章节的契约要素规划（P7）
 
 ## 写后处理
 

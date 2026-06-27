@@ -142,11 +142,11 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P7 | 分纲构建（分纲/章节大纲/章纲） | `subagent_type="novel-crafter", load_skills=["novel-outline"]` | — | novel-outline SKILL.md 后处理链 |
 | P8 | 章节写作（第X章/写第）+ 分纲存在 | `subagent_type="novel-crafter", load_skills=["novel-chapter"]` | **先运行** `chapter_context.py` + `extract_template.py` 收集上下文后注入 prompt | novel-chapter SKILL.md 后处理链 |
 | P9 | 质量检测（检测AI味/review/质量/评估/看看写得怎么样） | 明确类型→`subagent_type="novel-reviewer", load_skills=["novel-quality"]`；全模糊（"看看写得怎么样"）→`skill("novel-grill", user_message="mode=quality-fuzzy")` → quality 检测 | 明确类型时无；全模糊时无需额外加载（grill 自行处理） | 无（只写报告） |
-| P10 | 风格验证（风格一致性检查）—— P8 后执行，只查风格不提取 | `subagent_type="novel-reviewer", load_skills=["novel-quality"]`（prompt 限定只做风格一致性） | 需有活跃风格（`active_style` 非空） | 输出风格偏差报告；P-0.5 才是提取入口 |
+| P10 | 风格验证（风格一致性检查）—— P8 后执行，只查风格不提取 | `subagent_type="novel-reviewer", load_skills=["novel-quality"]`（prompt 限定只做风格一致性） | 需有活跃风格（`active_style` 非空） | 输出风格偏差报告；风格提取入口见 P-1.5 |
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `subagent_type="novel-crafter", load_skills=["novel-export"]` | — | 无（调用 `export.py`） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | 明确修改→加载上下文（last_100.py + 分纲 + 角色）→ `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`；模糊修改→`skill("novel-grill", user_message="mode=chapter-edit-fuzzy")` → 加载上下文 → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | 明确时运行 `last_100.py` 获取衔接 + `read` 分纲和角色；模糊时 grill 输出决定后续上下文加载 | §5.4 后处理链 |
 | P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill", user_message="mode=entity-editor")` → `read` 目标文件 + intent log → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`；明确→`read` 目标文件 + intent log → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | `read` 目标实体文件 + `read` outline/追踪/intent/（如存在） | §5.4 后处理链 |
-| P14 | 搜索分析（搜索/查找/分析/核验/对齐/完整性检查） | `skill("novel-search-analysis")` | — | 无 |
+| P14 | 搜索分析（搜索/查找/分析/核验/对齐/完整性检查） | **明确模式**（用户说了具体搜索词，如"搜一下天道宗"）→ `skill("novel-search-analysis", user_message="mode=auto, ...")`；**模糊搜索**（无明确关键词，如"帮我查查看"）→ `skill("novel-search-analysis", user_message="mode=guide")`；**搜索+修改联动**（如"检查一下设定有没有冲突，有就改"）→ `skill("novel-search-analysis", ...)` → 展示报告 → 如有偏差 → 编排层解析报告确定编辑目标 → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | — | 无 |
 | P15 | 以上均不匹配 | 询问用户意图 | — | — |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。

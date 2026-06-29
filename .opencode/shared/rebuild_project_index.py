@@ -23,7 +23,6 @@ CLI:
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 
 try:
@@ -33,98 +32,10 @@ except ImportError:
     sys.exit(1)
 
 
-# ── Output formatting helpers ───────────────────────────────────────────────
+# ── 共享导入 ──────────────────────────────────────────────────────────────────
 
-def _fmt_dt() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-
-def _get_nested(data: dict, dot_path: str):
-    """Traverse a dict by dot-separated keys."""
-    keys = dot_path.split(".")
-    current = data
-    for key in keys:
-        if not isinstance(current, dict):
-            return None
-        current = current.get(key)
-    return current
-
-
-def _load_yaml_safe(path: Path) -> dict | None:
-    """Load YAML, return None on any error."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        return data if isinstance(data, dict) else None
-    except (OSError, yaml.YAMLError):
-        return None
-
-
-# ── Entity scanning config ────────────────────────────────────────────────────
-
-ENTITY_SCAN_CONFIG = {
-    "characters": {
-        "dir": "characters",
-        "glob": "*.yaml",
-        "skip": [],
-        "id_path": "索引信息.实体ID",
-        "fields": {
-            "name": "索引信息.名称",
-            "status": "索引信息.状态",
-            "one_line": "摘要.一句话描述",
-        },
-        "extra": {
-            "type": "索引信息.角色类型",
-            "first_chapter": "索引信息.首次出场章节",
-        },
-    },
-    "worldbuilding": {
-        "dir": "worldbuilding",
-        "glob": "*.yaml",
-        "skip": [],
-        "id_path": "索引信息.实体ID",
-        "fields": {
-            "name": "索引信息.名称",
-            "status": "索引信息.状态",
-            "one_line": "摘要.一句话描述",
-        },
-        "extra": {
-            "subtype": "索引信息.实体子类型",
-        },
-    },
-    "plot_threads": {
-        "dir": "outline/情节线",
-        "glob": "*.yaml",
-        "skip": ["主索引.yaml"],
-        # 三层结构：_meta + 索引信息 + 摘要 + 完整档案
-        "id_path": "索引信息.实体ID",
-        "fields": {
-            "name": "索引信息.名称",
-            "status": "索引信息.状态",
-            "one_line": "摘要.一句话描述",
-        },
-        "extra": {
-            "first_chapter": "索引信息.起始章节",
-            # current_chapter 改为从 追踪/情节线进度.yaml 读取
-            "start_time": "索引信息.起始时间",
-            "end_time": "索引信息.结束时间",
-        },
-    },
-    "chapters": {
-        "dir": "outline/分纲",
-        "glob": "**/*.yaml",
-        "skip": [],
-        "id_path": "索引信息.实体ID",
-        "fields": {
-            "name": "索引信息.名称",
-            "status": "索引信息.状态",
-            "one_line": "摘要.一句话描述",
-        },
-        "extra": {
-            "chapter_num": "索引信息.章节号",
-        },
-    },
-}
+from _utils import fmt_dt, get_nested, load_yaml_safe
+from _config import ENTITY_SCAN_CONFIG
 
 
 def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[dict, int, list]:
@@ -138,7 +49,7 @@ def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[di
     for fpath in sorted(scan_dir.rglob(config["glob"])):
         if fpath.name in config.get("skip", []):
             continue
-        data = _load_yaml_safe(fpath)
+        data = load_yaml_safe(fpath)
         if data is None:
             warnings.append({
                 "file": str(fpath.relative_to(project_root)),
@@ -146,7 +57,7 @@ def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[di
             })
             continue
 
-        entity_id = _get_nested(data, config["id_path"])
+        entity_id = get_nested(data, config["id_path"])
         if not entity_id:
             warnings.append({
                 "file": str(fpath.relative_to(project_root)),
@@ -159,9 +70,9 @@ def _scan_entity_section(project_root: Path, config: dict, now: str) -> tuple[di
             "updated_at": now,
         }
         for key, dot_path in config["fields"].items():
-            entry[key] = _get_nested(data, dot_path) or ""
+            entry[key] = get_nested(data, dot_path) or ""
         for key, dot_path in config.get("extra", {}).items():
-            val = _get_nested(data, dot_path)
+            val = get_nested(data, dot_path)
             if val is not None:
                 entry[key] = val
 
@@ -189,12 +100,12 @@ def rebuild_index(project_root: Path, dry_run: bool = False) -> dict:
     if not project_root.is_dir():
         raise FileNotFoundError(f"项目根目录不存在: {project_root}")
 
-    now = _fmt_dt()
+    now = fmt_dt()
 
     # Read project name from config.yaml
     project_name = project_root.name
     config_path = project_root / "config.yaml"
-    config = _load_yaml_safe(config_path)
+    config = load_yaml_safe(config_path)
     if config:
         for key in ("项目名称", "project_name", "name"):
             val = config.get(key)

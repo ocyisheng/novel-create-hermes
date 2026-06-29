@@ -282,7 +282,7 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 4. **不替代 novel-edit** — 不直接修改内容，只输出偏差建议
 5. **所有搜索限制在当前项目范围内** — 不扫描项目外文件
 6. **输出路径固定** — 搜索报告写入 `quality/search/`，对齐分析写入 `quality/align/`，风格分析写入 `quality/style/`
-7. **搜索脚本调用** — 关键词搜索使用 `bash python .opencode/skills/novel-search-analysis/scripts/search_content.py` 执行
+7. **搜索脚本调用** — 关键词搜索使用 `python .opencode/shared/search_content.py` 执行
 
 ## 项目前提
 

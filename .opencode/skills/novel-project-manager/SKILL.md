@@ -16,13 +16,13 @@ tags: ["novel", "project-management"]
 ### 新建项目
 ```bash
 # 标准三卷三幕（默认）
-python .opencode/skills/novel-project-manager/scripts/init.py new "项目名" "玄幻"
+python .opencode/shared/project_init.py new "项目名" "玄幻"
 
 # 五卷五幕史诗结构
-python .opencode/skills/novel-project-manager/scripts/init.py new "星辰帝国" "玄幻" --volumes 5 --structure 五幕
+python .opencode/shared/project_init.py new "星辰帝国" "玄幻" --volumes 5 --structure 五幕
 
 # 四卷三幕（自定义幕数）
-python .opencode/skills/novel-project-manager/scripts/init.py new "迷雾追踪" "悬疑" --volumes 4 --acts 3
+python .opencode/shared/project_init.py new "迷雾追踪" "悬疑" --volumes 4 --acts 3
 ```
 创建标准目录、config.yaml、模板文件。项目默认创建到工具根目录下的 `novels/` 子目录（可通过 `-d` 指定其他位置）。卷数 (`--volumes`) 和幕结构 (`--structure`/`--acts`) 控制生成的分纲目录数和总纲模板格式。
 
@@ -30,7 +30,7 @@ python .opencode/skills/novel-project-manager/scripts/init.py new "迷雾追踪"
 
 ### 导入已有小说
 ```bash
-python .opencode/skills/novel-project-manager/scripts/init.py import "源路径" "项目名"
+python .opencode/shared/project_init.py import "源路径" "项目名"
 ```
 导入完成。
 
@@ -38,33 +38,33 @@ python .opencode/skills/novel-project-manager/scripts/init.py import "源路径"
 
 ### 查看状态
 ```bash
-python .opencode/skills/novel-project-manager/scripts/init.py status "项目名" [--phase 阶段]
+python .opencode/shared/project_init.py status "项目名" [--phase 阶段]
 ```
 
 ### 续写
 ```bash
-python .opencode/skills/novel-project-manager/scripts/init.py resume "项目名"
+python .opencode/shared/project_init.py resume "项目名"
 ```
 
 ### 切换
 
 ```bash
 # 标准切换：同步旧项目→持久化旧→同步新→推导新 notepad→验证一致性
-python .opencode/skills/novel-project-manager/scripts/init.py switch "项目名"
+python .opencode/shared/project_init.py switch "项目名"
 
 # 仅预览，不修改任何文件
-python .opencode/skills/novel-project-manager/scripts/init.py switch "项目名" --dry-run
+python .opencode/shared/project_init.py switch "项目名" --dry-run
 
 # 跳过索引同步（紧急情况下，避免触发 rebuild）
-python .opencode/skills/novel-project-manager/scripts/init.py switch "项目名" --skip-sync
+python .opencode/shared/project_init.py switch "项目名" --skip-sync
 
 # 跳过 phase_detect 一致性验证
-python .opencode/skills/novel-project-manager/scripts/init.py switch "项目名" --no-verify
+python .opencode/shared/project_init.py switch "项目名" --no-verify
 ```
 
 ### 删除
 ```bash
-python .opencode/skills/novel-project-manager/scripts/init.py delete "项目名" [--force]
+python .opencode/shared/project_init.py delete "项目名" [--force]
 ```
 
 ## 前提

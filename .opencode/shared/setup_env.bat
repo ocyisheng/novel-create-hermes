@@ -100,8 +100,8 @@ echo .venv 位置:      !TARGET_DIR!\.venv
 echo.
 echo 使用方式:
 echo   1. 激活环境: call .venv\Scripts\activate.bat
-echo   2. 验证环境: python .opencode/skills/novel-env-setup/scripts/setup.py
-echo   3. 新建小说: python .opencode/skills/novel-project-manager/scripts/init.py new "小说名" "类型"
+echo   2. 验证环境: python .opencode/shared/env_setup.py
+echo   3. 新建小说: python .opencode/shared/project_init.py new "小说名" "类型"
 echo.
 echo 多个小说项目共享此 .venv，无需重复创建。
 echo.

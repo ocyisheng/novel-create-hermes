@@ -558,7 +558,7 @@ PHASE_TO_P_TAG = {
 
 
 def _load_notepad_dir() -> Path:
-    """解析 .omo/notepads/ 目录路径（脚本在 .opencode/skills/*/scripts/ 下）。"""
+    """解析 .omo/notepads/ 目录路径（脚本在 .opencode/shared/ 下）。"""
     script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
     return script_root / ".omo" / "notepads"
 

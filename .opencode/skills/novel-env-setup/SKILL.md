@@ -19,18 +19,18 @@ tags: ["novel", "environment", "setup"]
 
 ```bash
 # Windows
-.opencode/skills/novel-env-setup/scripts/setup_env.bat
+.opencode/shared/setup_env.bat
 
 # macOS/Linux
-chmod +x .opencode/skills/novel-env-setup/scripts/setup_env.sh && ./.opencode/skills/novel-env-setup/scripts/setup_env.sh
+chmod +x .opencode/shared/setup_env.sh && ./.opencode/shared/setup_env.sh
 ```
 
-脚本自动检测 Python 来源（系统 Python → conda），创建 `.venv` + `pip install -r scripts/requirements.txt`。
+脚本自动检测 Python 来源（系统 Python → conda），创建 `.venv` + `pip install -r .opencode/shared/requirements.txt`。
 
 ### 验证环境
 ```bash
-python ./.opencode/skills/novel-env-setup/scripts/setup.py                 # 检查
-python .opencode/skills/novel-env-setup/scripts/setup.py --fix           # 修复
+python .opencode/shared/env_setup.py                 # 检查
+python .opencode/shared/env_setup.py --fix           # 修复
 ```
 
 ## 流程
@@ -38,7 +38,7 @@ python .opencode/skills/novel-env-setup/scripts/setup.py --fix           # 修�
 1. 检测 `python --version` / `conda --version`
 2. 两者皆无 → 提示用户安装，终止
 3. 有任一 → 执行 `.bat`/`.sh` 创建 `.venv` + 安装 PyYAML 依赖
-4. `setup.py` 验证通过 → 环境就绪
+4. `env_setup.py` 验证通过 → 环境就绪
 
 ## HARD CONSTRAINTS
 

@@ -32,22 +32,22 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
      outline/追踪/intent/{实体key}.intent.yaml
 ③ 分析用户请求，确定要修改的字段和对应的变更操作
 ④ 构造变更集 JSON（格式见 references/change_set.md——读取后参考）
-⑤ bash .opencode/shared/apply_changes.py
+⑤ python .opencode/shared/apply_changes.py
      --file {实体路径}
      --changes '{变更集 JSON}'
 ⑥ 如果 apply_changes 成功：
    a. 后处理链：
-      bash python .opencode/shared/fix_yaml_indent.py "{实体路径}"
-      bash python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
-      bash python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
-      bash python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
+      python .opencode/shared/fix_yaml_indent.py "{实体路径}"
+      python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
+      python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
+      python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
    b. 【可选】级联影响分析（建议对角色/世界观重大修改时运行）：
-      bash python .opencode/shared/cascade_impact.py
+      python .opencode/shared/cascade_impact.py
         --project-root {PROJECT_PATH}
         --changed-file {实体相对路径}
       → 阅读输出 → 如果发现高置信度影响章节，询问是否检查
    c. 日志记录：
-      bash .opencode/shared/update_intent_log.py
+      python .opencode/shared/update_intent_log.py
         --project-root {PROJECT_PATH}
         --entity-path {实体相对路径}
         --user-request "{用户原始请求}"
@@ -71,7 +71,7 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
    │  → 直接用 edit 工具修改目标段落
    │  → 不全局重写，不碰无关段落
    └─ 大范围重写（节奏/风格调整）
-      → 运行 bash .opencode/shared/last_100.py ... 获取衔接
+      → 运行 python .opencode/shared/last_100.py ... 获取衔接
       → 用 edit 或 write 写入修改后文本
       → 检查衔接：确认前 100 字与上一章衔接正确
 ④ chapter_tracking.py 更新（如需）
@@ -132,7 +132,7 @@ path 使用点号分隔层级，如 `完整档案.性格.核心特质`。
 4. **备份安全** — apply_changes.py 会自动创建 `.bak`，不要手动删除
 5. **YAML 编辑优先使用变更集** — 不要直接 edit YAML 文件（变更集保证数据完整性）
 6. **TXT 编辑优先使用 edit 工具** — 段落级精确修改，不要全局重写除非用户明确要求
-7. YAML文件、验证修复使用 bash python .opencode/shared/fix_yaml_indent.py "{实体路径}"
+7. YAML文件、验证修复使用 python .opencode/shared/fix_yaml_indent.py "{实体路径}"
 
 ## 参考文件
 

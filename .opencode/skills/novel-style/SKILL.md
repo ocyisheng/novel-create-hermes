@@ -43,10 +43,10 @@ tags: ["novel", "style", "infrastructure"]
 |------|---------|------|
 | 参考文本 → 分析 → style.yaml（提取模式） | prompt（`templates/prompt_template.md`） | `task(category="artistry", load_skills=["novel-style"])` |
 | 章节 vs style.yaml → 一致性报告（验证模式） | prompt | `task(category="ultrabrain", load_skills=["novel-quality"])` |
-| style.yaml 结构验证 | 脚本 | `python scripts/style_manager.py validate` |
-| styles/index.yaml 条目维护 | 脚本 | `python scripts/style_manager.py register` |
-| config.yaml 活跃风格 读写 | 脚本 | `python scripts/style_manager.py activate` |
-| 风格清单查询 | 脚本 | `python scripts/style_manager.py list` |
+| style.yaml 结构验证 | 脚本 | `python .opencode/shared/style_manager.py validate` |
+| styles/index.yaml 条目维护 | 脚本 | `python .opencode/shared/style_manager.py register` |
+| config.yaml 活跃风格 读写 | 脚本 | `python .opencode/shared/style_manager.py activate` |
+| 风格清单查询 | 脚本 | `python .opencode/shared/style_manager.py list` |
 
 编排层（novel-writer.md）通过 bash 调用脚本完成机械操作，不对项目配置文件和索引文件手动 `edit`。
 
@@ -78,7 +78,7 @@ tags: ["novel", "style", "infrastructure"]
 Step A: task(category="artistry", load_skills=["novel-style"])
         → 子 Agent 按 7 维度分析参考文本 → write styles/{名称}.yaml
 
-Step B: bash style_manager.py validate → register → activate
+Step B: python .opencode/shared/style_manager.py validate → register → activate
         → 脚本自动维护 index.yaml 和 config.yaml
         → 新风格写入 config.yaml.活跃风格，P8 写作时自动使用
 ```
@@ -102,7 +102,7 @@ Step B: 报告可内联到 P9 质量检测结果
 使用 `render_style.py` 将 style.yaml 转换为写作 prompt 中的 STYLE REFERENCE 段：
 
 ```bash
-python .opencode/skills/novel-style/scripts/render_style.py \
+python .opencode/shared/render_style.py \
     --style styles/{active_style}.yaml --mode chapter
 ```
 
@@ -111,7 +111,7 @@ python .opencode/skills/novel-style/scripts/render_style.py \
 ### 风格一致性检查（验证模式 / P10 质量检测时）
 
 ```bash
-python .opencode/skills/novel-style/scripts/render_style.py \
+python .opencode/shared/render_style.py \
     --style styles/{active_style}.yaml --mode check
 ```
 
@@ -187,15 +187,15 @@ builtin    copy --project-root PATH --name NAME
 使用方式：
 ```bash
 # 直接使用内置风格（无需 copy）
-python .opencode/skills/novel-style/scripts/style_manager.py activate \
+python .opencode/shared/style_manager.py activate \
   --project-root NOVELS_ROOT/项目名 --name "凡人修仙风"
 
 # 查看所有可用风格（含内置）
-python .opencode/skills/novel-style/scripts/style_manager.py list \
+python .opencode/shared/style_manager.py list \
   --project-root NOVELS_ROOT/项目名 --include-builtin
 
 # 需要自定义时，先复制再修改
-python .opencode/skills/novel-style/scripts/style_manager.py builtin copy \
+python .opencode/shared/style_manager.py builtin copy \
   --project-root NOVELS_ROOT/项目名 --name "凡人修仙风"
 # 然后编辑 styles/凡人修仙风.yaml 按需调整
 ```

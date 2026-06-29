@@ -28,9 +28,9 @@ except ImportError:
     print("错误: 需要 PyYAML，请运行 novel-env-setup 安装依赖", file=sys.stderr)
     sys.exit(1)
 
-# 从重建索引脚本导入配置（单一事实源）
-sys.path.insert(0, str(Path(__file__).parent))
-from rebuild_project_index import ENTITY_SCAN_CONFIG, _get_nested, _load_yaml_safe
+# 从共享常量模块导入配置（单一事实源）
+from _utils import get_nested, load_yaml_safe
+from _config import ENTITY_SCAN_CONFIG
 
 
 def validate_entity_format(project_root: Path, verbose: bool = False) -> dict:
@@ -71,7 +71,7 @@ def validate_entity_format(project_root: Path, verbose: bool = False) -> dict:
             issues = []
             warnings = []
 
-            data = _load_yaml_safe(fpath)
+            data = load_yaml_safe(fpath)
             if data is None:
                 issues.append("YAML 解析失败：文件无法读取或格式错误")
                 results.append({
@@ -96,19 +96,19 @@ def validate_entity_format(project_root: Path, verbose: bool = False) -> dict:
 
             # 2. 检查 id_path 指定的必填字段
             id_path = config["id_path"]
-            id_val = _get_nested(data, id_path)
+            id_val = get_nested(data, id_path)
             if not id_val:
                 issues.append(f"缺少必填字段: {id_path}（当前值为空，该字段作为实体唯一标识）")
 
             # 3. 检查 fields 中定义的所有字段
             for field_key, dot_path in config["fields"].items():
-                val = _get_nested(data, dot_path)
+                val = get_nested(data, dot_path)
                 if not val:
                     issues.append(f"缺少必填字段: {dot_path}（字段用途: {field_key}）")
 
             # 4. 可选检查: extra 字段（非必填，仅 warning）
             for field_key, dot_path in config.get("extra", {}).items():
-                val = _get_nested(data, dot_path)
+                val = get_nested(data, dot_path)
                 if val is None:
                     warnings.append(f"可选字段缺失: {dot_path}（字段: {field_key}）")
 

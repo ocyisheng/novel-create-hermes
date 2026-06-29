@@ -47,15 +47,15 @@ task(category="artistry", load_skills=["novel-style"],
 
 ```
 # 验证结构
-python .opencode/skills/novel-style/scripts/style_manager.py validate \
+python .opencode/shared/style_manager.py validate \
   --file styles/{用户命名}.yaml
 
 # 若验证失败 → 提示子 Agent 修正
 # 若验证通过 → 注册 + 激活
-python .opencode/skills/novel-style/scripts/style_manager.py register \
+python .opencode/shared/style_manager.py register \
   --project-root {项目路径} --name "{用户命名}" --file styles/{用户命名}.yaml
 
-python .opencode/skills/novel-style/scripts/style_manager.py activate \
+python .opencode/shared/style_manager.py activate \
   --project-root {项目路径} --name "{用户命名}"
 ```
 

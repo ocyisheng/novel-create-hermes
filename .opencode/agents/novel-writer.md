@@ -90,7 +90,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ 阶段动作?        → __CURRENT_PROJECT__ 为空 → "请先选择或新建项目" | 有项目 → §三.1 匹配
   │   ├─ P-3 需求发现（grill/需求发现/需求发现入口）→ skill("novel-grill")
   │   ├─ P1 创意构思（没想法/没灵感/脑洞/构思）→ 明确→Task(subagent_type="novel-ideator", load_skills=["novel-ideation"]) | 模糊→§P-3 → 写后维护
-  │   ├─ P-1.5 风格提取（含"风格/文风/模仿/提取风格"）+ 用户提供参考文本 → Task(subagent_type="novel-ideator", load_skills=["novel-style"]) → style_manager.py validate/register/activate
+  │   ├─ P-1.5 风格提取（含"风格/文风/模仿/提取风格"）+ 用户提供参考文本 → Task(subagent_type="novel-ideator", load_skills=["novel-style"]) → .opencode/shared/style_manager.py validate/register/activate
   │   ├─ P2 世界观建设（设定/规则/体系/势力）→ 模糊→skill("novel-grill", user_message="mode=worldbuilding") → Task | 明确→直接 Task → 实体后处理
   │   ├─ P3 角色创建（角色/人物/角色档案）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-character"]) | 模糊→§P-3 → 写后维护
   │   ├─ P4 总纲撰写（大纲/总纲/故事框架）→ 明确→Task(subagent_type="novel-crafter", load_skills=["novel-synopsis"]) + config_manager 阶段确认 | 模糊→§P-3 → rebuild_project_index.py + set-phase(P4→P4.5)
@@ -132,7 +132,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P-1 | 环境初始化（环境检查/venv 创建/依赖安装/环境修复） | `skill("novel-env-setup")` | — | 无 |
 | P0 | 知识库操作（参考/查书/导入书籍/学习资料） | 查询→`skill("book-knowledge")`；导入→`skill("book-to-knowledge")` | — | 导入后 `python .../rebuild_knowledge_index.py` 重建索引 |
 | P1 | 创意构思（没想法/没灵感/脑洞/构思） | `subagent_type="novel-ideator", load_skills=["novel-ideation"]` | — | novel-ideation SKILL.md 后处理链（如有新实体） |
-| P-1.5 | 风格提取（风格/文风/模仿/风格提取）—— P1 之后可选触发。用户提供参考文本时在 P1→P2 之间插入 | `subagent_type="novel-ideator", load_skills=["novel-style"]`（提取模式） | 用户需提供 2-3 段参考文本 | `style_manager.py validate → register → activate` 将新风格设为活跃 |
+| P-1.5 | 风格提取（风格/文风/模仿/风格提取）—— P1 之后可选触发。用户提供参考文本时在 P1→P2 之间插入 | `subagent_type="novel-ideator", load_skills=["novel-style"]`（提取模式） | 用户需提供 2-3 段参考文本 | `.opencode/shared/style_manager.py validate → register → activate` 将新风格设为活跃 |
 | P2 | 世界观建设（设定/规则/体系/势力） | 模糊→`skill("novel-grill", user_message="mode=worldbuilding")` → `subagent_type="novel-crafter", load_skills=["novel-worldbuilding"]`；明确→直接 Task | `read` 创意方案世界观概述（用于对齐 P1 已有设定） | novel-worldbuilding SKILL.md 后处理链 |
 | P3 | 角色创建（角色/人物/角色档案） | `subagent_type="novel-crafter", load_skills=["novel-character"]` | — | novel-character SKILL.md 后处理链 |
 | P4 | 总纲撰写（大纲/总纲/故事框架） | `subagent_type="novel-crafter", load_skills=["novel-synopsis"]` | `config_manager get 当前阶段` 确认阶段 | novel-synopsis SKILL.md 后处理链 |
@@ -149,7 +149,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P14 | 搜索分析（搜索/查找/分析/核验/对齐/完整性检查） | **明确模式**（用户说了具体搜索词，如"搜一下天道宗"）→ `skill("novel-search-analysis", user_message="mode=auto, ...")`；**模糊搜索**（无明确关键词，如"帮我查查看"）→ `skill("novel-search-analysis", user_message="mode=guide")`；**搜索+修改联动**（如"检查一下设定有没有冲突，有就改"）→ `skill("novel-search-analysis", ...)` → 展示报告 → 如有偏差 → 编排层解析报告确定编辑目标 → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | — | 无 |
 | P15 | 以上均不匹配 | 询问用户意图 | — | — |
 
-**额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `style_manager.py validate → register → activate`；风格注入 → `render_style.py --mode chapter`；风格检查 → `render_style.py --mode check`。
+**额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `.opencode/shared/style_manager.py validate → register → activate`；风格注入 → `.opencode/shared/render_style.py --mode chapter`；风格检查 → `.opencode/shared/render_style.py --mode check`。
 
 **区分**："当前项目/进度/写了几章"=快速状态查询；"检查进度/验证状态"=状态审计（§3.3）；动作类=阶段触发词匹配。
 

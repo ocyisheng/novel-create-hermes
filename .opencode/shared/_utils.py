@@ -1,10 +1,12 @@
 """shared/ 公共工具函数
 
-所有项目维护脚本的共享基础模块。提供项目路径解析、YAML 读写、章节号提取等通用操作。
+所有项目维护脚本的共享基础模块。提供项目路径解析、YAML 读写、章节号提取、
+嵌套字典访问、安全 YAML 加载等通用操作。
 """
 
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -49,6 +51,36 @@ def save_yaml(path: Path, data: dict) -> None:
         path.replace(bak)
     with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def load_yaml_safe(path: Path) -> dict | None:
+    """安全加载 YAML，失败时返回 None（不抛异常）。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return data if isinstance(data, dict) else None
+    except (OSError, yaml.YAMLError):
+        return None
+
+
+# ── 字典工具 ─────────────────────────────────────────────────────────────────
+
+def get_nested(data: dict, dot_path: str):
+    """按点号路径访问嵌套字典。如 get_nested(data, "a.b.c") 相当于 data["a"]["b"]["c"]。"""
+    keys = dot_path.split(".")
+    current = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+# ── 时间戳 ───────────────────────────────────────────────────────────────────
+
+def fmt_dt() -> str:
+    """返回 ISO 格式当前时间戳。"""
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 # ── 章节号 ───────────────────────────────────────────────────────────────────

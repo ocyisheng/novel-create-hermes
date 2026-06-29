@@ -73,9 +73,9 @@ tags: ["novel", "outline", "volume", "chapter"]
 - `references/chapter_design.md` — 分纲设计指导（P7）
 - `references/opening_chapter_design.md` — 分纲开篇章节的契约要素规划（P7）
 
-## 写后处理
+## 写后处理（chain: `entity-base`）
 
-输出写入后执行以下脚本：
+输出写入后编排层自动执行以下脚本：
 
 ```bash
 # 1. YAML 格式修正

@@ -223,6 +223,8 @@ python .opencode/shared/extract_template.py --skill novel-outline --list-vars   
 python .opencode/shared/extract_template.py --skill novel-synopsis --var 项目名 "..."  # 填充
 ```
 
+> 以下变量中，grill 输出的 `{grill_*}` 变量名定义见 `.opencode/references/cross-skill-contracts.md`，修改变量名须同步更新该文档及所有引用方。
+
 ### 通用阶段变量
 
 | 阶段 | 技能 | subagent_type | 关键变量 | 数据来源 |
@@ -339,26 +341,24 @@ python .opencode/shared/extract_template.py \
 
 ### 5.4 实体后处理调度
 
-编排层在各实体 Task() 或 skill() 完成后，按以下清单执行后处理。每个操作的具体参数以对应 SKILL.md §写后处理 为准。
+各 SKILL.md `§写后处理` 为后处理链定义的**真实源**。编排层在执行后处理时，以对应 SKILL.md 的链定义中的步骤和参数为准。下表为编排层调度速查表，列出各阶段对应的链 ID 和触发条件。
 
-| 来源 | 触发条件 | 执行内容（按顺序） |
-|------|---------|-----------------|
-| novel-synopsis (P4) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P4→P4.5` |
-| novel-synopsis (P4.5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P4.5→P5` |
-| novel-plot (P5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `rebuild_plot_progress.py` ⑤ `config_manager.py set 当前阶段 P5→P6` |
-| novel-outline (P6) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P6→P7` |
-| novel-outline (P7) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P7→P8` |
-| novel-chapter (P8) | Task() 返回后 | ① `chapter_tracking.py` ② `config_manager.py set 创作进度.当前章节 {N}` ③ `config_manager.py set 最后编辑 "{now}"` ④ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "write: 第{N}章" --stage P8` |
-| novel-quality (P9) | Task() 返回后 | ① `config_manager.py set 当前阶段 "已完成"`（或对应阶段）|
-| novel-ideation (P1) | Task() 返回后 | ①（如有新实体）`fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "ideation: {实体名}" --stage P1` |
-| novel-edit (P12/P13) | Task() 返回后 | ① `apply_changes.py` ②（YAML 编辑则）`fix_yaml_indent.py` ③ `validate_entity_format.py` ④ `validate_entity_consistency.py` ⑤ `rebuild_project_index.py` ⑥（可选）`cascade_impact.py` ⑦ `update_intent_log.py` ⑧ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "edit: {编辑目标}" --stage system` |
+| 链 ID（定义见 SKILL.md §写后处理） | 来源 | 触发条件 |
+|------------------------------------|------|---------|
+| `entity-base` | novel-synopsis (P4 / P4.5) | Task() 返回后 |
+| `entity-plot` | novel-plot (P5) | Task() 返回后 |
+| `entity-base` | novel-outline (P6 / P7) | Task() 返回后 |
+| `chapter-write` | novel-chapter (P8) | Task() 返回后 |
+| `quality-finish` | novel-quality (P9) | Task() 返回后 |
+| `entity-ideation` | novel-ideation (P1) | Task() 返回后 |
+| `entity-edit` | novel-edit (P12 / P13) | Task() 返回后 |
+| `entity-base` | novel-worldbuilding (P2) | Task() 返回后 |
+| `entity-base` | novel-character (P3) | Task() 返回后 |
 
 **编排层通用责任**：
-1. 按上表顺序依次执行脚本，任一失败则记 `novel-issues.md` 并继续下一项
+1. 按对应 SKILL.md 链定义依次执行脚本，任一失败则记 `novel-issues.md` 并继续下一项
 2. 后处理过程中发现矛盾 → 记 `novel-issues.md`
 3. 完成全部后处理后 → 更新 `novel-context.md` 时间快照
-
-> 脚本参数（`--project-root` `--file` 等）以 SKILL.md §写后处理 为准，本表只规定执行顺序和触发条件。
 
 ## 六、故障恢复与反馈
 

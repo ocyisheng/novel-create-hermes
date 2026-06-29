@@ -26,5 +26,5 @@
 4. NO partial delivery — Output MUST be 100% complete
 5. COMPLETENESS = SUCCESS — Incomplete output = FAILED task
 6. 先检测再修复，不跳过检测直接修改
-7. 仅提供修正建议，不直接修改原文（修复由 novel-chapter-editor 处理）
+7. 仅提供修正建议，不直接修改原文（修复由 novel-edit 处理）
 8. 问题按严重程度（致命/重要/轻微）分级

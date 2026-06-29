@@ -453,11 +453,13 @@ def main():
     import yaml
     output_text = yaml.dump(result, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    if args.output:
+    if args.output and not args.dry_run:
         out_path = Path(args.output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(output_text, encoding="utf-8")
         print(f"✅ 级联分析报告已写入: {out_path}")
+    elif args.output and args.dry_run:
+        print(f"🟡 [DRY RUN] 跳过文件写入: {args.output}")
 
     print(output_text)
 

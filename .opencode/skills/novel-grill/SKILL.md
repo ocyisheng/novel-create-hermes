@@ -88,12 +88,12 @@ tags: ["novel", "grill"]
 2. **逐层追问**：向用户解释"在开始之前，我先问几个问题了解你的想法"，每问附推荐答案，用户可 `pass` 跳过分支
 3. **整理需求**：将确认信息整理为清单（分支结论、关键需求、排除方向）
 4. **展示成果总结**：向用户展示需求确认摘要——"根据你刚才的回答，我将在创作时遵循以下方向：[核心基调/重点关注/排除方向/其他设定]。如果没问题，我开始创作了？"——让用户看到"我说的话被用了"，提升参与感和掌控感。
-5. **传递需求**：用户确认后，编排层将需求清单直接注入后续 task() 的 prompt CONTEXT
-- `ideation` / `character` / `chapter` 模式 → 注入 task() 的 `{grill_需求}` 槽位
-- `entity-editor` 模式 → 注入 skill("novel-edit") 的 CONTEXT `{grill_编辑方案}` 槽位
-- `worldbuilding` 模式 → 注入 novel-entity 的 CONTEXT `{grill_世界观需求}` 槽位
-- `chapter-edit-fuzzy` 模式 → 注入 skill("novel-edit") 的 CONTEXT `{grill_编辑方案}` 槽位
-- `quality-fuzzy` 模式 → 注入 novel-quality 的 CONTEXT `{grill_检测焦点}` 槽位
+5. **传递需求**：用户确认后，编排层将需求清单直接注入后续 task() 的 prompt CONTEXT。变量名定义见 `.opencode/references/cross-skill-contracts.md`。
+- `ideation` / `character` / `chapter` 模式 → 注入 `{grill_需求}`
+- `entity-editor` 模式 → 注入 `{grill_编辑方案}`
+- `worldbuilding` 模式 → 注入 `{grill_世界观需求}`
+- `chapter-edit-fuzzy` 模式 → 注入 `{grill_编辑方案}`
+- `quality-fuzzy` 模式 → 注入 `{grill_检测焦点}`
 
 **追问风格**：逐个提问，每问附推荐答案（基于类型常识和项目已有背景），用户确认或修正后记录结论再进下一问题，走完所有分支为止。
 

@@ -234,7 +234,7 @@ def main() -> None:
     elif args.command == "deactivate":
         deactivate_style(Path(args.project_root))
     elif args.command == "list":
-        list_styles(Path(args.project_root), getattr(args, "include_builtin", False))
+        list_styles(Path(args.project_root), args.include_builtin)
     elif args.command == "builtin":
         builtin_handler(args)
 

@@ -39,9 +39,9 @@ tags: ["novel", "worldbuilding", "setting"]
 - `references/worldview_examples.md` — 世界观工作流示例
 - `assets/worldview.yaml` — 世界观模板
 
-## 写后处理
+## 写后处理（chain: `entity-base`）
 
-输出写入后执行以下脚本：
+输出写入后编排层自动执行以下脚本：
 
 ```bash
 # 1. YAML 格式修正

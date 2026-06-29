@@ -11,7 +11,9 @@ tags: ["novel", "quality"]
 
 ## 核心职责
 
-按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析、风格一致性检查、读者体验评估共 7 路检测。如需修正，由编排层调度 novel-chapter-editor 执行文笔优化或内容修改。
+按编排 Agent 传入的 CONTEXT 执行质量检测任务。覆盖 AI 味道检测、情节逻辑、角色一致性、世界观漏洞、节奏分析、风格一致性检查、读者体验评估共 7 路检测。如需修正，由编排层调度 novel-edit 执行文笔优化或内容修改。
+
+> 全模糊质量检测请求（"看看写得怎么样"）通过 `skill("novel-grill", mode=quality-fuzzy)` 收集用户关注焦点，注入 `{grill_检测焦点}` 变量（见 `.opencode/references/cross-skill-contracts.md`）。
 
 
 ## 上下文契约
@@ -58,7 +60,7 @@ tags: ["novel", "quality"]
 ### 处理流程
 问题识别（8类特征全文扫描） → 问题分类（高中低优先级） → 输出检测报告（含修正建议）
 
-**注意**：仅提供修正建议，不直接修改原文。文笔优化由 novel-chapter-editor 技能处理。风格一致性由编排层 §6.3 条件追加第 6 路检测。
+**注意**：仅提供修正建议，不直接修改原文。文笔优化由 novel-edit 技能处理。风格一致性由编排层 §6.3 条件追加第 6 路检测。
 
 ## 情节逻辑检测
 
@@ -172,7 +174,7 @@ tags: ["novel", "quality"]
 ### 反馈的作用
 - 用户在阅读章节后粘贴真实读者反馈到 `.omo/notepads/novel-feedback.md`
 - novel-writer 在修订/重写章节时，读取 novel-feedback.md 中与该章相关的反馈
-- 反馈作为修订 prompt 的 CONTEXT 注入，指导 novel-chapter-editor 精准修正
+- 反馈作为修订 prompt 的 CONTEXT 注入，指导 novel-edit 精准修正
 
 ### feedback 格式
 ```markdown
@@ -221,7 +223,7 @@ tags: ["novel", "quality"]
    8. 问题整合 → 完整质量报告（YAML，含问题清单/优先级/修复建议）
     输出：quality/第{N}章_综合质量报告.yaml
    ↓
-9. 修复执行 → 调度 novel-chapter-editor 执行文笔优化或内容修改
+9. 修复执行 → 调度 novel-edit 执行文笔优化或内容修改
    ↓
  10. 完成质量报告
 ```

@@ -43,9 +43,9 @@ tags: ["novel", "plot", "thread"]
 | `outline/角色出场规划.yaml`（可选） | `assets/character_appearance_plan.yaml` | `write` |
 | `outline/情节线/主索引.yaml`（可选） | `assets/plot_index.yaml` | `write` |
 
-## 写后处理
+## 写后处理（chain: `entity-plot`）
 
-输出写入后执行以下脚本：
+输出写入后编排层自动执行以下脚本：
 
 ```bash
 # 1. YAML 格式修正
@@ -57,7 +57,7 @@ python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
 # 3. 项目索引重建
 python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
 
-# 4. 情节线进度重建（编排层独有）
+# 4. 情节线进度重建
 python .opencode/shared/rebuild_plot_progress.py --project-root {PROJECT_PATH}
 
 # 5. 阶段切换（P5→P6 情节→分卷）

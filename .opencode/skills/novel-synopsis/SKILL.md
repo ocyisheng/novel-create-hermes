@@ -60,9 +60,9 @@ tags: ["novel", "synopsis", "outline", "narrative"]
 | P4 | `outline/时间线设计.yaml` | `assets/timeline_plan.yaml` | `write` / `edit` |
 | P4.5 | `outline/叙事策略.yaml` | `assets/narrative_strategy.yaml` | `write` |
 
-## 写后处理
+## 写后处理（chain: `entity-base`）
 
-输出写入后执行以下脚本：
+输出写入后编排层自动执行以下脚本：
 
 ```bash
 # 1. YAML 格式修正

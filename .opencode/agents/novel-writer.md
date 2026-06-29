@@ -348,10 +348,10 @@ python .opencode/shared/extract_template.py \
 | novel-plot (P5) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `rebuild_plot_progress.py` ⑤ `config_manager.py set 当前阶段 P5→P6` |
 | novel-outline (P6) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P6→P7` |
 | novel-outline (P7) | Task() 返回后 | ① `fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `config_manager.py set 当前阶段 P7→P8` |
-| novel-chapter (P8) | Task() 返回后 | ① `chapter_tracking.py` ② `config_manager.py set 创作进度.当前章节 {N}` ③ `config_manager.py set 最后编辑 "{now}"` |
+| novel-chapter (P8) | Task() 返回后 | ① `chapter_tracking.py` ② `config_manager.py set 创作进度.当前章节 {N}` ③ `config_manager.py set 最后编辑 "{now}"` ④ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "write: 第{N}章" --stage P8` |
 | novel-quality (P9) | Task() 返回后 | ① `config_manager.py set 当前阶段 "已完成"`（或对应阶段）|
-| novel-ideation (P1) | Task() 返回后 | ①（如有新实体）`fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` |
-| novel-edit (P12/P13) | Task() 返回后 | ① `apply_changes.py` ②（YAML 编辑则）`fix_yaml_indent.py` ③ `validate_entity_format.py` ④ `validate_entity_consistency.py` ⑤ `rebuild_project_index.py` ⑥（可选）`cascade_impact.py` ⑦ `update_intent_log.py` |
+| novel-ideation (P1) | Task() 返回后 | ①（如有新实体）`fix_yaml_indent.py` ② `validate_entity_format.py` ③ `rebuild_project_index.py` ④ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "ideation: {实体名}" --stage P1` |
+| novel-edit (P12/P13) | Task() 返回后 | ① `apply_changes.py` ②（YAML 编辑则）`fix_yaml_indent.py` ③ `validate_entity_format.py` ④ `validate_entity_consistency.py` ⑤ `rebuild_project_index.py` ⑥（可选）`cascade_impact.py` ⑦ `update_intent_log.py` ⑧ `python .opencode/shared/git_vault.py commit --project-root {PROJECT_PATH} -m "edit: {编辑目标}" --stage system` |
 
 **编排层通用责任**：
 1. 按上表顺序依次执行脚本，任一失败则记 `novel-issues.md` 并继续下一项

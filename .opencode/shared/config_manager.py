@@ -169,6 +169,16 @@ def main():
         _set_nested(data, args.field, args.value)
         save_config(project_root, data)
         print(f"已更新 {args.field}: {old} → {args.value}")
+        # git 自动提交
+        try:
+            from git_vault import GitVault
+            old_str = str(old) if old is not None else "无"
+            new_str = str(args.value)
+            GitVault.commit(project_root, f"{args.field}: {old_str} → {new_str}", stage="config")
+        except ImportError:
+            pass
+        except Exception:
+            pass
     else:
         parser.print_help()
         sys.exit(1)

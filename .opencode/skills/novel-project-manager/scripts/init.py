@@ -445,6 +445,20 @@ chapters: {{}}
             issues_save = project_dir / "issues.md"
             issues_save.write_text(issues_path.read_text(encoding="utf-8"), encoding="utf-8")
 
+    def _init_git_vault(self):
+        """初始化 git 仓库并做首次提交。"""
+        try:
+            from git_vault import GitVault
+            result = GitVault.init_project(self.project_path)
+            for line in result.get("lines", []):
+                print(f"  {line}")
+            if result.get("error"):
+                print(f"  ⚠ {result['error']}", file=sys.stderr)
+        except ImportError:
+            print("  ⚠ git_vault 不可用（不影响项目创建）")
+        except Exception as e:
+            print(f"  ⚠ git init 异常（不影响项目创建）: {e}")
+
     def _init_notepad_files(self):
         """从模板初始化 .omo/notepads/ 下的三个运行时文件。"""
         script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -487,6 +501,7 @@ chapters: {{}}
         self.create_index_file()
         self._index_initial_entities()
         self._init_notepad_files()
+        self._init_git_vault()
 
         print(f"📁 创建项目: {self.project_name}")
         print("-" * 40)
@@ -1778,6 +1793,25 @@ class ProjectDeleter:
             if response != 'y':
                 print("❌ 已取消删除")
                 return False
+
+        # 删除前：git 快照（非阻塞）
+        try:
+            from git_vault import GitVault
+            result = GitVault.commit(
+                self.project_path,
+                f"删除项目: {self.project_name}",
+                stage="system"
+            )
+            if result["saved"] and result["hash"]:
+                print(f"  📝 已保存最终快照: {result['hash']}")
+            elif result["saved"] and not result["hash"]:
+                print(f"  📦 变更已缓存")
+            if result.get("error"):
+                print(f"  ⚠ {result['error']}", file=sys.stderr)
+        except ImportError:
+            pass  # git_vault 不存在时静默跳过
+        except Exception as e:
+            print(f"  ⚠ 删除前快照异常（不影响删除）: {e}", file=sys.stderr)
 
         shutil.rmtree(self.project_path)
         print(f"✅ 项目 '{self.project_name}' 已删除")

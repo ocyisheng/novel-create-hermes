@@ -254,6 +254,16 @@ def rebuild_index(project_root: Path, dry_run: bool = False) -> dict:
         for w in all_warnings:
             print(w)
 
+    # git 自动提交（非 dry-run 时）
+    if not dry_run:
+        try:
+            from git_vault import GitVault
+            GitVault.commit(project_root, "rebuild: project_index", stage="system")
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
     return index_data
 
 

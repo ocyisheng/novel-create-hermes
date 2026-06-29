@@ -173,8 +173,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="rebuild_character_stats.py — 从章节元数据重建角色出场统计",
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录路径")
-    parser.add_argument("--dry-run", action="store_true", help="仅预览，不写入文件")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录路径")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="仅预览，不写入文件")
 
     args = parser.parse_args()
     project_root = Path(args.project_root).resolve()

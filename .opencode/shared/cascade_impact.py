@@ -254,7 +254,7 @@ def scan_foreshadowing_for_entity(
     if not data:
         return hits
 
-    for item in data.get("伏笔规划", []):
+    for item in data.get("伏笔规划") or []:
         if isinstance(item, dict):
             roles = item.get("涉及角色", [])
             if isinstance(roles, list) and entity_name in roles:
@@ -415,14 +415,14 @@ def main():
   python cascade_impact.py --project-root NOVELS_ROOT/项目名 --changed-entity 角色/刘谌 --dry-run
 """,
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录路径")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录路径")
     parser.add_argument("--changed-entity", type=str, default=None,
                         help="变更的实体规格，如 '角色/刘谌' 或 '世界观/力量体系'")
     parser.add_argument("--changed-file", type=str, default=None,
                         help="变更的文件路径（相对于项目根目录），如 'characters/刘谌.yaml'")
     parser.add_argument("--detail", action="store_true", help="输出详细信息（含章节号和详情）")
-    parser.add_argument("--output", type=str, default=None, help="输出文件路径")
-    parser.add_argument("--dry-run", action="store_true", help="仅打印，不写入文件")
+    parser.add_argument("--output", "-o", type=str, default=None, help="输出文件路径")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="仅打印，不写入文件")
 
     args = parser.parse_args()
 

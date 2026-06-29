@@ -1217,15 +1217,15 @@ def main():
     parser.add_argument("file", nargs="?", help="目标文件路径（子命令模式）")
     # 全量模式参数
     parser.add_argument("--staging-dir", help="迁移暂存目录路径（_migration_staging）")
-    parser.add_argument("--project-root", default="", help="目标项目根目录")
+    parser.add_argument("--project-root", "-p", default="", help="目标项目根目录")
     parser.add_argument("--volumes", type=int, default=3, help="卷数（默认 3）")
-    parser.add_argument("--dry-run", action="store_true", help="仅分析，不写文件")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="仅分析，不写文件")
     parser.add_argument("--source-path", default="", help="源项目路径（用于 migration_report）")
     # 子命令参数
-    parser.add_argument("--type", default="", help="实体类型（character/worldbuilding/chapter/plot_thread）")
+    parser.add_argument("--type", "-t", default="", help="实体类型（character/worldbuilding/chapter/plot_thread）")
     parser.add_argument("--name", default="", help="实体名称")
     parser.add_argument("--subtype", default="", help="子类型")
-    parser.add_argument("--chapter", type=int, default=0, help="章节号")
+    parser.add_argument("--chapter", "-c", type=int, default=0, help="章节号")
     parser.add_argument("--out", default="", help="输出路径（convert 子命令）")
 
     args = parser.parse_args()

@@ -92,14 +92,7 @@ def _is_git_available() -> bool:
         return False
 
 
-def _find_project_root(path: Path) -> Optional[Path]:
-    """从给定路径向上查找项目根（包含 config.yaml 的目录）。"""
-    if (path / "config.yaml").is_file():
-        return path.resolve()
-    for parent in path.parents:
-        if (parent / "config.yaml").is_file():
-            return parent.resolve()
-    return None
+from _utils import find_project_root_or_none as _find_project_root
 
 
 # ── Pending commit 缓存 ──────────────────────────────────────────────────────

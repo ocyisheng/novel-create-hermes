@@ -518,8 +518,8 @@ def main():
     parser.add_argument("--recursive", action="store_true", help="递归子目录")
     parser.add_argument("--max-passes", type=int, default=3, help="最大修复轮数（默认 3）")
     parser.add_argument("--check", action="store_true", help="检查模式：仅对比差异 + YAML 校验，不修改文件")
-    parser.add_argument("--project-root", default="", help="小说项目根目录（与 --file 配合使用）")
-    parser.add_argument("--file", default="", help="相对于 --project-root 的文件路径，或绝对路径")
+    parser.add_argument("--project-root", "-p", default="", help="小说项目根目录（与 --file 配合使用）")
+    parser.add_argument("--file", "-f", default="", help="相对于 --project-root 的文件路径，或绝对路径")
 
     args = parser.parse_args()
 

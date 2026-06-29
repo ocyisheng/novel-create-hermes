@@ -272,8 +272,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="rebuild_plot_progress.py — 从分纲+情节线文件重建进度（角色匹配逻辑）",
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录路径")
-    parser.add_argument("--dry-run", action="store_true", help="仅预览，不写入文件")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录路径")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="仅预览，不写入文件")
 
     args = parser.parse_args()
     project_root = Path(args.project_root).resolve()

@@ -113,7 +113,7 @@ def deactivate_style(project_root: Path) -> None:
     _update_style_field(project_root / "config.yaml", "")
 
 
-BUILTIN_DIR = Path(__file__).parent.parent / "builtin"
+BUILTIN_DIR = Path(__file__).resolve().parent.parent / "skills" / "novel-style" / "builtin"
 
 
 def activate_style(project_root: Path, style_name: str) -> None:
@@ -195,30 +195,30 @@ def main() -> None:
     sp = parser.add_subparsers(dest="command")
 
     p = sp.add_parser("register", help="Register a style in styles/index.yaml")
-    p.add_argument("--project-root", required=True)
-    p.add_argument("--name", required=True)
-    p.add_argument("--file", required=True)
+    p.add_argument("--project-root", "-p", required=True)
+    p.add_argument("--name", "-n", required=True)
+    p.add_argument("--file", "-f", required=True)
 
     p = sp.add_parser("validate", help="Validate a style.yaml file")
-    p.add_argument("--file", required=True)
+    p.add_argument("--file", "-f", required=True)
 
     p = sp.add_parser("activate", help="Set 活跃风格 in config.yaml")
-    p.add_argument("--project-root", required=True)
-    p.add_argument("--name", required=True)
+    p.add_argument("--project-root", "-p", required=True)
+    p.add_argument("--name", "-n", required=True)
 
     p = sp.add_parser("deactivate", help="Clear 活跃风格 in config.yaml")
-    p.add_argument("--project-root", required=True)
+    p.add_argument("--project-root", "-p", required=True)
 
     p = sp.add_parser("list", help="List available styles")
-    p.add_argument("--project-root", required=True)
+    p.add_argument("--project-root", "-p", required=True)
     p.add_argument("--include-builtin", action="store_true", help="Include built-in styles")
 
     p = sp.add_parser("builtin", help="Manage built-in styles")
     bp = p.add_subparsers(dest="builtin_action")
     bl = bp.add_parser("list", help="List built-in styles")
     bc = bp.add_parser("copy", help="Copy a built-in style to project")
-    bc.add_argument("--project-root", required=True)
-    bc.add_argument("--name", required=True)
+    bc.add_argument("--project-root", "-p", required=True)
+    bc.add_argument("--name", "-n", required=True)
 
     args = parser.parse_args()
     if not args.command:

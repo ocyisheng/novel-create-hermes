@@ -31,9 +31,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 # 项目技能根目录
-SKILLS_DIR = Path(__file__).parent.parent
-TOOL_ROOT = SKILLS_DIR.parent.parent  # .opencode/
-TEMPLATES_DIR = TOOL_ROOT.parent / ".opencode" / "shared" / "templates"
+_SHARED_DIR = Path(__file__).resolve().parent
+TOOL_ROOT = _SHARED_DIR.parent.parent  # 项目根目录
+TEMPLATES_DIR = _SHARED_DIR / "templates"
 
 
 def find_novels_root() -> Path:
@@ -53,7 +53,7 @@ def find_novels_root() -> Path:
     if (cwd.parent / "novels").is_dir():
         return cwd.parent / "novels"
     # 4. 项目根目录
-    return TOOL_ROOT.parent / "novels"
+    return TOOL_ROOT / "novels"
 
 
 # ===========================================================================
@@ -403,9 +403,9 @@ chapters: {{}}
     def _index_initial_entities(self):
         """项目创建后，调用 rebuild_project_index.py 建立初始索引。"""
         rebuild_script = (
-            Path(__file__).parent.parent.parent.parent
-            / "shared" / "rebuild_project_index.py"
-        ).resolve()
+            Path(__file__).resolve().parent
+            / "rebuild_project_index.py"
+        )
         proj_root = str(self.project_path.resolve())
 
         result = subprocess.run(
@@ -461,7 +461,7 @@ chapters: {{}}
 
     def _init_notepad_files(self):
         """从模板初始化 .omo/notepads/ 下的三个运行时文件。"""
-        script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        script_root = Path(__file__).resolve().parent.parent.parent  # 项目根目录
         template_dir = script_root / ".omo" / "notepads" / "templates"
         notepad_dir = script_root / ".omo" / "notepads"
 
@@ -559,7 +559,7 @@ PHASE_TO_P_TAG = {
 
 def _load_notepad_dir() -> Path:
     """解析 .omo/notepads/ 目录路径（脚本在 .opencode/shared/ 下）。"""
-    script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    script_root = Path(__file__).resolve().parent.parent.parent  # shared/ → .opencode/ → 项目根目录
     return script_root / ".omo" / "notepads"
 
 
@@ -594,7 +594,7 @@ def _run_tool(tool_name: str, project_path: str, timeout: int = 30,
 
     Returns: (returncode, stdout, stderr)
     """
-    script_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    script_root = Path(__file__).resolve().parent.parent.parent  # 项目根目录
     tool_path = script_root / ".opencode" / "shared" / tool_name
     if not tool_path.is_file():
         return (127, "", f"工具不存在: {tool_path}")
@@ -1240,8 +1240,8 @@ class ProjectImporter:
         # 3. 基于文件内容的智能分类、路由与格式转换
         # 调用 classify_import.py 替代旧版硬编码文件名/关键词规则
         classify_script = (
-            Path(__file__).resolve().parent.parent.parent.parent
-            / "shared" / "classify_import.py"
+            Path(__file__).resolve().parent
+            / "classify_import.py"
         )
         classify_ok = False
         try:
@@ -1379,7 +1379,7 @@ class ProjectImporter:
         # 3b. 后处理：YAML 缩进修复 + 一致性校验 + 索引重建
         # 无论走新版 classify_import 还是旧版降级，都执行后处理
         print("\n🔧 后处理中...")
-        shared_dir = Path(__file__).resolve().parent.parent.parent.parent / "shared"
+        shared_dir = Path(__file__).resolve().parent  # .opencode/shared/
         pp_dirs = ["characters", "worldbuilding", "outline/分纲"]
         for pp_dir in pp_dirs:
             target = self.project_path / pp_dir
@@ -1895,7 +1895,7 @@ def main():
                           help="跳过 rebuild_project_index 同步（旧/新项目都不同步）")
     p_switch.add_argument("--no-verify", action="store_true",
                           help="跳过 phase_detect 状态一致性验证")
-    p_switch.add_argument("--dry-run", action="store_true",
+    p_switch.add_argument("--dry-run", "-n", action="store_true",
                           help="仅打印计划，不修改任何文件")
 
     # delete

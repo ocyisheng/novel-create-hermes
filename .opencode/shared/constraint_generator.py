@@ -86,7 +86,7 @@ def main():
     )
     parser.add_argument("--count", type=int, default=3, help="生成组合数 (默认 3)")
     parser.add_argument("--genre", type=str, help="小说类型 (玄幻/科幻/都市/悬疑/历史)")
-    parser.add_argument("--file", type=str, help="约束库 YAML 文件路径")
+    parser.add_argument("--file", "-f", type=str, help="约束库 YAML 文件路径")
     args = parser.parse_args()
 
     constraints = load_constraints_from_file(args.file)

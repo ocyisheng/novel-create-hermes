@@ -29,6 +29,7 @@ try:
 except ImportError:
     print("Error: PyYAML is required (pip install pyyaml)", file=sys.stderr)
     sys.exit(1)
+from _utils import get_nested
 
 
 # ── Constants ──────────────────────────────────────────────────────────────
@@ -67,12 +68,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--project-root",
+        "--project-root", "-p",
         required=True,
         help="项目根目录路径 (如 NOVELS_ROOT/星辰)",
     )
     parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         dest="dry_run",
         help="预览模式：只打印变更，不修改任何文件",
@@ -81,19 +82,6 @@ def parse_args() -> argparse.Namespace:
 
 
 # ── Tree Traversal Helpers ─────────────────────────────────────────────────
-
-
-def get_nested(data: dict, dot_path: str):
-    """Traverse a dict by dot-separated keys and return the value or None."""
-    keys = dot_path.split(".")
-    current = data
-    for key in keys:
-        if not isinstance(current, dict):
-            return None
-        if key not in current:
-            return None
-        current = current[key]
-    return current
 
 
 def set_nested(data: dict, dot_path: str, value) -> None:

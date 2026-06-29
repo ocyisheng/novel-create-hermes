@@ -36,14 +36,7 @@ except ImportError:
     sys.exit(1)
 
 
-def _find_project_root(path: Path) -> Path | None:
-    """从给定路径向上查找项目根。"""
-    if (path / "config.yaml").is_file():
-        return path.resolve()
-    for parent in path.parents:
-        if (parent / "config.yaml").is_file():
-            return parent.resolve()
-    return None
+from _utils import find_project_root_or_none as _find_project_root
 
 
 def cmd_list_deleted(project_root: Path, args) -> int:
@@ -230,7 +223,7 @@ def _build_parser():
 
     # restore
     p_rs = subparsers.add_parser("restore", help="恢复文件")
-    p_rs.add_argument("--file", required=True, help="相对于项目根的文件路径")
+    p_rs.add_argument("--file", "-f", required=True, help="相对于项目根的文件路径")
     p_rs.add_argument("--revision", default=None, help="git revision（默认自动查找）")
 
     # status

@@ -18,6 +18,16 @@ except ImportError:
 
 # ── 项目路径 ─────────────────────────────────────────────────────────────────
 
+def find_project_root_or_none(start: Path) -> Path | None:
+    """向上查找包含 config.yaml 的项目根目录，找不到返回 None。"""
+    if (start / "config.yaml").exists():
+        return start.resolve()
+    for parent in start.parents:
+        if (parent / "config.yaml").exists():
+            return parent.resolve()
+    return None
+
+
 def find_project_root(start: Path) -> Path:
     """向上查找包含 config.yaml 的项目根目录。"""
     if (start / "config.yaml").exists():
@@ -65,15 +75,19 @@ def load_yaml_safe(path: Path) -> dict | None:
 
 # ── 字典工具 ─────────────────────────────────────────────────────────────────
 
-def get_nested(data: dict, dot_path: str):
-    """按点号路径访问嵌套字典。如 get_nested(data, "a.b.c") 相当于 data["a"]["b"]["c"]。"""
+def get_nested(data: dict, dot_path: str, default=None):
+    """按点号路径访问嵌套字典。
+
+    如 get_nested(data, "a.b.c") 相当于 data["a"]["b"]["c"]。
+    找不到时返回 default（默认 None）。
+    """
     keys = dot_path.split(".")
     current = data
     for key in keys:
         if not isinstance(current, dict):
-            return None
+            return default
         current = current.get(key)
-    return current
+    return current if current is not None else default
 
 
 # ── 时间戳 ───────────────────────────────────────────────────────────────────

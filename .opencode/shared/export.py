@@ -206,7 +206,7 @@ def export(project_root: Path, formats: list[str], author: str | None = None):
 
 def main():
     parser = argparse.ArgumentParser(description="小说导出脚本")
-    parser.add_argument("--project-root", required=True, type=str, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, type=str, help="项目根目录")
     parser.add_argument("--format", "-f", type=str, nargs="+", default=["html"],
         choices=["html", "txt", "xhtml", "epub", "pdf", "docx"],
         help="导出格式（可多选）。epub/pdf/docx 输出 XHTML 中间格式")

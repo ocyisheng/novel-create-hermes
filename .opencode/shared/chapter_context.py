@@ -25,21 +25,7 @@ except ImportError:
     print("错误: 需要 PyYAML，请运行 novel-env-setup 安装依赖", file=sys.stderr)
     sys.exit(1)
 
-from _utils import load_yaml
-
-
-# ── 字典工具 ─────────────────────────────────────────────────────────────────
-
-
-def get_nested(data: dict, dot_path: str):
-    """按点号路径访问嵌套字典。"""
-    keys = dot_path.split(".")
-    current = data
-    for key in keys:
-        if not isinstance(current, dict):
-            return None
-        current = current.get(key)
-    return current
+from _utils import load_yaml, get_nested
 
 
 # ── 分纲查找 ─────────────────────────────────────────────────────────────────

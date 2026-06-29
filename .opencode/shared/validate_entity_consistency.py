@@ -99,7 +99,7 @@ def main():
   python validate_entity_consistency.py --project-root novels/穿越三国成刘谌
         """,
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()

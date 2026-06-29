@@ -67,15 +67,7 @@ SCOPE_CONFIG = {
 
 # ── 文件扫描 ──────────────────────────────────────────────────────────────
 
-def find_project_root(start: Path) -> Path | None:
-    """向上查找包含 config.yaml 的项目根目录。"""
-    current = start.resolve()
-    if (current / "config.yaml").exists():
-        return current
-    for parent in current.parents:
-        if (parent / "config.yaml").exists():
-            return parent
-    return None
+from _utils import find_project_root_or_none as find_project_root
 
 
 def scan_files(project_root: Path, scope: str) -> list[Path]:
@@ -265,7 +257,7 @@ def main():
   python search_content.py --project-root novels/测试仙途 --keyword "筑基" --max-results 20
         """,
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     parser.add_argument("--keyword", required=True, help="搜索关键词")
     parser.add_argument(
         "--scope",
@@ -276,7 +268,7 @@ def main():
     parser.add_argument("--context-lines", type=int, default=3, help="上下文行数（默认 3）")
     parser.add_argument("--max-results", type=int, default=50, help="最大结果数（默认 50）")
     parser.add_argument("--case-sensitive", action="store_true", help="区分大小写")
-    parser.add_argument("--output", help="输出文件路径（默认 stdout）")
+    parser.add_argument("--output", "-o", help="输出文件路径（默认 stdout）")
     args = parser.parse_args()
 
     # Resolve project root

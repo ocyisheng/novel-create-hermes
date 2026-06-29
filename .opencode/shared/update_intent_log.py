@@ -122,7 +122,7 @@ def _extract_modified_paths(change_set: dict) -> list:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="意图日志持久化")
-    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     parser.add_argument("--entity-path", required=True, help="实体文件相对路径，如 characters/韩鸣.yaml")
     parser.add_argument("--user-request", required=True, help="用户的原始修改请求")
     parser.add_argument("--change-set", required=True, help="变更集 JSON（支持 @file.json 语法）")

@@ -18,30 +18,15 @@ generate_plot_index.py — 从情节线文件自动生成主索引
 """
 
 import argparse
-import sys
 from datetime import datetime
 from pathlib import Path
 
-# _utils.py 位于同目录
-sys.path.insert(0, str(Path(__file__).parent))
-from _utils import load_yaml, save_yaml
+from _utils import load_yaml, save_yaml, get_nested
 
 
 # ═══════════════════════════════════════════════════════════════
 # 数据提取
 # ═══════════════════════════════════════════════════════════════
-
-def _get_nested(data: dict, path: str, default=None):
-    """按点号路径读取嵌套字段。"""
-    keys = path.split(".")
-    for k in keys:
-        if isinstance(data, dict):
-            data = data.get(k)
-        else:
-            return default
-        if data is None:
-            return default
-    return data
 
 
 def _extract_catalog(plot_dir: Path) -> dict:
@@ -53,7 +38,7 @@ def _extract_catalog(plot_dir: Path) -> dict:
     for f in subplot_files:
         data = load_yaml(f)
         if data:
-            eid = _get_nested(data, "索引信息.实体ID", "")
+            eid = get_nested(data, "索引信息.实体ID", "")
             catalog["支线"].append({"文件": f.name, "实体ID": eid})
     return catalog
 
@@ -70,11 +55,11 @@ def _extract_speed_view(plot_dir: Path, total_chapters: int) -> dict:
         if not data:
             continue
 
-        name = _get_nested(data, "索引信息.名称", f.stem)
-        ptype = _get_nested(data, "完整档案.类型", "")
-        start_ch = _get_nested(data, "索引信息.起始章节", 0)
-        conflict = _get_nested(data, "完整档案.冲突核心", "")
-        chars = _get_nested(data, "完整档案.角色参与.涉及角色", [])
+        name = get_nested(data, "索引信息.名称", f.stem)
+        ptype = get_nested(data, "完整档案.类型", "")
+        start_ch = get_nested(data, "索引信息.起始章节", 0)
+        conflict = get_nested(data, "完整档案.冲突核心", "")
+        chars = get_nested(data, "完整档案.角色参与.涉及角色", [])
         if not isinstance(chars, list):
             chars = []
 
@@ -114,8 +99,8 @@ def _detect_interweaving(plot_dir: Path, window: int = 2) -> list[dict]:
         data = load_yaml(f)
         if not data:
             continue
-        name = _get_nested(data, "索引信息.名称", f.stem)
-        key_events = _get_nested(data, "完整档案.关键事件", [])
+        name = get_nested(data, "索引信息.名称", f.stem)
+        key_events = get_nested(data, "完整档案.关键事件", [])
         if not isinstance(key_events, list):
             continue
         for evt in key_events:
@@ -283,7 +268,7 @@ def _smart_merge(old_index: dict, catalog: dict, speed_view: dict,
 
 def main():
     parser = argparse.ArgumentParser(description="从情节线文件生成主索引")
-    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     parser.add_argument("--refresh", action="store_true", help="刷新模式：只更新自动字段")
     parser.add_argument("--detect-only", action="store_true", help="仅检测交汇点，不写文件")
     parser.add_argument("--window", type=int, default=2, help="交汇检测窗口大小（默认 2）")

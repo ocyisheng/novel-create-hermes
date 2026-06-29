@@ -189,9 +189,9 @@ def parse_args():
   echo '{"changes":...}' | python apply_changes.py --file characters/韩鸣.yaml
         """,
     )
-    parser.add_argument("--file", required=True, help="目标 YAML 文件路径")
+    parser.add_argument("--file", "-f", required=True, help="目标 YAML 文件路径")
     parser.add_argument("--changes", help="变更集 JSON（支持 @file.json 语法从文件读取）")
-    parser.add_argument("--dry-run", action="store_true", help="只显示变更结果，不写文件")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="只显示变更结果，不写文件")
     parser.add_argument("--no-backup", action="store_true", help="不创建 .bak 备份")
     return parser.parse_args()
 

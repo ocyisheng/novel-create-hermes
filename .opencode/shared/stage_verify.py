@@ -104,8 +104,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="stage_verify.py — 单文件结构验证",
     )
-    parser.add_argument("--file", required=True, help="文件路径")
-    parser.add_argument("--type", default="", help="期望的实体类型，如 character / chapter / worldbuilding")
+    parser.add_argument("--file", "-f", required=True, help="文件路径")
+    parser.add_argument("--type", "-t", default="", help="期望的实体类型，如 character / chapter / worldbuilding")
     args = parser.parse_args()
 
     file_path = Path(args.file).resolve()

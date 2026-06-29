@@ -216,7 +216,7 @@ def format_audit_report(items: list[dict]) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="从文件证据推导当前创作阶段，输出多维审计报告")
-    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     parser.add_argument("--audit-only", action="store_true",
                         help="只输出工作项审计，跳过阶段推导摘要")
     args = parser.parse_args()

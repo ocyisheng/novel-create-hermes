@@ -86,9 +86,9 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(description="章节写后元数据维护")
-    parser.add_argument("--chapter", type=str, default=None,
+    parser.add_argument("--chapter", "-c", type=str, default=None,
                         help="章节文件路径。省略时自动扫描 .metas/ 目录。")
-    parser.add_argument("--project-root", type=str, required=True, help="项目根目录")
+    parser.add_argument("--project-root", "-p", type=str, required=True, help="项目根目录")
     parser.add_argument("--foreshadowing", type=str, nargs="*", help="新增伏笔")
     parser.add_argument("--resolve-foreshadowing", type=str, nargs="*", help="已回收伏笔（模糊匹配）")
     parser.add_argument("--events", type=str, nargs="*", help="新增事件。格式：'描述' 或 '描述|故事时间'")
@@ -111,7 +111,7 @@ def main():
                         help="重建所有追踪文件")
     parser.add_argument("--rebuild-index", action="store_true",
                         help="重建项目索引 project_index.yaml（从实体 YAML 全量扫描）")
-    parser.add_argument("--dry-run", action="store_true",
+    parser.add_argument("--dry-run", "-n", action="store_true",
                         help="仅预览，不写入文件（仅重建模式）")
     args = parser.parse_args()
 

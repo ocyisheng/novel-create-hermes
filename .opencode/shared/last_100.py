@@ -39,8 +39,8 @@ def main():
   提取章节末尾 100 字（去除换行符），用于下一章的前章衔接。
   --chapter 支持相对路径（相对于 --project-root）或绝对路径。"""
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录")
-    parser.add_argument("--chapter", required=True, help="章节文件路径（相对于 --project-root，如 chapters/第10章.txt）")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
+    parser.add_argument("--chapter", "-c", required=True, help="章节文件路径（相对于 --project-root，如 chapters/第10章.txt）")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()

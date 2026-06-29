@@ -39,8 +39,8 @@ def main():
   统计指定章节文件的字数（不含换行符）。
   --chapter 支持相对路径（相对于 --project-root）或绝对路径。"""
     )
-    parser.add_argument("--project-root", required=True, help="项目根目录")
-    parser.add_argument("--chapter", required=True, help="章节文件路径（相对于 --project-root，如 chapters/第1章.txt）")
+    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
+    parser.add_argument("--chapter", "-c", required=True, help="章节文件路径（相对于 --project-root，如 chapters/第1章.txt）")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()

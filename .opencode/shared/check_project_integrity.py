@@ -7,7 +7,7 @@ check_project_integrity.py — 小说项目完整性检查器
 
 用法:
   python check_project_integrity.py                           # 扫描所有项目
-  python check_project_integrity.py --project 空山闻仙        # 只检查指定项目
+  python check_project_integrity.py --project-root 空山闻仙   # 只检查指定项目
   python check_project_integrity.py --fix                      # 尝试修复发现的问题
 """
 
@@ -140,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="小说项目完整性检查器"
     )
-    parser.add_argument("--project", "-p", help="仅检查指定项目名")
+    parser.add_argument("--project-root", "--project", "-p", help="仅检查指定项目名")
     parser.add_argument("--fix", action="store_true", help="尝试自动修复发现的问题")
     parser.add_argument("--verbose", "-v", action="store_true", help="详细输出")
     args = parser.parse_args()
@@ -156,10 +156,10 @@ def main():
         sys.exit(0)
 
     # 如果指定了项目名，只检查匹配的项目
-    if args.project:
-        matched = [p for p in projects if p.name == args.project]
+    if args.project_root:
+        matched = [p for p in projects if p.name == args.project_root]
         if not matched:
-            print(f"错误: 未找到项目 '{args.project}'", file=sys.stderr)
+            print(f"错误: 未找到项目 '{args.project_root}'", file=sys.stderr)
             sys.exit(1)
         projects = matched
 

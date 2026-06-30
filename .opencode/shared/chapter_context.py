@@ -68,6 +68,75 @@ def load_previous_summary(project_root: Path, chapter_num: int) -> str:
     return ""
 
 
+# ── 附近章分纲 ───────────────────────────────────────────────────────────────
+
+def load_nearby_outlines(project_root: Path, chapter_num: int, range_n: int = 5) -> str:
+    """读取当前章 ±N 章的上下文章节信息，提供就近情节点参考。
+
+    数据来源：
+      - 第 N-1 章（前章）：优先用 outline/追踪/章节摘要.yaml 写后记录（更准确）
+      - 其他章节：outline/分纲/卷*/ 下分纲 Layer 2 摘要（写前规划）
+    跳过不存在的分纲（尚未创建的章节自动忽略）和当前章自身。
+    """
+    parts = []
+    start = max(1, chapter_num - range_n)
+    end = chapter_num + range_n
+
+    for n in range(start, end + 1):
+        if n == chapter_num:
+            continue
+
+        # 第 N-1 章：使用追踪摘要（写后记录），比规划更准确
+        if n == chapter_num - 1:
+            prev_summary = load_previous_summary(project_root, chapter_num)
+            if prev_summary and prev_summary not in ("（第一章，无前章摘要）", ""):
+                line = f"  ◀ 第{n}章（前章·写后记录）: {prev_summary}"
+                parts.append(line)
+                continue
+
+        # 其他附近章节：走分纲 Layer 2 摘要
+        fpath = find_chapter_outline(project_root, n)
+        if not fpath:
+            continue
+        data = load_yaml(fpath)
+        if not data:
+            continue
+        summary = data.get("摘要", {})
+        if not summary:
+            continue
+
+        one_line = summary.get("一句话描述", "")
+        if not one_line:
+            continue
+
+        plot_points = summary.get("核心情节点", [])
+        characters = summary.get("出场角色", [])
+        story_time = summary.get("故事时间", "")
+        is_crisis = summary.get("关键转折", False)
+
+        label = f"第{n}章"
+        if is_crisis:
+            label += " ★关键转折"
+        line = f"  {label}: {one_line}"
+        if story_time:
+            line += f" [{story_time}]"
+        if plot_points:
+            points = plot_points[:3]
+            line += f" | {' → '.join(points)}"
+        if characters:
+            chars = characters[:5]
+            line += f"  出场: {', '.join(chars)}"
+        parts.append(line)
+
+    if not parts:
+        return "（无附近章节数据）"
+
+    prev_count = chapter_num - start if chapter_num - start > 0 else 0
+    next_count = end - chapter_num
+    header = f"── 前{prev_count}章 → 后{next_count}章 ──"
+    return f"{header}\n" + "\n".join(parts)
+
+
 # ── 前一章衔接 ───────────────────────────────────────────────────────────────
 
 def load_previous_linkage(project_root: Path, chapter_num: int) -> str:
@@ -711,8 +780,8 @@ def collect_context(project_root: Path, chapter_num: int) -> dict:
     else:
         context["本章分纲内容"] = f"错误：未找到第{chapter_num}章分纲"
 
-    # 2. 前章摘要
-    context["前章摘要"] = load_previous_summary(project_root, chapter_num)
+    # 2. 附近章分纲（含前章追踪摘要）
+    context["附近章分纲"] = load_nearby_outlines(project_root, chapter_num)
 
     # 3. 前一章衔接
     context["前一章衔接"] = load_previous_linkage(project_root, chapter_num)
@@ -812,7 +881,7 @@ def main():
     # --list-vars 模式
     if args.list_vars:
         vars = [
-            "本章分纲内容", "前章摘要", "前一章衔接",
+            "本章分纲内容", "附近章分纲", "前一章衔接",
             "出场角色档案", "世界观相关实体", "伏笔状态",
             "时间线规划", "支线状态", "已知问题", "活跃风格",
             "叙事策略", "场域规划", "张力曲线", "对话规划",

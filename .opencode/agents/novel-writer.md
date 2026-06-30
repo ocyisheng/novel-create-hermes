@@ -223,7 +223,7 @@ python .opencode/shared/extract_template.py --skill novel-outline --list-vars   
 python .opencode/shared/extract_template.py --skill novel-synopsis --var 项目名 "..."  # 填充
 ```
 
-> 以下变量中，grill 输出的 `{grill_*}` 变量名定义见 `.opencode/references/cross-skill-contracts.md`，修改变量名须同步更新该文档及所有引用方。
+> 以下变量中，grill 输出的 `{grill_*}` 变量由 grill 按模式注入编排层，编排层转发至下游 task() prompt。
 
 ### 通用阶段变量
 
@@ -268,9 +268,11 @@ python .opencode/shared/chapter_context.py \
 python .opencode/shared/extract_template.py \
     --skill novel-chapter \
     --var 项目名 "{项目名}" --var 章节号 "{章节号}" \
-    --var 本章分纲内容 - --var 前章摘要 - --var 前一章衔接 - \
+    --var 本章分纲内容 - --var 前一章衔接 - \
     --var 出场角色档案 - --var 世界观相关实体 - --var 伏笔状态 - \
     --var 支线状态 - --var 已知问题 - --var 活跃风格 - --var 叙事策略 - \
+    --var 时间线规划 - --var 出场节奏 - --var 场域规划 - --var 张力曲线 - --var 对话规划 - \
+    --var 附近章分纲 - \
     < /tmp/context.json
 ```
 
@@ -279,12 +281,13 @@ python .opencode/shared/extract_template.py \
 | `{项目名}` | config.yaml |
 | `{章节号}` | 目标章节号 |
 | `{本章分纲内容}` | chapter_context.py |
-| `{前章摘要}` | chapter_context.py |
 | `{前一章衔接}` | chapter_context.py（含 last_100.py + 分纲.下章铺垫） |
 | `{出场角色档案}` | chapter_context.py |
+| `{出场节奏}` | chapter_context.py（从情节线 `完整档案.角色参与.出场节奏` 聚合） |
 | `{世界观相关实体}` | chapter_context.py |
 | `{伏笔状态}` | chapter_context.py |
-| `{时间线上下文}` | chapter_context.py（筛选本章 ±5 章） |
+| `{附近章分纲}` | chapter_context.py（第 N-1 章取追踪摘要，其余取分纲 Layer 2） |
+| `{时间线规划}` | chapter_context.py（从 outline/时间线设计.yaml 加载全局年表） |
 | `{支线状态}` | chapter_context.py |
 | `{叙事策略}` | chapter_context.py（读取 outline/叙事策略.yaml） |
 | `{本章交汇状态}` | chapter_context.py（如主索引存在） |

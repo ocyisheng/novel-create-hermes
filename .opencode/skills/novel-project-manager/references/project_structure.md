@@ -30,7 +30,6 @@
 │   │   ├── 主线.yaml        # 主线情节
 │   │   └── 支线_*.yaml      # 支线情节（多条）
 │   ├── 伏笔规划.yaml        # ★ 规划：全局伏笔设计总表，跨情节线管理（P5 新增）
-│   ├── 角色出场规划.yaml    # ☆ 规划（可选）：角色出场预期分布（P5 可选新增）
 │   ├── 分纲/                # 分章节大纲（P7 生成，按卷拆分目录）
 │   │   ├── 卷1/             # 卷1 的分纲文件
 │   │   │   ├── 第1章.yaml
@@ -90,7 +89,7 @@
 | `outline/时间线设计.yaml` | ★ 全局时间线设计（P4）：按时代分组的结构化世界年表 | `novel-outline`（P4 新增） |
 | `outline/情节线/` | 主线/支线实体（plot_thread） | `novel-outline`（P5） |
 | `outline/伏笔规划.yaml` | ★ 全局伏笔设计总表（P5）：跨情节线的完整伏笔规划 | `novel-outline`（P5 新增） |
-| `outline/角色出场规划.yaml` | ☆ 可选：角色出场预期分布（P5） | `novel-outline`（P5 可选创建） |
+
 | `outline/分卷/卷N_*.yaml` | 单卷大纲：核心冲突、叙事任务、微弧、POV、角色发展（P6） | `init.py`（骨架）+ `novel-outline`（P6 填充） |
 | `outline/追踪/伏笔.yaml` | 记录：实际埋设/回收记录（扁平追加） | `chapter_tracking.py` |
 | `outline/追踪/时间线.yaml` | 记录：实际事件日志（扁平追加） | `chapter_tracking.py` |

@@ -360,6 +360,80 @@ def load_plot_threads(project_root: Path, chapter_num: int) -> str:
     return "\n".join(parts) if parts else ""
 
 
+# ── 出场节奏 ─────────────────────────────────────────────────────────────────
+
+def load_appearance_rhythm(project_root: Path, chapter_num: int) -> str:
+    """从所有情节线的 角色参与.出场节奏 聚合出场管理信息。
+
+    返回当前章节的出场提醒：哪些角色应该出现、哪些不应出现。
+    """
+    index_path = project_root / "project_index.yaml"
+    index = load_yaml(index_path)
+    plot_threads = index.get("plot_threads", {})
+
+    should_appear = []
+    should_not_appear = []
+    all_rhythms = []
+
+    for entity_id, entry in plot_threads.items():
+        file_path = entry.get("file_path")
+        if not file_path:
+            continue
+        thread_path = project_root / file_path
+        if not thread_path.is_file():
+            continue
+
+        data = load_yaml(thread_path)
+        rhythms = get_nested(data, "完整档案.角色参与.出场节奏")
+        if not rhythms:
+            continue
+        all_rhythms.extend(rhythms)
+
+    for rhythm in all_rhythms:
+        char_name = rhythm.get("角色", "")
+        if not char_name:
+            continue
+
+        first = rhythm.get("首次出场", 0) or 0
+        key_chapters = rhythm.get("关键章节", []) or []
+        blackout = rhythm.get("不活跃区间", []) or []
+        density = rhythm.get("出场密度", "正常")
+
+        # 判断：是否在关键章节中
+        if chapter_num in key_chapters:
+            should_appear.append(f"{char_name}（关键章节）")
+            continue
+
+        # 判断：是否在不活跃区间内
+        in_blackout = False
+        for interval in blackout:
+            if isinstance(interval, str) and "-" in interval:
+                parts = interval.split("-")
+                if len(parts) == 2:
+                    try:
+                        start, end = int(parts[0]), int(parts[1])
+                        if start <= chapter_num <= end:
+                            in_blackout = True
+                            break
+                    except ValueError:
+                        pass
+        if in_blackout:
+            should_not_appear.append(char_name)
+            continue
+
+        # 判断：是否在首次出场前
+        if first and chapter_num < first:
+            should_not_appear.append(f"{char_name}（首次出场第{first}章）")
+
+    parts = []
+    if should_appear:
+        parts.append("【本章应出场】" + "、".join(should_appear))
+    if should_not_appear:
+        parts.append("【本章不应出场】" + "、".join(should_not_appear))
+
+    return "\n".join(parts) if parts else ""
+
+
 # ── 已知问题 ─────────────────────────────────────────────────────────────────
 
 def load_known_issues(project_root: Path) -> str:
@@ -658,7 +732,10 @@ def collect_context(project_root: Path, chapter_num: int) -> dict:
     # 8. 支线状态
     context["支线状态"] = load_plot_threads(project_root, chapter_num)
 
-    # 8. 已知问题
+    # 8b. 出场节奏（从情节线聚合）
+    context["出场节奏"] = load_appearance_rhythm(project_root, chapter_num)
+
+    # 8c. 已知问题
     context["已知问题"] = load_known_issues(project_root)
 
     # 9. 活跃风格

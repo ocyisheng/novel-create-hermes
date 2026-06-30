@@ -1,6 +1,6 @@
 ---
 name: "novel-plot"
-description: "情节构建：设计主线与支线情节、伏笔规划、角色出场规划。触发词：情节、主线、支线、故事线、伏笔"
+description: "情节构建：设计主线与支线情节、伏笔规划。触发词：情节、主线、支线、故事线、伏笔"
 license: "MIT"
 version: "1.0.0"
 compatibility: "OpenCode"
@@ -30,7 +30,6 @@ tags: ["novel", "plot", "thread"]
 输出：
 - `outline/情节线/主线.yaml` + `outline/情节线/支线_{名称}.yaml`，参见 `assets/plot_thread.yaml` 模板
 - `outline/伏笔规划.yaml`，参见 `assets/foreshadowing_plan.yaml` 模板
-- `outline/角色出场规划.yaml`（可选），参见 `assets/character_appearance_plan.yaml` 模板
 - `outline/情节线/主索引.yaml`（可选），参见 `assets/plot_index.yaml` 模板
 
 ## 输出文件一览
@@ -40,7 +39,6 @@ tags: ["novel", "plot", "thread"]
 | `outline/情节线/主线.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
 | `outline/情节线/支线_{名称}.yaml` | `assets/plot_thread.yaml` | `write` / `edit` |
 | `outline/伏笔规划.yaml` | `assets/foreshadowing_plan.yaml` | `write` |
-| `outline/角色出场规划.yaml`（可选） | `assets/character_appearance_plan.yaml` | `write` |
 | `outline/情节线/主索引.yaml`（可选） | `assets/plot_index.yaml` | `write` |
 
 ## 写后处理（chain: `entity-plot`）
@@ -72,7 +70,6 @@ python .opencode/shared/config_manager.py set 当前阶段 "分卷大纲生成" 
 - `references/foreshadowing.md` — 伏笔设计参考
 - `assets/plot_thread.yaml` — 情节线模板
 - `assets/foreshadowing_plan.yaml` — 伏笔规划模板
-- `assets/character_appearance_plan.yaml` — 角色出场规划模板
 - `assets/plot_index.yaml` — 主索引模板
 
 ## HARD CONSTRAINTS

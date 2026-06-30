@@ -335,7 +335,7 @@ styles: []
                 shutil.copy2(tpl_file, plot_dir / tpl_file.name)
 
         # ── 写前规划文件：从模板复制 ──
-        for plan_file in ["角色出场规划.yaml", "伏笔规划.yaml", "时间线设计.yaml", "叙事策略.yaml"]:
+        for plan_file in ["伏笔规划.yaml", "时间线设计.yaml", "叙事策略.yaml"]:
             shutil.copy2(TEMPLATES_DIR / "outline" / plan_file, ol_path / plan_file)
 
         # ── 追踪/：从模板目录复制 ──
@@ -520,7 +520,7 @@ chapters: {{}}
         for wb in ["基本信息", "核心规则", "力量体系", "势力格局", "地理位置", "历史", "文化", "经济体系", "政治制度", "社会阶层"]:
             print(f"  ✓ worldbuilding/{wb}.yaml")
         print("  ✓ outline/追踪/角色统计.yaml")
-        print("  ✓ outline/角色出场规划.yaml")
+        # 角色出场规划已废弃，迁移至情节线.角色参与.出场节奏
         print("  ✓ outline/伏笔规划.yaml")
         print("  ✓ outline/时间线设计.yaml")
         print("  ✓ outline/叙事策略.yaml")

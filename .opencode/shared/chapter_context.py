@@ -286,7 +286,8 @@ def load_foreshadowing(project_root: Path, chapter_num: int) -> str:
     # 1. 加载追踪数据，建立描述→状态的查询表
     track_data = load_yaml(track_path)
     if track_data:
-        for item in track_data.get("伏笔", []):
+        foreshadowing_list = track_data.get("伏笔") or []
+        for item in foreshadowing_list:
             desc = item.get("描述", "")
             if desc:
                 track_lookup[desc] = item
@@ -331,8 +332,9 @@ def load_foreshadowing(project_root: Path, chapter_num: int) -> str:
 
     # 3. 从追踪文件筛选当前待处理的活跃伏笔
     if track_data:
+        foreshadowing_list = track_data.get("伏笔") or []
         active_items = []
-        for item in track_data.get("伏笔", []):
+        for item in foreshadowing_list:
             status = item.get("状态", "")
             if status in ("待回收", "进行中", "需回收"):
                 active_items.append(item)

@@ -48,3 +48,12 @@ oh-my-openagent/
 tests/
 .coverage
 pyproject.toml
+.opencode/skills/novel-grill/result-card.html
+.opencode/skills/novel-grill/result-card.png
+novel-synopsis-result-card.png
+.opencode/skills/novel-synopsis/test-prompts.json
+ideation/创意简报.yaml
+ideation/评估报告.yaml
+ideation/需求分析.yaml
+ideation/约束集.yaml
+ideation/最终创意方案.yaml

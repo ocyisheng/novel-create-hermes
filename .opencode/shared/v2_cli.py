@@ -69,6 +69,24 @@ def cmd_add_relation(args):
         print("关系建立失败")
 
 
+def cmd_create_unit(args):
+    from graph_schema import UnitType
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+    tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
+    u = s.create_unit(
+        type=UnitType[args.type.upper()],
+        unit_name=args.name,
+        content=args.content,
+        tags=tags,
+        belongs_to_chapter=int(args.chapter) if args.chapter else None,
+        actor=args.actor,
+    )
+    s.flush()
+    print(f"创建成功: {u.id}")
+
+
 def cmd_flush(args):
     from graph_store import GraphStore
     s = GraphStore(args.path)
@@ -143,6 +161,15 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--name", required=True)
 
+    p = sub.add_parser("create-unit", help="创建新叙事单元")
+    p.add_argument("--path", required=True)
+    p.add_argument("--type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
+    p.add_argument("--name", required=True)
+    p.add_argument("--content", required=True)
+    p.add_argument("--tags", default="", help="逗号分隔的标签列表")
+    p.add_argument("--chapter", default="", help="所属章节号")
+    p.add_argument("--actor", default="script")
+
     p = sub.add_parser("get-unit", help="获取叙事单元详情")
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
@@ -194,6 +221,7 @@ def main():
 
     dispatch = {
         "find-unit": cmd_find_unit,
+        "create-unit": cmd_create_unit,
         "get-unit": cmd_get_unit,
         "get-neighbors": cmd_get_neighbors,
         "add-relation": cmd_add_relation,

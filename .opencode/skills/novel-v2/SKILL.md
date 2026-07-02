@@ -73,19 +73,7 @@ python .opencode/shared/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
 ### 2. 写入 graph 数据
 
 ```bash
-# 创建新叙事单元（使用 Python API，参数复杂）
-python -c "
-import sys; sys.path.insert(0, '.opencode/shared/v2')
-from graph_schema import UnitType
-from graph_store import GraphStore
-s = GraphStore('{PROJECT_PATH}'); s.initialize()
-u = s.create_unit(type=UnitType.SCENE, unit_name='{单元名}',
-    content='{内容}', tags=[{标签}],
-    belongs_to_chapter={章节号}, actor='{actor}')
-s.flush()
-print(f'创建成功: {u.id}')
-"
-
+python .opencode/shared/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
 ```
 

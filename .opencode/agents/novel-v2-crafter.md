@@ -101,8 +101,7 @@ python .opencode/shared/v2_cli.py create-unit --path {PROJECT_PATH} --type CHUNK
 python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {场景ID} --target {CHUNK_ID} --type implements
 
 # 3. 写入 TXT 文件（保持兼容）
-# 用 bash 直接写文件（不需要 Python）
-# Set-Content -Path "{PROJECT_PATH}/chapters/第3章.txt" -Value "正文内容..."
+# 用 write 工具直接写文件：chapters/第3章.txt
 ```
 
 ### 5.4 持久化

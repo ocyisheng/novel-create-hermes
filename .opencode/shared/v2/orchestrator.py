@@ -15,12 +15,19 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+import json
+from typing import Dict, List, Optional, Any, Tuple
+
 from graph_schema import (
-    UnitType, UnitStatus, RelationType, GraphStore,
+    UnitType, UnitStatus, RelationType,
 )
 from graph_store import GraphStore as GraphStoreImpl
 from session import SessionManager, SessionPhase, CycleType, SessionAction
 from workspace import WorkspaceBuilder, Workspace
+from query import (
+    QueryHandlerRegistry, QueryRequest, QueryResult,
+    parse_query, extract_all_queries, strip_queries, QueryType,
+)
 
 
 class UserIntent(str, Enum):
@@ -63,7 +70,7 @@ class V2Orchestrator:
     V2 编排器。
     
     将用户输入 → 叙事单元网络中的焦点 → 工作空间 → 写作会话 串联起来。
-    不直接调用 task()/skill()，而是产出决策供上层执行。
+    支持子 Agent 在写作过程中通过 QUERY 指令请求更多上下文。
     """
 
     def __init__(self, project_root: str):
@@ -75,6 +82,10 @@ class V2Orchestrator:
         self.sessions.load_user_state()
         
         self.workspace = WorkspaceBuilder(self.store)
+        
+        # 查询层
+        self.query_registry = QueryHandlerRegistry(self.store, str(project_root))
+        self._query_history: List[Dict[str, Any]] = []
 
     # ── 用户输入解析 ────────────────────────────────────────────────────
 
@@ -354,3 +365,127 @@ class V2Orchestrator:
             UnitType.CHUNK: f"片段_{timestamp}",
         }
         return names.get(unit_type, f"单元_{timestamp}")
+
+    # ── 查询层（QUERY 协议） ─────────────────────────────────────────────
+
+    def process_subagent_response(self, response_text: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """
+        处理子 Agent 的返回文本。
+        
+        1. 提取所有 QUERY 指令
+        2. 逐个执行查询
+        3. 将查询结果追加到 session 上下文
+        4. 返回 (剥离了QUERY的正文, 查询记录)
+        """
+        queries = extract_all_queries(response_text)
+        clean_text = strip_queries(response_text)
+        query_records = []
+        
+        for query in queries:
+            result = self.query_registry.handle(query)
+            query_record = {
+                "query": query.raw_text,
+                "query_type": query.query_type.value,
+                "params": query.params,
+                "success": result.success,
+                "summary": result.summary,
+                "source_ids": result.source_ids,
+            }
+            
+            if result.success:
+                # 将结果注入到 session 上下文
+                prompt_block = query.to_prompt_block(result)
+                if self.sessions.active_session:
+                    ctx_key = f"query_{query.query_type.value}_{len(self._query_history)}"
+                    self.sessions.active_session.session_context[ctx_key] = {
+                        "type": query.query_type.value,
+                        "query": query.raw_text,
+                        "result": prompt_block,
+                        "summary": result.summary,
+                    }
+                    query_record["injected"] = True
+                else:
+                    query_record["injected"] = False
+            else:
+                query_record["error"] = result.error
+            
+            self._query_history.append(query_record)
+            query_records.append(query_record)
+        
+        if query_records:
+            self.store.flush()
+        
+        return clean_text, query_records
+
+    def get_session_query_context(self) -> str:
+        """获取当前 session 中累积的查询结果上下文"""
+        if not self.sessions.active_session:
+            return ""
+        
+        lines = []
+        for key, ctx in self.sessions.active_session.session_context.items():
+            if key.startswith("query_"):
+                lines.append(ctx.get("result", ""))
+        
+        return "\n".join(lines)
+
+    def get_query_stats(self) -> Dict[str, Any]:
+        """查询统计"""
+        type_counts = {}
+        success_count = 0
+        fail_count = 0
+        for record in self._query_history:
+            qt = record["query_type"]
+            type_counts[qt] = type_counts.get(qt, 0) + 1
+            if record.get("success"):
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        return {
+            "total_queries": len(self._query_history),
+            "by_type": type_counts,
+            "success": success_count,
+            "failed": fail_count,
+        }
+
+    def get_query_prompt_block(self, preheat_level: str = "warm") -> str:
+        """
+        生成注入到子 Agent prompt 中的 QUERY 服务说明。
+        
+        告知子 Agent 可以查询哪些类型的信息。
+        """
+        lines = []
+        lines.append("### 上下文查询服务")
+        lines.append("")
+        lines.append("写作过程中如果缺少信息，可以在回复中包含 QUERY 指令，")
+        lines.append("编排层会自动执行查询并将结果追加到上下文。")
+        lines.append("")
+        
+        if self.sessions.active_session and self.sessions.active_session.session_context:
+            ctx = self.sessions.active_session.session_context
+            query_results = {k: v for k, v in ctx.items() if k.startswith("query_")}
+            if query_results:
+                lines.append("已加载的查询结果:")
+                for k, v in query_results.items():
+                    lines.append(f"  - {v.get('summary', '')}")
+                lines.append("")
+        
+        lines.append("支持的查询类型:")
+        lines.append('  - QUERY: character_background(name="林渊")        ← 角色完整背景')
+        lines.append('  - QUERY: scene_detail(scene_id="sc_0015")       ← 场景细节')
+        lines.append('  - QUERY: scene_detail(name="后山对决")           ← 按名称查场景')
+        lines.append('  - QUERY: world_rule(name="灵气淬体")             ← 世界观规则')
+        lines.append('  - QUERY: plot_thread_summary(name="主线")       ← 情节线摘要')
+        lines.append('  - QUERY: plot_thread_summary()                   ← 所有情节线列表')
+        lines.append('  - QUERY: foreshadowing_status(id="F001")        ← 伏笔状态')
+        lines.append('  - QUERY: foreshadowing_status()                  ← 伏笔列表')
+        lines.append('  - QUERY: style_check(text="待检查的文字")        ← 风格快速检查')
+        lines.append('  - QUERY: advanced_search(keywords=["剑","灵气"], limit=5)  ← 搜索')
+        lines.append('  - QUERY: recent_context(chapter=5, limit=3)     ← 最近场景')
+        lines.append('  - QUERY: chapter_status(number=3)                ← 章节状态')
+        lines.append('  - QUERY: chapter_status()                        ← 全局概况')
+        lines.append("")
+        lines.append(f"已在该 session 中成功执行 {len(self._query_history)} 次查询。")
+        
+        return "\n".join(lines)

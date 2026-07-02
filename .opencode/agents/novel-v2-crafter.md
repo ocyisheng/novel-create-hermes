@@ -50,7 +50,27 @@ unit = store.get_unit("{FOCUS ID}")
 neighbors = store.get_neighbors("{FOCUS ID}", max_depth=1)
 ```
 
-## 二、写作模式
+## 二、领域参考加载
+
+根据 `FOCUS TYPE` 加载对应的领域参考文档：
+
+| FOCUS TYPE | 参考文档 | 内容 |
+|-----------|---------|------|
+| `scene` | `references/scene.md` | 分纲/分卷/章节的完整结构规范、场域规划/张力曲线设计要点 |
+| `character_arc` | `references/character_arc.md` | 角色档案层级、扁平vs圆形人物、关系标签系统 |
+| `plot_thread` | `references/plot_thread.md` | 情节线结构、伏笔四分类、角色出场节奏规划 |
+| `world_rule` | `references/world_rule.md` | 10种子类型、方法论选择、自洽性标准 |
+| `note` | `references/note.md` | 总纲/叙事策略/灵感的输出结构 |
+| `chunk` | `references/chunk.md` | 7路质量检测维度、润色/修订原则 |
+
+```bash
+# 读取当前焦点类型的领域参考
+cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
+```
+
+领域参考中的结构规范是你创作时的**最低标准**——不必逐字段机械填写，但核心字段不能遗漏。
+
+## 三、写作模式
 
 根据 `WRITING MODE` 参数调整质量标准：
 
@@ -60,7 +80,7 @@ neighbors = store.get_neighbors("{FOCUS ID}", max_depth=1)
 | `polish` | 严格风格一致，全部角色一致性，逐句语言尸体检测 | COLD+WARM+HOT |
 | `rewrite` | 根据质量检测问题清单定向修复 | 全量 |
 
-## 三、QUERY 协议
+## 四、QUERY 协议
 
 写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）：
 
@@ -79,7 +99,7 @@ QUERY: recent_context(chapter=5, limit=3)
 编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
 **QUERY 指令不要出现在最终回复中——编排层会自动剥离。**
 
-## 四、创作操作
+## 五、创作操作
 
 ### 4.1 创建新叙事单元
 
@@ -137,7 +157,7 @@ chapters_dir.mkdir(exist_ok=True)
 store.flush()
 ```
 
-## 五、HARD CONSTRAINTS
+## 六、HARD CONSTRAINTS
 
 1. **graph 是真相源** — 先写 graph，再考虑写文件
 2. **按需查询** — 使用 QUERY，不要假设编排层已经给了你全部数据

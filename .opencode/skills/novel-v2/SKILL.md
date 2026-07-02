@@ -17,9 +17,22 @@ tags: ["novel", "v2", "graph"]
 
 ---
 
-## 上下文契约
+## 领域参考（按焦点类型）
 
-V2 写作不再通过 chapter_context.py 全量推送上下文。改为通过 **WorkspaceBuilder** 按焦点按需加载，子 Agent 写作过程中可通过 **QUERY 协议**自主请求更多信息。
+子 Agent 根据 `FOCUS TYPE` 加载对应的领域参考文档，了解该类型创作任务的专业知识：
+
+| 焦点类型 | 领域参考 | 适用任务 |
+|---------|---------|---------|
+| `scene` | `references/scene.md` | 章节写作、分卷大纲、分纲/章节大纲 |
+| `character_arc` | `references/character_arc.md` | 创建/编辑角色 |
+| `plot_thread` | `references/plot_thread.md` | 情节/伏笔设计 |
+| `world_rule` | `references/world_rule.md` | 世界观建设 |
+| `note` | `references/note.md` | 总纲/叙事策略/灵感记录 |
+| `chunk` | `references/chunk.md` | 质量检测/润色/修订 |
+
+每个参考文档包含：输出结构规范、设计原则、质量标准、创作方法论。
+
+## 上下文契约
 
 ### 焦点启动（编排层负责）
 

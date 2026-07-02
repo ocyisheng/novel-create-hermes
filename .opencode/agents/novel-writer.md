@@ -97,8 +97,7 @@ TASK: {用户请求的具体描述}"
 ```
 
 ```bash
-# 查找焦点 ID
-python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; s=GraphStore('{PROJECT_PATH}'); s.initialize(); u=s.get_unit_by_name('{名称}'); print(u.id if u else 'NOT_FOUND')"
+python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
 ```
 
 ### 写后处理
@@ -108,7 +107,7 @@ V2 的写后处理比旧 Px 体系简单得多——graph 自身保证了数据�
 ```bash
 # 1. graph 已由子 Agent 内部 flush
 # 2. 如需与文件系统同步，重建投影
-python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; from projection_engine import ProjectionEngine; s=GraphStore('{PROJECT_PATH}'); s.initialize(); ProjectionEngine(s,'{PROJECT_PATH}').rebuild_all(); print('投影已重建')"
+python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
 # 3. 更新 novel-context.md 时间戳
 ```
 
@@ -119,14 +118,9 @@ python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_stor
 ### 查询 Graph 状态
 
 ```bash
-# 全局统计
-python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; s=GraphStore('{PROJECT_PATH}'); s.initialize(); [print(f'{k}: {v}') for k,v in s.stats().items()]"
-
-# 按类型列出叙事单元
-python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_schema import UnitType; from graph_store import GraphStore; s=GraphStore('{PROJECT_PATH}'); s.initialize(); [print(f'{u.unit_name} [{u.status.value}]') for u in s.find_units(type=UnitType.SCENE)]"
-
-# 事件溯源（最近操作）
-python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; s=GraphStore('{PROJECT_PATH}'); s.initialize(); [print(f'[{e.timestamp:%H:%M}] {e.actor}: {e.event_type.value}') for e in s._events[-5:]]"
+python .opencode/shared/v2_cli.py stats --path {PROJECT_PATH}
+python .opencode/shared/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
+python .opencode/shared/v2_cli.py recent-events --path {PROJECT_PATH}
 ```
 
 ### 迁移旧项目到 V2

@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/status-稳定-22c55e?style=flat-square" alt="Status">
   <img src="https://img.shields.io/badge/小说项目-可移植-3b82f6?style=flat-square" alt="Portable">
-  <img src="https://img.shields.io/badge/技能包-17个-8b5cf6?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/架构-V2_叙事单元网络-8b5cf6?style=flat-square" alt="Architecture">
   <img src="https://img.shields.io/badge/导出格式-5种-ec4899?style=flat-square" alt="Export Formats">
   <img src="https://img.shields.io/badge/内置风格-20+-f59e0b?style=flat-square" alt="Styles">
   <img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License">
@@ -42,7 +42,7 @@ Hermes 把这个过程变成了对话——你说"新建项目'龙渊'，类型�
 | **✏️ 编辑修改** | 润色章节、调整角色、修改设定 | `把主角改得更果断一些` |
 | **📤 格式导出** | EPUB / PDF / HTML / TXT / DOCX | `导出为EPUB` |
 
-> 所有步骤**可以任意跳序**。不需要先做创意再做世界观、先写大纲再写章节。想到哪写到哪，AI 会自动判断上下文。
+> V2 基于**叙事单元网络**——没有固定的写作顺序。想到什么写什么，系统自动通过 graph 维护数据一致性。
 
 ---
 
@@ -52,21 +52,15 @@ Hermes 把这个过程变成了对话——你说"新建项目'龙渊'，类型�
 你说"新建项目'龙渊'"
       │
       ▼
-Hermes 自动完成：
-  用 项目管理 技能  →  创建目录结构 + config.yaml
-  用 创意构思 技能  →  发散脑洞、收敛方向（可选）
-  用 世界观建设 技能  →  力量体系 / 势力格局 / 地理历史
-  用 角色创建 技能  →  主角 / 配角 / 反派档案
-  用 总纲撰写 技能  →  故事框架 + 叙事策略
-  用 情节构建 技能  →  主线 / 支线 / 伏笔规划
-  用 分纲构建 技能  →  分卷大纲 → 逐章分纲
-  用 章节写作 技能  →  完整章节正文（衔接前文）
-  用 质量检测 技能  →  AI味 / 逻辑 / 一致性检查
-  用 编辑 技能  →  润色修订
-  用 导出 技能  →  EPUB / PDF / HTML / TXT
+Hermes V2 自动完成：
+  项目管理  →  创建目录结构 + config.yaml
+  V2 迁移  →  初始化 graph 存储
+  创作焦点映射  →  根据你的意图确定叙事单元类型
+  graph 读写  →  数据一致性由事件溯源保障
+  投影  →  文件系统视图自动从 graph 生成
 ```
 
-背后的 **17 个专业写作技能包** + **编排层智能调度**，让每一步都自动衔接。你只管说想做什么，剩下的交给系统。
+背后是**叙事单元网络** + **按需上下文加载** + **QUERY 协议**，让每一步都自然衔接。你只管说想做什么，剩下的交给系统。
 
 ---
 
@@ -94,14 +88,25 @@ opencode
 
 按 Tab 键切换到 **Novel-writer** Agent。
 
-### 4. 开始创作
+### 4. 创建项目并迁移到 V2
 
 ```
 你： 新建项目"龙渊" 类型：玄幻
-AI： ✅ 项目创建完成！接下来想做什么？
+AI： ✅ 项目创建完成！
+
+你： 把项目迁移到 V2
+AI： ✅ 迁移完成，已导入到叙事单元网络
 ```
 
-这样就开始了。接下来 AI 会引导你完成后续步骤，你直接说就行。
+### 5. 开始创作
+
+```
+你： 创建主角林渊，性格隐忍，剑修
+你： 写第1章
+你： 检测AI味
+```
+
+这样就开始了。你说想法，它干活。
 
 ---
 
@@ -209,26 +214,22 @@ GPT 是对话窗口，每次都要手动粘贴上下文；Hermes 是**结构化�
 
 ## 🏗️ 项目架构（给开发者）
 
-这个工具的核心是 **编排层 + 17 个技能包** 的 skill 架构：
+V2 基于**叙事单元网络**，取代了传统的 P1-P15 线性阶段和离散 YAML 文件体系。
 
 ```
-novel-writer.md（编排层）→ 理解你的意图，调度对应的技能包
-        │
-        ├── novel-ideation      创意构思
-        ├── novel-worldbuilding  世界观建设
-        ├── novel-character      角色创建
-        ├── novel-synopsis       总纲撰写
-        ├── novel-plot           情节构建
-        ├── novel-outline        分卷与分纲
-        ├── novel-chapter        章节写作
-        ├── novel-quality        质量检测
-        ├── novel-edit           编辑修改
-        ├── novel-style          风格管理
-        ├── novel-export         格式导出
-        └── ... 还有 6 个支撑技能
+novel-writer.md（编排层）→ 意图识别 + 焦点映射
+        │ task(subagent_type="novel-v2-crafter")
+        ▼
+novel-v2-crafter（统一创作引擎）→ 处理全部创作任务
+        │ GraphStore API + QUERY 协议 + WorkspaceBuilder
+        ▼
+shared/v2/（数据层）→ 叙事单元 CRUD + 事件溯源 + 投影
+        │ JSONL 持久化 + 快照
+        ▼
+graph/（存储层）→ nodes.jsonl + edges.jsonl + events.olog
 ```
 
-每个技能是一个独立的 SKILL.md + 配套 Python 脚本，可以单独修改、替换或扩展。详细的架构说明见 [DEVELOPER.md](DEVELOPER.md)，目录结构和技能列表见 [AGENTS.md](AGENTS.md)。
+详细的架构说明见 [DEVELOPER.md](DEVELOPER.md)。
 
 ---
 

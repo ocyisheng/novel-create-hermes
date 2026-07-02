@@ -2,28 +2,16 @@
   "$schema": "https://opencode.ai/config.json",
   "agent": {
     "novel-writer": {
-      "description": "AI 小说创作助手，覆盖创意构思、写作执行、质量把控全流程",
+      "description": "AI 小说创作助手 V2 — 基于叙事单元网络的纯 V2 架构",
       "mode": "primary",
       "prompt": ".opencode/agents/novel-writer.md",
       "skills": [
+        "novel-v2",
         "novel-project-manager",
         "novel-env-setup",
-        "novel-ideation",
-        "novel-style",
-        "novel-worldbuilding",
-        "novel-character",
-        "novel-synopsis",
-        "novel-plot",
-        "novel-outline",
-        "novel-chapter",
-        "novel-quality",
-        "novel-grill",
-        "novel-edit",
-        "novel-export",
-        "novel-search-analysis",
         "book-knowledge",
         "book-to-knowledge",
-        "novel-v2"
+        "novel-search-analysis"
       ],
       "tools": {
         "task": true,
@@ -36,41 +24,11 @@
         "write": true
       }
     },
-    "novel-crafter": {
-      "description": "小说内容创作子引擎，用于世界观、角色、总纲、情节、分纲、章节写作和导出",
-      "mode": "subagent",
-      "model": "deepseek/deepseek-v4-flash",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "read": "allow",
-        "write": "allow"
-      }
-    },
-    "novel-reviewer": {
-      "description": "小说质量检测子引擎，用于AI味检测、情节逻辑检测、角色一致性检查",
-      "mode": "subagent",
-      "model": "opencode/deepseek-v4-flash-free",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "read": "allow"
-      }
-    },
-    "novel-ideator": {
-      "description": "小说创意构思子引擎，用于脑洞发散、风格提取",
-      "mode": "subagent",
-      "model": "opencode/big-pickle",
-      "permission": {
-        "edit": "deny",
-        "bash": "allow",
-        "read": "allow"
-      }
-    },
     "novel-v2-crafter": {
-      "description": "小说内容创作子引擎 V2 版，基于叙事单元网络(graph)。用于 V2 已迁移项目中的世界观、角色、总纲、情节、分纲、章节写作等全部创作任务",
+      "description": "V2 统一创作子引擎。基于叙事单元网络(graph)处理全部创作任务：章节写作、角色管理、世界观建设、情节设计、总纲大纲、质量检测、编辑修订",
       "mode": "subagent",
       "model": "deepseek/deepseek-v4-flash",
+      "prompt": ".opencode/agents/novel-v2-crafter.md",
       "permission": {
         "edit": "allow",
         "bash": "allow",

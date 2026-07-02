@@ -102,7 +102,7 @@ python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名�
 
 ### 写后处理
 
-V2 的写后处理比旧 Px 体系简单得多——graph 自身保证了数据一致性：
+graph 自身保证了数据一致性，写后只需：
 
 ```bash
 # 1. graph 已由子 Agent 内部 flush
@@ -111,7 +111,7 @@ python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
 # 3. 更新 novel-context.md 时间戳
 ```
 
-投影重建是**可选的**——graph 本身就是完整的。文件投影仅用于与旧体系兼容或人工阅读。
+投影重建是**可选的**——graph 本身就是完整的。文件投影仅用于人工阅读或第三方工具兼容。
 
 ## 四、V2 快速参考
 

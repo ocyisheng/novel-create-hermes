@@ -87,17 +87,12 @@ TASK: {用户请求的具体描述}"
 )
 ```
 
-### 焦点 ID 解析
-
-调度前确定 `FOCUS ID`：
-
-```
-如果目标叙事单元在 graph 中已存在（get_unit_by_name）→ 使用其 ID
-如果不存在 → 在 prompt 中标记 FOCUS ID 为空，让子 Agent 创建
-```
+### 焦点 ID 查找
 
 ```bash
 python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+# 返回 NOT_FOUND → FOCUS ID 留空，子 Agent 创建
+# 返回 ID → 填入 FOCUS ID
 ```
 
 ### 写后处理
@@ -105,10 +100,7 @@ python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名�
 graph 自身保证了数据一致性，写后只需：
 
 ```bash
-# 1. graph 已由子 Agent 内部 flush
-# 2. 如需与文件系统同步，重建投影
 python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
-# 3. 更新 novel-context.md 时间戳
 ```
 
 投影重建是**可选的**——graph 本身就是完整的。文件投影仅用于人工阅读或第三方工具兼容。

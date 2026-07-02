@@ -70,6 +70,8 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ P-1 环境待初始化? → skill("novel-env-setup")
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§3.3）→ 报告阶段
+  ├─ 项目已迁移到 V2（{PROJECT_PATH}/graph/nodes.jsonl 存在）?
+  │   └─ 是 → 走 V2 创作路径（§V2 路由）—— 注意：这替代了下方 P1-P15 全部路由
   ├─ 搜索分析?        → 识别搜索分析意图（搜索/查找/分析/检查一下/找找/查一下/搜一下/核验/对齐/对比设定/看看有没有/哪里不对/整体检测）
   │   ├─ 【P14a】明确关键词搜索（用户说了具体搜索词，如"搜一下天道宗""查查林昭的引用"）
   │   │   → 解析关键词 → skill("novel-search-analysis", user_message="mode=auto, ...")
@@ -389,6 +391,72 @@ python .opencode/shared/extract_template.py \
 ## 七、编辑
 
 编辑通过 `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` 完成，见 `.opencode/skills/novel-edit/SKILL.md`。编辑需求模糊时先走 `skill("novel-grill")` 澄清（见 §三.1 P12/P13）。
+
+## 八、V2 路由
+
+当项目已迁移到 V2（`{PROJECT_PATH}/graph/nodes.jsonl` 存在）时，以下路由替代 §三.1 的 P1-P15 全部路由。
+
+### 判断依据
+
+```
+{PROJECT_PATH}/graph/nodes.jsonl 存在    → 使用 V2 路由（全线替代 Px 路由）
+{PROJECT_PATH}/graph/nodes.jsonl 不存在  → 使用现有 P1-P15 路由（§三.1，不变）
+```
+
+### 路由规则
+
+```
+用户输入（V2 项目）
+  ├─ 快速状态查询 → 读 graph 统计:
+  │   python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; s=GraphStore('{PROJECT_PATH}'); s.initialize(); print(s.stats())"
+  │
+  ├─ 导出意图 → Task(subagent_type="novel-v2-crafter", load_skills=["novel-v2", "novel-export"])
+  │   → prompt 中注入 PROJECT PATH + V2 模式标识
+  │
+  ├─ 搜索/分析意图（搜索/查找/查一下/核验/对齐）→ skill("novel-search-analysis")（与现有一致，V2 不强干涉）
+  │
+  ├─ 知识库操作 → skill("book-to-knowledge") / skill("book-knowledge")（与现有一致）
+  │
+  ├─ 创作动作（写/改/创建/设计/构思等）→ 按焦点映射走 V2：
+  │   ├─ 写章节 → 焦点类型 = scene
+  │   ├─ 创建角色 → 焦点类型 = character_arc
+  │   ├─ 设计情节 → 焦点类型 = plot_thread
+  │   ├─ 世界观设定 → 焦点类型 = world_rule
+  │   ├─ 总纲/大纲 → 焦点类型 = note（标记 总纲）
+  │   ├─ 编辑/修改 → 焦点类型 = 根据目标推断
+  │   ├─ 质量检测 → 焦点类型 = chunk（读取正文）
+  │   └─ 灵感/笔记 → 焦点类型 = note
+  │   │
+  │   └─ 统一调度：
+  │       Task(subagent_type="novel-v2-crafter",
+  │            load_skills=["novel-v2"],
+  │            prompt="CURRENT PROJECT: {项目名}
+  │                    PROJECT PATH: {PROJECT_PATH}
+  │                    FOCUS TYPE: {scene|character_arc|plot_thread|...}
+  │                    FOCUS ID: {单元ID（如空则新建）}
+  │                    FOCUS NAME: {目标名称}
+  │                    PREHEAT LEVEL: warm
+  │                    WRITING MODE: draft
+  │                    TASK: {用户请求的具体描述}")
+  │
+  └─ 不匹配 → 询问用户意图
+
+V2 写后处理（简化，无 Px 阶段切换）：
+  1. graph 数据已由 novel-v2-crafter 内部 persist（store.flush()）
+  2. 投影重建（如需保持文件同步）：
+     python -c "import sys; sys.path.insert(0,'.opencode/shared/v2'); from graph_store import GraphStore; from projection_engine import ProjectionEngine; s=GraphStore('{PROJECT_PATH}'); s.initialize(); p=ProjectionEngine(s,'{PROJECT_PATH}'); p.rebuild_all()"
+  3. 更新 novel-context.md 时间戳
+```
+
+### 与现有 P 阶段的关键差异
+
+| 维度 | 现有 Px 路由 | V2 路由 |
+|------|-------------|---------|
+| **阶段** | P1-P15 线性匹配 | 按焦点类型映射，无阶段概念 |
+| **上下文** | chapter_context.py 全量推送 | WorkspaceBuilder 按焦点按需加载 + QUERY 协议 |
+| **子 Agent** | novel-crafter / novel-reviewer / novel-ideator | novel-v2-crafter（统一子 Agent） |
+| **后处理** | 各 SKILL.md §写后处理 链（YAML格式化/索引重建/阶段切换） | store.flush() + 可选投影重建 |
+| **V2 技能** | 各自独立 SKILL.md | novel-v2（统一技能，通过 focus type 区分操作） |
 
 ## 完成标志
 

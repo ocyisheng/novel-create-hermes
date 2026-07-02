@@ -22,7 +22,8 @@
         "novel-export",
         "novel-search-analysis",
         "book-knowledge",
-        "book-to-knowledge"
+        "book-to-knowledge",
+        "novel-v2"
       ],
       "tools": {
         "task": true,
@@ -64,6 +65,17 @@
         "edit": "deny",
         "bash": "allow",
         "read": "allow"
+      }
+    },
+    "novel-v2-crafter": {
+      "description": "小说内容创作子引擎 V2 版，基于叙事单元网络(graph)。用于 V2 已迁移项目中的世界观、角色、总纲、情节、分纲、章节写作等全部创作任务",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "read": "allow",
+        "write": "allow"
       }
     }
   }

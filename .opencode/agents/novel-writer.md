@@ -32,9 +32,9 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 
 ```
 用户输入
-  ├─ P-1 环境待初始化? → skill("novel-env-setup")
-  ├─ P-2 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
-  ├─ P0 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
+  ├─ 环境待初始化? → skill("novel-env-setup")
+  ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
+  ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
   ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 

@@ -40,7 +40,7 @@ graph/（存储层）→ nodes.jsonl + edges.jsonl + events.olog
 |------|--------|-----|
 | **数据模型** | 三层 YAML（_meta + 索引 + 摘要 + 完整档案） | 叙事单元网络（NarrativeUnit + Relation） |
 | **存储** | 离散YAML + 手动索引重建 | JSONL (graph/) + 事件溯源 |
-| **阶段** | P1-P15 线性状态机 | 创作循环（焦点驱动，无阶段概念） |
+| **阶段** | 线性状态机 | 创作循环（焦点驱动，无阶段概念） |
 | **上下文** | chapter_context.py 全量推送 | WorkspaceBuilder 按焦点按需加载 |
 | **信息获取** | 编排层决定你需要什么 | 子 Agent 通过 QUERY 协议自主请求 |
 | **后处理** | fix_yaml_indent + rebuild_index + set-phase | store.flush() + 可选投影重建 |

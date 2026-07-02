@@ -35,6 +35,7 @@ from graph_schema import (
     create_relation_id,
     create_event_id,
 )
+from schemas import validate_content, default_content
 
 
 class GraphStore:
@@ -229,6 +230,19 @@ class GraphStore:
         actor: str = "script",
     ) -> NarrativeUnit:
         """创建一个新的叙事单元"""
+        # 校验 content 结构（如果是 JSON）
+        try:
+            content_dict = json.loads(content) if isinstance(content, str) and content.startswith("{") else None
+        except json.JSONDecodeError:
+            content_dict = None
+        if content_dict:
+            errors = validate_content(type, content_dict)
+            if errors:
+                self._record_event(
+                    EventType.SYSTEM_EVENT, actor=actor,
+                    payload={"warning": "content schema 校验不通过", "errors": errors},
+                )
+        
         unit = NarrativeUnit(
             id=create_unit_id(type),
             type=type,
@@ -684,3 +698,8 @@ class GraphStore:
             "by_status": dict(status_counts),
             "snapshot_count": len(list(self.snapshots_dir.glob("*.json"))),
         }
+    
+    def get_schema_info(self, unit_type: UnitType) -> List[str]:
+        """返回该类型的 content 字段要求（供注入 LLM prompt）"""
+        from schemas import schema_info
+        return schema_info(unit_type)

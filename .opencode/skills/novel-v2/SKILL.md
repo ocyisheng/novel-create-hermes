@@ -19,18 +19,28 @@ tags: ["novel", "v2", "graph"]
 
 ## 领域参考（按焦点类型）
 
-子 Agent 根据 `FOCUS TYPE` 加载对应的领域参考文档，了解该类型创作任务的专业知识：
+子 Agent 根据 `FOCUS TYPE` 加载对应的创作方法论参考文档：
 
-| 焦点类型 | 领域参考 | 适用任务 |
-|---------|---------|---------|
-| `scene` | `references/scene.md` | 章节写作、分卷大纲、分纲/章节大纲 |
-| `character_arc` | `references/character_arc.md` | 创建/编辑角色 |
-| `plot_thread` | `references/plot_thread.md` | 情节/伏笔设计 |
-| `world_rule` | `references/world_rule.md` | 世界观建设 |
-| `note` | `references/note.md` | 总纲/叙事策略/灵感记录 |
-| `chunk` | `references/chunk.md` | 质量检测/润色/修订 |
+| 焦点类型 | 参考文档 | 应关注什么 |
+|---------|---------|-----------|
+| `scene` | `references/scene.md` | 场域设计、张力曲线、角色自动性、语言尸体 |
+| `character_arc` | `references/character_arc.md` | 扁平vs圆形、自动性空间、关系标签 |
+| `plot_thread` | `references/plot_thread.md` | 伏笔四分类、复调结构、松散度 |
+| `world_rule` | `references/world_rule.md` | 方法论选择、自洽性标准、延迟创建 |
+| `note` | `references/note.md` | 总纲核心决策、叙事策略、灵感记录 |
+| `chunk` | `references/chunk.md` | AI味检测、意志速度检验、主题曲检验 |
 
-每个参考文档包含：输出结构规范、设计原则、质量标准、创作方法论。
+### 脚本 vs 提示词的分工
+
+**脚本（schemas.py + graph_store.py）自动处理：**
+- content JSON 的必填字段校验（字段名、类型、枚举值）
+- 创建/更新时自动检查字段完整性，遗漏时报 warning
+- 结构规范不需要 LLM 记忆——脚本会提示
+
+**提示词（本参考文档）负责：**
+- 创作方法论（哪些设计原则适用、什么情况选什么方案）
+- 质量判断标准（什么是语言尸体、什么是意志速度）
+- 这些需要 LLM 的理解和判断，不适合硬编码
 
 ## 上下文契约
 

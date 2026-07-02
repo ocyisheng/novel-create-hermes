@@ -50,25 +50,17 @@ unit = store.get_unit("{FOCUS ID}")
 neighbors = store.get_neighbors("{FOCUS ID}", max_depth=1)
 ```
 
-## 二、领域参考加载
+## 二、领域参考加载 + 脚本/提示词分工
 
-根据 `FOCUS TYPE` 加载对应的领域参考文档：
-
-| FOCUS TYPE | 参考文档 | 内容 |
-|-----------|---------|------|
-| `scene` | `references/scene.md` | 分纲/分卷/章节的完整结构规范、场域规划/张力曲线设计要点 |
-| `character_arc` | `references/character_arc.md` | 角色档案层级、扁平vs圆形人物、关系标签系统 |
-| `plot_thread` | `references/plot_thread.md` | 情节线结构、伏笔四分类、角色出场节奏规划 |
-| `world_rule` | `references/world_rule.md` | 10种子类型、方法论选择、自洽性标准 |
-| `note` | `references/note.md` | 总纲/叙事策略/灵感的输出结构 |
-| `chunk` | `references/chunk.md` | 7路质量检测维度、润色/修订原则 |
+根据 `FOCUS TYPE` 加载对应的创作方法论参考：
 
 ```bash
-# 读取当前焦点类型的领域参考
 cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 ```
 
-领域参考中的结构规范是你创作时的**最低标准**——不必逐字段机械填写，但核心字段不能遗漏。
+**注意分工：**
+- **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
+- **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。
 
 ## 三、写作模式
 

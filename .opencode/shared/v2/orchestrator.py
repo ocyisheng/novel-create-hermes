@@ -2,7 +2,7 @@
 V2 编排集成层。
 
 展示 SessionManager + WorkspaceBuilder + GraphStore 如何协同工作，
-替代现有 novel-writer.md 的 P1-P15 阶段路由。
+替代传统 P 阶段路由的意图-焦点映射模式。
 
 这个模块不是对 novel-writer.md 的直接替换，
 而是"如果用了 V2 架构，编排逻辑应该长什么样"的示范。
@@ -31,7 +31,7 @@ from query import (
 
 
 class UserIntent(str, Enum):
-    """用户意图分类（取代 P1-P15 关键词匹配）"""
+    """用户意图分类（取代传统阶段关键词匹配）"""
     WRITE_CHAPTER = "write_chapter"
     CREATE_CHARACTER = "create_character"
     DESIGN_WORLD = "design_world"

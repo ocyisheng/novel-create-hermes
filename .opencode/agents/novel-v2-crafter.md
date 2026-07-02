@@ -21,7 +21,11 @@ PREHEAT LEVEL: {cold | warm | hot}
 WRITING MODE: {draft | polish | rewrite}
 ```
 
-### 第一步：初始化 graph 连接（所有操作通过 v2_cli.py，无需手动 init）
+### 第一步：初始化创作会话
+
+```bash
+python .opencode/shared/v2_cli.py start-session --path {PROJECT_PATH} --type {FOCUS TYPE} --id {FOCUS ID}
+```
 
 ### 第二步：获取工作空间上下文
 

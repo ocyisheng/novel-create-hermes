@@ -69,6 +69,19 @@ def cmd_add_relation(args):
         print("关系建立失败")
 
 
+def cmd_start_session(args):
+    from graph_schema import UnitType
+    from session import SessionManager
+    mgr = SessionManager(args.path)
+    mgr.load_user_state()
+    if mgr.active_session:
+        s = mgr.resume_session()
+    else:
+        s = mgr.start_session(focus_type=UnitType[args.type.upper()], focus_unit_id=args.id)
+    mgr.save_user_state()
+    print(f"SESSION={s.id}")
+
+
 def cmd_create_unit(args):
     from graph_schema import UnitType
     from graph_store import GraphStore
@@ -157,6 +170,11 @@ def main():
     parser = argparse.ArgumentParser(description="V2 CLI 工具")
     sub = parser.add_subparsers(dest="command")
 
+    p = sub.add_parser("start-session", help="启动/恢复创作会话")
+    p.add_argument("--path", required=True)
+    p.add_argument("--type", required=True)
+    p.add_argument("--id", required=True)
+
     p = sub.add_parser("find-unit", help="按名称查找叙事单元ID")
     p.add_argument("--path", required=True)
     p.add_argument("--name", required=True)
@@ -220,6 +238,7 @@ def main():
         return
 
     dispatch = {
+        "start-session": cmd_start_session,
         "find-unit": cmd_find_unit,
         "create-unit": cmd_create_unit,
         "get-unit": cmd_get_unit,

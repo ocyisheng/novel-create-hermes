@@ -48,9 +48,16 @@ class ProjectionEngine:
         ProjectionView.TIMELINE: "outline/时间线设计.yaml",
     }
     
-    def __init__(self, store: GraphStore, project_root: str):
+    def __init__(self, store: GraphStore, project_root: str, output_mode: str = "in_place"):
+        """
+        output_mode:
+          "in_place" — 写入原有文件位置（默认）
+          "hybrid"   — 同时写入原位和 projections/ 目录
+        """
         self.store = store
         self.project_root = Path(project_root)
+        self.output_mode = output_mode
+        self.projections_dir = self.project_root / "projections"
         self._projection_cache: Dict[str, str] = {}  # path → content
         
         # 注册投影器
@@ -93,14 +100,22 @@ class ProjectionEngine:
     ) -> str:
         """
         生成投影并写入文件。
-        返回写入的文件路径。
+        output_mode="hybrid" 时同时写入原位和 projections/。
+        返回写入的文件路径（原位）。
         """
         content = self.project(view, params, force_rebuild)
-        file_path = self._resolve_path(view, params or {})
+        file_path = self._resolve_in_place_path(view, params or {})
         
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
+        
+        # hybrid 模式：同时写入 projections/
+        if self.output_mode == "hybrid":
+            proj_path = self._resolve_projection_path(view, params or {})
+            os.makedirs(os.path.dirname(proj_path), exist_ok=True)
+            with open(proj_path, "w", encoding="utf-8") as f:
+                f.write(content)
         
         return file_path
     
@@ -137,27 +152,34 @@ class ProjectionEngine:
         
         return written
     
-    def _resolve_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
-        """将视图 + 参数解析为文件路径"""
+    def _resolve_in_place_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
+        """解析原位文件路径"""
+        path = self._format_path(view, params)
+        return str(self.project_root / path)
+    
+    def _resolve_projection_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
+        """解析 projections/ 目录下的路径"""
+        path = self._format_path(view, params)
+        return str(self.projections_dir / path)
+    
+    def _format_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
+        """根据视图和参数格式化相对路径"""
         template = self.PROJECTION_PATHS[view]
         
-        # 根据视图类型确定参数
         if view == ProjectionView.CHAPTER_OUTLINE:
-            path = template.format(
+            return template.format(
                 volume=params.get("volume", 1),
                 chapter=params.get("chapter", 1),
             )
         elif view in (ProjectionView.CHARACTER, ProjectionView.WORLDBUILDING,
                        ProjectionView.PLOT):
             name = params.get("name", params.get("unit_id", "unknown"))
-            path = template.format(name=name)
+            return template.format(name=name)
         elif view == ProjectionView.TRACKING:
             name = params.get("name", "综合")
-            path = template.format(name=name)
+            return template.format(name=name)
         else:
-            path = template
-        
-        return str(self.project_root / path)
+            return template
     
     # ── 各视图投影器 ────────────────────────────────────────────────────
     

@@ -12,12 +12,12 @@
 
 | 优先级 | 来源 | 文件路径 | 可信度 |
 |--------|------|---------|--------|
-| P0 | grill 需求记录 | `quality/grill/*.yaml`（所有模式） | 最高—用户花了时间回答问题 |
-| P1 | 修改意图日志 | `outline/追踪/intent/*.intent.yaml`（status=confirmed_by_user） | 高—用户确认过的修改 |
-| P2 | 创意方案 | `ideation/最终创意方案.yaml` | 中—AI 整理后用户确认 |
-| P3 | 项目配置 | `config.yaml`（项目类型、活跃风格等） | 中—创建时填写 |
-| P4 | 总纲 | `outline/总纲.yaml` | 中低—AI 生成后用户确认 |
-| P5 | AI 默认推断 | 无显式文件 | 低—从项目类型推测的默认值 |
+| 最高 | grill 需求记录 | `quality/grill/*.yaml`（所有模式） | 最高—用户花了时间回答问题 |
+| 高 | 修改意图日志 | `outline/追踪/intent/*.intent.yaml`（status=confirmed_by_user） | 高—用户确认过的修改 |
+| 较高 | 创意方案 | `ideation/最终创意方案.yaml` | 较高—AI 整理后用户确认 |
+| 中 | 项目配置 | `config.yaml`（项目类型、活跃风格等） | 中—创建时填写 |
+| 较低 | 总纲 | `outline/总纲.yaml` | 较低—AI 生成后用户确认 |
+| 低 | AI 默认推断 | 无显式文件 | 低—从项目类型推测的默认值 |
 
 **评估规则**：高优先级来源的偏好覆盖低优先级来源的默认值。
 

@@ -25,6 +25,68 @@ def cmd_find_unit(args):
     print(u.id if u else "NOT_FOUND")
 
 
+def cmd_get_unit(args):
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+    u = s.get_unit(args.id)
+    if not u:
+        print("NOT_FOUND")
+        return
+    print(f"名称: {u.unit_name}")
+    print(f"类型: {u.type.value}")
+    print(f"状态: {u.status.value}")
+    print(f"确信度: {u.confidence}")
+    print(f"标签: {', '.join(u.tags) if u.tags else '无'}")
+    ch = f"第{u.belongs_to_chapter}章" if u.belongs_to_chapter else "无"
+    print(f"章节: {ch}")
+    if u.content:
+        preview = u.content[:200].replace("\n", " ")
+        print(f"内容: {preview}..." if len(u.content) > 200 else f"内容: {preview}")
+
+
+def cmd_get_neighbors(args):
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+    neighbors = s.get_neighbors(args.id, max_depth=1)
+    for nid in neighbors.get(1, set()):
+        n = s.get_unit(nid)
+        if n:
+            print(f"{n.type.value}: {n.unit_name} ({nid})")
+
+
+def cmd_add_relation(args):
+    from graph_schema import RelationType
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+    rel = s.add_relation(args.source, args.target, RelationType(args.type), actor=args.actor)
+    if rel:
+        s.flush()
+        print(f"关系已建立: {rel.id}")
+    else:
+        print("关系建立失败")
+
+
+def cmd_flush(args):
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+    s.flush()
+    print("graph 已持久化")
+
+
+def cmd_build_workspace(args):
+    from graph_store import GraphStore
+    from workspace import WorkspaceBuilder
+    s = GraphStore(args.path)
+    s.initialize()
+    b = WorkspaceBuilder(s)
+    ws = b.build(args.id, preheat_level=args.level)
+    print(ws.to_prompt_block(args.level))
+
+
 def cmd_rebuild_projections(args):
     from graph_store import GraphStore
     from projection_engine import ProjectionEngine
@@ -81,6 +143,29 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--name", required=True)
 
+    p = sub.add_parser("get-unit", help="获取叙事单元详情")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("get-neighbors", help="查询关联关系")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("add-relation", help="建立关系")
+    p.add_argument("--path", required=True)
+    p.add_argument("--source", required=True)
+    p.add_argument("--target", required=True)
+    p.add_argument("--type", required=True, help="关系类型（participates_in/implements/references 等）")
+    p.add_argument("--actor", default="script")
+
+    p = sub.add_parser("flush", help="持久化 graph 数据")
+    p.add_argument("--path", required=True)
+
+    p = sub.add_parser("build-workspace", help="构建工作空间上下文")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+    p.add_argument("--level", default="warm", choices=["cold", "warm", "hot"])
+
     p = sub.add_parser("rebuild-projections", help="重建投影")
     p.add_argument("--path", required=True)
     p.add_argument("--mode", default="hybrid", choices=["in_place", "hybrid"])
@@ -109,6 +194,11 @@ def main():
 
     dispatch = {
         "find-unit": cmd_find_unit,
+        "get-unit": cmd_get_unit,
+        "get-neighbors": cmd_get_neighbors,
+        "add-relation": cmd_add_relation,
+        "flush": cmd_flush,
+        "build-workspace": cmd_build_workspace,
         "rebuild-projections": cmd_rebuild_projections,
         "stats": cmd_stats,
         "list-units": cmd_list_units,

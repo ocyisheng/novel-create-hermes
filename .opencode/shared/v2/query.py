@@ -173,14 +173,26 @@ class QueryHandlerRegistry:
         self.store = store
         self.project_root = project_root
         self._handlers: Dict[QueryType, QueryHandler] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
         self._register_defaults()
 
     def register(self, query_type: QueryType, handler: QueryHandler):
         """注册自定义处理器"""
         self._handlers[query_type] = handler
 
-    def handle(self, request: QueryRequest) -> QueryResult:
-        """执行查询"""
+    def handle(self, request: QueryRequest, session=None) -> QueryResult:
+        """执行查询（支持 session 级缓存）"""
+        # 生成缓存键
+        import json as _json
+        cache_key = f"{request.query_type.value}:{_json.dumps(request.params, sort_keys=True, ensure_ascii=False)}"
+        
+        # session 缓存命中
+        if session and hasattr(session, '_query_cache') and cache_key in session._query_cache:
+            self._cache_hits += 1
+            return session._query_cache[cache_key]
+        
+        self._cache_misses += 1
         handler = self._handlers.get(request.query_type)
         if not handler:
             return QueryResult(
@@ -188,12 +200,19 @@ class QueryHandlerRegistry:
                 error=f"未注册的查询类型: {request.query_type.value}",
             )
         try:
-            return handler(request, self.store, self.project_root)
+            result = handler(request, self.store, self.project_root)
+            # 写入 session 缓存
+            if session and hasattr(session, '_query_cache'):
+                session._query_cache[cache_key] = result
+            return result
         except Exception as e:
             return QueryResult(
                 success=False,
                 error=f"查询执行失败: {e}",
             )
+
+    def cache_stats(self) -> dict:
+        return {"hits": self._cache_hits, "misses": self._cache_misses}
 
     def _register_defaults(self):
         """注册默认处理器"""

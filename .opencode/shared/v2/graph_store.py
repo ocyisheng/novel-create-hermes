@@ -424,6 +424,7 @@ class GraphStore:
                 "source_id": source_id,
                 "target_id": target_id,
                 "relation_type": relation_type.value,
+                "relations_affected": [rel.id],
             },
         )
         self._dirty_edges = True

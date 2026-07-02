@@ -45,29 +45,80 @@ class Workspace:
     previous_unit: Optional[Dict[str, Any]] = None
     next_unit: Optional[Dict[str, Any]] = None
     
+    # 场景级信息（写章节时的上下文）
+    story_time: str = ""                    # 故事内时间
+    location: str = ""                      # 地点
+    scene_function: str = ""                # 本场景叙事目标
+    tension_targets: Dict[str, int] = field(default_factory=dict)  # 张力目标
+    character_states: List[Dict[str, str]] = field(default_factory=list)  # [{name, status, description}]
+    previous_scene_summary: str = ""        # 前置场景摘要
+    writing_guides: List[str] = field(default_factory=list)  # 写作指引
+    
     # 完整性评分
     completeness_score: float = 1.0
     missing_gaps: List[str] = field(default_factory=list)
     
     def to_prompt_block(self, preheat_level: str = "warm") -> str:
         """
-        将工作空间渲染为 prompt 块。
+        将工作空间渲染为三段式 prompt 块。
         
-        preheat_level: "cold" | "warm" | "hot"
+        段1：当前焦点（场景级信息）
+        段2：你需要知道（上下文 + 目标 + 角色状态）
+        段3：写作指引
+        段4：关联信息（按预热级别）
         """
         lines = []
-        lines.append("## 工作空间")
+        lines.append("### 当前焦点")
+        
+        if self.focus_unit and self.focus_unit.type == UnitType.SCENE:
+            # 场景级信息
+            lines.append(f"你正在写场景：{self.focus_unit.unit_name}")
+            ch = self.focus_unit.belongs_to_chapter or "?"
+            vol = self.focus_unit.belongs_to_volume or "?"
+            lines.append(f"归属：第{ch}章 · 卷{vol}")
+            if self.story_time:
+                lines.append(f"时间：{self.story_time}")
+            if self.location:
+                lines.append(f"地点：{self.location}")
+            if self.character_states:
+                roles = "，".join(
+                    f"{s.get('name','?')}（{s.get('status','?')}）" for s in self.character_states[:5]
+                )
+                lines.append(f"出场角色：{roles}")
+        else:
+            # 非场景焦点
+            lines.append(f"类型：{self.focus_type}")
+            if self.focus_unit:
+                lines.append(f"名称：{self.focus_unit.unit_name}")
         lines.append("")
         
-        if self.focus_unit:
-            lines.append(f"### 当前焦点")
-            lines.append(f"类型: {self.focus_type or self.focus_unit.type.value}")
-            lines.append(f"名称: {self.focus_unit.unit_name}")
-            if self.focus_unit.tags:
-                lines.append(f"标签: {', '.join(self.focus_unit.tags)}")
+        # 段2：你需要知道
+        lines.append("### 你需要知道")
+        idx = 1
+        if self.previous_scene_summary:
+            lines.append(f"{idx}. 【前置】{self.previous_scene_summary}"); idx += 1
+        if self.scene_function:
+            lines.append(f"{idx}. 【功能】{self.scene_function}"); idx += 1
+        if self.tension_targets:
+            parts = " / ".join(f"{k}={v}" for k, v in sorted(self.tension_targets.items()))
+            lines.append(f"{idx}. 【张力】{parts}"); idx += 1
+        for cs in self.character_states:
+            desc = cs.get("description", "")
+            if desc:
+                lines.append(f"{idx}. 【角色】{cs.get('name','?')}：{desc}"); idx += 1
+        if self.missing_gaps:
+            for gap in self.missing_gaps:
+                lines.append(f"{idx}. ⚠️ {gap}"); idx += 1
+        lines.append("")
+        
+        # 段3：写作指引
+        if self.writing_guides:
+            lines.append("### 写作指引")
+            for g in self.writing_guides:
+                lines.append(f"- {g}")
             lines.append("")
         
-        # COLD: 始终显示 1 度邻居
+        # 段4：关联信息（按预热级别）
         if self.immediate_context:
             lines.append("### 直接关联")
             for item in self.immediate_context:
@@ -77,48 +128,27 @@ class Workspace:
                 lines.append(f"- [{unit_type}] {name} ({rel_type})")
             lines.append("")
         
-        # WARM: 类型特定上下文
         if preheat_level in ("warm", "hot"):
             if self.character_arcs:
                 lines.append(f"### 角色 ({len(self.character_arcs)})")
-                for ca in self.character_arcs[:5]:  # 最多 5 个
+                for ca in self.character_arcs[:5]:
                     lines.append(f"- {ca.get('unit_name', '?')}")
                 lines.append("")
-            
             if self.plot_threads:
                 lines.append(f"### 情节线 ({len(self.plot_threads)})")
                 for pt in self.plot_threads[:3]:
                     lines.append(f"- {pt.get('unit_name', '?')}")
                 lines.append("")
-            
             if self.world_rules:
-                lines.append(f"### 世界观规则 ({len(self.world_rules)})")
+                lines.append(f"### 世界观 ({len(self.world_rules)})")
                 for wr in self.world_rules[:3]:
                     lines.append(f"- {wr.get('unit_name', '?')}")
                 lines.append("")
         
-        # HOT: 弱信号 + 前后文
-        if preheat_level == "hot":
-            if self.weak_signals:
-                lines.append("### ⚡ 弱信号（可能需要关注）")
-                for sig in self.weak_signals:
-                    lines.append(f"- {sig.get('description', '')}")
-                lines.append("")
-            
-            if self.previous_unit:
-                lines.append("### 前置")
-                lines.append(f"{self.previous_unit.get('unit_name', '')}")
-                lines.append("")
-            
-            if self.next_unit:
-                lines.append("### 后置")
-                lines.append(f"{self.next_unit.get('unit_name', '')}")
-                lines.append("")
-        
-        if self.missing_gaps:
-            lines.append("### 上下文缺口")
-            for gap in self.missing_gaps:
-                lines.append(f"- ⚠️ {gap}")
+        if preheat_level == "hot" and self.weak_signals:
+            lines.append("### 弱信号")
+            for sig in self.weak_signals:
+                lines.append(f"- {sig.get('description', '')}")
             lines.append("")
         
         return "\n".join(lines)
@@ -221,7 +251,10 @@ class WorkspaceBuilder:
         if config["prev_next"]:
             self._load_prev_next(ws, focus)
         
-        # 5. 完整性评估
+        # 5. 场景级信息提取
+        self._enrich_scene_context(ws, focus)
+        
+        # 6. 完整性评估
         self._assess_completeness(ws)
         
         return ws
@@ -376,3 +409,71 @@ class WorkspaceBuilder:
             ws.completeness_score = 0.7
         else:
             ws.completeness_score = 0.4
+    
+    def _parse_json_content(self, unit: NarrativeUnit) -> dict:
+        """解析叙事单元的 content 为 dict（如是 JSON 格式）"""
+        if not unit or not unit.content:
+            return {}
+        try:
+            return json.loads(unit.content)
+        except (json.JSONDecodeError, ValueError):
+            return {}
+    
+    def _enrich_scene_context(self, ws: Workspace, focus: NarrativeUnit):
+        """提取场景级上下文信息"""
+        if not focus or focus.type != UnitType.SCENE:
+            return
+        
+        content = self._parse_json_content(focus)
+        if not content:
+            return
+        
+        # 提取场景信息
+        ws.story_time = content.get("故事时间", "")
+        
+        locations = content.get("涉及地点", [])
+        if isinstance(locations, list):
+            ws.location = "，".join(str(l) for l in locations if l)
+        elif isinstance(locations, str):
+            ws.location = locations
+        
+        # 从结构规划中提取场景功能
+        structure = content.get("结构规划", {})
+        if isinstance(structure, dict):
+            development = structure.get("发展", {})
+            if isinstance(development, dict):
+                ws.scene_function = development.get("核心冲突", "")
+            # 前置场景摘要
+            opening = structure.get("开篇", {})
+            closing = structure.get("收尾", {})
+            if isinstance(closing, dict):
+                ws.previous_scene_summary = closing.get("下章铺垫", closing.get("结果", ""))
+        
+        # 张力目标
+        tension = content.get("张力曲线", {})
+        if isinstance(tension, dict):
+            ws.tension_targets = {k: int(v) for k, v in tension.items() if isinstance(v, (int, float))}
+        
+        # 角色状态
+        characters = content.get("出场角色", [])
+        if isinstance(characters, list):
+            for c in characters:
+                if isinstance(c, dict):
+                    ws.character_states.append({
+                        "name": c.get("角色名", ""),
+                        "status": c.get("状态", ""),
+                        "description": c.get("场景作用", ""),
+                    })
+                elif isinstance(c, str):
+                    ws.character_states.append({"name": c, "status": "", "description": ""})
+        
+        # 写作指引
+        guides = []
+        chapter_type = content.get("章节类型", "")
+        if chapter_type:
+            guides.append(f"本章类型：{chapter_type}")
+        if isinstance(opening, dict) and opening.get("方式"):
+            guides.append(f"开篇方式：{opening['方式']}")
+        if "开场" in tension:
+            guides.append("推荐冷笔开场")
+        ws.writing_guides = guides

@@ -213,6 +213,7 @@ class WritingSession:
     loaded_unit_ids: List[str] = field(default_factory=list)
     active_queries: List[str] = field(default_factory=list)
     session_context: Dict[str, Any] = field(default_factory=dict)
+    _query_cache: Dict[str, Any] = field(default_factory=dict)  # 查询缓存（session 内重复查询复用）
 
     # 动作时间线
     timeline: List[SessionAction] = field(default_factory=list)

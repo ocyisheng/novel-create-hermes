@@ -162,6 +162,8 @@ class ProjectInitializer:
             "outline/分卷",
             "outline/情节线",
             "outline/追踪",
+            "relation/graph",
+            "relation/htmls",
             "worldbuilding",
             "quality",
         ]
@@ -515,6 +517,8 @@ chapters: {{}}
         vol_dirs = f"卷1~{self.volume_count}"
         print(f"  ✓ outline/分纲/{vol_dirs}/")
         print("  ✓ outline/追踪/")
+        print("  ✓ relation/graph/")
+        print("  ✓ relation/htmls/")
         print("  ✓ worldbuilding/")
         print("  ✓ config.yaml")
         for wb in ["基本信息", "核心规则", "力量体系", "势力格局", "地理位置", "历史", "文化", "经济体系", "政治制度", "社会阶层"]:

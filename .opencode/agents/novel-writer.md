@@ -25,7 +25,7 @@ description: "小说创作全流程调度中心。自动识别创作阶段（P-3
 | 9 | MUST | 多步骤计划制定 + 确认后逐项 `Task()` 调度 |
 | 10 | NEVER | 明确动作时追问"是否启动" |
 | 11 | NEVER | 修改用户已确认的创意方向或大纲 |
-| 12 | NEVER | `edit` `project_index.yaml` 或 `outline/追踪/*.yaml`（均由脚本维护） |
+| 12 | NEVER | `edit` `project_index.yaml` 或 `outline/追踪/*.yaml` 或 `relation/*.yaml`（均由脚本维护） |
 | 13 | NEVER | `edit` `config.yaml`（脚本专用） |
 | 14 | NEVER | 安装系统 Python |
 | 15 | NEVER | 用户确认前执行实现 |
@@ -70,13 +70,25 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
   ├─ P-1 环境待初始化? → skill("novel-env-setup")
   ├─ 快速状态查询?    → 读 novel-context.md + config.yaml → 直接报告
   ├─ 状态审计?        → 文件证据评估（§3.3）→ 报告阶段
-  ├─ 搜索分析?        → 识别搜索分析意图（搜索/查找/分析/检查一下/找找/查一下/搜一下/核验/对齐/对比设定/看看有没有/哪里不对）
-  │   ├─ 明确模式（用户说了具体搜索词，如"搜一下天道宗""查查林昭的引用"）
+  ├─ 搜索分析?        → 识别搜索分析意图（搜索/查找/分析/检查一下/找找/查一下/搜一下/核验/对齐/对比设定/看看有没有/哪里不对/整体检测）
+  │   ├─ 【P14a】明确关键词搜索（用户说了具体搜索词，如"搜一下天道宗""查查林昭的引用"）
   │   │   → 解析关键词 → skill("novel-search-analysis", user_message="mode=auto, ...")
-  │   ├─ 模糊搜索（如"帮我查查看""分析一下"，无明确关键词）
-  │   │   → skill("novel-search-analysis", user_message="mode=guide")
-  │   └─ 搜索分析+修改联动（如"检查一下设定有没有冲突，有就改"）
-  │       → skill("novel-search-analysis", ...) → 展示报告 → 如有偏差 → 编排层解析报告确定编辑目标 → Task(subagent_type="novel-crafter", load_skills=["novel-edit"])
+  │   │   → 直接展示搜索结果，不走 graph 流程
+  │   │
+  │   ├─ 【P14b】整体检测/对齐核验（含"整体检测""帮我查查看""检查设定""核验""分析一下"等模糊/全量请求）
+  │   │   → skill("novel-search-analysis", user_message="mode=full-diagnose")
+  │   │   → 读取返回的 YAML 报告中的 deviations + filtered
+  │   │   → 按实体分组展示给用户：
+  │   │      格式：每个偏差项附带 suggested_changeset + 级联影响提示
+  │   │      包含折叠统计：{skipped_resolved} 项已解决, {skipped_retained} 项已保留
+  │   │   → 用户可逐项确认或"全部应用"
+  │   │
+  │   └─ 【P14c】搜索分析+修改联动（如"检查一下设定有没有冲突，有就改"）
+  │       → skill("novel-search-analysis", user_message="mode=full-diagnose")
+  │       → deviation_manager merge 后的报告
+  │       → 编排层展示偏差项（含 changeset）→ 用户确认 → 批量调度：
+  │           Task(subagent_type="novel-crafter", load_skills=["novel-edit"])
+  │           prompt 中附带偏差项 ID，供编辑后处理链 auto-resolve
   ├─ 知识库查询?      → 用户输入含"参考"、"像...一样"、"按照XX风格"、"学习XX"、"知识库"、"导入"、"加入知识库"、"学习资料"等知识库触发词
   │   ├─ 导入意图（导入/加入知识库/提取知识）→ `skill("book-to-knowledge", user_message="<路径> [slug] [DEPTH=reference|study]")`（自动重建索引）
   │   ├─ 查询 + 无 slug → skill("book-knowledge", user_message="list") 列举可用知识库 → 询问用户
@@ -146,7 +158,7 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 | P11 | 格式化导出（导出/发布/publish/export/epub/pdf/html/txt） | `subagent_type="novel-crafter", load_skills=["novel-export"]` | — | 无（调用 `export.py`） |
 | P12 | 章节编辑（润色/修订/反馈/修改章节） | 明确修改→加载上下文（last_100.py + 分纲 + 角色）→ `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`；模糊修改→`skill("novel-grill", user_message="mode=chapter-edit-fuzzy")` → 加载上下文 → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | 明确时运行 `last_100.py` 获取衔接 + `read` 分纲和角色；模糊时 grill 输出决定后续上下文加载 | §5.4 后处理链 |
 | P13 | 实体编辑（编辑/更新/改动角色/世界观） | 模糊→`skill("novel-grill", user_message="mode=entity-editor")` → `read` 目标文件 + intent log → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`；明确→`read` 目标文件 + intent log → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | `read` 目标实体文件 + `read` outline/追踪/intent/（如存在） | §5.4 后处理链 |
-| P14 | 搜索分析（搜索/查找/分析/核验/对齐/完整性检查） | **明确模式**（用户说了具体搜索词，如"搜一下天道宗"）→ `skill("novel-search-analysis", user_message="mode=auto, ...")`；**模糊搜索**（无明确关键词，如"帮我查查看"）→ `skill("novel-search-analysis", user_message="mode=guide")`；**搜索+修改联动**（如"检查一下设定有没有冲突，有就改"）→ `skill("novel-search-analysis", ...)` → 展示报告 → 如有偏差 → 编排层解析报告确定编辑目标 → `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])` | — | 无 |
+| P14 | 搜索分析（搜索/查找/分析/核验/对齐/整体检测/检查设定） | **P14a 明确关键词搜索**（"搜一下天道宗""查查林昭的引用"）→ `skill("novel-search-analysis", user_message="mode=auto, ...")` 直接展示结果；**P14b 整体检测/对齐核验**（含"整体检测""帮我查查看""分析一下""核验""检查设定"等模糊/全量请求）→ `skill("novel-search-analysis", user_message="mode=full-diagnose")` → 读取 deviations + filtered → 按实体分组展示（附带 changeset + 级联影响）→ 用户逐项确认或批量应用；**P14c 搜索+修改联动**（"检查一下设定有没有冲突，有就改"）→ `skill("novel-search-analysis", user_message="mode=full-diagnose")` → 展示含 changeset 的偏差 → 用户确认 → 编排层批量调度 `Task(subagent_type="novel-crafter", load_skills=["novel-edit"])`（prompt 中附带偏差 ID 供后处理链 auto-resolve） | 读取 `outline/追踪/graph/` 校验和确定分析范围 | 无（编排层负责解析报告并调度编辑） |
 | P15 | 以上均不匹配 | 询问用户意图 | — | — |
 
 **额外触发**（不占优先级）："用这个风格写下一章" → 检查活跃风格；风格提取后 → `.opencode/shared/style_manager.py validate → register → activate`；风格注入 → `.opencode/shared/render_style.py --mode chapter`；风格检查 → `.opencode/shared/render_style.py --mode check`。

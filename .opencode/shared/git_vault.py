@@ -37,10 +37,8 @@ __pycache__/
 *.pyc
 *.swp
 *.swo
+*.bak
 Thumbs.db
-
-# 章节元数据（可由 rebuild 重新生成）
-chapters/.metas/
 
 # git_vault 内部标记
 .git_vault_init

@@ -49,24 +49,26 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
  --file {实体路径}
  --changes '{变更集 JSON}'
 ⑥ 如果 apply_changes 成功：
- a. **后处理链**（chain: `entity-edit`）：
- python .opencode/shared/fix_yaml_indent.py "{实体路径}"
- python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
- python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
- python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
- b. 【可选】级联影响分析（建议对角色/世界观重大修改时运行）：
- python .opencode/shared/cascade_impact.py
- --project-root {PROJECT_PATH}
- --changed-file {实体相对路径}
- → 阅读输出 → 如果发现高置信度影响章节，询问是否检查
- c. 日志记录：
- python .opencode/shared/update_intent_log.py
- --project-root {PROJECT_PATH}
- --entity-path {实体相对路径}
- --user-request "{用户原始请求}"
- --change-set '{变更集 JSON}'
- --status pending
- d. 在回复中输出变更摘要（含 `diff` 或新旧值对照），供编排层呈现给用户确认方向
+  a. **后处理链**（chain: `entity-edit`）：
+  python .opencode/shared/fix_yaml_indent.py "{实体路径}"
+  python .opencode/shared/validate_entity_format.py --project-root {PROJECT_PATH}
+  python .opencode/shared/validate_entity_consistency.py --project-root {PROJECT_PATH}
+  python .opencode/shared/rebuild_project_index.py --project-root {PROJECT_PATH}
+  python .opencode/shared/project_graph.py --project-root {PROJECT_PATH} incremental-update
+  python .opencode/shared/deviation_manager.py --project-root {PROJECT_PATH} auto-resolve --entity-path {实体相对路径}
+  b. **【强制】级联影响分析**：
+  python .opencode/shared/cascade_impact.py
+  --project-root {PROJECT_PATH}
+  --changed-file {实体相对路径}
+  → 阅读输出 → 在回复末尾附上"级联影响摘要"
+  c. 日志记录：
+  python .opencode/shared/update_intent_log.py
+  --project-root {PROJECT_PATH}
+  --entity-path {实体相对路径}
+  --user-request "{用户原始请求}"
+  --change-set '{变更集 JSON}'
+  --status pending
+  d. 在回复中输出变更摘要（含 `diff` 或新旧值对照），供编排层呈现给用户确认方向
 ⑦ 如果 apply_changes 失败（路径不存在/值冲突）：
  - 阅读错误信息，修正变更集后重试
  - 或报告用户具体问题
@@ -98,7 +100,7 @@ description: "编辑已有内容：修改角色档案、世界观设定、大纲
 变更摘要：
  ✏️ {字段1}: {旧值} → {新值}
  ...
-是否需要级联影响分析：{YAML 编辑建议运行 cascade_impact.py / TXT 编辑无需}
+级联影响：{高置信度影响章节列表，或无}
 ```
 
 编排层收到结果后负责：

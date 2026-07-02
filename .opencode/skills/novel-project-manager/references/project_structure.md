@@ -42,6 +42,17 @@
 │       ├── 角色统计.yaml    # 记录：实际出场（扁平追加）
 │       ├── 情节线进度.yaml  # 记录：实际进度（扁平追加）
 │       └── 章节摘要.yaml    # 记录：实际摘要（扁平追加）
+├── relation/                 # ★ 关系图谱（由 project_graph.py 自动维护）
+│   ├── graph/                # 图谱数据（节点、边、校验和）
+│   │   ├── 01_nodes.yaml
+│   │   ├── 10_edges_domain.yaml
+│   │   ├── 11_edges_cross.yaml
+│   │   ├── 02_deviation_state.yaml
+│   │   ├── 20_checksums.yaml
+│   │   └── meta.yaml
+│   └── htmls/                # 可视化输出
+│       ├── 关系图.html
+│       └── {entity_id}_时间线.html
 ├── project_index.yaml       # 项目索引（由 rebuild_project_index.py 重建）
 ├── quality/                 # 质量检测报告（P9 生成）
 │   ├── 第{N}章_AI味道检测.yaml

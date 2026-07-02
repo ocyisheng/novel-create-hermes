@@ -38,7 +38,7 @@
     "novel-crafter": {
       "description": "小说内容创作子引擎，用于世界观、角色、总纲、情节、分纲、章节写作和导出",
       "mode": "subagent",
-      "model": "opencode/deepseek-v4-flash-free",
+      "model": "deepseek/deepseek-v4-flash",
       "permission": {
         "edit": "allow",
         "bash": "allow",

@@ -534,6 +534,47 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
   searchBox.addEventListener('input', applyFilter);
 
   // 点击详情面板
+  function renderDisplayValue(key, val) {{
+    // string[] → 标签云
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') {{
+      let html = '<div class="dp-section"><h3>' + key + '</h3>';
+      val.forEach(function(v) {{ html += '<span class="dp-tag">' + v + '</span> '; }});
+      return html + '</div>';
+    }}
+    // {{target, relation}}[] → 关系列表
+    if (Array.isArray(val) && val.length > 0 && val[0].target) {{
+      let html = '<div class="dp-section"><h3>' + key + '</h3>';
+      val.forEach(function(v) {{
+        html += '<div style="padding:3px 0;font-size:12px"><span style="color:#8BB9E0">' + v.target + '</span> <span style="color:#666;font-size:11px">(' + (v.relation || '') + ')</span></div>';
+      }});
+      return html + '</div>';
+    }}
+    // {{事件, 时间?}}[] → 时间线
+    if (Array.isArray(val) && val.length > 0 && (val[0]['事件'] || val[0].event)) {{
+      let html = '<div class="dp-section"><h3>⏱ ' + key + ' (' + val.length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
+      html += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
+      val.slice(0, 15).forEach(function(v, i) {{
+        const evt = v['事件'] || v.event || '';
+        const t = v['时间'] || v.time || '';
+        html += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
+        html += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i % 2 === 0 ? '#5B9BD5' : '#70AD47') + '"></div>';
+        html += (t ? '<span style="color:#888">' + t + '</span> ' : '') + evt.substring(0, 100);
+        html += '</div>';
+      }});
+      if (val.length > 15) html += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (val.length - 15) + ' 条</div>';
+      return html + '</div></div>';
+    }}
+    // string（短）→ 键值对
+    if (typeof val === 'string' && val.length < 50) {{
+      return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + key + '</span><br><span style="color:#e0e0e0;font-size:13px">' + val + '</span></div>';
+    }}
+    // string（长）→ 文本块
+    if (typeof val === 'string') {{
+      return '<div class="dp-section"><h3>' + key + '</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + val.substring(0, 400) + '</div></div>';
+    }}
+    return '';
+  }}
+
   function openDetail(nodeId) {{
     const info = nodeData[nodeId];
     if (!info) return;
@@ -543,102 +584,60 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     const body = document.getElementById('dp-body');
     body.innerHTML = '';
     const ex = info.extra || {{}};
+    const display = ex._display || {{}};
 
     let html = '';
+    const hasDisplay = Object.keys(display).length > 0;
 
-    // ── 角色：结构化字段 ──
-    if (info.type === 'character_arc') {{
-      const fieldList = [
-        ['身份', '身份'], ['修为', '修为'], ['功法', '功法'],
-        ['阵营', '阵营'], ['当前目标', '当前目标'], ['状态', '状态'],
-      ];
-      let fh = '';
-      fieldList.forEach(function(p) {{
-        const v = ex[p[0]];
-        if (v && v !== '') fh += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + p[1] + '</span><br><span style="color:#e0e0e0;font-size:13px">' + v + '</span></div>';
-      }});
-      if (fh) html += '<div class="dp-section">' + fh + '</div>';
-    }}
-
-    // ── 纪年事件 ──
-    if (info.type === 'note' && ex['事件']) {{
-      html += '<div class="dp-section"><div style="color:#F4A460;font-size:15px">' + ex['事件'] + '</div>';
-      if (ex['时间']) html += '<div style="color:#aaa;font-size:12px;margin-top:4px">' + ex['时间'] + '</div>';
-      if (ex['备注']) html += '<div style="color:#888;font-size:12px;margin-top:2px">' + ex['备注'] + '</div>';
-      html += '</div>';
-    }}
-
-    // ── 核心特质 ──
-    if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
-      let s = '<div class="dp-section"><h3>核心特质</h3>';
-      ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag" style="background:rgba(91,155,213,0.12)">' + t + '</span> '; }});
-      html += s + '</div>';
-    }}
-
-    // ── 描述 ──
-    if (ex['描述']) {{
-      html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + ex['描述'].substring(0, 400) + '</div></div>';
-    }}
-
-    // ── 时间线：关键事件 ──
-    if (ex['关键事件'] && Array.isArray(ex['关键事件'])) {{
-      let s = '<div class="dp-section"><h3>⏱ 时间线 (' + ex['关键事件'].length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
-      s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
-      ex['关键事件'].slice(0, 15).forEach(function(e, i) {{
-        const stage = e.includes('一幕') || e.includes('幕') ? ' (第一幕)' : e.includes('第二幕') ? ' (第二幕)' : e.includes('第三幕') ? ' (第三幕)' : '';
-        s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
-        s += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i % 2 === 0 ? '#5B9BD5' : '#70AD47') + '"></div>';
-        s += e.substring(0, 100);
-        s += '</div>';
-      }});
-      if (ex['关键事件'].length > 15) s += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (ex['关键事件'].length - 15) + ' 条</div>';
-      html += s + '</div></div>';
-    }}
-
-    // ── 也显示关联的纪年事件 NOTE ──
-    if (info.type === 'character_arc') {{
-      const relatedEvents = [];
-      edgeData.forEach(function(e) {{
-        if (e.from === nodeId || e.to === nodeId) {{
-          const other = e.from === nodeId ? e.to : e.from;
-          const otherInfo = nodeData[other];
-          if (otherInfo && otherInfo.type === 'note' && otherInfo.extra && otherInfo.extra['事件']) {{
-            relatedEvents.push(otherInfo.extra['事件'] + (otherInfo.extra['时间'] ? ' (' + otherInfo.extra['时间'] + ')' : ''));
-          }}
+    if (hasDisplay) {{
+      // ── _display 模式：按值类型自动渲染 ──
+      const order = ['身份','修为','功法','阵营','当前目标','类型'];
+      const rendered = new Set();
+      // 先渲染指定顺序的字段（键值对）
+      order.forEach(function(k) {{
+        if (display[k] && typeof display[k] === 'string' && display[k].length < 50) {{
+          html += renderDisplayValue(k, display[k]);
+          rendered.add(k);
         }}
       }});
-      if (relatedEvents.length > 0) {{
-        let s = '<div class="dp-section"><h3>📅 纪年事件</h3>';
-        relatedEvents.slice(0, 10).forEach(function(ev) {{
-          s += '<div style="padding:2px 0;font-size:12px;color:#F4A460">▪ ' + ev.substring(0, 80) + '</div>';
+      // 再渲染其他字段（自动判断类型）
+      Object.keys(display).forEach(function(k) {{
+        if (rendered.has(k)) return;
+        html += renderDisplayValue(k, display[k]);
+      }});
+    }} else {{
+      // ── Fallback：无 _display 时的旧逻辑 ──
+      if (info.type === 'character_arc') {{
+        const fmap = [['身份','身份'],['修为','修为'],['功法','功法'],['阵营','阵营'],['当前目标','当前目标'],['状态','状态']];
+        let fh = '';
+        fmap.forEach(function(p) {{
+          const v = ex[p[0]];
+          if (v && v !== '') fh += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + p[1] + '</span><br><span style="color:#e0e0e0;font-size:13px">' + v + '</span></div>';
         }});
-        if (relatedEvents.length > 10) s += '<div style="color:#555;font-size:11px">... 还有 ' + (relatedEvents.length - 10) + ' 条</div>';
+        if (fh) html += '<div class="dp-section">' + fh + '</div>';
+      }}
+      if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
+        let s = '<div class="dp-section"><h3>核心特质</h3>';
+        ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag">' + t + '</span> '; }});
         html += s + '</div>';
+      }}
+      if (ex['描述']) html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + ex['描述'].substring(0, 400) + '</div></div>';
+      if (ex['关键事件'] && Array.isArray(ex['关键事件'])) {{
+        let s = '<div class="dp-section"><h3>⏱ 时间线</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
+        s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
+        ex['关键事件'].slice(0, 15).forEach(function(e, i) {{
+          s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc"><div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i%2===0?'#5B9BD5':'#70AD47') + '"></div>' + (typeof e==='string'?e:e['事件']||'') + '</div>';
+        }});
+        html += s + '</div></div>';
       }}
     }}
 
-    // ── 人物关系 ──
-    if (ex['人物关系']) {{
-      let s = '<div class="dp-section"><h3>人物关系</h3>';
-      Object.keys(ex['人物关系']).forEach(function(rt) {{
-        const targets = ex['人物关系'][rt];
-        if (Array.isArray(targets)) {{
-          targets.forEach(function(t) {{
-            if (typeof t === 'object' && t['目标']) {{
-              s += '<div style="padding:3px 0;font-size:12px"><span style="color:#8BB9E0">' + t['目标'] + '</span> <span style="color:#666;font-size:11px">(' + rt + ')</span></div>';
-            }}
-          }});
-        }}
-      }});
-      html += s + '</div>';
-    }}
-
-    // ── 标签 ──
+    // ── 标签（公共） ──
     html += '<div class="dp-section"><h3>标签</h3>';
     if (info.tags) info.tags.forEach(function(t) {{ html += '<span class="dp-tag">' + t + '</span>'; }});
     html += '</div>';
 
-    // ── 关联节点 ──
+    // ── 关联节点（公共） ──
     const related = {{ out: [], in_: [] }};
     edgeData.forEach(function(e) {{
       if (e.from === nodeId) related.out.push(e);
@@ -648,15 +647,13 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     related.out.forEach(function(e) {{
       const target = nodeData[e.to];
       if (!target) return;
-      const t = target.type || 'other';
-      if (!groups[t]) groups[t] = [];
-      groups[t].push(target.label + ' (' + (e.label || '') + ')');
+      if (!groups[target.type]) groups[target.type] = [];
+      groups[target.type].push(target.label + ' (' + (e.label || '') + ')');
     }});
     Object.keys(groups).forEach(function(t) {{ groups[t] = [...new Set(groups[t])]; }});
-    const order = ['character_arc', 'scene', 'plot_thread', 'world_rule', 'note'];
-    order.forEach(function(t) {{
+    ['character_arc','scene','plot_thread','world_rule','note'].forEach(function(t) {{
       const items = groups[t];
-      if (!items || items.length === 0) return;
+      if (!items) return;
       const tl2 = typeLabels[t] || t;
       html += '<div class="dp-section"><h3>' + tl2 + ' (' + items.length + ')</h3>';
       items.forEach(function(item) {{

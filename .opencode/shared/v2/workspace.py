@@ -177,6 +177,7 @@ class WorkspaceBuilder:
     """
     
     # 预热级别 → 加载深度映射
+    # 预热级别的选择由 Agent prompt (novel-writer.md) 根据写作模式决定
     PREHEAT_DEPTH = {
         "cold": {
             "neighbor_depth": 1,

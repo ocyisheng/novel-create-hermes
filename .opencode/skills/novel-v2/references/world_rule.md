@@ -2,7 +2,7 @@
 
 ## 结构由脚本保障
 
-10 种子类型的模板文件位于 `shared/templates/worldbuilding/`，创建时作为参考。
+V2 项目中世界观规则直接创建为 `WORLD_RULE` 叙事单元，无需模板文件。
 content JSON 的 `实体子类型` 字段必填，脚本会校验。
 
 ## 创作方法论（需 LLM 判断）

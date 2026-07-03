@@ -40,7 +40,6 @@ try:
     )
     from graph_store import GraphStore
     from projection_engine import ProjectionEngine
-    from adapter import LegacyFileAdapter
 
     __all__ = [
         "NarrativeUnit",
@@ -53,7 +52,6 @@ try:
         "ProjectionView",
         "GraphStore",
         "ProjectionEngine",
-        "LegacyFileAdapter",
     ]
 except ImportError:
     # 在 pytest 或部分导入场景下，graph_schema 可能尚未就绪

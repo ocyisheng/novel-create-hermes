@@ -151,6 +151,10 @@ class ImportEngine:
                 try:
                     data = yaml.safe_load(content)
                     if isinstance(data, dict):
+                        # 优先取顶层 名称 字段（如 名称: 叶辰）
+                        if "名称" in data and isinstance(data["名称"], str):
+                            name = data["名称"]
+                        # 其次取 索引信息.名称
                         if "索引信息" in data:
                             idx = data["索引信息"]
                             name = idx.get("名称", name)
@@ -392,11 +396,24 @@ class MigrationVerifier:
         all_units = self.store.list_units()
         unit_names = {u.unit_name for u in all_units}
         
-        # 从文件名推断应有的单元名
+        # 推断预期的单元名（使用与 ImportEngine.import_file 相同的优先级）
         expected_names = set()
         for path_list in self.scanner.files.values():
             for p in path_list:
-                expected_names.add(p.stem)
+                name = p.stem  # 默认文件名
+                if p.suffix in (".yaml", ".yml"):
+                    try:
+                        d = yaml.safe_load(p.read_text(encoding="utf-8"))
+                        if isinstance(d, dict):
+                            # 优先级 1: 顶层 名称 字段
+                            if "名称" in d and isinstance(d["名称"], str):
+                                name = d["名称"]
+                            # 优先级 2: 索引信息.名称（覆盖顶层）
+                            if "索引信息" in d and "名称" in d.get("索引信息", {}):
+                                name = d["索引信息"]["名称"]
+                    except Exception:
+                        pass
+                expected_names.add(name)
         
         missing = expected_names - unit_names
         if missing:

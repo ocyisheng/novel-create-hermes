@@ -36,18 +36,17 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 ## 搜索范围定义
 
 所有模式共享的搜索范围定义（按优先级排序）。
-**分析域为项目全部叙事单元**，存储在 graph 中，可通过 GraphStore API 或文件搜索检索。
+**分析域为项目 graph/ 中的全部叙事单元**，通过 `v2_cli.py` 或 GraphStore API 检索。
 
-| 优先级 | 目录 | 文件类型 | 内容说明 |
-|--------|------|---------|---------|
-| 优先级 | 路径 | 格式 | 内容 |
-|--------|------|------|------|
-| 高 | `characters/` | `*.yaml` | 角色档案 |
-| 高 | `worldbuilding/` | `*.yaml` | 世界观设定 |
-| 高 | `outline/` | `*.yaml` | 总纲/分卷/分纲/情节线/追踪 |
-| 中 | `graph/` | `*.jsonl` | 叙事单元网络（V2 项目优先） |
-| 中 | `ideation/` | `*.yaml` | 创意过程文档 |
-| 低 | `config.yaml` | yaml | 项目配置 |
+| 优先级 | 叙事单元类型 | V2 CLI 查询 | 内容说明 |
+|--------|-------------|-------------|---------|
+| 高 | `CHARACTER_ARC` | `list-units --type CHARACTER_ARC` | 角色档案 |
+| 高 | `WORLD_RULE` | `list-units --type WORLD_RULE` | 世界观设定 |
+| 高 | `PLOT_THREAD` | `list-units --type PLOT_THREAD` | 情节线 |
+| 高 | `SCENE` | `list-units --type SCENE` | 场景/分纲 |
+| 中 | `NOTE` | `list-units --type NOTE` | 创意笔记/追踪数据 |
+| 中 | `CHUNK` | `list-units --type CHUNK` | 章节正文 |
+| 低 | — | `config.yaml` | 项目配置 |
 
 
 ## 工作流程
@@ -75,8 +74,8 @@ Step 0: 解析 user_message 参数 → 确定 mode、target、scope
     ↓
 Step 1: 确定数据来源
     ├─ mode=full-diagnose / align（未指定实体）
-    │   → 读取 relation/graph/* 获取实体列表和 content_hash
-    │   → 只对有变动的实体执行 LLM 分析
+    │   → 使用 v2_cli.py list-units / GraphStore API 获取叙事单元列表
+    │   → 通过 events.olog 比对 version/updated_at 筛选有变动的单元
     └─ mode=search / entity-search / align（指定实体）
         → 直接扫描目标文件或查询 graph 特定节点
     ↓
@@ -104,7 +103,7 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
 | `keyword` | str | 是 | — | 搜索关键词 |
-| `scope` | str | 否 | `all` | 搜索范围：all / characters / worldbuilding / outline / ideation |
+| `scope` | str | 否 | `all` | 搜索范围：all / character_arc / world_rule / plot_thread / scene / note / chunk |
 | `case_sensitive` | bool | 否 | `false` | 是否区分大小写 |
 | `context_lines` | int | 否 | `3` | 上下文行数 |
 | `max_results` | int | 否 | `50` | 最大结果数 |
@@ -134,11 +133,11 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 
 **执行**：
 
-1. 搜索实体名在所有文件中的出现
-2. 读取 `project_index.yaml` 获取实体元信息
-3. 读取实体档案文件获取摘要信息
-4. 整理引用链：按分纲/设定文件分组
-5. 统计：出场频率、活跃状态
+1. 通过 `v2_cli.py find-unit --name {entity}` 查找实体
+2. 通过 `v2_cli.py get-unit --id {id}` 获取详情
+3. 通过 `v2_cli.py get-neighbors --id {id}` 查关联实体
+4. 整理引用链：按关联类型分组
+5. 统计：关联数、活跃状态
 6. 输出 `quality/search/{entity}_实体引用.yaml`
 
 **输出文件路径**：`quality/search/{entity}_实体引用.yaml`
@@ -160,11 +159,11 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 
 1. **解析目标实体**：
    - 指定了 target（如 `character:林昭`）→ 从 graph 中查询节点信息和出边
-   - 未指定 target（默认 project）→ 读取 `graph/20_checksums.yaml` 比对 content_hash，筛选变动的实体
+   - 未指定 target（默认 project）→ 使用 `v2_cli.py stats` 获取单元概览，通过 events.olog 的 `updated_at` 筛选最近变动的实体
 2. **读取意图来源**：
    - `quality/grill/*.yaml`（grill 需求记录）
-   - `ideation/最终创意方案.yaml`（创意方向）
-   - `outline/追踪/intent/*.intent.yaml`（修改意图日志）
+   - `v2_cli.py list-units --type NOTE` 中 `tags` 含"创意"的单元（创意方向）
+   - `v2_cli.py list-units --type NOTE` 中 `tags` 含"意图"的单元（修改意图日志）
    - `config.yaml`（项目配置）
 3. **提取可对比的偏好清单**：如角色核心特质、规则约束、节奏偏好、排除项
 4. **逐项对比**：每条偏好 vs 实际内容
@@ -193,7 +192,7 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
         new_value: "杀伐果断"
     summary: "根据grill记录修正核心特质"
   
-  intent_log_ref: "outline/追踪/intent/characters_林昭.intent.yaml#round:3"
+  intent_log_ref: "NOTE(林昭意图记录, tags=[意图])"
 ```
 
 ---
@@ -206,15 +205,15 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 
 **检测项**（7 项）：
 
-| # | 检测项 | 来源 A | 来源 B | 矛盾类型 |
-|---|--------|--------|--------|---------|
-| 1 | 角色状态一致性 | characters/*.yaml | outline/分纲/*.yaml | 已故角色仍在出场 |
-| 2 | 角色关系对称性 | characters/A.yaml | characters/B.yaml | 单向关系 |
-| 3 | 势力归属一致性 | characters/*.yaml | worldbuilding/势力*.yaml | 角色势力不存在 |
-| 4 | 地理位置一致性 | outline/分纲/*.yaml | worldbuilding/地理*.yaml | 场景地点不存在 |
-| 5 | 能力边界一致性 | characters/*.yaml | outline/分纲/*.yaml | 出场时使用了分纲未设定的能力 |
-| 6 | 时间线一致性 | outline/追踪/时间线.yaml | outline/分纲/*.yaml | 事件顺序矛盾 |
-| 7 | 情节线完成度 | plot_threads/*.yaml | outline/分纲/*.yaml | 关键事件未出现在分纲中 |
+| # | 检测项 | V2 数据源 A | V2 数据源 B | 矛盾类型 |
+|---|--------|-------------|-------------|---------|
+| 1 | 角色状态一致性 | `CHARACTER_ARC.status == ARCHIVED` | `Relation(type=PARTICIPATES_IN)` → SCENE | 已故角色仍在出场 |
+| 2 | 角色关系对称性 | `get_relations(A.id, outgoing)` | `get_relations(B.id, outgoing)` | 单向关系 |
+| 3 | 势力归属一致性 | `CHARACTER_ARC` ↔ `WORLD_RULE` 的 BELONGS_TO 关系 | 匹配 WORLD_RULE.unit_name | 角色势力未定义 |
+| 4 | 地理位置一致性 | `SCENE` 内容 → 匹配 `WORLD_RULE`（tags 含"地理"） | WORLD_RULE.unit_name | 场景地点未定义 |
+| 5 | 能力边界一致性 | `CHARACTER_ARC.content` 中解析的技能列表 | `CHUNK.content` 全文（LLM 分析） | 能力溢出 |
+| 6 | 时间线一致性 | `NOTE`（tags 含"时间线"）的内容 | `CHUNK` 按 belongs_to_chapter 排序 | 事件顺序矛盾 |
+| 7 | 情节线完成度 | `PLOT_THREAD.content` 中的关键事件 | `CHUNK` + `SCENE` 已覆盖内容 | 关键事件未覆盖 |
 
 **执行**：
 
@@ -235,12 +234,12 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 
 **分析维度**：
 
-| 维度 | 检查逻辑 | 属性 |
-|------|---------|------|
-| 角色使用率 | 已创建角色 vs 已在分纲中出场 | critical |
-| 世界观使用率 | 已创建设定 vs 在分纲/设定文件中被引用 | info |
-| 分纲覆盖率 | 分纲章节数 vs 预期章节数 | info |
-| 情节线完成度 | 关键事件 vs 已写分纲数 | info |
+| 维度 | 检查逻辑 | V2 数据源 | 属性 |
+|------|---------|-----------|------|
+| 角色使用率 | 已创建角色 vs 已有 PARTICIPATES_IN 关系的角色 | `CHARACTER_ARC` 总数 vs `get_relations(type=PARTICIPATES_IN)` 不重复角色数 | critical |
+| 世界观使用率 | 已创建规则 vs 被 REFERENCES 关系引用的规则 | `WORLD_RULE` 总数 vs `get_relations(type=REFERENCES)` 不重复规则数 | info |
+| 场景覆盖率 | 已有 SCENE 数 vs 预期章节数 | `list-units --type SCENE` count | info |
+| 情节线完成度 | 关键事件 vs 已写 CHUNK 数 | `PLOT_THREAD.content` 中提取事件数 vs `CHUNK` 数 | info |
 
 **输出文件路径**：`quality/align/Gap分析报告.yaml`
 
@@ -255,10 +254,9 @@ Step 4: 展示摘要 → 向用户展示关键发现和建议
 **执行流程**：
 
 ```
-Step 1: 确保图谱就绪
- ├─ relation/graph/ 不存在 → 调用 project_graph.py build
- └─ relation/graph/ 已存在 → 调用 project_graph.py detect-changes
-      → 获取有变动的实体列表（content_hash 发生变化）
+Step 1: 确认 graph 就绪
+ └─ graph/ 目录存在 → 初始化 GraphStore 或 v2_cli.py stats
+      → 遍历所有叙事单元，通过 version/updated_at 筛选有变动的单元
 
 Step 2: 筛选分析目标
   ├─ 有变动的实体 → 进入 Step 3（LLM 分析）
@@ -291,12 +289,12 @@ Step 6: 输出聚合报告
 
 ## HARD CONSTRAINTS
 
-1. **只读不写创作文件** — 不创建、修改、删除任何实体/章节/设定文件（仅向 `quality/` 输出分析报告，向 `relation/graph/02_deviation_state.yaml` 写入偏差状态——偏差状态是元数据，不是创作内容）
+1. **只读不写创作文件** — 不创建、修改、删除任何实体/章节/设定文件（仅向 `quality/` 输出分析报告，向 `graph/deviation_state.yaml` 写入偏差状态——偏差状态是元数据，不是创作内容）
 2. **不替代 novel-grill** — 不做事前需求发现（那是 grill 的职责）
 3. **不替代 novel-quality** — 不做技术质量检测（那是 quality 的职责）
 4. **不替代 novel-edit** — 不直接修改内容，只输出偏差建议
 5. **所有搜索限制在当前项目范围内** — 不扫描项目外文件
-6. **输出路径固定** — 搜索报告写入 `quality/search/`，对齐分析写入 `quality/align/`，偏差状态写入 `relation/graph/02_deviation_state.yaml`
+6. **输出路径固定** — 搜索报告写入 `quality/search/`，对齐分析写入 `quality/align/`，偏差状态写入 `graph/deviation_state.yaml`
 
 ## 项目前提
 

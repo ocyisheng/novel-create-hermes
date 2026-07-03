@@ -89,9 +89,23 @@ python init.py new "银河纪元" "科幻" --volumes 6 --acts 6 --structure 自�
 python init.py import "D:/旧小说" "迁移项目" --volumes 5
 ```
 
-## V2 项目新增：graph/ 目录
+## V2 项目结构
 
-V2 项目在标准目录结构之上，新增 `graph/` 目录作为叙事单元网络的存储层：
+使用 `--v2` 标志创建的项目采用精简结构，`graph/` 是单一真相源：
+
+```
+{项目名}/
+├── config.yaml              # 项目配置（含 架构: v2 标记）
+├── graph/                   # 叙事单元网络（真相源）
+│   ├── nodes.jsonl          # 全部叙事单元
+│   ├── edges.jsonl          # 单元间关系
+│   ├── events.olog          # 事件溯源日志
+│   └── snapshots/           # 时间点快照
+├── quality/                 # 质量检测报告
+├── styles/                  # 写作风格定义
+├── output/                  # 导出产物
+└── .omo/                    # OpenCode 运行时记忆
+```
 
 | 文件 | 内容 | 维护方式 |
 |------|------|---------|
@@ -100,4 +114,4 @@ V2 项目在标准目录结构之上，新增 `graph/` 目录作为叙事单元�
 | `graph/events.olog` | 事件溯源日志（每次修改的记录） | store.flush() 自动追加 |
 | `graph/snapshots/` | 时间点快照 | store.create_snapshot() |
 
-graph 是 V2 的**单一真相源**。原有 YAML/TXT 文件通过投影引擎保持同步。
+graph 是 V2 的**单一真相源**。不再生成 `characters/`、`worldbuilding/`、`outline/`、`chapters/`、`ideation/` 目录。创作数据全部通过 GraphStore API 读写。

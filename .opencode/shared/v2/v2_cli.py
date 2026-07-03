@@ -3,7 +3,7 @@ V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
 
 用法：
     python .opencode/shared/v2_cli.py find-unit --path <PROJECT> --name <名称>
-    python .opencode/shared/v2_cli.py rebuild-projections --path <PROJECT>
+     python .opencode/shared/v2_cli.py export-docs --path <PROJECT>
     python .opencode/shared/v2_cli.py stats --path <PROJECT>
     python .opencode/shared/v2_cli.py list-units --path <PROJECT> --type <UnitType>
     python .opencode/shared/v2_cli.py recent-events --path <PROJECT>
@@ -85,6 +85,7 @@ def cmd_start_session(args):
 def cmd_create_unit(args):
     from graph_schema import UnitType
     from graph_store import GraphStore
+    from relation_inferrer import RelationInferrer
     s = GraphStore(args.path)
     s.initialize()
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
@@ -96,8 +97,13 @@ def cmd_create_unit(args):
         belongs_to_chapter=int(args.chapter) if args.chapter else None,
         actor=args.actor,
     )
+    # 关系推断钩子：自动建立关联
+    inferrer = RelationInferrer(s)
+    created = inferrer.infer_on_create(u)
     s.flush()
     print(f"创建成功: {u.id}")
+    if created:
+        print(f"关系推断: 新增 {created} 条关联")
 
 
 def cmd_flush(args):
@@ -141,9 +147,12 @@ def cmd_list_units(args):
     from graph_store import GraphStore
     s = GraphStore(args.path)
     s.initialize()
-    ut = UnitType[args.type.upper()] if args.type else None
+    t = args.type.upper() if args.type else ""
+    ut = None
+    if t and t != "ALL":
+        ut = UnitType[t]
     for u in s.find_units(type=ut):
-        print(f"{u.unit_name} [{u.status.value}]")
+        print(f"[{u.type.value}] {u.unit_name} [{u.status.value}]")
 
 
 def cmd_recent_events(args):
@@ -164,6 +173,69 @@ def cmd_migrate(args):
     if args.dry_run:
         sys.argv.append("--dry-run")
     migrate_main()
+
+
+def cmd_batch_infer(args):
+    """批量推断：扫描所有已有单元，自动建立关系"""
+    from graph_store import GraphStore
+    from relation_inferrer import RelationInferrer
+    s = GraphStore(args.path)
+    s.initialize()
+    before = s.stats()["total_relations"]
+    inferrer = RelationInferrer(s)
+
+    def progress(i, total, created):
+        print(f"  进度: {i}/{total} 单元, 已建 {created} 关系")
+
+    print(f"开始批量推断 ({s.stats()['total_units']} 单元)...")
+    total = inferrer.batch_infer_all(progress_callback=progress)
+
+    after = s.stats()["total_relations"]
+    print(f"\n批量推断完成:")
+    print(f"  新建关系: {total}")
+    print(f"  关系总计: {before} → {after}")
+
+
+def cmd_export_docs(args):
+    """导出结构化文档（Markdown）到 graph/export/"""
+    from graph_store import GraphStore
+    from projection_engine import ProjectionEngine
+    s = GraphStore(args.path)
+    s.initialize()
+    p = ProjectionEngine(s, args.path)
+    written = p.export_docs(output_dir=args.out)
+    print(f"✅ 结构化文档已导出: {len(written)} 个文件")
+    for w in written:
+        print(f"   📄 {w}")
+    print(f"\n   打开 index.md 开始浏览：")
+
+
+def cmd_export(args):
+    """导出 CHUNK 叙事单元为章节 TXT 文件"""
+    from graph_schema import UnitType
+    from graph_store import GraphStore
+    from pathlib import Path
+    s = GraphStore(args.path)
+    s.initialize()
+    chunks = s.find_units(type=UnitType.CHUNK)
+    if not chunks:
+        print("没有找到 CHUNK 类型的叙事单元")
+        return
+    out_dir = Path(args.out) if args.out else Path(args.path) / "chapters"
+    if not out_dir.exists():
+        out_dir.mkdir(parents=True, exist_ok=True)
+    exported = 0
+    for c in chunks:
+        ch = c.belongs_to_chapter
+        if ch:
+            fname = f"第{ch}章.txt"
+        else:
+            fname = f"{c.unit_name}.txt"
+        fpath = out_dir / fname
+        fpath.write_text(c.content or "", encoding="utf-8")
+        exported += 1
+        print(f"  📄 {fpath.name}")
+    print(f"\n导出完成: {exported} 个章节文件 → {out_dir}")
 
 
 def main():
@@ -213,7 +285,7 @@ def main():
 
     p = sub.add_parser("rebuild-projections", help="重建投影")
     p.add_argument("--path", required=True)
-    p.add_argument("--mode", default="hybrid", choices=["in_place", "hybrid"])
+    p.add_argument("--mode", default="hybrid", choices=["in_place", "hybrid", "graph_only"])
 
     p = sub.add_parser("stats", help="graph 统计")
     p.add_argument("--path", required=True)
@@ -231,6 +303,17 @@ def main():
     p.add_argument("--verify", action="store_true")
     p.add_argument("--report", action="store_true")
     p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("batch-infer", help="批量推断：扫描所有单元自动建立关系")
+    p.add_argument("--path", required=True)
+
+    p = sub.add_parser("export-docs", help="导出结构化文档（Markdown）到 graph/export/")
+    p.add_argument("--path", required=True)
+    p.add_argument("--out", default="", help="输出目录（默认 graph/export/）")
+
+    p = sub.add_parser("export", help="导出 CHUNK 单元为章节 TXT 文件")
+    p.add_argument("--path", required=True)
+    p.add_argument("--out", default="", help="输出目录（默认 chapters/）")
 
     args = parser.parse_args()
     if not args.command:
@@ -251,6 +334,9 @@ def main():
         "list-units": cmd_list_units,
         "recent-events": cmd_recent_events,
         "migrate": cmd_migrate,
+        "batch-infer": cmd_batch_infer,
+        "export-docs": cmd_export_docs,
+        "export": cmd_export,
     }
     dispatch[args.command](args)
 

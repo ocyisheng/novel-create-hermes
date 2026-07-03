@@ -131,12 +131,11 @@ def test_event_sourcing(store):
     """测试事件溯源"""
     print("  [test] 事件溯源...", end="")
     
-    # 前面的操作已经产生了一些事件
+    # 先产生事件数据
+    unit = store.create_unit(UnitType.NOTE, "测试笔记", actor="test_user")
+    
     stats = store.stats()
     assert stats["total_events"] > 0
-    
-    # 创建并检查事件
-    unit = store.create_unit(UnitType.NOTE, "测试笔记", actor="test_user")
     
     # 查找事件
     events = store._events

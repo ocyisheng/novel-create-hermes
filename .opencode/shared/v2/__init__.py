@@ -19,30 +19,45 @@ novel-create-hermes V2 核心引擎
     store.commit("写了一个新场景")
 """
 
-from graph_schema import (
-    NarrativeUnit,
-    UnitType,
-    RelationType,
-    UnitStatus,
-    Relation,
-    Event,
-    EventType,
-    ProjectionView,
-)
-from graph_store import GraphStore
-from projection_engine import ProjectionEngine
-from adapter import LegacyFileAdapter
+import sys
+import os
 
-__all__ = [
-    "NarrativeUnit",
-    "UnitType",
-    "RelationType",
-    "UnitStatus",
-    "Relation",
-    "Event",
-    "EventType",
-    "ProjectionView",
-    "GraphStore",
-    "ProjectionEngine",
-    "LegacyFileAdapter",
-]
+# 确保 v2 目录在 sys.path 中（兼容 pytest 直接收集的场景）
+V2_DIR = os.path.abspath(os.path.dirname(__file__))
+if V2_DIR not in sys.path:
+    sys.path.insert(0, V2_DIR)
+
+try:
+    from graph_schema import (
+        NarrativeUnit,
+        UnitType,
+        RelationType,
+        UnitStatus,
+        Relation,
+        Event,
+        EventType,
+        ProjectionView,
+    )
+    from graph_store import GraphStore
+    from projection_engine import ProjectionEngine
+    from adapter import LegacyFileAdapter
+
+    __all__ = [
+        "NarrativeUnit",
+        "UnitType",
+        "RelationType",
+        "UnitStatus",
+        "Relation",
+        "Event",
+        "EventType",
+        "ProjectionView",
+        "GraphStore",
+        "ProjectionEngine",
+        "LegacyFileAdapter",
+    ]
+except ImportError:
+    # 在 pytest 或部分导入场景下，graph_schema 可能尚未就绪
+    # conftest.py 中的 sys.path 设置会在收集阶段处理此问题
+    import warnings
+    warnings.warn("V2 核心模块导入失败：graph_schema 或依赖模块未找到", ImportWarning)
+    __all__ = []

@@ -24,20 +24,20 @@ WRITING MODE: {draft | polish | rewrite}
 ### 第一步：初始化创作会话
 
 ```bash
-python .opencode/shared/v2_cli.py start-session --path {PROJECT_PATH} --type {FOCUS TYPE} --id {FOCUS ID}
+python .opencode/shared/v2/v2_cli.py start-session --path {PROJECT_PATH} --type {FOCUS TYPE} --id {FOCUS ID}
 ```
 
 ### 第二步：获取工作空间上下文
 
 ```bash
-python .opencode/shared/v2_cli.py build-workspace --path {PROJECT_PATH} --id {FOCUS ID} --level {PREHEAT LEVEL}
+python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {FOCUS ID} --level {PREHEAT LEVEL}
 ```
 
 ### 第三步：了解当前焦点叙事单元
 
 ```bash
-python .opencode/shared/v2_cli.py get-unit --path {PROJECT_PATH} --id {FOCUS ID}
-python .opencode/shared/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {FOCUS ID}
+python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {FOCUS ID}
+python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {FOCUS ID}
 ```
 
 ## 二、领域参考加载 + 脚本/提示词分工
@@ -86,23 +86,23 @@ QUERY: recent_context(chapter=5, limit=3)
 ### 5.1 创建新叙事单元
 
 ```bash
-python .opencode/shared/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "场景名" --content "场景内容" --tags "标签1,标签2" --chapter 3
+python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "场景名" --content "场景内容" --tags "标签1,标签2" --chapter 3
 ```
 
 ### 5.2 建立关系
 
 ```bash
-python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
 ```
 
 ### 5.3 写入章节正文
 
 ```bash
 # 1. 创建 CHUNK 叙事单元
-python .opencode/shared/v2_cli.py create-unit --path {PROJECT_PATH} --type CHUNK --name "第3章" --content "正文内容..." --chapter 3
+python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type CHUNK --name "第3章" --content "正文内容..." --chapter 3
 
 # 2. 关联到场景
-python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {场景ID} --target {CHUNK_ID} --type implements
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {场景ID} --target {CHUNK_ID} --type implements
 
 # 3. 写入 TXT 文件（保持兼容）
 # 用 write 工具直接写文件：chapters/第3章.txt
@@ -111,7 +111,7 @@ python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {�
 ### 5.4 持久化
 
 ```bash
-python .opencode/shared/v2_cli.py flush --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
 ```
 
 ## 六、HARD CONSTRAINTS

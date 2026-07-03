@@ -65,16 +65,16 @@ WRITING MODE: draft | polish | rewrite
 ### 1. 读取 graph 数据
 
 ```bash
-python .opencode/shared/v2_cli.py get-unit --path {PROJECT_PATH} --id {单元ID}
-python .opencode/shared/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID}
-python .opencode/shared/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
+python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {单元ID}
+python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID}
+python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
 ```
 
 ### 2. 写入 graph 数据
 
 ```bash
-python .opencode/shared/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
-python .opencode/shared/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
+python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
 ```
 
 ### 3. 通过 QUERY 协议获取上下文
@@ -102,19 +102,19 @@ QUERY: recent_context(chapter=章节号, limit=5)
 ### 4. 使用工作空间构建上下文
 
 ```bash
-python .opencode/shared/v2_cli.py build-workspace --path {PROJECT_PATH} --id {焦点单元ID} --level warm
+python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {焦点单元ID} --level warm
 ```
 
 ### 5. 写后持久化
 
 ```bash
-python .opencode/shared/v2_cli.py flush --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
 ```
 
 ### 6. 投影到文件（保持与现有文件体系兼容）
 
 ```bash
-python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py export-docs --path {PROJECT_PATH}
 ```
 
 ---

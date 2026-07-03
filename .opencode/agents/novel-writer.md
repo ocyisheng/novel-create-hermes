@@ -90,7 +90,7 @@ TASK: {用户请求的具体描述}"
 ### 焦点 ID 查找
 
 ```bash
-python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
 # 返回 NOT_FOUND → FOCUS ID 留空，子 Agent 创建
 # 返回 ID → 填入 FOCUS ID
 ```
@@ -100,7 +100,7 @@ python .opencode/shared/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名�
 graph 自身保证了数据一致性，写后只需：
 
 ```bash
-python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py rebuild-projections --path {PROJECT_PATH}
 ```
 
 投影重建是**可选的**——graph 本身就是完整的。文件投影仅用于人工阅读或第三方工具兼容。
@@ -110,9 +110,9 @@ python .opencode/shared/v2_cli.py rebuild-projections --path {PROJECT_PATH}
 ### 查询 Graph 状态
 
 ```bash
-python .opencode/shared/v2_cli.py stats --path {PROJECT_PATH}
-python .opencode/shared/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
-python .opencode/shared/v2_cli.py recent-events --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py stats --path {PROJECT_PATH}
+python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
+python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
 ```
 
 ### 迁移旧项目到 V2

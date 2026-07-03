@@ -19,18 +19,18 @@ tags: ["novel", "environment", "setup"]
 
 ```bash
 # Windows
-.opencode/shared/setup_env.bat
+.opencode/shared/env/setup_env.bat
 
 # macOS/Linux
-chmod +x .opencode/shared/setup_env.sh && ./.opencode/shared/setup_env.sh
+chmod +x .opencode/shared/env/setup_env.sh && ./.opencode/shared/env/setup_env.sh
 ```
 
-脚本自动检测 Python 来源（系统 Python → conda），创建 `.venv` + `pip install -r .opencode/shared/requirements.txt`。
+脚本自动检测 Python 来源（系统 Python → conda），创建 `.venv` + `pip install -r .opencode/shared/env/requirements.txt`。
 
 ### 验证环境
 ```bash
-python .opencode/shared/env_setup.py                 # 检查
-python .opencode/shared/env_setup.py --fix           # 修复
+python .opencode/shared/env/env_setup.py                 # 检查
+python .opencode/shared/env/env_setup.py --fix           # 修复
 ```
 
 ## 流程

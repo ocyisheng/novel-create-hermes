@@ -2,9 +2,11 @@
 V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
 
 常用命令：
-    # 实体查找
+    # 实体操作
     python .opencode/shared/v2_cli.py find-unit --path <PROJECT> --name <名称>
     python .opencode/shared/v2_cli.py get-unit --path <PROJECT> --id <ID>
+    python .opencode/shared/v2_cli.py create-unit --path <PROJECT> --type <UnitType> --name <名称> --content <JSON>
+    python .opencode/shared/v2_cli.py update-unit --path <PROJECT> --id <ID> [--file content.json | --content <JSON>] [--name <名称>] [--tags <标签>]
     python .opencode/shared/v2_cli.py list-units --path <PROJECT> --type <UnitType> [--limit N]
 
     # 关系查询（--rel-type 过滤，见 list-relation-types）
@@ -21,6 +23,12 @@ V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
     python .opencode/shared/v2_cli.py stats --path <PROJECT>
     python .opencode/shared/v2_cli.py list-relation-types
     python .opencode/shared/v2_cli.py batch-infer --path <PROJECT>
+
+    # 可视化
+    python .opencode/shared/v2_cli.py viz --path <PROJECT>                              # 全项目关系图
+    python .opencode/shared/v2_cli.py viz --path <PROJECT> --character "韩致"           # 角色关系图
+    python .opencode/shared/v2_cli.py viz --path <PROJECT> --timeline "韩致"            # 时间线
+    python .opencode/shared/v2_cli.py viz --path <PROJECT> --output 图.html --open      # 自定义输出
 """
 
 import sys
@@ -55,8 +63,13 @@ def cmd_get_unit(args):
     ch = f"第{u.belongs_to_chapter}章" if u.belongs_to_chapter else "无"
     print(f"章节: {ch}")
     if u.content:
-        preview = u.content[:200].replace("\n", " ")
-        print(f"内容: {preview}..." if len(u.content) > 200 else f"内容: {preview}")
+        if args.verbose:
+            print(f"内容:\n{u.content}")
+        else:
+            preview = u.content[:200].replace("\n", " ")
+            print(f"内容: {preview}..." if len(u.content) > 200 else f"内容: {preview}")
+            if len(u.content) > 200:
+                print("（使用 --verbose 查看完整内容）")
 
 
 def cmd_get_neighbors(args):
@@ -120,6 +133,39 @@ def cmd_create_unit(args):
     print(f"创建成功: {u.id}")
     if created:
         print(f"关系推断: 新增 {created} 条关联")
+
+
+def cmd_update_unit(args):
+    from graph_store import GraphStore
+    s = GraphStore(args.path)
+    s.initialize()
+
+    content = None
+    if args.file:
+        import json
+        with open(args.file, "r", encoding="utf-8-sig") as f:
+            content = json.dumps(json.load(f), ensure_ascii=False)
+    elif args.content:
+        content = args.content
+
+    tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
+
+    u = s.update_unit(
+        unit_id=args.id,
+        content=content,
+        unit_name=args.name if args.name else None,
+        tags=tags,
+        actor=args.actor,
+    )
+    if not u:
+        print("更新失败：叙事单元不存在")
+        return
+
+    s.flush()
+    print(f"更新成功: {u.id}")
+    print(f"  名称: {u.unit_name}")
+    print(f"  版本: {u.version}")
+    print(f"  标签: {', '.join(u.tags) if u.tags else '无'}")
 
 
 def cmd_flush(args):
@@ -274,6 +320,101 @@ def cmd_export(args):
     print(f"\n导出完成: {exported} 个章节文件 → {out_dir}")
 
 
+def cmd_viz(args):
+    """生成可视化：全项目关系图 / 角色 Ego Network / 时间线"""
+    from v2_graph_viz import V2GraphLoader, V2HTMLGenerator
+    from pathlib import Path
+
+    project_root = Path(args.path).resolve()
+    if not project_root.is_dir():
+        print(f"错误: 项目目录不存在: {project_root}")
+        return
+
+    # 读项目名
+    project_name = project_root.name
+    config_path = project_root / "config.yaml"
+    if config_path.exists():
+        try:
+            import yaml
+            cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            if cfg and "项目名称" in cfg:
+                project_name = cfg["项目名称"]
+        except Exception:
+            pass
+
+    loader = V2GraphLoader(str(project_root))
+
+    # 确定输出路径
+    viz_dir = project_root / "graph" / "viz"
+    if args.output:
+        output_path = str(Path(args.output).resolve())
+    else:
+        viz_dir.mkdir(parents=True, exist_ok=True)
+        if args.timeline:
+            output_path = str(viz_dir / f"{args.timeline}_时间线.html")
+        elif args.character:
+            output_path = str(viz_dir / f"{args.character}_关系图.html")
+        else:
+            output_path = str(viz_dir / "全项目关系图.html")
+
+    import webbrowser
+    gen = V2HTMLGenerator(project_name)
+
+    # 时间线模式
+    if args.timeline:
+        unit_id = loader.find_unit_id(args.timeline)
+        if not unit_id:
+            print(f"错误: 未找到单元: {args.timeline}")
+            return
+        data = loader.build_timeline(unit_id)
+        if not data:
+            print("错误: 无法生成时间线")
+            return
+        gen.generate_timeline(data, output_path)
+        print(f"✅ 时间线已生成: {output_path}")
+        print(f"   实体: {data['entity']['name']}")
+        print(f"   事件: {len(data['events'])} 个")
+        if args.open:
+            webbrowser.open(output_path)
+        return
+
+    # 角色 Ego Network 模式
+    if args.character:
+        unit_id = loader.find_unit_id(args.character)
+        if not unit_id:
+            print(f"错误: 未找到角色/单元: {args.character}")
+            return
+        data = loader.build_character_network(unit_id)
+        center_name = ""
+        u = loader.store.get_unit(data.get("center_id", "")) if data.get("center_id") else None
+        cname = u.unit_name if u else args.character
+        graph_filename = Path(output_path).name
+        gen.generate_graph(data, output_path)
+        # 生成详情页
+        detail_dir = viz_dir / "detail"
+        gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
+        print(f"✅ 角色关系图已生成: {output_path}")
+        print(f"   角色: {cname}")
+        print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
+        if args.open:
+            webbrowser.open(output_path)
+        return
+
+    # 默认：全项目图谱
+    data = loader.build_full_graph()
+    graph_filename = Path(output_path).name
+    gen.generate_graph(data, output_path)
+    # 生成详情页
+    detail_dir = viz_dir / "detail"
+    gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
+    print(f"✅ V2 关系图已生成: {output_path}")
+    print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
+    stats = loader.store.stats()
+    print(f"   V2 graph: {stats['total_units']} 叙事单元, {stats['total_relations']} 关系")
+    if args.open:
+        webbrowser.open(output_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description="V2 CLI 工具")
     sub = parser.add_subparsers(dest="command")
@@ -296,9 +437,19 @@ def main():
     p.add_argument("--chapter", default="", help="所属章节号")
     p.add_argument("--actor", default="script")
 
+    p = sub.add_parser("update-unit", help="更新叙事单元内容/名称/标签")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+    p.add_argument("--content", default="", help="新内容（JSON 字符串，与 --file 二选一）")
+    p.add_argument("--file", default="", help="从 JSON 文件读取新内容（优先于 --content）")
+    p.add_argument("--name", default="", help="新名称")
+    p.add_argument("--tags", default="", help="逗号分隔的标签列表")
+    p.add_argument("--actor", default="script")
+
     p = sub.add_parser("get-unit", help="获取叙事单元详情")
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
+    p.add_argument("--verbose", "-v", action="store_true", help="显示完整内容（默认截断前200字）")
 
     p = sub.add_parser("get-neighbors", help="查询关联关系（可按关系类型过滤）")
     p.add_argument("--path", required=True)
@@ -356,6 +507,13 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--out", default="", help="输出目录（默认 chapters/）")
 
+    p = sub.add_parser("viz", help="生成可视化：关系图 / 角色网络 / 时间线")
+    p.add_argument("--path", "-p", required=True, help="项目根目录")
+    p.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network 关系图")
+    p.add_argument("--timeline", "-t", default="", help="角色名称/ID：生成时间线")
+    p.add_argument("--output", "-o", default="", help="输出 HTML 路径")
+    p.add_argument("--open", action="store_true", help="生成后自动在浏览器打开")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -365,6 +523,7 @@ def main():
         "start-session": cmd_start_session,
         "find-unit": cmd_find_unit,
         "create-unit": cmd_create_unit,
+        "update-unit": cmd_update_unit,
         "get-unit": cmd_get_unit,
         "get-neighbors": cmd_get_neighbors,
         "add-relation": cmd_add_relation,
@@ -379,6 +538,7 @@ def main():
         "batch-infer": cmd_batch_infer,
         "export-docs": cmd_export_docs,
         "export": cmd_export,
+        "viz": cmd_viz,
     }
     dispatch[args.command](args)
 

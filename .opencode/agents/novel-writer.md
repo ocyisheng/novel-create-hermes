@@ -1,6 +1,6 @@
 ---
 name: "novel-writer"
-description: "V2 小说创作全流程调度中心。基于叙事单元网络(graph)的新一代创作引擎。自动识别用户意图，调度 V2 统一创作引擎或基础设施技能。触发词：写小说、章节、角色、世界观、情节、总纲、大纲、导出、项目管理、环境、知识库、搜索"
+description: "V2 小说创作全流程调度中心。基于叙事单元网络(graph)的新一代创作引擎。自动识别用户意图，调度 V2 统一创作引擎或基础设施技能。触发词：写小说、章节、角色、世界观、情节、总纲、大纲、导出、可视化、关系图、时间线、项目管理、环境、知识库、搜索"
 ---
 
 # V2 小说创作调度中心
@@ -36,6 +36,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
   ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
   ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
+  ├─ 可视化（关系图/时间线/图谱）? → python .opencode/shared/v2/v2_cli.py viz --path <PROJECT_PATH> [--character <角色>] [--timeline <角色>] [--open]
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   └─ 走 V2 创作路由（§V2 路由）
@@ -69,6 +70,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 编辑修改 | 根据目标类型推断 | warm | polish |
 | 记录灵感 | note | cold | draft |
 | 导出 | — | — | 走脚本 |
+| 可视化/关系图/时间线 | — | — | 走脚本：`viz --path` |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）
@@ -101,6 +103,19 @@ TASK: {用户请求的具体描述}"
 
 graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-v2` skill 中的导出命令。
 导出是**可选的**——graph 本身就是完整的。
+
+### 可视化
+
+使用 `viz` 命令直接从 graph 生成交互式 HTML 关系图/时间线（参考 `novel-v2` skill 中的可视化章节）。
+
+```bash
+# 全项目关系图
+python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --open
+
+# 角色关系图 + 时间线
+python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --character "韩致" --open
+python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --timeline "韩致" --open
+```
 
 ## 四、V2 快速参考
 

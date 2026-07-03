@@ -60,24 +60,59 @@ WRITING MODE: draft | polish | rewrite
 
 ---
 
-## V2 操作指南
+## V2 操作指南（CLI 命令的唯一源头）
+
+所有 V2 操作通过 `v2_cli.py` 执行。以下命令列表是唯一权威参考——Agent 和子 Agent 的 prompt 不应重复这些命令，应引用本指南。
 
 ### 1. 读取 graph 数据
 
 ```bash
+# 获取叙事单元详情
 python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {单元ID}
+
+# 查询单元的关联关系（1-hop 邻居）
 python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID}
+
+# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
 python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
+
+# 按名称查找叙事单元 ID
+python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+
+# 项目统计
+python .opencode/shared/v2/v2_cli.py stats --path {PROJECT_PATH}
+
+# 最近事件
+python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
 ```
 
 ### 2. 写入 graph 数据
 
 ```bash
+# 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
 python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
+
+# 建立关系
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
+
+# 批量推断关系（新项目迁移后必做）
+python .opencode/shared/v2/v2_cli.py batch-infer --path {PROJECT_PATH}
 ```
 
-### 3. 通过 QUERY 协议获取上下文
+### 3. 会话管理
+
+```bash
+# 启动创作会话
+python .opencode/shared/v2/v2_cli.py start-session --path {PROJECT_PATH} --type SCENE --id {单元ID}
+
+# 构建工作空间上下文
+python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {焦点单元ID} --level warm
+
+# 持久化 graph
+python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
+```
+
+### 4. 通过 QUERY 协议获取上下文
 
 写作过程中如果缺少信息，在回复中包含 QUERY 指令：
 
@@ -99,22 +134,17 @@ QUERY: recent_context(chapter=章节号, limit=5)
 编排层会拦截 QUERY，从 graph 查询，将结果注入 session 上下文。
 **QUERY 指令不会出现在最终输出中。**
 
-### 4. 使用工作空间构建上下文
+### 5. 导出和迁移
 
 ```bash
-python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {焦点单元ID} --level warm
-```
+# V1→V2 迁移
+python .opencode/shared/v2/migrate.py --project-root {PROJECT_PATH} --verify --report
 
-### 5. 写后持久化
-
-```bash
-python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
-```
-
-### 6. 投影到文件（保持与现有文件体系兼容）
-
-```bash
+# 导出结构化文档（Markdown，输出到 graph/export/）
 python .opencode/shared/v2/v2_cli.py export-docs --path {PROJECT_PATH}
+
+# 导出章节 TXT 文件
+python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 ```
 
 ---

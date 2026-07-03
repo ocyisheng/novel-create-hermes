@@ -449,7 +449,7 @@ def _handle_style_check(
     if not text:
         return QueryResult(success=False, error="缺少参数: text")
     
-    # 语言尸体关键词（简易版）
+    # 语言尸体关键词（权威列表见 skills/novel-quality/references/cliches.md）
     CLICHES = [
         "暮色从四面八方", "空气仿佛凝固", "时间仿佛停止",
         "一股莫名的", "不知为何", "心中涌起一股",

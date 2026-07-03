@@ -51,22 +51,6 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 
 ## 工作流程
 
-### 入口路由
-
-```
-用户输入
-  ├─ 明确模式标识（mode=search / mode=align / ...）
-  │   → 按该模式执行
-  ├─ 触发词匹配（搜索/查找/看看有没有/找一下/查一下/搜一下/分析/核验/对齐）
-  │   → 自动判断模式
-  │     ├─ 含关键词 + 无实体名 → mode=search
-  │     ├─ 含实体名（角色/地名） → mode=entity-search
-  │     ├─ 含"对比/检查设定/核验" → mode=align
-  │     ├─ 含"完整/缺/漏/不足" → mode=gap
-  │     └─ 完全模糊 → 引导式询问
-  └─ 不匹配 → 返回编排层
-```
-
 ### 通用执行步骤
 
 ```

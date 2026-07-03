@@ -23,22 +23,15 @@ WRITING MODE: {draft | polish | rewrite}
 
 ### 第一步：初始化创作会话
 
-```bash
-python .opencode/shared/v2/v2_cli.py start-session --path {PROJECT_PATH} --type {FOCUS TYPE} --id {FOCUS ID}
-```
+使用 `v2_cli.py start-session` 命令（具体参数见 `novel-v2` skill 的操作指南）。
 
 ### 第二步：获取工作空间上下文
 
-```bash
-python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {FOCUS ID} --level {PREHEAT LEVEL}
-```
+使用 `v2_cli.py build-workspace` 命令（具体参数见 `novel-v2` skill 的操作指南）。
 
 ### 第三步：了解当前焦点叙事单元
 
-```bash
-python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {FOCUS ID}
-python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {FOCUS ID}
-```
+使用 `v2_cli.py get-unit` 和 `v2_cli.py get-neighbors` 命令（具体参数见 `novel-v2` skill 的操作指南）。
 
 ## 二、领域参考加载 + 脚本/提示词分工
 
@@ -66,53 +59,22 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 
 写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）：
 
-```
-QUERY: character_background(name="林渊")
-QUERY: scene_detail(scene_id="sc_0015")
-QUERY: world_rule(name="灵气淬体")
-QUERY: plot_thread_summary(name="主线")
-QUERY: foreshadowing_status(id="F001")
-QUERY: style_check(text="待检查的文字")
-QUERY: advanced_search(keywords=["剑", "灵气"], limit=5)
-QUERY: chapter_status(number=3)
-QUERY: recent_context(chapter=5, limit=3)
-```
+支持的查询类型见 `novel-v2` skill 的 QUERY 协议参考。编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
 
-编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
 **QUERY 指令不要出现在最终回复中——编排层会自动剥离。**
 
 ## 五、创作操作
 
-### 5.1 创建新叙事单元
+所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南，包含：
 
-```bash
-python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "场景名" --content "场景内容" --tags "标签1,标签2" --chapter 3
-```
+- **创建叙事单元**：`v2_cli.py create-unit`
+- **建立关系**：`v2_cli.py add-relation`
+- **写入正文**：先创建 CHUNK 单元，再关联到场景
+- **持久化**：`v2_cli.py flush`
 
-### 5.2 建立关系
+### 章节正文的兼容写入
 
-```bash
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
-```
-
-### 5.3 写入章节正文
-
-```bash
-# 1. 创建 CHUNK 叙事单元
-python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type CHUNK --name "第3章" --content "正文内容..." --chapter 3
-
-# 2. 关联到场景
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {场景ID} --target {CHUNK_ID} --type implements
-
-# 3. 写入 TXT 文件（保持兼容）
-# 用 write 工具直接写文件：chapters/第3章.txt
-```
-
-### 5.4 持久化
-
-```bash
-python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
-```
+创建 CHUNK 后，用 `write` 工具将正文写入 `chapters/` 目录下的 TXT 文件，保持向后兼容。
 
 ## 六、HARD CONSTRAINTS
 

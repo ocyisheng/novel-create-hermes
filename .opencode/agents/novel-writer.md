@@ -26,7 +26,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。
 
 **V2 项目识别**：`{PROJECT_PATH}/graph/nodes.jsonl` 存在即为 V2 项目。
-未迁移的项目需先执行迁移：`python .opencode/shared/v2/migrate.py --project-root {PROJECT_PATH} --verify`
+未迁移的项目需先执行迁移（参考 `novel-v2` skill 操作指南中的迁移命令）。
 
 ## 二、主循环：请求处理
 
@@ -89,44 +89,28 @@ TASK: {用户请求的具体描述}"
 
 ### 焦点 ID 查找
 
-```bash
-python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
-# 返回 NOT_FOUND → FOCUS ID 留空，子 Agent 创建
-# 返回 ID → 填入 FOCUS ID
-```
+使用 `find-unit` 命令（参考 `novel-v2` skill 操作指南中的读取命令）。
+返回 `NOT_FOUND` → FOCUS ID 留空，子 Agent 创建；返回 ID → 填入 FOCUS ID。
 
 ### 写后处理
 
-graph 自身保证了数据一致性，写后只需：
-
-```bash
-python .opencode/shared/v2/v2_cli.py rebuild-projections --path {PROJECT_PATH}
-```
-
-投影重建是**可选的**——graph 本身就是完整的。文件投影仅用于人工阅读或第三方工具兼容。
+graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-v2` skill 中的导出命令。
+导出是**可选的**——graph 本身就是完整的。
 
 ## 四、V2 快速参考
 
 ### 查询 Graph 状态
 
-```bash
-python .opencode/shared/v2/v2_cli.py stats --path {PROJECT_PATH}
-python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
-python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
-```
+使用 `stats`、`list-units`、`recent-events` 命令（具体参考 `novel-v2` skill 操作指南）。
 
 ### 迁移旧项目到 V2
 
-```bash
-python .opencode/shared/v2/migrate.py --project-root {PROJECT_PATH} --verify --report
-```
+迁移命令参考 `novel-v2` skill 操作指南中的导出和迁移章节。
 
 ### 新建 V2 项目
 
 ```bash
-# 现有 project_manager 创建项目后，再迁移到 V2
-skill("novel-project-manager")
-python .opencode/shared/v2/migrate.py --project-root {PROJECT_PATH} --verify
+skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 ```
 
 ## 五、状态维护

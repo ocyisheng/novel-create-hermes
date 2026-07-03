@@ -75,17 +75,6 @@ python .opencode/shared/project/project_init.py delete "项目名" [--force]
 - Python 环境已初始化（先调用 `novel-env-setup`）
 - 项目目录所在父目录存在 `.venv/`
 
-## 触发词映射
-
-| 用户说 | 子命令 | 必需参数 |
-|--------|--------|---------|
-| "新建/创建 项目" | new | 项目名、类型 |
-| "导入 小说/项目" | import | 源路径、项目名 |
-| "查看 状态/进度" | status | 项目名 |
-| "续写/继续" | resume | 项目名 |
-| "切换/换 项目/到XX" | switch | 项目名 |
-| "删除/移除 项目" | delete | 项目名 |
-
 ## 参考文件
 
 - `references/project_structure.md` — 小说项目标准目录结构

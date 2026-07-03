@@ -518,7 +518,18 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     const visible = new Set();
     Object.entries(nodeData).forEach(([id, n]) => {{
       let ok = true;
-      if (typeVal !== 'all' && n.type !== typeVal) ok = false;
+      if (typeVal !== 'all') {{
+        if (typeVal.includes('.')) {{
+          const parts = typeVal.split('.');
+          if (n.type !== parts[0]) {{ ok = false; }}
+          else {{
+            const st = (n.extra?._display?.类型) || (n.tags?.[0]) || '';
+            if (st !== parts[1]) ok = false;
+          }}
+        }} else if (n.type !== typeVal) {{
+          ok = false;
+        }}
+      }}
       if (query && !n.label.toLowerCase().includes(query)) ok = false;
       if (ok) visible.add(id);
     }});
@@ -580,7 +591,15 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     if (!info) return;
     const tl = typeLabels[info.type] || info.type;
     document.getElementById('dp-name').textContent = info.label;
-    document.getElementById('dp-meta').textContent = tl + ' · ' + info.status + ' · 确信度: ' + (info.confidence || '?');
+    // 二级标签：世界观下的地点/势力子类
+    let subtypeHtml = '';
+    if (info.type === 'world_rule') {{
+      const st = (ex._display || {{}}).类型 || '';
+      if (st === '地点' || st === '势力') {{
+        subtypeHtml = ' <span class="dp-tag" style="background:' + (st === '地点' ? 'rgba(0,176,240,0.2)' : 'rgba(237,125,49,0.2)') + ';color:' + (st === '地点' ? '#5BD' : '#ED7D31') + '">' + st + '</span>';
+      }}
+    }}
+    document.getElementById('dp-meta').innerHTML = tl + ' · ' + info.status + subtypeHtml + ' · 确信度: ' + (info.confidence || '?');
     const body = document.getElementById('dp-body');
     body.innerHTML = '';
     const ex = info.extra || {{}};
@@ -769,13 +788,33 @@ class V2HTMLGenerator:
         type_order = ["character_arc", "scene", "plot_thread", "world_rule", "thematic_motif", "note", "chunk"]
         filter_opts = []
         legend_items = []
+
+        # Collect world_rule subtypes for nested filter
+        world_subtypes = {}
+        for n in nodes.values():
+            if n["type"] == "world_rule":
+                st = n.get("extra", {}).get("_display", {}).get("类型", "")
+                if st:
+                    world_subtypes[st] = world_subtypes.get(st, 0) + 1
+                elif n.get("tags"):
+                    # fallback: use first tag
+                    t0 = n["tags"][0] if n["tags"] else ""
+                    if t0 in ("地点", "势力"):
+                        world_subtypes[t0] = world_subtypes.get(t0, 0) + 1
+
         for t in type_order:
             if t in type_set:
                 c = UNIT_TYPE_COLORS.get(UnitType(t), {} if t in type_set else None)
                 if not c:
                     c = {"bg": "#D6D6D6", "border": "#A0A0A0", "text": "#000"}
                 label = UNIT_TYPE_LABELS.get(UnitType(t), t)
-                filter_opts.append(f'<option value="{t}">{label} ({type_counts[t]})</option>')
+                count = type_counts[t]
+                filter_opts.append(f'<option value="{t}">{label} ({count})</option>')
+                # Add world_rule sub-type options
+                if t == "world_rule" and world_subtypes:
+                    for st in sorted(world_subtypes.keys()):
+                        sc = world_subtypes[st]
+                        filter_opts.append(f'<option value="world_rule.{st}">  ↳ {st} ({sc})</option>')
                 legend_items.append(
                     f'<div class="item"><span class="dot" style="background:{c["bg"]}"></span>'
                     f'<span>{label}</span></div>'

@@ -91,8 +91,8 @@ WORLD_RULE_SCHEMA = {
         "world_overview","rule","power_system","faction","location",
         "history","culture","economic_system","political_system","social_hierarchy"
     ]},
+    "二级类型": {"type": str, "required": False, "description": "子类型的细化分类，如 location→大陆/国家/城市/秘境/海域, faction→宗门/家族/商行/组织"},
     "核心设定": {"type": str, "required": True},
-    # 子类型特定字段——按子类型有不同的必填结构
 }
 
 NOTE_SCHEMA = {

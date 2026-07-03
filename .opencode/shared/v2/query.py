@@ -29,6 +29,7 @@ from collections import defaultdict
 
 from graph_schema import UnitType, UnitStatus, RelationType
 from graph_store import GraphStore as GraphStoreImpl
+from render_utils import summarize_content
 
 
 # ── 查询类型 ──────────────────────────────────────────────────────────────
@@ -263,8 +264,15 @@ def _handle_character_background(
     if unit.tags:
         parts.append(f"标签: {', '.join(unit.tags)}")
     if unit.content:
-        preview = unit.content[:300] + "..." if len(unit.content) > 300 else unit.content
-        parts.append(f"内容摘要: {preview}")
+        try:
+            content_dict = json.loads(unit.content) if isinstance(unit.content, str) else unit.content
+            if isinstance(content_dict, dict):
+                preview = summarize_content(content_dict)
+            else:
+                preview = str(content_dict)[:300]
+        except (json.JSONDecodeError, ValueError):
+            preview = unit.content[:300]
+        parts.append(f"内容:\n{preview}")
     if related_scenes:
         parts.append("出场章节:")
         parts.extend(related_scenes)
@@ -310,7 +318,14 @@ def _handle_scene_detail(
         parts.append(f"章节: 第{unit.belongs_to_chapter}章")
     parts.append(f"状态: {unit.status.value}")
     if unit.content:
-        preview = unit.content[:500] + "..." if len(unit.content) > 500 else unit.content
+        try:
+            content_dict = json.loads(unit.content) if isinstance(unit.content, str) else unit.content
+            if isinstance(content_dict, dict):
+                preview = summarize_content(content_dict)
+            else:
+                preview = str(content_dict)[:300]
+        except (json.JSONDecodeError, ValueError):
+            preview = unit.content[:300]
         parts.append(f"内容:\n{preview}")
     if neighbor_names:
         parts.append(f"关联: {', '.join(neighbor_names)}")
@@ -337,7 +352,14 @@ def _handle_world_rule(
     parts = [f"世界观规则: {unit.unit_name}"]
     parts.append(f"状态: {unit.status.value}")
     if unit.content:
-        preview = unit.content[:500] + "..." if len(unit.content) > 500 else unit.content
+        try:
+            content_dict = json.loads(unit.content) if isinstance(unit.content, str) else unit.content
+            if isinstance(content_dict, dict):
+                preview = summarize_content(content_dict)
+            else:
+                preview = str(content_dict)[:300]
+        except (json.JSONDecodeError, ValueError):
+            preview = unit.content[:300]
         parts.append(f"内容:\n{preview}")
     
     return QueryResult(
@@ -403,7 +425,14 @@ def _handle_plot_thread_summary(
         parts = [f"情节线: {unit.unit_name}"]
         parts.append(f"状态: {unit.status.value}")
         if unit.content:
-            preview = unit.content[:300] + "..." if len(unit.content) > 300 else unit.content
+            try:
+                content_dict = json.loads(unit.content) if isinstance(unit.content, str) else unit.content
+                if isinstance(content_dict, dict):
+                    preview = summarize_content(content_dict)
+                else:
+                    preview = str(content_dict)[:300]
+            except (json.JSONDecodeError, ValueError):
+                preview = unit.content[:300]
             parts.append(f"摘要: {preview}")
         if related:
             parts.append(f"关联场景 ({len(related)}):")

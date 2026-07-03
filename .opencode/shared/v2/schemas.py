@@ -1,8 +1,9 @@
 """
 叙事单元 content 字段的 JSON Schema 定义 + 验证。
 
-每种 UnitType 的 content 字段有预期的 JSON 结构。
-脚本在写入时自动校验必填字段和类型，不需要 LLM 记忆结构规范。
+每种 UnitType 的普适字段（Universal Fields）在此定义。
+流派适配字段（Genre-Adaptive Fields）不由 schema 约束，
+由 render_utils 的值类型推断标准表处理。
 
 使用方式：
     from schemas import validate_content
@@ -22,56 +23,35 @@ from graph_schema import UnitType
 
 # ── Schema 定义 ───────────────────────────────────────────────────────────
 
-# 每个 schema 是一个字典，描述 content 中期望的 JSON 结构：
-# {
-#     "必填字段": {"type": str, "description": "..."},
-#     "可选字段": {"type": list, "required": False, ...},
-# }
+# 每个 schema 只定义普适字段（Universal Fields）—
+# 所有该类型的单元都必须/应该包含的字段。
+# 流派适配字段（如仙侠的"修为"、都市的"职业"）不由 schema 约束。
 
 SCENE_SCHEMA = {
     "章节类型": {"type": str, "required": True, "options": ["推进","过渡","高潮","结局","转折","收尾"]},
-    "字数目标": {"type": int, "required": False},
     "结构规划": {"type": dict, "required": True, "fields": {
         "开篇": {"type": dict, "fields": {"方式": {"type": str}, "上章衔接": {"type": str}}},
         "发展": {"type": dict, "fields": {"核心冲突": {"type": str}, "推进": {"type": str}}},
         "转折": {"type": dict, "fields": {"事件": {"type": str}}},
         "收尾": {"type": dict, "fields": {"结果": {"type": str}, "下章铺垫": {"type": str}}},
     }},
-    "场域规划": {"type": list, "required": False, "item_fields": {
-        "场域名": {"type": str},
-        "POV角色": {"type": str},
-        "持续时间": {"type": int},
-        "功能": {"type": str},
-        "进入方式": {"type": str},
-        "退出方式": {"type": str},
-    }},
-    "张力曲线": {"type": dict, "required": False, "fields": {
-        "开场": {"type": int}, "章节高潮": {"type": int}, "结尾": {"type": int},
-    }},
-    "关联情节线": {"type": list, "required": False},
-    "出场角色": {"type": list, "required": False},
-    "伏笔处理": {"type": dict, "required": False},
+    # 出场角色、关联情节线、张力曲线、场域规划 等为流派适配字段，不在此定义
 }
 
 CHARACTER_ARC_SCHEMA = {
     "角色类型": {"type": str, "required": True, "options": ["主角","反派","导师","盟友","对手","次要角色"]},
     "性格": {"type": dict, "required": True, "fields": {
-        "核心特质": {"type": str},
+        "核心特质": {"type": [str, list]},  # 可 string 或 string[]，render_utils 统一按 tagcloud 渲染
         "优点": {"type": list},
         "缺点": {"type": list},
     }},
     "背景": {"type": dict, "required": False},
     "目标与冲突": {"type": dict, "required": False},
-    "能力设定": {"type": dict, "required": False},
-    "关系网络": {"type": list, "required": False, "item_fields": {
-        "角色": {"type": str},
-        "标签": {"type": list},
-        "强度": {"type": [int, float]},
-    }},
     "角色弧线": {"type": dict, "required": True, "fields": {
         "起始状态": {"type": str},
         "最终状态": {"type": str},
     }},
+    # 能力设定、关系网络 等为流派适配字段，不在此定义
 }
 
 PLOT_THREAD_SCHEMA = {
@@ -81,9 +61,8 @@ PLOT_THREAD_SCHEMA = {
         "章节": {"type": int},
         "事件": {"type": str},
     }},
-    "伏笔清单": {"type": dict, "required": False},
-    "角色参与": {"type": dict, "required": False},
     "终局设计": {"type": str, "required": False},
+    # 伏笔清单、角色参与 等为流派适配字段，不在此定义
 }
 
 WORLD_RULE_SCHEMA = {
@@ -91,12 +70,12 @@ WORLD_RULE_SCHEMA = {
         "world_overview","rule","power_system","faction","location",
         "history","culture","economic_system","political_system","social_hierarchy"
     ]},
-    "二级类型": {"type": str, "required": False, "description": "子类型的细化分类，如 location→大陆/国家/城市/秘境/海域, faction→宗门/家族/商行/组织"},
+    "二级类型": {"type": str, "required": False, "description": "子类型的细化分类"},
     "描述": {"type": str, "required": False, "description": "核心描述，自由文本"},
 }
 
 NOTE_SCHEMA = {
-    "note_type": {"type": str, "required": False, "options": ["总纲","叙事策略","灵感","笔记"]},
+    "note_type": {"type": str, "required": False, "options": ["总纲","叙事策略","灵感","笔记","纪年事件"]},
     # 自由文本，结构不限
 }
 
@@ -115,7 +94,6 @@ SCHEMA_REGISTRY: Dict[UnitType, dict] = {
     UnitType.WORLD_RULE: WORLD_RULE_SCHEMA,
     UnitType.NOTE: NOTE_SCHEMA,
     UnitType.CHUNK: CHUNK_SCHEMA,
-    UnitType.THEMATIC_MOTIF: {},
 }
 
 

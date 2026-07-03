@@ -26,6 +26,7 @@ if V2_DIR not in sys.path:
 
 from graph_schema import UnitType, RelationType, UnitStatus
 from graph_store import GraphStore
+from render_utils import render_content, summarize_content
 
 
 # ── V2 类型 → 可视化映射 ──────────────────────────────────────────
@@ -272,6 +273,45 @@ class V2GraphLoader:
                     "node_id": target.id,
                 })
 
+        # 关联的纪年事件 NOTE（content 中有"时间"字段）
+        seen_note_ids = set()
+        for rel in self.store.get_relations(unit_id):
+            other_id = rel.target_id if rel.source_id == unit_id else rel.source_id
+            if other_id in seen_note_ids:
+                continue
+            seen_note_ids.add(other_id)
+            other = self.store.get_unit(other_id)
+            if other and other.type == UnitType.NOTE and other.status != UnitStatus.ARCHIVED:
+                try:
+                    import json as _json
+                    c = _json.loads(other.content)
+                    content_dict = c if isinstance(c, dict) else {}
+                    # 直接读取 content 中的字段（支持旧 _display 格式兼容）
+                    event_time = content_dict.get("时间", "") or ""
+                    event_name = content_dict.get("事件", "") or ""
+                    if event_time and event_name:
+                        # 从时间字符串提取年份用于排序
+                        import re as _re
+                        years = _re.findall(r"(\d+)", event_time)
+                        sort_key = int(years[0]) if years else 0
+                        events.append({
+                            "sort_key": max(sort_key, 0),
+                            "time_label": event_time,
+                            "event": event_name,
+                            "source_type": "chapter",
+                            "node_id": other.id,
+                        })
+                    elif other.unit_name and len(other.unit_name) > 3:
+                        events.append({
+                            "sort_key": -3,
+                            "time_label": "笔记",
+                            "event": other.unit_name,
+                            "source_type": "note",
+                            "node_id": other.id,
+                        })
+                except (json.JSONDecodeError, AttributeError, KeyError):
+                    pass
+
         events.sort(key=lambda e: (e["sort_key"], e["event"]))
 
         return {
@@ -302,9 +342,13 @@ class V2GraphLoader:
             border_width = 2
 
         extra = {}
+        pre_rendered_html = ""
         try:
             if u.content and u.content.startswith("{"):
                 extra = json.loads(u.content)
+                if isinstance(extra, dict):
+                    rendered = render_content(extra)
+                    pre_rendered_html = "".join(r["html"] for r in rendered if r["html"])
             elif u.content:
                 extra["_preview"] = u.content[:100]
         except json.JSONDecodeError:
@@ -324,6 +368,7 @@ class V2GraphLoader:
             "tags": u.tags,
             "chapter": u.belongs_to_chapter,
             "extra": extra,
+            "pre_rendered_html": pre_rendered_html,
             "is_center": is_center,
             "hop": hop,
         }
@@ -539,7 +584,7 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
           const parts = typeVal.split('.');
           if (n.type !== parts[0]) {{ ok = false; }}
           else {{
-            const st = (n.extra?._display?.类型) || (n.tags?.[0]) || '';
+            const st = (n.extra?.['实体子类型'] === 'location' ? '地点' : n.extra?.['实体子类型'] === 'faction' ? '势力' : n.extra?.['实体子类型'] || n.tags?.[0] || '');
             if (st !== parts[1]) ok = false;
           }}
         }} else if (n.type !== typeVal) {{
@@ -560,62 +605,17 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
   typeFilter.addEventListener('change', applyFilter);
   searchBox.addEventListener('input', applyFilter);
 
-  // 点击详情面板
-  function renderDisplayValue(key, val) {{
-    // string[] → 标签云
-    if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') {{
-      let html = '<div class="dp-section"><h3>' + key + '</h3>';
-      val.forEach(function(v) {{ html += '<span class="dp-tag">' + v + '</span> '; }});
-      return html + '</div>';
-    }}
-    // {{target, relation}}[] → 关系列表
-    if (Array.isArray(val) && val.length > 0 && val[0].target) {{
-      let html = '<div class="dp-section"><h3>' + key + '</h3>';
-      val.forEach(function(v) {{
-        html += '<div style="padding:3px 0;font-size:12px"><span style="color:#8BB9E0">' + v.target + '</span> <span style="color:#666;font-size:11px">(' + (v.relation || '') + ')</span></div>';
-      }});
-      return html + '</div>';
-    }}
-    // {{事件, 时间?}}[] → 时间线
-    if (Array.isArray(val) && val.length > 0 && (val[0]['事件'] || val[0].event)) {{
-      let html = '<div class="dp-section"><h3>⏱ ' + key + ' (' + val.length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
-      html += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
-      val.slice(0, 15).forEach(function(v, i) {{
-        const evt = v['事件'] || v.event || '';
-        const t = v['时间'] || v.time || '';
-        html += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
-        html += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i % 2 === 0 ? '#5B9BD5' : '#70AD47') + '"></div>';
-        html += (t ? '<span style="color:#888">' + t + '</span> ' : '') + evt.substring(0, 100);
-        html += '</div>';
-      }});
-      if (val.length > 15) html += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (val.length - 15) + ' 条</div>';
-      return html + '</div></div>';
-    }}
-    // "描述" 始终作为文本块（无论长短）
-    if (key === '描述' && typeof val === 'string') {{
-      return '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + val.substring(0, 400) + '</div></div>';
-    }}
-    // string（短）→ 键值对
-    if (typeof val === 'string' && val.length < 50) {{
-      return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + key + '</span><br><span style="color:#e0e0e0;font-size:13px">' + val + '</span></div>';
-    }}
-    // string（长）→ 文本块
-    if (typeof val === 'string') {{
-      return '<div class="dp-section"><h3>' + key + '</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + val.substring(0, 400) + '</div></div>';
-    }}
-    return '';
-  }}
-
+  // 点击详情面板（使用 render_utils 预渲染的 HTML）
   function openDetail(nodeId) {{
     const info = nodeData[nodeId];
     if (!info) return;
     const tl = typeLabels[info.type] || info.type;
     document.getElementById('dp-name').textContent = info.label;
-    const ex = info.extra || {{}};
-    const display = ex._display || {{}};
+
     // 二级标签：世界观下的地点/势力子类
     let subtypeHtml = '';
     if (info.type === 'world_rule') {{
+      const ex = info.extra || {{}};
       const subType = ex['实体子类型'] || '';
       const stLabel = subType === 'location' ? '地点' : subType === 'faction' ? '势力' : '';
       if (stLabel) {{
@@ -623,77 +623,16 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
       }}
     }}
     document.getElementById('dp-meta').innerHTML = tl + ' · ' + info.status + subtypeHtml + ' · 确信度: ' + (info.confidence || '?');
+
     const body = document.getElementById('dp-body');
     body.innerHTML = '';
 
     let html = '';
 
-    // ── _display 兼容层（旧数据的展示字段优先渲染） ──
-    const displayKeys = Object.keys(display);
-    if (displayKeys.length > 0 && !ex['描述']) {{
-      // 仅当 extra 没有描述/核心特质等标准字段时，使用 _display 作为回退
-      const order = ['身份','修为','功法','阵营','当前目标','类型','二级类型'];
-      const rendered = new Set();
-      order.forEach(function(k) {{
-        if (display[k] && typeof display[k] === 'string' && display[k].length < 50) {{
-          html += renderDisplayValue(k, display[k]);
-          rendered.add(k);
-        }}
-      }});
-      Object.keys(display).forEach(function(k) {{
-        if (rendered.has(k)) return;
-        html += renderDisplayValue(k, display[k]);
-      }});
+    // ── 使用 Python render_utils 预渲染的 HTML ──
+    if (info.pre_rendered_html) {{
+      html += info.pre_rendered_html;
     }}
-
-    // ── 统一渲染：所有类型共用 ──
-    // 先渲染"描述"字段（所有类型通用）
-    const desc = ex['描述'] || (display['描述'] || '') || '';
-    if (desc && desc.length > 5 && desc !== info.label) {{
-      html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + desc.substring(0, 600) + '</div></div>';
-    }}
-
-    // 渲染"核心特质"（角色/世界观通用）
-    if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
-      let s = '<div class="dp-section"><h3>核心特质</h3>';
-      ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag">' + t + '</span> '; }});
-      html += s + '</div>';
-    }}
-
-    // 渲染"关键事件"时间线（角色/情节线通用）
-    const events = ex['关键事件'] || display['关键事件'] || [];
-    if (events.length > 0 && Array.isArray(events)) {{
-      let s = '<div class="dp-section"><h3>⏱ 时间线 (' + events.length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
-      s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
-      events.slice(0, 15).forEach(function(e, i) {{
-        const evtName = typeof e === 'string' ? e : (e['事件'] || e.event || '');
-        const evtTime = typeof e === 'object' ? (e['时间'] || e.time || '') : '';
-        s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
-        s += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i%2===0?'#5B9BD5':'#70AD47') + '"></div>';
-        s += (evtTime ? '<span style="color:#888">' + evtTime + '</span> ' : '') + evtName.substring(0, 100);
-        s += '</div>';
-      }});
-      if (events.length > 15) s += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (events.length - 15) + ' 条</div>';
-      html += s + '</div></div>';
-    }}
-
-    // 自动渲染剩余字段：跳过 schema 关键词和 _ 前缀
-    const skipKeys = ['描述','核心特质','关键事件','实体子类型','_display','role_type','note_type','性格','能力设定','关系网络','目标与冲突','角色弧线','背景'];
-    Object.keys(ex).forEach(function(k) {{
-      if (skipKeys.includes(k)) return;
-      if (k.startsWith('_')) return;
-      const v = ex[k];
-      if (v === null || v === undefined || v === '') return;
-      if (typeof v === 'string' && (v === info.label || v.length === 0)) return;
-      html += renderDisplayValue(k, v);
-    }});
-
-    // _display 中的额外字段（仅补充）
-    Object.keys(display).forEach(function(k) {{
-      if (skipKeys.includes(k)) return;
-      if (k in ex) return;  // 已在 schema 中存在就不重复
-      html += renderDisplayValue(k, display[k]);
-    }});
 
     // ── 标签（公共） ──
     html += '<div class="dp-section"><h3>标签</h3>';
@@ -785,6 +724,7 @@ TIMELINE_HTML_TEMPLATE = r"""<!DOCTYPE html>
   .tl-item.type-plot::before {{ background: #FFC000; border: 2px solid #BF8F00; box-shadow: 0 0 6px rgba(255,192,0,0.4); }}
   .tl-item.type-world::before {{ background: #70AD47; border: 2px solid #4E6B31; box-shadow: 0 0 6px rgba(112,173,71,0.4); }}
   .tl-item.type-chunk::before {{ background: #CD853F; border: 2px solid #8B6914; box-shadow: 0 0 6px rgba(205,133,63,0.4); }}
+  .tl-item.type-note::before {{ background: #B4A7D6; border: 2px solid #8E7CC3; box-shadow: 0 0 6px rgba(180,167,214,0.4); }}
   .tl-item .tl-time {{ font-size: 12px; color: #888; margin-bottom: 4px; font-weight: 500; }}
   .tl-item .tl-card {{
     background: rgba(255,255,255,0.04); border: 1px solid #2a2a4a;
@@ -834,14 +774,15 @@ class V2HTMLGenerator:
         legend_items = []
 
         # Collect world_rule subtypes for nested filter
+        SUBTYPE_LABEL = {"location": "地点", "faction": "势力", "rule": "规则", "power_system": "力量体系"}
         world_subtypes = {}
         for n in nodes.values():
             if n["type"] == "world_rule":
-                st = n.get("extra", {}).get("_display", {}).get("类型", "")
-                if st:
-                    world_subtypes[st] = world_subtypes.get(st, 0) + 1
+                sub_type = n.get("extra", {}).get("实体子类型", "")
+                st_label = SUBTYPE_LABEL.get(sub_type, "")
+                if st_label:
+                    world_subtypes[st_label] = world_subtypes.get(st_label, 0) + 1
                 elif n.get("tags"):
-                    # fallback: use first tag
                     t0 = n["tags"][0] if n["tags"] else ""
                     if t0 in ("地点", "势力"):
                         world_subtypes[t0] = world_subtypes.get(t0, 0) + 1

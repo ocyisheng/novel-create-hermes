@@ -1,6 +1,6 @@
 ---
 name: "novel-v2"
-description: "V2 创作引擎：基于叙事单元网络(graph)的下一代创作能力。用于已迁移项目的章节写作、角色管理、世界观维护、情节规划、质量检测等全部创作操作。触发词：V2、graph、叙事单元、QUERY、migrate"
+description: "V2 创作引擎：基于叙事单元网络(graph)的下一代创作能力。用于已迁移项目的章节写作、角色管理、世界观维护、情节规划、质量检测、可视化等全部创作操作。触发词：V2、graph、叙事单元、QUERY、migrate、可视化、关系图、时间线、viz"
 license: "MIT"
 version: "1.0.0"
 compatibility: "OpenCode"
@@ -98,6 +98,10 @@ python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
 # 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
 python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 
+# 更新叙事单元（内容 / 名称 / 标签，推荐用 --file 避免引号编码问题）
+python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --file content.json
+python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --name "新名称" --tags "新标签"
+
 # 建立关系（--type 见下方"关系类型速查表"）
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type member_of
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type contains
@@ -107,35 +111,7 @@ python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source
 python .opencode/shared/v2/v2_cli.py batch-infer --path {PROJECT_PATH}
 ```
 
-### 3. 关系类型速查表
-
-`get-neighbors --rel-type` 和 `add-relation --type` 共用的关系类型：
-
-| 关系 | 反向 | 连接 | 语义 |
-|------|------|------|------|
-| `member_of` | `has_member` | 角色 → 势力 | 角色是势力的成员 |
-| `contains` | `belongs_to` | 势力 → 势力 | 上级势力包含下级 |
-| `located_at` | `location_of` | 实体 → 地点 | 实体位于某地 |
-| `controls` | `controlled_by` | 势力 → 地域 | 势力统治的地盘 |
-| `allied_with` | 自身（对称） | 角色↔角色/势力↔势力 | 同盟关系 |
-| `participates_in` | 自身（对称） | 角色 → 场景 | 角色参与场景 |
-| `references` | 自身 | 任何 → 任何 | 引用（默认兜底） |
-
-查询方向示例：
-```bash
-# 落云宗的下属势力
-get-neighbors --id {落云宗ID} --rel-type contains
-
-# 落云宗的成员
-get-neighbors --id {落云宗ID} --rel-type member_of
-# 或反向：
-get-neighbors --id {落云宗ID} --rel-type has_member
-
-# 韩门从属于谁
-get-neighbors --id {韩门ID} --rel-type belongs_to
-```
-
-### 4. 会话管理
+### 3. 会话管理
 
 ```bash
 # 启动创作会话
@@ -148,7 +124,7 @@ python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id 
 python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
 ```
 
-### 5. 通过 QUERY 协议获取上下文
+### 4. 通过 QUERY 协议获取上下文
 
 写作过程中如果缺少信息，在回复中包含 QUERY 指令：
 
@@ -170,7 +146,7 @@ QUERY: recent_context(chapter=章节号, limit=5)
 编排层会拦截 QUERY，从 graph 查询，将结果注入 session 上下文。
 **QUERY 指令不会出现在最终输出中。**
 
-### 6. 导出和迁移
+### 5. 导出和迁移
 
 ```bash
 # V1→V2 迁移
@@ -183,36 +159,36 @@ python .opencode/shared/v2/v2_cli.py export-docs --path {PROJECT_PATH}
 python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 ```
 
-### 7. 数据格式标准
+### 6. 数据格式标准
 
 创建叙事单元时，content 字段遵循标准格式（详见 `references/数据格式标准.md`）：
 
 **角色 (CHARACTER_ARC)**：
 ```json
-{"角色类型": "主角", "性格": {"核心特质": "..."}, "角色弧线": {"起始状态": "...", "最终状态": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "_display": {"身份": "...", "修为": "...", "核心特质": [...], "关键事件": [...], "人物关系": [...]}}
+{"角色类型": "主角", "性格": {"核心特质": "..."}, "角色弧线": {"起始状态": "...", "最终状态": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "关键事件": [{"事件": "...", "时间": "..."}]}
 ```
 
 **场景 (SCENE)**：
 ```json
-{"章节类型": "推进/高潮/过渡", "结构规划": {"开篇": {...}, "发展": {...}, "转折": {...}, "收尾": {...}}, "出场角色": [...], "_display": {"地点": "...", "核心冲突": "...", "出场角色": [...]}}
+{"章节类型": "推进/高潮/过渡", "结构规划": {"开篇": {...}, "发展": {...}, "转折": {...}, "收尾": {...}}, "出场角色": [...], "地点": "...", "核心冲突": "...", "一句话概要": "..."}
 ```
 
 **情节线 (PLOT_THREAD)**：
 ```json
-{"类型": "主线/支线", "冲突核心": "...", "关键事件": [...], "_display": {"冲突核心": "...", "关键节点": [...]}}
+{"类型": "主线/支线", "冲突核心": "...", "关键事件": [{"章节": 10, "事件": "..."}], "终局设计": "..."}
 ```
 
 **世界观 (WORLD_RULE)**：
 ```json
-{"实体子类型": "location/faction/rule/power_system", "二级类型": "大陆/宗门/家族/秘境", "核心设定": "...", "_display": {"类型": "地点/势力", "二级类型": "...", "描述": "..."}}
+{"实体子类型": "location/faction/rule/power_system", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
 ```
 
 **笔记 (NOTE)**：
 ```json
-{"note_type": "总纲/纪年事件/灵感", "_display": {"类型": "...", "事件": "...", "时间": "..."}}
+{"note_type": "总纲/纪年事件/灵感", "事件": "...", "时间": "...", "备注": "..."}
 ```
 
-`_display` 字段是展示层，LLM 根据小说类型自动决定展示什么字段，HTML 面板按值类型自动渲染。
+不再使用 `_display` 字段。所有信息直接写入 content 字段，HTML 面板按值类型自动渲染。
 
 ---
 

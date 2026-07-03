@@ -32,6 +32,7 @@ from graph_schema import (
     EventType,
 )
 from graph_store import GraphStore
+from render_utils import extract_entity_refs
 
 
 # ── 推断规则表 ─────────────────────────────────────────────────────
@@ -106,10 +107,24 @@ class RelationInferrer:
         返回本次新建的关系数。
         """
         count = 0
+        # 0. 从 entity_ref 语义字段提取结构化引用
+        if unit.content:
+            try:
+                import json
+                content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
+                if isinstance(content_dict, dict):
+                    ref_names = extract_entity_refs(content_dict)
+                    for ref_name in ref_names:
+                        target = self.store.get_unit_by_name(ref_name)
+                        if target and target.id != unit.id:
+                            if self._create_rel(unit.id, target.id, RelationType.REFERENCES, 0.5):
+                                count += 1
+            except (json.JSONDecodeError, ValueError):
+                pass
         # 1. 同章节自动关联（规则引擎）
         if unit.type == UnitType.SCENE and unit.belongs_to_chapter:
             count += self._infer_same_chapter(unit)
-        # 2. 内容扫描
+        # 2. 内容扫描（纯文本子串匹配，补充结构化提取遗漏的引用）
         if unit.content:
             count += self._infer_by_content(unit)
         # 3. 如果新建的是角色，反向扫描已有内容

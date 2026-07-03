@@ -139,6 +139,8 @@ class GraphStore:
                         parent_event_id=data.get("parent_event_id"),
                     )
                     self._events.append(event)
+        # 标记所有已加载事件为"已刷新"，防止下次 flush 时重复追加
+        self._last_flushed_event = len(self._events)
     
     def _rebuild_indices(self):
         """重建内存索引"""
@@ -388,6 +390,66 @@ class GraphStore:
             if u.status != UnitStatus.ARCHIVED
             and (type is None or u.type == type)
         ]
+    
+    def find_units_by_field(
+        self,
+        type: Optional[UnitType] = None,
+        field_name: Optional[str] = None,
+        field_value: Any = None,
+    ) -> List[NarrativeUnit]:
+        """
+        按 content 内字段名/值查询。
+        
+        递归搜索所有嵌套 dict，不要求字段路径精确。
+        例: find_units_by_field(type=CHARACTER_ARC, field_name="修为", field_value="化神期")
+        """
+        results = []
+        for unit in self._units.values():
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+            if type and unit.type != type:
+                continue
+            if field_name is not None or field_value is not None:
+                content = self._parse_content(unit)
+                if not self._field_matches(content, field_name, field_value):
+                    continue
+            results.append(unit)
+        return results
+    
+    def _parse_content(self, unit: NarrativeUnit) -> dict:
+        """解析 content 为 dict（遇错误返回空 dict）"""
+        if isinstance(unit.content, str) and unit.content.startswith("{"):
+            try:
+                return json.loads(unit.content)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def _field_matches(self, data: Any, field_name: Optional[str], field_value: Any) -> bool:
+        """递归搜索 dict，判断是否包含匹配的字段名/值"""
+        if isinstance(data, dict):
+            for key, val in data.items():
+                if field_name is not None and field_value is not None:
+                    if key == field_name and val == field_value:
+                        return True
+                elif field_name is not None:
+                    if key == field_name:
+                        return True
+                elif field_value is not None:
+                    if val == field_value:
+                        return True
+                if isinstance(val, (dict, list)):
+                    if self._field_matches(val, field_name, field_value):
+                        return True
+        elif isinstance(data, list):
+            for item in data:
+                if self._field_matches(item, field_name, field_value):
+                    return True
+        elif field_value is not None:
+            # 叶子节点值匹配（通过递归从 list/dict 到达）
+            if data == field_value:
+                return True
+        return False
     
     # ── 关系操作 ────────────────────────────────────────────────────────
     

@@ -159,7 +159,7 @@ DETAIL_HTML = r"""<!DOCTYPE html>
     physics: {{
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {{ gravitationalConstant: -60, centralGravity: 0.01, springLength: 150, damping: 0.4 }},
-      stabilization: {{ iterations: 100 }},
+      stabilization: {{ iterations: 30 }},
     }},
     interaction: {{ dragNodes: true, zoomView: true, dragView: true }},
     edges: {{ smooth: {{ type: 'continuous' }} }},

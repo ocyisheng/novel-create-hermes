@@ -168,13 +168,20 @@ class GraphStore:
         self._dirty_edges = False
     
     def _flush_events(self):
-        """将新增事件追加到 olog"""
+        """将新增事件追加到 olog（只写未持久化的新事件）"""
         if not self._dirty_events:
             return
-        # 事件只追加，不覆写
+        # 追踪上次刷新的位置
+        if not hasattr(self, '_last_flushed_event'):
+            self._last_flushed_event = 0
+        new_events = self._events[self._last_flushed_event:]
+        if not new_events:
+            self._dirty_events = False
+            return
         with open(self.events_path, "a", encoding="utf-8") as f:
-            for event in self._events:
+            for event in new_events:
                 f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+        self._last_flushed_event = len(self._events)
         self._dirty_events = False
     
     def flush(self):

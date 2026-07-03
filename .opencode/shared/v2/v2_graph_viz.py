@@ -467,17 +467,17 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
 
   // 配置
   const options = {{
-    layout: {{ improvedLayout: true, hierarchical: false }},
+    layout: {{ improvedLayout: false, hierarchical: false }},
     physics: {{
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {{
-        gravitationalConstant: -80,
-        centralGravity: 0.005,
-        springLength: 180,
-        springConstant: 0.02,
-        damping: 0.4,
+        gravitationalConstant: -60,
+        centralGravity: 0.01,
+        springLength: 150,
+        springConstant: 0.03,
+        damping: 0.5,
       }},
-      stabilization: {{ iterations: 200 }},
+      stabilization: {{ iterations: 30, updateInterval: 10 }},
     }},
     interaction: {{
       dragNodes: true, dragView: true, zoomView: true,
@@ -575,6 +575,10 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
       if (val.length > 15) html += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (val.length - 15) + ' 条</div>';
       return html + '</div></div>';
     }}
+    // "描述" 始终作为文本块（无论长短）
+    if (key === '描述' && typeof val === 'string') {{
+      return '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + val.substring(0, 400) + '</div></div>';
+    }}
     // string（短）→ 键值对
     if (typeof val === 'string' && val.length < 50) {{
       return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + key + '</span><br><span style="color:#e0e0e0;font-size:13px">' + val + '</span></div>';
@@ -591,10 +595,12 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     if (!info) return;
     const tl = typeLabels[info.type] || info.type;
     document.getElementById('dp-name').textContent = info.label;
+    const ex = info.extra || {{}};
+    const display = ex._display || {{}};
     // 二级标签：世界观下的地点/势力子类
     let subtypeHtml = '';
     if (info.type === 'world_rule') {{
-      const st = (ex._display || {{}}).类型 || '';
+      const st = (display).类型 || '';
       if (st === '地点' || st === '势力') {{
         subtypeHtml = ' <span class="dp-tag" style="background:' + (st === '地点' ? 'rgba(0,176,240,0.2)' : 'rgba(237,125,49,0.2)') + ';color:' + (st === '地点' ? '#5BD' : '#ED7D31') + '">' + st + '</span>';
       }}
@@ -602,8 +608,6 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('dp-meta').innerHTML = tl + ' · ' + info.status + subtypeHtml + ' · 确信度: ' + (info.confidence || '?');
     const body = document.getElementById('dp-body');
     body.innerHTML = '';
-    const ex = info.extra || {{}};
-    const display = ex._display || {{}};
 
     let html = '';
     const hasDisplay = Object.keys(display).length > 0;
@@ -656,18 +660,18 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     if (info.tags) info.tags.forEach(function(t) {{ html += '<span class="dp-tag">' + t + '</span>'; }});
     html += '</div>';
 
-    // ── 关联节点（公共） ──
-    const related = {{ out: [], in_: [] }};
-    edgeData.forEach(function(e) {{
-      if (e.from === nodeId) related.out.push(e);
-      if (e.to === nodeId) related.in_.push(e);
-    }});
+    // ── 关联节点（公共，出入双向） ──
     const groups = {{}};
-    related.out.forEach(function(e) {{
-      const target = nodeData[e.to];
-      if (!target) return;
-      if (!groups[target.type]) groups[target.type] = [];
-      groups[target.type].push(target.label + ' (' + (e.label || '') + ')');
+    edgeData.forEach(function(e) {{
+      if (e.from !== nodeId && e.to !== nodeId) return;
+      const otherId = (e.from === nodeId) ? e.to : e.from;
+      const other = nodeData[otherId];
+      if (!other) return;
+      const label = (e.from === nodeId)
+        ? other.label + ' (' + (e.label || '→') + ')'
+        : other.label + ' (' + (e.label || '←') + ')';
+      if (!groups[other.type]) groups[other.type] = [];
+      groups[other.type].push(label);
     }});
     Object.keys(groups).forEach(function(t) {{ groups[t] = [...new Set(groups[t])]; }});
     ['character_arc','scene','plot_thread','world_rule','note'].forEach(function(t) {{

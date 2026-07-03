@@ -92,7 +92,7 @@ WORLD_RULE_SCHEMA = {
         "history","culture","economic_system","political_system","social_hierarchy"
     ]},
     "二级类型": {"type": str, "required": False, "description": "子类型的细化分类，如 location→大陆/国家/城市/秘境/海域, faction→宗门/家族/商行/组织"},
-    "核心设定": {"type": str, "required": True},
+    "描述": {"type": str, "required": False, "description": "核心描述，自由文本"},
 }
 
 NOTE_SCHEMA = {

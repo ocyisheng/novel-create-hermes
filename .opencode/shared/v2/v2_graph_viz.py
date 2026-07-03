@@ -72,6 +72,14 @@ RELATION_LABELS = {
     RelationType.PARALLEL:        "并列",
     RelationType.INSPIRES:        "启发",
     RelationType.REFINES:         "细化",
+    RelationType.LOCATED_AT:      "位于",
+    RelationType.ALLIED_WITH:     "同盟",
+    RelationType.CONTAINS:        "包含",
+    RelationType.CONTROLS:        "统治",
+    RelationType.MEMBER_OF:       "成员",
+    RelationType.HAS_MEMBER:      "拥有成员",
+    RelationType.LOCATION_OF:     "所在",
+    RelationType.CONTROLLED_BY:   "受制",
 }
 
 RELATION_COLORS = {
@@ -86,6 +94,14 @@ RELATION_COLORS = {
     RelationType.PARALLEL:        "#B4A7D6",
     RelationType.INSPIRES:        "#B4A7D6",
     RelationType.REFINES:         "#70AD47",
+    RelationType.LOCATED_AT:      "#00B0F0",
+    RelationType.ALLIED_WITH:     "#92D050",
+    RelationType.CONTAINS:        "#ED7D31",
+    RelationType.CONTROLS:        "#FF6600",
+    RelationType.MEMBER_OF:       "#5B9BD5",
+    RelationType.HAS_MEMBER:      "#5B9BD5",
+    RelationType.LOCATION_OF:     "#00B0F0",
+    RelationType.CONTROLLED_BY:   "#FF6600",
 }
 
 
@@ -612,27 +628,11 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
 
     let html = '';
 
-    // ── WORLD_RULE：直接读 schema 字段 ──
-    if (info.type === 'world_rule') {{
-      const subType = ex['实体子类型'] || '';
-      const secType = ex['二级类型'] || display['二级类型'] || '';
-      const coreSetting = ex['核心设定'] || '';
-      // 二级类型
-      if (secType) {{
-        html += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">二级类型</span><br><span style="color:#e0e0e0;font-size:13px">' + secType + '</span></div>';
-      }}
-      // 核心设定作为描述文本块
-      if (coreSetting && coreSetting.length > 5) {{
-        html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + coreSetting.substring(0, 600) + '</div></div>';
-      }}
-      // 额外 _display 字段（除 类型/二级类型/描述）
-      Object.keys(display).forEach(function(k) {{
-        if (k === '类型' || k === '二级类型' || k === '描述') return;
-        html += renderDisplayValue(k, display[k]);
-      }});
-    }} else if (Object.keys(display).length > 0) {{
-      // ── 其他类型：_display 模式 ──
-      const order = ['身份','修为','功法','阵营','当前目标'];
+    // ── _display 兼容层（旧数据的展示字段优先渲染） ──
+    const displayKeys = Object.keys(display);
+    if (displayKeys.length > 0 && !ex['描述']) {{
+      // 仅当 extra 没有描述/核心特质等标准字段时，使用 _display 作为回退
+      const order = ['身份','修为','功法','阵营','当前目标','类型','二级类型'];
       const rendered = new Set();
       order.forEach(function(k) {{
         if (display[k] && typeof display[k] === 'string' && display[k].length < 50) {{
@@ -644,32 +644,56 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
         if (rendered.has(k)) return;
         html += renderDisplayValue(k, display[k]);
       }});
-    }} else {{
-      // ── Fallback：无 _display 时的旧逻辑 ──
-      if (info.type === 'character_arc') {{
-        const fmap = [['身份','身份'],['修为','修为'],['功法','功法'],['阵营','阵营'],['当前目标','当前目标'],['状态','状态']];
-        let fh = '';
-        fmap.forEach(function(p) {{
-          const v = ex[p[0]];
-          if (v && v !== '') fh += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + p[1] + '</span><br><span style="color:#e0e0e0;font-size:13px">' + v + '</span></div>';
-        }});
-        if (fh) html += '<div class="dp-section">' + fh + '</div>';
-      }}
-      if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
-        let s = '<div class="dp-section"><h3>核心特质</h3>';
-        ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag">' + t + '</span> '; }});
-        html += s + '</div>';
-      }}
-      if (ex['描述']) html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + ex['描述'].substring(0, 400) + '</div></div>';
-      if (ex['关键事件'] && Array.isArray(ex['关键事件'])) {{
-        let s = '<div class="dp-section"><h3>⏱ 时间线</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
-        s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
-        ex['关键事件'].slice(0, 15).forEach(function(e, i) {{
-          s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc"><div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i%2===0?'#5B9BD5':'#70AD47') + '"></div>' + (typeof e==='string'?e:e['事件']||'') + '</div>';
-        }});
-        html += s + '</div></div>';
-      }}
     }}
+
+    // ── 统一渲染：所有类型共用 ──
+    // 先渲染"描述"字段（所有类型通用）
+    const desc = ex['描述'] || (display['描述'] || '') || '';
+    if (desc && desc.length > 5 && desc !== info.label) {{
+      html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + desc.substring(0, 600) + '</div></div>';
+    }}
+
+    // 渲染"核心特质"（角色/世界观通用）
+    if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
+      let s = '<div class="dp-section"><h3>核心特质</h3>';
+      ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag">' + t + '</span> '; }});
+      html += s + '</div>';
+    }}
+
+    // 渲染"关键事件"时间线（角色/情节线通用）
+    const events = ex['关键事件'] || display['关键事件'] || [];
+    if (events.length > 0 && Array.isArray(events)) {{
+      let s = '<div class="dp-section"><h3>⏱ 时间线 (' + events.length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
+      s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
+      events.slice(0, 15).forEach(function(e, i) {{
+        const evtName = typeof e === 'string' ? e : (e['事件'] || e.event || '');
+        const evtTime = typeof e === 'object' ? (e['时间'] || e.time || '') : '';
+        s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
+        s += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i%2===0?'#5B9BD5':'#70AD47') + '"></div>';
+        s += (evtTime ? '<span style="color:#888">' + evtTime + '</span> ' : '') + evtName.substring(0, 100);
+        s += '</div>';
+      }});
+      if (events.length > 15) s += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (events.length - 15) + ' 条</div>';
+      html += s + '</div></div>';
+    }}
+
+    // 自动渲染剩余字段：跳过 schema 关键词和 _ 前缀
+    const skipKeys = ['描述','核心特质','关键事件','实体子类型','_display','role_type','note_type','性格','能力设定','关系网络','目标与冲突','角色弧线','背景'];
+    Object.keys(ex).forEach(function(k) {{
+      if (skipKeys.includes(k)) return;
+      if (k.startsWith('_')) return;
+      const v = ex[k];
+      if (v === null || v === undefined || v === '') return;
+      if (typeof v === 'string' && (v === info.label || v.length === 0)) return;
+      html += renderDisplayValue(k, v);
+    }});
+
+    // _display 中的额外字段（仅补充）
+    Object.keys(display).forEach(function(k) {{
+      if (skipKeys.includes(k)) return;
+      if (k in ex) return;  // 已在 schema 中存在就不重复
+      html += renderDisplayValue(k, display[k]);
+    }});
 
     // ── 标签（公共） ──
     html += '<div class="dp-section"><h3>标签</h3>';

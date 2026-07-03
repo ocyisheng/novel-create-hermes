@@ -1,12 +1,26 @@
 """
 V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
 
-用法：
+常用命令：
+    # 实体查找
     python .opencode/shared/v2_cli.py find-unit --path <PROJECT> --name <名称>
-     python .opencode/shared/v2_cli.py export-docs --path <PROJECT>
+    python .opencode/shared/v2_cli.py get-unit --path <PROJECT> --id <ID>
+    python .opencode/shared/v2_cli.py list-units --path <PROJECT> --type <UnitType> [--limit N]
+
+    # 关系查询（--rel-type 过滤，见 list-relation-types）
+    python .opencode/shared/v2_cli.py get-neighbors --path <PROJECT> --id <ID> [--rel-type <TYPE>]
+
+    # 关系操作
+    python .opencode/shared/v2_cli.py add-relation --path <PROJECT> --source <ID> --target <ID> --type <TYPE>
+
+    # 文档导出
+    python .opencode/shared/v2_cli.py export-docs --path <PROJECT>
+    python .opencode/shared/v2_cli.py export --path <PROJECT>
+
+    # 统计与工具
     python .opencode/shared/v2_cli.py stats --path <PROJECT>
-    python .opencode/shared/v2_cli.py list-units --path <PROJECT> --type <UnitType>
-    python .opencode/shared/v2_cli.py recent-events --path <PROJECT>
+    python .opencode/shared/v2_cli.py list-relation-types
+    python .opencode/shared/v2_cli.py batch-infer --path <PROJECT>
 """
 
 import sys
@@ -46,10 +60,12 @@ def cmd_get_unit(args):
 
 
 def cmd_get_neighbors(args):
+    from graph_schema import RelationType
     from graph_store import GraphStore
     s = GraphStore(args.path)
     s.initialize()
-    neighbors = s.get_neighbors(args.id, max_depth=1)
+    rt = RelationType(args.rel_type) if args.rel_type else None
+    neighbors = s.get_neighbors(args.id, relation_type=rt, max_depth=1)
     for nid in neighbors.get(1, set()):
         n = s.get_unit(nid)
         if n:
@@ -142,16 +158,36 @@ def cmd_stats(args):
         print(f"{k}: {v}")
 
 
+def cmd_list_relation_types(args):
+    from graph_schema import RelationType
+    print("可用关系类型（--rel-type 参数值）:")
+    print()
+    for rt in RelationType:
+        inv = rt.inverse
+        inv_note = f" → 反向: {inv.value}" if inv != rt else "（对称）"
+        print(f"  {rt.value:20s} {rt.name}{inv_note}")
+    print()
+    print("查询方向说明：")
+    print("  get-neighbors 返回的是通过该关系类型连接到目标的所有单元")
+    print("  如 --rel-type contains → 返回目标包含的下级")
+    print("  如 --rel-type member_of → 返回声明属于目标的角色")
+
+
 def cmd_list_units(args):
     from graph_schema import UnitType
     from graph_store import GraphStore
+    import itertools
     s = GraphStore(args.path)
     s.initialize()
     t = args.type.upper() if args.type else ""
     ut = None
     if t and t != "ALL":
         ut = UnitType[t]
-    for u in s.find_units(type=ut):
+    limit = int(args.limit) if args.limit and int(args.limit) > 0 else None
+    units = s.find_units(type=ut)
+    if limit:
+        units = itertools.islice(units, limit)
+    for u in units:
         print(f"[{u.type.value}] {u.unit_name} [{u.status.value}]")
 
 
@@ -264,9 +300,10 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
 
-    p = sub.add_parser("get-neighbors", help="查询关联关系")
+    p = sub.add_parser("get-neighbors", help="查询关联关系（可按关系类型过滤）")
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
+    p.add_argument("--rel-type", default="", help="关系类型（如 contains / has_member / located_at 等）")
 
     p = sub.add_parser("add-relation", help="建立关系")
     p.add_argument("--path", required=True)
@@ -274,6 +311,9 @@ def main():
     p.add_argument("--target", required=True)
     p.add_argument("--type", required=True, help="关系类型（participates_in/implements/references 等）")
     p.add_argument("--actor", default="script")
+
+    p = sub.add_parser("list-relation-types", help="列出所有关系类型及用法")
+    p.add_argument("--path", default="", help="（可选，仅用于上下文）")
 
     p = sub.add_parser("flush", help="持久化 graph 数据")
     p.add_argument("--path", required=True)
@@ -293,6 +333,7 @@ def main():
     p = sub.add_parser("list-units", help="列出叙事单元")
     p.add_argument("--path", required=True)
     p.add_argument("--type", default="", help="UnitType 名称（SCENE/CHARACTER_ARC 等）")
+    p.add_argument("--limit", default="0", help="返回条数上限（0=全部）")
 
     p = sub.add_parser("recent-events", help="最近事件")
     p.add_argument("--path", required=True)
@@ -328,6 +369,7 @@ def main():
         "get-neighbors": cmd_get_neighbors,
         "add-relation": cmd_add_relation,
         "flush": cmd_flush,
+        "list-relation-types": cmd_list_relation_types,
         "build-workspace": cmd_build_workspace,
         "rebuild-projections": cmd_rebuild_projections,
         "stats": cmd_stats,

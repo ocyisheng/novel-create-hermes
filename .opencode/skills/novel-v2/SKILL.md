@@ -67,17 +67,23 @@ WRITING MODE: draft | polish | rewrite
 ### 1. 读取 graph 数据
 
 ```bash
+# 按名称查找叙事单元 ID
+python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+
 # 获取叙事单元详情
 python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {单元ID}
 
-# 查询单元的关联关系（1-hop 邻居）
+# 查询单元的关联关系（1-hop 邻居，可按关系类型过滤）
 python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID}
+python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID} --rel-type contains
+python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID} --rel-type member_of
 
-# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
+# 列出所有可用关系类型
+python .opencode/shared/v2/v2_cli.py list-relation-types
+
+# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK，支持--limit）
 python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
-
-# 按名称查找叙事单元 ID
-python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type WORLD_RULE --limit 10
 
 # 项目统计
 python .opencode/shared/v2/v2_cli.py stats --path {PROJECT_PATH}
@@ -92,14 +98,44 @@ python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
 # 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
 python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 
-# 建立关系
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type participates_in
+# 建立关系（--type 见下方"关系类型速查表"）
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type member_of
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type contains
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type located_at
 
 # 批量推断关系（新项目迁移后必做）
 python .opencode/shared/v2/v2_cli.py batch-infer --path {PROJECT_PATH}
 ```
 
-### 3. 会话管理
+### 3. 关系类型速查表
+
+`get-neighbors --rel-type` 和 `add-relation --type` 共用的关系类型：
+
+| 关系 | 反向 | 连接 | 语义 |
+|------|------|------|------|
+| `member_of` | `has_member` | 角色 → 势力 | 角色是势力的成员 |
+| `contains` | `belongs_to` | 势力 → 势力 | 上级势力包含下级 |
+| `located_at` | `location_of` | 实体 → 地点 | 实体位于某地 |
+| `controls` | `controlled_by` | 势力 → 地域 | 势力统治的地盘 |
+| `allied_with` | 自身（对称） | 角色↔角色/势力↔势力 | 同盟关系 |
+| `participates_in` | 自身（对称） | 角色 → 场景 | 角色参与场景 |
+| `references` | 自身 | 任何 → 任何 | 引用（默认兜底） |
+
+查询方向示例：
+```bash
+# 落云宗的下属势力
+get-neighbors --id {落云宗ID} --rel-type contains
+
+# 落云宗的成员
+get-neighbors --id {落云宗ID} --rel-type member_of
+# 或反向：
+get-neighbors --id {落云宗ID} --rel-type has_member
+
+# 韩门从属于谁
+get-neighbors --id {韩门ID} --rel-type belongs_to
+```
+
+### 4. 会话管理
 
 ```bash
 # 启动创作会话
@@ -112,7 +148,7 @@ python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id 
 python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
 ```
 
-### 4. 通过 QUERY 协议获取上下文
+### 5. 通过 QUERY 协议获取上下文
 
 写作过程中如果缺少信息，在回复中包含 QUERY 指令：
 
@@ -134,7 +170,7 @@ QUERY: recent_context(chapter=章节号, limit=5)
 编排层会拦截 QUERY，从 graph 查询，将结果注入 session 上下文。
 **QUERY 指令不会出现在最终输出中。**
 
-### 5. 导出和迁移
+### 6. 导出和迁移
 
 ```bash
 # V1→V2 迁移
@@ -147,7 +183,7 @@ python .opencode/shared/v2/v2_cli.py export-docs --path {PROJECT_PATH}
 python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 ```
 
-### 6. 数据格式标准
+### 7. 数据格式标准
 
 创建叙事单元时，content 字段遵循标准格式（详见 `references/数据格式标准.md`）：
 

@@ -72,8 +72,6 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 - **写入正文**：先创建 CHUNK 单元，再关联到场景
 - **持久化**：`v2_cli.py flush`
 
-数据格式标准（含 `_display` 展示层）请参考 `novel-v2` skill 操作指南中的《数据格式标准》章节。
-
 ### 章节正文的兼容写入
 
 创建 CHUNK 后，用 `write` 工具将正文写入 `chapters/` 目录下的 TXT 文件，保持向后兼容。

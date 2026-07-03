@@ -63,6 +63,25 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 笔记 → 任何：笔记引用其他单元
     (UnitType.NOTE, None, RelationType.REFERENCES,
      "source_to_target", 0.2),
+    # ── 新型关系推断规则 ──────────────────────────────────────────────
+    # 场景 → 世界观（地点）：场景位于某地
+    (UnitType.SCENE, UnitType.WORLD_RULE, RelationType.LOCATED_AT,
+     "source_to_target", 0.5),
+    # 角色 → 世界观（地点）：角色位于某地
+    (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.LOCATED_AT,
+     "source_to_target", 0.3),
+    # 世界观 → 世界观（地域层级）：地区包含子地区
+    (UnitType.WORLD_RULE, UnitType.WORLD_RULE, RelationType.CONTAINS,
+     "source_to_target", 0.5),
+    # 世界观 → 世界观（势力管辖）：势力控制地域
+    (UnitType.WORLD_RULE, UnitType.WORLD_RULE, RelationType.CONTROLS,
+     "source_to_target", 0.4),
+    # 角色 → 角色：同盟关系
+    (UnitType.CHARACTER_ARC, UnitType.CHARACTER_ARC, RelationType.ALLIED_WITH,
+     "source_to_target", 0.3),
+    # 角色 → 世界观（势力）：角色属于势力
+    (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.MEMBER_OF,
+     "source_to_target", 0.5),
 ]
 
 
@@ -165,23 +184,20 @@ class RelationInferrer:
             if other.unit_name not in content:
                 continue
 
-            # 查找匹配的规则
-            matched = self._match_rule(unit.type, other.type)
-            if matched is None:
+            # 查找匹配的规则（可返回多条）
+            matched_rules = self._match_rules(unit.type, other.type)
+            if not matched_rules:
                 # 没有精确匹配的规则，用默认
-                rel_type = RelationType.REFERENCES
-                source = unit.id
-                target = other.id
-                weight = 0.2
+                if self._create_rel(unit.id, other.id, RelationType.REFERENCES, 0.2):
+                    count += 1
             else:
-                rel_type, direction, weight = matched
-                if direction == "source_to_target":
-                    source, target = unit.id, other.id
-                else:
-                    source, target = other.id, unit.id
-
-            if self._create_rel(source, target, rel_type, weight):
-                count += 1
+                for rel_type, direction, weight in matched_rules:
+                    if direction == "source_to_target":
+                        source, target = unit.id, other.id
+                    else:
+                        source, target = other.id, unit.id
+                    if self._create_rel(source, target, rel_type, weight):
+                        count += 1
 
         return count
 
@@ -215,21 +231,22 @@ class RelationInferrer:
 
     # ── 辅助方法 ────────────────────────────────────────────────────
 
-    def _match_rule(
+    def _match_rules(
         self, source_type: UnitType, target_type: UnitType
-    ) -> Optional[tuple[RelationType, str, float]]:
+    ) -> list[tuple[RelationType, str, float]]:
         """
-        在规则表中查找匹配的 (source_type, target_type)。
-        优先精确匹配，然后尝试通配规则（target_type=None）。
+        在规则表中查找匹配 (source_type, target_type) 的所有规则。
+        返回列表，可能包含多条规则（如同一类型对的不同关系类型）。
+        通配规则（target_type=None）仅作为无精确匹配时的回退。
         """
+        exact = []
+        wildcard = None
         for st, tt, rel_type, direction, weight in INFER_RULES:
             if st == source_type and tt == target_type:
-                return (rel_type, direction, weight)
-        # 通配规则：源类型匹配，目标类型任意
-        for st, tt, rel_type, direction, weight in INFER_RULES:
-            if st == source_type and tt is None:
-                return (rel_type, direction, weight)
-        return None
+                exact.append((rel_type, direction, weight))
+            elif st == source_type and tt is None and wildcard is None:
+                wildcard = (rel_type, direction, weight)
+        return exact if exact else ([wildcard] if wildcard else [])
 
     def _create_rel(
         self, source_id: str, target_id: str,

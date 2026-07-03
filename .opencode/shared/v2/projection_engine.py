@@ -231,7 +231,8 @@ class ProjectionEngine:
             # 关联场景数
             related = self.store.get_relations(pt.id, direction="outgoing")
             scene_relations = [r for r in related if r.relation_type in (
-                RelationType.IMPLEMENTS, RelationType.REFERENCES)]
+                RelationType.IMPLEMENTS, RelationType.REFERENCES,
+                RelationType.LOCATED_AT)]
             if scene_relations:
                 lines.append(f"  - 关联场景/事件: {len(scene_relations)} 个")
             lines.append("")
@@ -410,7 +411,12 @@ class ProjectionEngine:
         
         # 关联的场景
         lines.append("## 关联场景")
-        for rel in self.store.get_relations(unit.id, relation_type=RelationType.IMPLEMENTS):
+        # Combine IMPLEMENTS + LOCATED_AT to show all scene ties
+        related_rels = (
+            self.store.get_relations(unit.id, relation_type=RelationType.IMPLEMENTS)
+            + self.store.get_relations(unit.id, relation_type=RelationType.LOCATED_AT)
+        )
+        for rel in related_rels:
             target = self.store.get_unit(rel.target_id)
             if target:
                 lines.append(f"- {target.unit_name} (ch.{target.belongs_to_chapter})")

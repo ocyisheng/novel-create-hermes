@@ -84,6 +84,14 @@ class RelationType(str, Enum):
     IMPLIES = "implies"                 # A 隐含了 B（弱关联）
     PARALLEL = "parallel"               # A 与 B 并列发生
     PARTICIPATES_IN = "participates_in" # A 参与 B（角色参与场景）
+    LOCATED_AT = "located_at"           # A 位于 B（场景/角色所在地点）
+    ALLIED_WITH = "allied_with"         # A 与 B 同盟（角色/势力之间）
+    CONTAINS = "contains"               # A 包含 B（BELONGS_TO 的反向）
+    CONTROLS = "controls"               # A 控制 B（势力控制地域等）
+    MEMBER_OF = "member_of"             # A 是 B 的成员（角色属于势力/组织）
+    HAS_MEMBER = "has_member"           # A 拥有成员 B（MEMBER_OF 的反向）
+    LOCATION_OF = "location_of"         # A 是 B 的位置（LOCATED_AT 的反向）
+    CONTROLLED_BY = "controlled_by"     # A 受 B 控制（CONTROLS 的反向）
 
     @property
     def inverse(self) -> "RelationType":
@@ -98,6 +106,14 @@ class RelationType(str, Enum):
             "references": "referenced_by",
             "implies": "implied_from",
             "parallel": "parallel",
+            "located_at": "location_of",
+            "allied_with": "allied_with",
+            "contains": "belongs_to",
+            "controls": "controlled_by",
+            "member_of": "has_member",
+            "has_member": "member_of",
+            "location_of": "located_at",
+            "controlled_by": "controls",
         }
         # Return as RelationType if exists, else as string
         name = inverses.get(self.value, self.value)

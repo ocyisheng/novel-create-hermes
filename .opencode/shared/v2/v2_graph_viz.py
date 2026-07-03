@@ -18,6 +18,7 @@ import argparse
 import webbrowser
 from pathlib import Path
 from collections import defaultdict
+from v2_detail_template import render_detail_html
 
 V2_DIR = os.path.join(os.path.dirname(__file__), "v2")
 if V2_DIR not in sys.path:
@@ -423,6 +424,7 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
   const nodeData = {node_data};
   const edgeData = {edge_data};
   const typeLabels = {type_labels};
+  const UNIT_TYPE_COLORS = {type_colors};
 
   // 构建节点
   const nodeMap = {{}};
@@ -540,27 +542,108 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('dp-meta').textContent = tl + ' · ' + info.status + ' · 确信度: ' + (info.confidence || '?');
     const body = document.getElementById('dp-body');
     body.innerHTML = '';
+    const ex = info.extra || {{}};
 
-    // 基本信息
-    let html = '<div class="dp-section"><h3>基本信息</h3>';
-    html += '<div><span class="dp-tag">' + tl + '</span>';
-    if (info.tags) info.tags.forEach(function(t) {{ html += '<span class="dp-tag">' + t + '</span>'; }});
-    if (info.chapter) html += '<span class="dp-tag">第' + info.chapter + '章</span>';
-    html += '</div></div>';
+    let html = '';
 
-    // 正文预览
-    if (info.extra && info.extra._preview) {{
-      html += '<div class="dp-section"><h3>内容预览</h3><div style="color:#aaa;font-size:12px">' + info.extra._preview + '</div></div>';
+    // ── 角色：结构化字段 ──
+    if (info.type === 'character_arc') {{
+      const fieldList = [
+        ['身份', '身份'], ['修为', '修为'], ['功法', '功法'],
+        ['阵营', '阵营'], ['当前目标', '当前目标'], ['状态', '状态'],
+      ];
+      let fh = '';
+      fieldList.forEach(function(p) {{
+        const v = ex[p[0]];
+        if (v && v !== '') fh += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">' + p[1] + '</span><br><span style="color:#e0e0e0;font-size:13px">' + v + '</span></div>';
+      }});
+      if (fh) html += '<div class="dp-section">' + fh + '</div>';
     }}
 
-    // 关联
+    // ── 纪年事件 ──
+    if (info.type === 'note' && ex['事件']) {{
+      html += '<div class="dp-section"><div style="color:#F4A460;font-size:15px">' + ex['事件'] + '</div>';
+      if (ex['时间']) html += '<div style="color:#aaa;font-size:12px;margin-top:4px">' + ex['时间'] + '</div>';
+      if (ex['备注']) html += '<div style="color:#888;font-size:12px;margin-top:2px">' + ex['备注'] + '</div>';
+      html += '</div>';
+    }}
+
+    // ── 核心特质 ──
+    if (ex['核心特质'] && Array.isArray(ex['核心特质'])) {{
+      let s = '<div class="dp-section"><h3>核心特质</h3>';
+      ex['核心特质'].forEach(function(t) {{ s += '<span class="dp-tag" style="background:rgba(91,155,213,0.12)">' + t + '</span> '; }});
+      html += s + '</div>';
+    }}
+
+    // ── 描述 ──
+    if (ex['描述']) {{
+      html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + ex['描述'].substring(0, 400) + '</div></div>';
+    }}
+
+    // ── 时间线：关键事件 ──
+    if (ex['关键事件'] && Array.isArray(ex['关键事件'])) {{
+      let s = '<div class="dp-section"><h3>⏱ 时间线 (' + ex['关键事件'].length + ')</h3><div style="position:relative;padding-left:16px;margin-top:8px">';
+      s += '<div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(#5B9BD5,#70AD47)"></div>';
+      ex['关键事件'].slice(0, 15).forEach(function(e, i) {{
+        const stage = e.includes('一幕') || e.includes('幕') ? ' (第一幕)' : e.includes('第二幕') ? ' (第二幕)' : e.includes('第三幕') ? ' (第三幕)' : '';
+        s += '<div style="position:relative;padding:0 0 10px 12px;font-size:12px;color:#ccc;line-height:1.5">';
+        s += '<div style="position:absolute;left:-3px;top:4px;width:8px;height:8px;border-radius:4px;background:' + (i % 2 === 0 ? '#5B9BD5' : '#70AD47') + '"></div>';
+        s += e.substring(0, 100);
+        s += '</div>';
+      }});
+      if (ex['关键事件'].length > 15) s += '<div style="color:#555;font-size:11px;padding-left:12px">... 还有 ' + (ex['关键事件'].length - 15) + ' 条</div>';
+      html += s + '</div></div>';
+    }}
+
+    // ── 也显示关联的纪年事件 NOTE ──
+    if (info.type === 'character_arc') {{
+      const relatedEvents = [];
+      edgeData.forEach(function(e) {{
+        if (e.from === nodeId || e.to === nodeId) {{
+          const other = e.from === nodeId ? e.to : e.from;
+          const otherInfo = nodeData[other];
+          if (otherInfo && otherInfo.type === 'note' && otherInfo.extra && otherInfo.extra['事件']) {{
+            relatedEvents.push(otherInfo.extra['事件'] + (otherInfo.extra['时间'] ? ' (' + otherInfo.extra['时间'] + ')' : ''));
+          }}
+        }}
+      }});
+      if (relatedEvents.length > 0) {{
+        let s = '<div class="dp-section"><h3>📅 纪年事件</h3>';
+        relatedEvents.slice(0, 10).forEach(function(ev) {{
+          s += '<div style="padding:2px 0;font-size:12px;color:#F4A460">▪ ' + ev.substring(0, 80) + '</div>';
+        }});
+        if (relatedEvents.length > 10) s += '<div style="color:#555;font-size:11px">... 还有 ' + (relatedEvents.length - 10) + ' 条</div>';
+        html += s + '</div>';
+      }}
+    }}
+
+    // ── 人物关系 ──
+    if (ex['人物关系']) {{
+      let s = '<div class="dp-section"><h3>人物关系</h3>';
+      Object.keys(ex['人物关系']).forEach(function(rt) {{
+        const targets = ex['人物关系'][rt];
+        if (Array.isArray(targets)) {{
+          targets.forEach(function(t) {{
+            if (typeof t === 'object' && t['目标']) {{
+              s += '<div style="padding:3px 0;font-size:12px"><span style="color:#8BB9E0">' + t['目标'] + '</span> <span style="color:#666;font-size:11px">(' + rt + ')</span></div>';
+            }}
+          }});
+        }}
+      }});
+      html += s + '</div>';
+    }}
+
+    // ── 标签 ──
+    html += '<div class="dp-section"><h3>标签</h3>';
+    if (info.tags) info.tags.forEach(function(t) {{ html += '<span class="dp-tag">' + t + '</span>'; }});
+    html += '</div>';
+
+    // ── 关联节点 ──
     const related = {{ out: [], in_: [] }};
     edgeData.forEach(function(e) {{
       if (e.from === nodeId) related.out.push(e);
       if (e.to === nodeId) related.in_.push(e);
     }});
-
-    // 按关联类型分组
     const groups = {{}};
     related.out.forEach(function(e) {{
       const target = nodeData[e.to];
@@ -569,21 +652,17 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
       if (!groups[t]) groups[t] = [];
       groups[t].push(target.label + ' (' + (e.label || '') + ')');
     }});
-    // 去重
-    Object.keys(groups).forEach(function(t) {{
-      groups[t] = [...new Set(groups[t])];
-    }});
-
-    const order = ['character_arc', 'scene', 'plot_thread', 'world_rule', 'note', 'thematic_motif', 'chunk'];
+    Object.keys(groups).forEach(function(t) {{ groups[t] = [...new Set(groups[t])]; }});
+    const order = ['character_arc', 'scene', 'plot_thread', 'world_rule', 'note'];
     order.forEach(function(t) {{
       const items = groups[t];
       if (!items || items.length === 0) return;
       const tl2 = typeLabels[t] || t;
       html += '<div class="dp-section"><h3>' + tl2 + ' (' + items.length + ')</h3>';
       items.forEach(function(item) {{
-        html += '<div class="dp-tag" style="background:' + (UNIT_TYPE_COLORS[t] ? UNIT_TYPE_COLORS[t].bg + '22' : 'rgba(255,255,255,0.06)') + '">' + item + '</div>';
+        const col = (UNIT_TYPE_COLORS[t] || {{}}).bg || '#888';
+        html += '<div style="padding:2px 0;font-size:12px;color:#ccc"><span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:' + col + ';margin-right:6px"></span>' + item + '</div>';
       }});
-      html += '</div>';
     }});
 
     body.innerHTML = html;
@@ -711,9 +790,13 @@ class V2HTMLGenerator:
             node_data[nid] = n
 
         type_labels_json = {}
+        type_colors_json = {}
         for t in type_order:
             if t in type_set:
                 type_labels_json[t] = UNIT_TYPE_LABELS.get(UnitType(t), t)
+                c = UNIT_TYPE_COLORS.get(UnitType(t), {})
+                if c:
+                    type_colors_json[t] = {"bg": c["bg"]}
 
         html = HTML_GRAPH_TEMPLATE.format(
             title=f"{self.project_name} — V2 关系图谱",
@@ -722,6 +805,7 @@ class V2HTMLGenerator:
             node_data=json.dumps(node_data, ensure_ascii=False),
             edge_data=json.dumps(edges, ensure_ascii=False),
             type_labels=json.dumps(type_labels_json, ensure_ascii=False),
+            type_colors=json.dumps(type_colors_json, ensure_ascii=False),
             filter_options="\n    ".join(filter_opts),
             legend_html="\n  ".join(legend_items),
         )
@@ -759,6 +843,63 @@ class V2HTMLGenerator:
 
         Path(output_path).write_text(html, encoding="utf-8")
         return output_path
+
+    def generate_detail_pages(self, graph_data: dict, detail_dir: str, graph_file: str = "关系图.html"):
+        """为每个节点生成详情页"""
+        nodes = graph_data.get("nodes", {})
+        edges = graph_data.get("edges", [])
+        detail_path = Path(detail_dir)
+        detail_path.mkdir(parents=True, exist_ok=True)
+
+        # Build edge index
+        edge_index = {}
+        for e in edges:
+            for nid in [e["from"], e["to"]]:
+                if nid not in edge_index:
+                    edge_index[nid] = []
+                edge_index[nid].append(e)
+
+        type_colors = {
+            "character_arc": "#5B9BD5", "scene": "#A5A5A5",
+            "plot_thread": "#FFC000", "world_rule": "#70AD47",
+            "note": "#D6D6D6", "chunk": "#CD853F",
+        }
+        type_labels = {
+            "character_arc": "角色", "scene": "场景",
+            "plot_thread": "情节线", "world_rule": "世界观",
+            "note": "笔记", "chunk": "正文",
+        }
+
+        count = 0
+        for nid, n in nodes.items():
+            # Build ego network (1-hop)
+            ego_nodes = {nid: n}
+            ego_edges = []
+            for e in edge_index.get(nid, []):
+                other = e["to"] if e["from"] == nid else e["from"]
+                if other not in ego_nodes and other in nodes:
+                    ego_nodes[other] = nodes[other]
+                ego_edges.append(e)
+
+            extra = n.get("extra", {})
+            html = render_detail_html(
+                entity_name=n.get("label", nid),
+                type_label=type_labels.get(n["type"], n["type"]),
+                status=n.get("status", ""),
+                confidence=n.get("confidence", 0.5),
+                type_bg=type_colors.get(n["type"], "#888"),
+                extra=extra,
+                tags=n.get("tags", []),
+                ego_nodes=ego_nodes,
+                ego_edges=ego_edges,
+                center_id=nid,
+                graph_file=f"../{graph_file}",
+            )
+            (detail_path / f"{nid}.html").write_text(html, encoding="utf-8")
+            count += 1
+
+        print(f"   详情页: {count} 个 → {detail_dir}")
+        return count
 
 
 # ── CLI ────────────────────────────────────────────────────────────
@@ -851,7 +992,13 @@ def main():
         center_name = data.get("center_id", "")
         u = loader.store.get_unit(center_name) if center_name else None
         cname = u.unit_name if u else args.character
+        graph_filename = os.path.basename(output_path)
         gen.generate_graph(data, output_path)
+
+        # 生成该角色的详情页
+        detail_dir = viz_dir / "detail"
+        gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
+
         print(f"✅ 角色关系图已生成: {output_path}")
         print(f"   角色: {cname}")
         print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
@@ -861,7 +1008,13 @@ def main():
 
     # 默认：全项目图谱
     data = loader.build_full_graph()
+    graph_filename = os.path.basename(output_path)
     gen.generate_graph(data, output_path)
+
+    # 生成详情页（默认自动生成）
+    detail_dir = viz_dir / "detail"
+    gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
+
     print(f"✅ V2 关系图已生成: {output_path}")
     print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
 

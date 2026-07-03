@@ -48,7 +48,6 @@ def find_novels_root() -> str:
 
 
 NOVELS_ROOT = find_novels_root()
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 NOW = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
@@ -169,9 +168,6 @@ def cmd_new(args):
     }
     save_config(name, config)
 
-    # 复制模板文件（如果存在）
-    _copy_templates(proj_dir, genre, volumes, acts)
-
     print(f"\n✅ 项目「{name}」创建完成！")
     print(f"   路径: {proj_dir}")
     print(f"   类型: {genre}")
@@ -277,71 +273,6 @@ def _calc_chapter_distribution(volumes: int, acts: int) -> List[int]:
     for i in range(remainder):
         result[i] += 1
     return result
-
-
-def _copy_templates(proj_dir: str, genre: str, volumes: int, acts: int):
-    """复制模板文件到项目"""
-    if not os.path.isdir(TEMPLATES_DIR):
-        return
-
-    # 总纲模板（含占位符，按文本复制并替换基础变量）
-    synopsis_src = os.path.join(TEMPLATES_DIR, "outline", "总纲.yaml")
-    if os.path.exists(synopsis_src):
-        content = open(synopsis_src, "r", encoding="utf-8").read()
-        acts_block = f"幕数: {acts}"
-        vols_block = "分卷:\n"
-        chapter_dist = _calc_chapter_distribution(volumes, acts)
-        for v in range(1, volumes + 1):
-            vols_block += f"  - 卷名: \"第{v}卷\"\n    概要: \"\"\n    核心: \"\"\n    章节数: {chapter_dist[v-1] if v <= len(chapter_dist) else 0}\n"
-        replacements = {
-            "{{PROJECT_NAME}}": os.path.basename(proj_dir),
-            "{{GENRE}}": genre,
-            "{{TOTAL_CHAPTERS}}": str(sum(chapter_dist)),
-            "{{ACTS_BLOCK}}": acts_block,
-            "{{VOLUMES_BLOCK}}": vols_block.rstrip(),
-            "{{CHAPTER_DISTRIBUTION}}": str(chapter_dist),
-        }
-        for k, v in replacements.items():
-            content = content.replace(k, v)
-        dest = os.path.join(proj_dir, "outline", "总纲.yaml")
-        with open(dest, "w", encoding="utf-8") as f:
-            f.write(content)
-
-    # 分卷模板
-    volume_template = os.path.join(TEMPLATES_DIR, "outline", "分卷")
-    if os.path.isdir(volume_template):
-        for fname in os.listdir(volume_template):
-            if fname.endswith(".yaml"):
-                src = os.path.join(volume_template, fname)
-                for v in range(1, volumes + 1):
-                    vol_name = f"第{v}卷.yaml"
-                    dest = os.path.join(proj_dir, "outline", "分卷", vol_name)
-                    shutil.copy2(src, dest)
-
-    # 其他大纲模板（单文件）
-    for fname in ["叙事策略.yaml", "时间线设计.yaml", "伏笔规划.yaml"]:
-        src = os.path.join(TEMPLATES_DIR, "outline", fname)
-        if os.path.exists(src):
-            dest = os.path.join(proj_dir, "outline", fname)
-            shutil.copy2(src, dest)
-
-    # 情节线模板
-    plot_src = os.path.join(TEMPLATES_DIR, "outline", "情节线")
-    if os.path.isdir(plot_src):
-        for fname in os.listdir(plot_src):
-            if fname.endswith(".yaml"):
-                src = os.path.join(plot_src, fname)
-                shutil.copy2(src, os.path.join(proj_dir, "outline", "情节线", fname))
-
-    # 创意模板
-    ideation_src = os.path.join(TEMPLATES_DIR, "ideation")
-    if os.path.isdir(ideation_src):
-        for fname in os.listdir(ideation_src):
-            if fname.endswith(".yaml"):
-                src = os.path.join(ideation_src, fname)
-                dest = os.path.join(proj_dir, "ideation", fname)
-                if not os.path.exists(dest):
-                    shutil.copy2(src, dest)
 
 
 # ── 子命令：导入 ───────────────────────────────────────────────────────────

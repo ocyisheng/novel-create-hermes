@@ -600,9 +600,10 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     // 二级标签：世界观下的地点/势力子类
     let subtypeHtml = '';
     if (info.type === 'world_rule') {{
-      const st = (display).类型 || '';
-      if (st === '地点' || st === '势力') {{
-        subtypeHtml = ' <span class="dp-tag" style="background:' + (st === '地点' ? 'rgba(0,176,240,0.2)' : 'rgba(237,125,49,0.2)') + ';color:' + (st === '地点' ? '#5BD' : '#ED7D31') + '">' + st + '</span>';
+      const subType = ex['实体子类型'] || '';
+      const stLabel = subType === 'location' ? '地点' : subType === 'faction' ? '势力' : '';
+      if (stLabel) {{
+        subtypeHtml = ' <span class="dp-tag" style="background:' + (stLabel === '地点' ? 'rgba(0,176,240,0.2)' : 'rgba(237,125,49,0.2)') + ';color:' + (stLabel === '地点' ? '#5BD' : '#ED7D31') + '">' + stLabel + '</span>';
       }}
     }}
     document.getElementById('dp-meta').innerHTML = tl + ' · ' + info.status + subtypeHtml + ' · 确信度: ' + (info.confidence || '?');
@@ -610,20 +611,35 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     body.innerHTML = '';
 
     let html = '';
-    const hasDisplay = Object.keys(display).length > 0;
 
-    if (hasDisplay) {{
-      // ── _display 模式：按值类型自动渲染 ──
-      const order = ['身份','修为','功法','阵营','当前目标','类型'];
+    // ── WORLD_RULE：直接读 schema 字段 ──
+    if (info.type === 'world_rule') {{
+      const subType = ex['实体子类型'] || '';
+      const secType = ex['二级类型'] || display['二级类型'] || '';
+      const coreSetting = ex['核心设定'] || '';
+      // 二级类型
+      if (secType) {{
+        html += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:#888;font-size:11px">二级类型</span><br><span style="color:#e0e0e0;font-size:13px">' + secType + '</span></div>';
+      }}
+      // 核心设定作为描述文本块
+      if (coreSetting && coreSetting.length > 5) {{
+        html += '<div class="dp-section"><h3>描述</h3><div style="color:#bbb;font-size:12px;line-height:1.7">' + coreSetting.substring(0, 600) + '</div></div>';
+      }}
+      // 额外 _display 字段（除 类型/二级类型/描述）
+      Object.keys(display).forEach(function(k) {{
+        if (k === '类型' || k === '二级类型' || k === '描述') return;
+        html += renderDisplayValue(k, display[k]);
+      }});
+    }} else if (Object.keys(display).length > 0) {{
+      // ── 其他类型：_display 模式 ──
+      const order = ['身份','修为','功法','阵营','当前目标'];
       const rendered = new Set();
-      // 先渲染指定顺序的字段（键值对）
       order.forEach(function(k) {{
         if (display[k] && typeof display[k] === 'string' && display[k].length < 50) {{
           html += renderDisplayValue(k, display[k]);
           rendered.add(k);
         }}
       }});
-      // 再渲染其他字段（自动判断类型）
       Object.keys(display).forEach(function(k) {{
         if (rendered.has(k)) return;
         html += renderDisplayValue(k, display[k]);

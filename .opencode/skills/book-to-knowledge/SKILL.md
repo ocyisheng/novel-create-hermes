@@ -747,21 +747,7 @@ This scans `$KNOWLEDGE_ROOT/*/source.yaml` and writes `$KNOWLEDGE_ROOT/index.yam
 ### 10c — Cleanup temp files
 
 ```bash
-PYTHON_BIN="${PYTHON_BIN:-python3}"
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-fi
-
-"$PYTHON_BIN" - <<'PY'
-import os
-import shutil
-import tempfile
-from pathlib import Path
-shutil.rmtree(
-    os.environ.get("BOOK_SKILL_WORKDIR", Path(tempfile.gettempdir()) / "book_skill_work"),
-    ignore_errors=True,
-)
-PY
+"${PYTHON_BIN:-python3}" .opencode/skills/book-to-knowledge/scripts/cleanup_workdir.py
 ```
 
 ### 10d — Report

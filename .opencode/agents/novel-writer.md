@@ -36,7 +36,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
   ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
   ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
-  ├─ 可视化（关系图/时间线/图谱）? → python .opencode/shared/v2/v2_cli.py viz --path <PROJECT_PATH> [--character <角色>] [--timeline <角色>] [--open]
+  ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   └─ 走 V2 创作路由（§V2 路由）
@@ -71,7 +71,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 风格提取/模仿文风 | style | cold | draft |
 | 记录灵感 | note | cold | draft |
 | 导出 | — | — | 走脚本 |
-| 可视化/关系图/时间线 | — | — | 走脚本：`viz --path` |
+  | 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 可视化章节 |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）
@@ -105,15 +105,7 @@ TASK: {用户请求的具体描述}"
 
 ```bash
 # 读取知识库内容
-python -c "
-import sys; sys.path.insert(0, '.opencode/shared/v2')
-from knowledge_reader import KnowledgeReader, resolve_knowledge_root
-kr = resolve_knowledge_root(r'{PROJECT_PATH}')
-reader = KnowledgeReader(kr)
-content = reader.get('fanren-xiuxian', topics=['power_system', 'pacing'], max_chars=3000)
-print(content)
-"
-```
+python .opencode/shared/cli.py v2 read-knowledge --path {PROJECT_PATH} --slug fanren-xiuxian --topic power_system
 
 注入示例：
 ```markdown
@@ -141,16 +133,9 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 
 ### 可视化
 
-使用 `viz` 命令直接从 graph 生成交互式 HTML 关系图/时间线（参考 `novel-v2` skill 中的可视化章节）。
+参考 `novel-v2` skill 操作指南 §6（可视化章节），使用 `viz` 命令直接从 graph 生成交互式 HTML 关系图/时间线。
 
-```bash
-# 全项目关系图
-python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --open
-
-# 角色关系图 + 时间线
-python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --character "韩致" --open
-python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --timeline "韩致" --open
-```
+> 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
 
 ## 四、V2 快速参考
 
@@ -164,9 +149,12 @@ python .opencode/shared/v2/v2_cli.py viz --path {PROJECT_PATH} --timeline "韩�
 
 ### 新建 V2 项目
 
+编排层中通过 skill 调用：
 ```bash
 skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 ```
+
+也可直接走 CLI：`python .opencode/shared/cli.py project new "项目名" "类型" --v2`
 
 ## 五、状态维护
 

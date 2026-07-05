@@ -1,68 +1,88 @@
 """
 V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
 
+也可通过统一入口调用：python .opencode/shared/cli.py v2 <command> [args]
+
 常用命令：
     # 搜索与分析
-    python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"        # 关键词搜索
-    python .opencode/shared/v2_cli.py search --path <PROJECT> --name "林昭"            # 按名称搜索（含邻居）
-    python .opencode/shared/v2_cli.py search --path <PROJECT> --name "wr_c0585b9b"     # 按 ID 搜索（含邻居）
-    python .opencode/shared/v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex  # 正则搜索
-    python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "剑" --scope SCENE  # 限定类型搜索
-    python .opencode/shared/v2_cli.py check --path <PROJECT>                            # 一致性检查
-    python .opencode/shared/v2_cli.py report --path <PROJECT>                           # 项目报告
+    python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --keyword "天道宗"        # 关键词搜索
+    python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --name "林昭"            # 按名称搜索（含邻居）
+    python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --name "wr_c0585b9b"     # 按 ID 搜索（含邻居）
+    python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex  # 正则搜索
+    python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --keyword "剑" --scope SCENE  # 限定类型搜索
+    python .opencode/shared/v2/v2_cli.py check --path <PROJECT>                            # 一致性检查
+    python .opencode/shared/v2/v2_cli.py report --path <PROJECT>                           # 项目报告
 
     # 实体操作
-    python .opencode/shared/v2_cli.py find-unit --path <PROJECT> --name <名称>
-    python .opencode/shared/v2_cli.py get-unit --path <PROJECT> --id <ID>
-    python .opencode/shared/v2_cli.py create-unit --path <PROJECT> --type <UnitType> --name <名称> --content <JSON>
-    python .opencode/shared/v2_cli.py update-unit --path <PROJECT> --id <ID> [--file content.json | --content <JSON>] [--name <名称>] [--tags <标签>]
-    python .opencode/shared/v2_cli.py list-units --path <PROJECT> --type <UnitType> [--limit N]
+    python .opencode/shared/v2/v2_cli.py find-unit --path <PROJECT> --name <名称>
+    python .opencode/shared/v2/v2_cli.py get-unit --path <PROJECT> --id <ID>
+    python .opencode/shared/v2/v2_cli.py create-unit --path <PROJECT> --type <UnitType> --name <名称> --content <JSON>
+    python .opencode/shared/v2/v2_cli.py update-unit --path <PROJECT> --id <ID> [--file content.json | --content <JSON>] [--name <名称>] [--tags <标签>]
+    python .opencode/shared/v2/v2_cli.py list-units --path <PROJECT> --type <UnitType> [--limit N]
 
     # 关系查询（--rel-type 过滤，见 list-relation-types）
-    python .opencode/shared/v2_cli.py get-neighbors --path <PROJECT> --id <ID> [--rel-type <TYPE>]
+    python .opencode/shared/v2/v2_cli.py get-neighbors --path <PROJECT> --id <ID> [--rel-type <TYPE>]
 
     # 关系操作
-    python .opencode/shared/v2_cli.py add-relation --path <PROJECT> --source <ID> --target <ID> --type <TYPE>
-    python .opencode/shared/v2_cli.py add-relation --path <PROJECT> --source <ID> --target <ID> --type <TYPE> --bidirectional
-    python .opencode/shared/v2_cli.py fix-asymmetry --path <PROJECT>
+    python .opencode/shared/v2/v2_cli.py add-relation --path <PROJECT> --source <ID> --target <ID> --type <TYPE>
+    python .opencode/shared/v2/v2_cli.py add-relation --path <PROJECT> --source <ID> --target <ID> --type <TYPE> --bidirectional
+    python .opencode/shared/v2/v2_cli.py fix-asymmetry --path <PROJECT>
 
     # 文档导出
-    python .opencode/shared/v2_cli.py export-docs --path <PROJECT>
-    python .opencode/shared/v2_cli.py export --path <PROJECT>
+    python .opencode/shared/v2/v2_cli.py export-docs --path <PROJECT>
+    python .opencode/shared/v2/v2_cli.py export --path <PROJECT>
 
     # 统计与工具
-    python .opencode/shared/v2_cli.py stats --path <PROJECT>
-    python .opencode/shared/v2_cli.py list-relation-types
-    python .opencode/shared/v2_cli.py batch-infer --path <PROJECT>
+    python .opencode/shared/v2/v2_cli.py stats --path <PROJECT>
+    python .opencode/shared/v2/v2_cli.py list-relation-types
+    python .opencode/shared/v2/v2_cli.py batch-infer --path <PROJECT>
 
     # 可视化
-    python .opencode/shared/v2_cli.py viz --path <PROJECT>                              # 全项目关系图
-    python .opencode/shared/v2_cli.py viz --path <PROJECT> --character "韩致"           # 角色关系图
-    python .opencode/shared/v2_cli.py viz --path <PROJECT> --timeline "韩致"            # 时间线
-    python .opencode/shared/v2_cli.py viz --path <PROJECT> --output 图.html --open      # 自定义输出
+    python .opencode/shared/v2/v2_cli.py viz --path <PROJECT>                              # 全项目关系图
+    python .opencode/shared/v2/v2_cli.py viz --path <PROJECT> --character "韩致"           # 角色关系图
+    python .opencode/shared/v2/v2_cli.py viz --path <PROJECT> --timeline "韩致"            # 时间线
+    python .opencode/shared/v2/v2_cli.py viz --path <PROJECT> --output 图.html --open      # 自定义输出
 """
 
 import sys
 import os
 import argparse
+import functools
 
-V2_DIR = os.path.join(os.path.dirname(__file__), "v2")
-sys.path.insert(0, V2_DIR)
+# 确保当前目录在 sys.path 中，支持与 v2/ 下其他模块的相对导入
+_V2_DIR = os.path.dirname(os.path.abspath(__file__))
+if _V2_DIR not in sys.path:
+    sys.path.insert(0, _V2_DIR)
 
 
-def cmd_find_unit(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-    u = s.get_unit_by_name(args.name)
+# ── GraphStore 初始化装饰器 ──────────────────────────────────────────────
+
+def with_graph(func):
+    """装饰器：注入已初始化的 GraphStore 实例作为第一个位置参数。
+
+    用法：
+        @with_graph
+        def cmd_xxx(args, store):
+            # store 是已调用了 initialize() 的 GraphStore 实例
+    """
+    @functools.wraps(func)
+    def wrapper(args, *pos, **kw):
+        from graph_store import GraphStore
+        store = GraphStore(args.path)
+        store.initialize()
+        return func(args, store, *pos, **kw)
+    return wrapper
+
+
+@with_graph
+def cmd_find_unit(args, store):
+    u = store.get_unit_by_name(args.name)
     print(u.id if u else "NOT_FOUND")
 
 
-def cmd_get_unit(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-    u = s.get_unit(args.id)
+@with_graph
+def cmd_get_unit(args, store):
+    u = store.get_unit(args.id)
     if not u:
         print("NOT_FOUND")
         return
@@ -83,26 +103,22 @@ def cmd_get_unit(args):
                 print("（使用 --verbose 查看完整内容）")
 
 
-def cmd_get_neighbors(args):
+@with_graph
+def cmd_get_neighbors(args, store):
     from graph_schema import RelationType
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
     rt = RelationType(args.rel_type) if args.rel_type else None
-    neighbors = s.get_neighbors(args.id, relation_type=rt, max_depth=1)
+    neighbors = store.get_neighbors(args.id, relation_type=rt, max_depth=1)
     for nid in neighbors.get(1, set()):
-        n = s.get_unit(nid)
+        n = store.get_unit(nid)
         if n:
             print(f"{n.type.value}: {n.unit_name} ({nid})")
 
 
-def cmd_add_relation(args):
+@with_graph
+def cmd_add_relation(args, store):
     from graph_schema import RelationType
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
     rtype = RelationType(args.type)
-    rel = s.add_relation(args.source, args.target, rtype, actor=args.actor)
+    rel = store.add_relation(args.source, args.target, rtype, actor=args.actor)
     if not rel:
         print("关系建立失败")
         return
@@ -111,14 +127,12 @@ def cmd_add_relation(args):
     if getattr(args, "bidirectional", False):
         inv_type = rtype.inverse
         if inv_type != rtype:
-            # 不同类型对（belongs_to ↔ contains 等）
-            inv_rel = s.add_relation(args.target, args.source, inv_type, actor=args.actor)
+            inv_rel = store.add_relation(args.target, args.source, inv_type, actor=args.actor)
         else:
-            # 对称类型（references, allied_with 等）
-            inv_rel = s.add_relation(args.target, args.source, rtype, actor=args.actor)
+            inv_rel = store.add_relation(args.target, args.source, rtype, actor=args.actor)
         if inv_rel:
             print(f"反向关系已建立: {inv_rel.id}")
-    s.flush()
+    store.flush()
 
 
 def cmd_start_session(args):
@@ -134,14 +148,12 @@ def cmd_start_session(args):
     print(f"SESSION={s.id}")
 
 
-def cmd_create_unit(args):
+@with_graph
+def cmd_create_unit(args, store):
     from graph_schema import UnitType
-    from graph_store import GraphStore
     from relation_inferrer import RelationInferrer
-    s = GraphStore(args.path)
-    s.initialize()
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
-    u = s.create_unit(
+    u = store.create_unit(
         type=UnitType[args.type.upper()],
         unit_name=args.name,
         content=args.content,
@@ -150,19 +162,16 @@ def cmd_create_unit(args):
         actor=args.actor,
     )
     # 关系推断钩子：自动建立关联
-    inferrer = RelationInferrer(s)
+    inferrer = RelationInferrer(store)
     created = inferrer.infer_on_create(u)
-    s.flush()
+    store.flush()
     print(f"创建成功: {u.id}")
     if created:
         print(f"关系推断: 新增 {created} 条关联")
 
 
-def cmd_update_unit(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-
+@with_graph
+def cmd_update_unit(args, store):
     content = None
     if args.file:
         import json
@@ -173,7 +182,7 @@ def cmd_update_unit(args):
 
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
 
-    u = s.update_unit(
+    u = store.update_unit(
         unit_id=args.id,
         content=content,
         unit_name=args.name if args.name else None,
@@ -184,47 +193,39 @@ def cmd_update_unit(args):
         print("更新失败：叙事单元不存在")
         return
 
-    s.flush()
+    store.flush()
     print(f"更新成功: {u.id}")
     print(f"  名称: {u.unit_name}")
     print(f"  版本: {u.version}")
     print(f"  标签: {', '.join(u.tags) if u.tags else '无'}")
 
 
-def cmd_flush(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-    s.flush()
+@with_graph
+def cmd_flush(args, store):
+    store.flush()
     print("graph 已持久化")
 
 
-def cmd_build_workspace(args):
-    from graph_store import GraphStore
+@with_graph
+def cmd_build_workspace(args, store):
     from workspace import WorkspaceBuilder
-    s = GraphStore(args.path)
-    s.initialize()
-    b = WorkspaceBuilder(s)
+    b = WorkspaceBuilder(store)
 
     ws = b.build(args.id, preheat_level=args.level)
     print(ws.to_prompt_block(args.level))
 
 
-def cmd_rebuild_projections(args):
-    from graph_store import GraphStore
+@with_graph
+def cmd_rebuild_projections(args, store):
     from projection_engine import ProjectionEngine
-    s = GraphStore(args.path)
-    s.initialize()
-    p = ProjectionEngine(s, args.path, output_mode=args.mode)
+    p = ProjectionEngine(store, args.path, output_mode=args.mode)
     p.rebuild_all()
     print("投影已重建")
 
 
-def cmd_stats(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-    for k, v in s.stats().items():
+@with_graph
+def cmd_stats(args, store):
+    for k, v in store.stats().items():
         print(f"{k}: {v}")
 
 
@@ -243,29 +244,25 @@ def cmd_list_relation_types(args):
     print("  如 --rel-type member_of → 返回声明属于目标的角色")
 
 
-def cmd_list_units(args):
+@with_graph
+def cmd_list_units(args, store):
     from graph_schema import UnitType
-    from graph_store import GraphStore
     import itertools
-    s = GraphStore(args.path)
-    s.initialize()
     t = args.type.upper() if args.type else ""
     ut = None
     if t and t != "ALL":
         ut = UnitType[t]
     limit = int(args.limit) if args.limit and int(args.limit) > 0 else None
-    units = s.find_units(type=ut)
+    units = store.find_units(type=ut)
     if limit:
         units = itertools.islice(units, limit)
     for u in units:
         print(f"[{u.type.value}] {u.unit_name} [{u.status.value}]")
 
 
-def cmd_recent_events(args):
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
-    for e in s._events[-int(args.limit):]:
+@with_graph
+def cmd_recent_events(args, store):
+    for e in store._events[-int(args.limit):]:
         print(f"[{e.timestamp:%H:%M}] {e.actor}: {e.event_type.value}")
 
 
@@ -281,15 +278,13 @@ def cmd_migrate(args):
     migrate_main()
 
 
-def cmd_fix_asymmetry(args):
+@with_graph
+def cmd_fix_asymmetry(args, store):
     """扫描所有关系，补齐缺失的反向边。"""
     from graph_schema import RelationType
-    from graph_store import GraphStore
-    s = GraphStore(args.path)
-    s.initialize()
     created = 0
     skipped = 0
-    for rel in list(s._relations.values()):
+    for rel in list(store._relations.values()):
         rtype = rel.relation_type
         inv_type = rtype.inverse
         if inv_type != rtype:
@@ -298,49 +293,45 @@ def cmd_fix_asymmetry(args):
             rev_source, rev_target, rev_type = rel.target_id, rel.source_id, rtype
         exists = any(
             r.source_id == rev_source and r.target_id == rev_target and r.relation_type == rev_type
-            for r in s._relations.values()
+            for r in store._relations.values()
         )
         if exists:
             skipped += 1
             continue
-        r = s.add_relation(rev_source, rev_target, rev_type,
-                           weight=rel.weight, description="auto-filled reverse",
-                           actor="fix-asymmetry")
+        r = store.add_relation(rev_source, rev_target, rev_type,
+                               weight=rel.weight, description="auto-filled reverse",
+                               actor="fix-asymmetry")
         if r:
             created += 1
-    s.flush()
+    store.flush()
     print(f"检查了 {skipped + created} 条关系")
     print(f"补齐反向边: {created} 条新建, {skipped} 条已存在")
 
 
-def cmd_batch_infer(args):
+@with_graph
+def cmd_batch_infer(args, store):
     """批量推断：扫描所有已有单元，自动建立关系"""
-    from graph_store import GraphStore
     from relation_inferrer import RelationInferrer
-    s = GraphStore(args.path)
-    s.initialize()
-    before = s.stats()["total_relations"]
-    inferrer = RelationInferrer(s)
+    before = store.stats()["total_relations"]
+    inferrer = RelationInferrer(store)
 
     def progress(i, total, created):
         print(f"  进度: {i}/{total} 单元, 已建 {created} 关系")
 
-    print(f"开始批量推断 ({s.stats()['total_units']} 单元)...")
+    print(f"开始批量推断 ({store.stats()['total_units']} 单元)...")
     total = inferrer.batch_infer_all(progress_callback=progress)
 
-    after = s.stats()["total_relations"]
+    after = store.stats()["total_relations"]
     print(f"\n批量推断完成:")
     print(f"  新建关系: {total}")
     print(f"  关系总计: {before} → {after}")
 
 
-def cmd_export_docs(args):
+@with_graph
+def cmd_export_docs(args, store):
     """导出结构化文档（Markdown）到 graph/export/"""
-    from graph_store import GraphStore
     from projection_engine import ProjectionEngine
-    s = GraphStore(args.path)
-    s.initialize()
-    p = ProjectionEngine(s, args.path)
+    p = ProjectionEngine(store, args.path)
     written = p.export_docs(output_dir=args.out)
     print(f"✅ 结构化文档已导出: {len(written)} 个文件")
     for w in written:
@@ -348,14 +339,12 @@ def cmd_export_docs(args):
     print(f"\n   打开 index.md 开始浏览：")
 
 
-def cmd_export(args):
+@with_graph
+def cmd_export(args, store):
     """导出 CHUNK 叙事单元为章节 TXT 文件"""
     from graph_schema import UnitType
-    from graph_store import GraphStore
     from pathlib import Path
-    s = GraphStore(args.path)
-    s.initialize()
-    chunks = s.find_units(type=UnitType.CHUNK)
+    chunks = store.find_units(type=UnitType.CHUNK)
     if not chunks:
         print("没有找到 CHUNK 类型的叙事单元")
         return
@@ -376,13 +365,11 @@ def cmd_export(args):
     print(f"\n导出完成: {exported} 个章节文件 → {out_dir}")
 
 
-def cmd_search(args):
+@with_graph
+def cmd_search(args, store):
     """搜索叙事单元（关键词/正则/实体）"""
-    from graph_store import GraphStore
     from search_engine import SearchEngine
-    s = GraphStore(args.path)
-    s.initialize()
-    engine = SearchEngine(s)
+    engine = SearchEngine(store)
 
     result = engine.search(
         keyword=args.keyword,
@@ -396,13 +383,11 @@ def cmd_search(args):
     print(engine.query_to_string(result))
 
 
-def cmd_check(args):
+@with_graph
+def cmd_check(args, store):
     """一致性检查：输出供 LLM 分析的结构化数据"""
-    from graph_store import GraphStore
     from search_engine import SearchEngine
-    s = GraphStore(args.path)
-    s.initialize()
-    engine = SearchEngine(s)
+    engine = SearchEngine(store)
 
     results = engine.check_consistency()
     if not results:
@@ -429,16 +414,14 @@ def cmd_check(args):
         print()
 
 
-def cmd_report(args):
+@with_graph
+def cmd_report(args, store):
     """项目报告：统计 + gap 原始数据"""
-    from graph_store import GraphStore
     from search_engine import SearchEngine
     from deviation_manager import DeviationManager
-    s = GraphStore(args.path)
-    s.initialize()
 
     # Graph 统计
-    stats = s.stats()
+    stats = store.stats()
     print("=" * 50)
     print("项目报告")
     print("=" * 50)
@@ -448,7 +431,7 @@ def cmd_report(args):
         print(f"  {k}: {v}")
 
     # 搜索引擎分析
-    engine = SearchEngine(s)
+    engine = SearchEngine(store)
     consistency = engine.check_consistency()
     print(f"\n【一致性检查】")
     if consistency:
@@ -477,9 +460,9 @@ def cmd_report(args):
 
     # Gap 分析
     print(f"\n【Gap 分析】")
-    engine = SearchEngine(s)
-    all_units = {u.type.value: [] for u in s._units.values()}
-    for u in s._units.values():
+    engine = SearchEngine(store)
+    all_units = {u.type.value: [] for u in store._units.values()}
+    for u in store._units.values():
         all_units.setdefault(u.type.value, []).append(u)
 
     for utype, units in sorted(all_units.items()):
@@ -487,7 +470,7 @@ def cmd_report(args):
             continue
         with_relations = 0
         for u in units:
-            if s.get_relations(u.id):
+            if store.get_relations(u.id):
                 with_relations += 1
         total = len(units)
         active = sum(1 for u in units if u.status.value != "archived")
@@ -664,11 +647,11 @@ def main():
         "get-neighbors": cmd_get_neighbors,
         "add-relation": cmd_add_relation,
         "flush": cmd_flush,
+        "list-units": cmd_list_units,
         "list-relation-types": cmd_list_relation_types,
         "build-workspace": cmd_build_workspace,
         "rebuild-projections": cmd_rebuild_projections,
         "stats": cmd_stats,
-        "list-units": cmd_list_units,
         "recent-events": cmd_recent_events,
         "migrate": cmd_migrate,
         "fix-asymmetry": cmd_fix_asymmetry,

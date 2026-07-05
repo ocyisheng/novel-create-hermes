@@ -23,11 +23,11 @@ WRITING MODE: {draft | polish | rewrite}
 
 ### 第一步：初始化创作会话
 
-使用 `v2_cli.py start-session` 命令（具体参数见 `novel-v2` skill 的操作指南）。
+参考 `novel-v2` skill 操作指南 §3（会话管理），使用 `start-session` 命令。
 
 ### 第二步：获取工作空间上下文
 
-使用 `v2_cli.py build-workspace` 命令（具体参数见 `novel-v2` skill 的操作指南）。
+参考 `novel-v2` skill 操作指南 §3（会话管理），使用 `build-workspace` 命令。
 
 写作中如需更详细的知识库内容，使用 QUERY 协议按需查询：
 `QUERY: book_knowledge(slug="fanren-xiuxian", topic="掌天瓶")`
@@ -35,7 +35,7 @@ WRITING MODE: {draft | polish | rewrite}
 
 ### 第三步：了解当前焦点叙事单元
 
-使用 `v2_cli.py get-unit` 和 `v2_cli.py get-neighbors` 命令（具体参数见 `novel-v2` skill 的操作指南）。
+参考 `novel-v2` skill 操作指南 §1（读取 graph 数据），使用 `get-unit` 和 `get-neighbors` 命令。
 
 ## 二、领域参考加载 + 脚本/提示词分工
 
@@ -82,35 +82,28 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 
 ### 直接数据检索
 
-如果只是需要确认"某数据是否存在"而不需要语义分析，可以直接调 CLI：
+如果只是需要确认"某数据是否存在"而不需要语义分析，可以直接调 CLI（参考 `novel-v2` SKILL.md §1 读取命令）：
 
 ```bash
-# 关键词搜索
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"
+# 统一入口方式（推荐）
+python .opencode/shared/cli.py v2 search --path <PROJECT> --keyword "天道宗"
+python .opencode/shared/cli.py v2 check --path <PROJECT>
 
-# 按名称搜索（含邻居展开）
-python .opencode/shared/v2_cli.py search --path <PROJECT> --name "林昭"
-
-# 按 ID 搜索（含邻居展开）
-python .opencode/shared/v2_cli.py search --path <PROJECT> --name "wr_c0585b9b"
-
-# 正则搜索
-python .opencode/shared/v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex
-
-# 一致性检查
-python .opencode/shared/v2_cli.py check --path <PROJECT>
+# 或直接调 v2_cli.py
+python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --keyword "天道宗"
 ```
 
-当需要 LLM 做分析推理（如"检查设定是否矛盾"），用 `skill("novel-search-analysis")` 切换到分析路径。
+当需要 LLM 做分析推理（如"检查设定有没有矛盾"），用 `skill("novel-search-analysis")` 切换到分析路径。
 
 ## 五、创作操作
 
-所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南，包含：
+所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
 
-- **创建叙事单元**：`v2_cli.py create-unit`
-- **建立关系**：`v2_cli.py add-relation`
-- **写入正文**：先创建 CHUNK 单元，再关联到场景
-- **持久化**：`v2_cli.py flush`
+关键操作速览（详细参数见 SKILL.md）：
+- **创建叙事单元** → SKILL.md §2：`create-unit --type SCENE --name "单元名"`
+- **建立关系** → SKILL.md §2：`add-relation --source <ID> --target <ID> --type member_of`
+- **写入正文** → 先创建 CHUNK 单元，再关联到场景
+- **持久化** → SKILL.md §3：`flush`
 
 ### 风格提取（FOCUS TYPE=style）
 

@@ -14,7 +14,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: {scene | character_arc | plot_thread | note}
+FOCUS TYPE: {scene | character_arc | plot_thread | note | style}
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
@@ -28,6 +28,10 @@ WRITING MODE: {draft | polish | rewrite}
 ### 第二步：获取工作空间上下文
 
 使用 `v2_cli.py build-workspace` 命令（具体参数见 `novel-v2` skill 的操作指南）。
+
+写作中如需更详细的知识库内容，使用 QUERY 协议按需查询：
+`QUERY: book_knowledge(slug="fanren-xiuxian", topic="掌天瓶")`
+支持多关键词 OR 查询：`QUERY: book_knowledge(slug="fanren-xiuxian", topic="鬼道|阴冥|黄泉")`
 
 ### 第三步：了解当前焦点叙事单元
 
@@ -57,11 +61,47 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 
 ## 四、QUERY 协议
 
-写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）：
+写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）。
 
-支持的查询类型见 `novel-v2` skill 的 QUERY 协议参考。编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
+支持的查询类型：
+- `QUERY: character_background(name="林昭")` — 角色完整背景
+- `QUERY: scene_detail(scene_id="sc_0015")` — 场景细节
+- `QUERY: world_rule(name="灵气淬体")` — 世界观规则
+- `QUERY: plot_thread_summary(name="主线")` — 情节线摘要
+- `QUERY: advanced_search(keywords=["剑", "天道宗"], limit=5)` — 关键词搜索
+- `QUERY: chapter_status(number=3)` — 章节状态
+- `QUERY: book_knowledge(slug="fanren-xiuxian", topic="power_system")` — 查询知识库参考内容
+  - `slug`: 知识库标识（如 fanren-xiuxian、three-body）
+  - `topic`: 查询主题（如 power_system、narrative_pattern、或任意中文关键词）
+  - `max_chars`: 最大返回字符数（可选，默认 2000）
+- `QUERY: list_knowledge_books()` — 列出所有可用知识库
+
+编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
 
 **QUERY 指令不要出现在最终回复中——编排层会自动剥离。**
+
+### 直接数据检索
+
+如果只是需要确认"某数据是否存在"而不需要语义分析，可以直接调 CLI：
+
+```bash
+# 关键词搜索
+python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"
+
+# 按名称搜索（含邻居展开）
+python .opencode/shared/v2_cli.py search --path <PROJECT> --name "林昭"
+
+# 按 ID 搜索（含邻居展开）
+python .opencode/shared/v2_cli.py search --path <PROJECT> --name "wr_c0585b9b"
+
+# 正则搜索
+python .opencode/shared/v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex
+
+# 一致性检查
+python .opencode/shared/v2_cli.py check --path <PROJECT>
+```
+
+当需要 LLM 做分析推理（如"检查设定是否矛盾"），用 `skill("novel-search-analysis")` 切换到分析路径。
 
 ## 五、创作操作
 
@@ -71,6 +111,17 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 - **建立关系**：`v2_cli.py add-relation`
 - **写入正文**：先创建 CHUNK 单元，再关联到场景
 - **持久化**：`v2_cli.py flush`
+
+### 风格提取（FOCUS TYPE=style）
+
+当 FOCUS TYPE 为 `style` 时，执行风格提取操作：
+
+1. 用户提供了 2-3 段参考文本，需要提炼为风格定义
+2. 按 7 维度分析（narrative_tone / sentence_structure / pacing / dialogue_style / vocabulary_register / rhetorical_features / forbidden_patterns）
+3. 输出为 `styles/{名称}.yaml`，写入项目目录
+4. 通过 `edit` 修改 `config.yaml` 的 `活跃风格` 字段
+
+详细格式定义见 `.opencode/skills/novel-v2/references/styles/style_format.md`。内置风格清单见同一目录下的 22 个 `.yaml` 文件。
 
 ### 章节正文的兼容写入
 

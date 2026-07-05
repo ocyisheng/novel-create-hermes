@@ -14,14 +14,17 @@
     QUERY: world_rule(name="灵气淬体")
     QUERY: foreshadowing_status(id="F001")
     QUERY: plot_thread_summary(name="主线")
-    QUERY: style_check(text="一段需要检查的文字")
     QUERY: advanced_search(keywords=["剑", "灵气"], limit=5)
+    QUERY: book_knowledge(slug="fanren-xiuxian", topic="power_system")
+    QUERY: list_knowledge_books()
 """
 
 from __future__ import annotations
 
 import re
 import json
+import os
+import sys
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Pattern
@@ -30,6 +33,7 @@ from collections import defaultdict
 from graph_schema import UnitType, UnitStatus, RelationType
 from graph_store import GraphStore as GraphStoreImpl
 from render_utils import summarize_content
+from knowledge_reader import KnowledgeReader, resolve_knowledge_root
 
 
 # ── 查询类型 ──────────────────────────────────────────────────────────────
@@ -41,10 +45,11 @@ class QueryType(str, Enum):
     WORLD_RULE = "world_rule"
     FORESHADOWING_STATUS = "foreshadowing_status"
     PLOT_THREAD_SUMMARY = "plot_thread_summary"
-    STYLE_CHECK = "style_check"
     ADVANCED_SEARCH = "advanced_search"
     RECENT_CONTEXT = "recent_context"
     CHAPTER_STATUS = "chapter_status"
+    BOOK_KNOWLEDGE = "book_knowledge"
+    LIST_KNOWLEDGE_BOOKS = "list_knowledge_books"
 
 
 # ── 协议 ──────────────────────────────────────────────────────────────────
@@ -223,10 +228,11 @@ class QueryHandlerRegistry:
             QueryType.WORLD_RULE: _handle_world_rule,
             QueryType.FORESHADOWING_STATUS: _handle_foreshadowing_status,
             QueryType.PLOT_THREAD_SUMMARY: _handle_plot_thread_summary,
-            QueryType.STYLE_CHECK: _handle_style_check,
             QueryType.ADVANCED_SEARCH: _handle_advanced_search,
             QueryType.RECENT_CONTEXT: _handle_recent_context,
             QueryType.CHAPTER_STATUS: _handle_chapter_status,
+            QueryType.BOOK_KNOWLEDGE: _handle_book_knowledge,
+            QueryType.LIST_KNOWLEDGE_BOOKS: _handle_list_knowledge_books,
         }
 
 
@@ -465,48 +471,16 @@ def _handle_plot_thread_summary(
     )
 
 
-def _handle_style_check(
-    req: QueryRequest, store: GraphStoreImpl, project_root: str
-) -> QueryResult:
-    """
-    风格一致性快速检查。
-    
-    简易实现：检查文本中是否包含常见的 AI 语言尸体。
-    完整实现应加载活跃风格文件进行 7 维度对比。
-    """
-    text = req.params.get("text", "")
-    if not text:
-        return QueryResult(success=False, error="缺少参数: text")
-    
-    # 语言尸体关键词（权威列表见 skills/novel-quality/references/cliches.md）
-    CLICHES = [
-        "暮色从四面八方", "空气仿佛凝固", "时间仿佛停止",
-        "一股莫名的", "不知为何", "心中涌起一股",
-        "眼神中闪过一丝", "嘴角露出一抹", "深吸一口气",
-        "整个世界都", "命运的车轮",
-    ]
-    
-    findings = []
-    for cliche in CLICHES:
-        if cliche in text:
-            findings.append(f"  ⚠️ 检测到语言尸体: 「{cliche}」")
-    
-    if not findings:
-        return QueryResult(
-            summary="✅ 风格快速检查通过",
-            content="未检测到明显语言尸体。",
-        )
-    
-    return QueryResult(
-        summary=f"⚠️ 检测到 {len(findings)} 处可能的语言尸体",
-        content="风格快速检查发现以下问题:\n" + "\n".join(findings),
-    )
-
-
 def _handle_advanced_search(
     req: QueryRequest, store: GraphStoreImpl, project_root: str
 ) -> QueryResult:
-    """高级搜索：按关键词、类型、章节搜索叙事单元"""
+    """
+    高级搜索：委托给 SearchEngine 执行纯机械搜索。
+    
+    支持 keywords（关键词列表，合并为一个查询）、type、chapter 过滤。
+    """
+    from search_engine import SearchEngine
+    
     keywords = req.params.get("keywords", [])
     unit_type = req.params.get("type", "")
     chapter = req.params.get("chapter", 0)
@@ -519,43 +493,39 @@ def _handle_advanced_search(
     if isinstance(chapter, str):
         chapter = int(chapter)
     
-    results = []
-    for unit in store._units.values():
-        if unit.status == UnitStatus.ARCHIVED:
-            continue
-        if unit_type and unit.type.value != unit_type:
-            continue
-        if chapter and unit.belongs_to_chapter != chapter:
-            continue
-        
-        score = 0
-        for kw in keywords:
-            if kw.lower() in unit.unit_name.lower():
-                score += 3
-            if kw.lower() in unit.content.lower():
-                score += 2
-            if kw.lower() in str(unit.tags).lower():
-                score += 1
-        
-        if score > 0:
-            results.append((score, unit))
+    # 将多关键词合并为一个查询字符串
+    query = " ".join(keywords) if keywords else ""
+    if not query:
+        return QueryResult(success=False, error="缺少搜索关键词")
     
-    results.sort(key=lambda x: -x[0])
-    results = results[:int(limit)]
+    engine = SearchEngine(store)
+    result_set = engine.search(
+        keyword=query,
+        max_results=limit,
+    )
     
-    if not results:
+    # 如果有 type 过滤，在结果中二次过滤
+    if unit_type:
+        result_set.results = [
+            r for r in result_set.results
+            if r.unit_type.value == unit_type
+        ]
+        result_set.total = len(result_set.results)
+    
+    if not result_set.results:
         return QueryResult(summary="未找到匹配结果", content="（无）")
     
-    parts = [f"搜索结果 ({len(results)} 条):"]
-    for score, unit in results:
-        ch = f"ch.{unit.belongs_to_chapter}" if unit.belongs_to_chapter else "?"
-        preview = unit.unit_name[:50]
-        parts.append(f"  [{score}pts] [{unit.type.value}] {preview} ({ch})")
+    parts = [f"搜索结果 ({result_set.total} 条, {result_set.time_ms}ms):"]
+    for r in result_set.results:
+        ch = f"ch.{r.chapter}" if r.chapter else "?"
+        parts.append(f"  [{r.score:.0f}pts] [{r.unit_type.value}] {r.unit_name} ({ch})")
+        if r.neighbors:
+            parts.append(f"    关联: {', '.join(r.neighbors[:3])}")
     
     return QueryResult(
-        summary=f"找到 {len(results)} 条相关结果",
+        summary=f"找到 {result_set.total} 条相关结果",
         content="\n".join(parts),
-        source_ids=[u.id for _, u in results],
+        source_ids=[r.unit_id for r in result_set.results],
     )
 
 
@@ -636,4 +606,80 @@ def _handle_chapter_status(
     return QueryResult(
         summary=f"章节状态: {chapter if chapter else '全局'}",
         content="\n".join(parts),
+    )
+
+
+# ── 知识库查询 ────────────────────────────────────────────────────────────
+
+def _handle_book_knowledge(
+    req: QueryRequest, store: GraphStoreImpl, project_root: str
+) -> QueryResult:
+    """
+    查询知识库中的参考内容（通过共享 KnowledgeReader）。
+
+    参数:
+        slug: 知识库标识（如 fanren-xiuxian）
+        topic: 查询主题（字符串，支持 | 分隔多关键词）
+        max_chars: 最大返回字符数（默认 2000）
+    """
+    slug = req.params.get("slug", "")
+    topic = req.params.get("topic", "")
+    max_chars = int(req.params.get("max_chars", 2000))
+
+    if not slug:
+        return QueryResult(success=False, error="缺少参数: slug")
+
+    knowledge_root = resolve_knowledge_root(project_root)
+    reader = KnowledgeReader(knowledge_root)
+
+    # 别名解析
+    slug_dir = os.path.join(knowledge_root, slug)
+    if not os.path.isdir(slug_dir):
+        resolved = reader.resolve_slug_alias(slug)
+        if resolved:
+            slug = resolved
+        else:
+            books = reader.list_available_books()
+            return QueryResult(
+                success=False,
+                error=f"知识库 '{slug}' 不存在",
+                summary=f"可用知识库: {', '.join(books[:5]) if books else '无'}",
+            )
+
+    # topic 支持 | 分隔的多关键词
+    topics = [t.strip() for t in topic.split("|") if t.strip()] if topic else None
+
+    content = reader.get(slug, topics=topics, max_chars=max_chars)
+    if not content:
+        return QueryResult(
+            success=False,
+            error=f"知识库 '{slug}' 存在但未找到匹配内容",
+            summary=f"知识库 '{slug}' 存在但未找到匹配主题",
+        )
+
+    return QueryResult(
+        summary=f"📖 知识库参考: {slug} — {topic if topic else '概要'}",
+        content=f"## 参考: {slug}\n\n{content}",
+        source_ids=[slug],
+    )
+
+
+def _handle_list_knowledge_books(
+    req: QueryRequest, store: GraphStoreImpl, project_root: str
+) -> QueryResult:
+    """列出所有可用知识库"""
+    knowledge_root = resolve_knowledge_root(project_root)
+    reader = KnowledgeReader(knowledge_root)
+    books = reader.list_available_books()
+
+    if not books:
+        return QueryResult(
+            success=False,
+            error="未找到知识库",
+            summary="knowledge/ 目录为空或不存在",
+        )
+
+    return QueryResult(
+        summary=f"可用知识库 ({len(books)}): " + ", ".join(books[:5]) + ("…" if len(books) > 5 else ""),
+        content="## 可用知识库\n\n" + "\n".join(f"- {b}" for b in books),
     )

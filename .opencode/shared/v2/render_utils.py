@@ -240,7 +240,7 @@ def _render_to_html(key: str, value: Any, mode: str) -> str:
             items = re.split(r"[，,、\s]+", value)
         else:
             items = list(value) if isinstance(value, list) else [str(value)]
-        tags = " ".join(f'<span class="tag">{_escape_html(t)}</span>' for t in items if t)
+        tags = " ".join(f'<span class="tag">{_escape_html(str(t))}</span>' for t in items if t)
         return f'<div class="section"><h3>{key}</h3><div class="tagcloud">{tags}</div></div>'
     if mode == "timeline":
         items = list(value) if isinstance(value, list) else []

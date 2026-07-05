@@ -11,7 +11,9 @@
         "novel-env-setup",
         "book-knowledge",
         "book-to-knowledge",
-        "novel-search-analysis"
+        "novel-search-analysis",
+        "novel-grill",
+        "novel-quality"
       ],
       "tools": {
         "task": true,

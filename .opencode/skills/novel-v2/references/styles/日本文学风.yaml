@@ -1,0 +1,32 @@
+style_name: "日本文学风"
+description: "日本近现代文学，极简唯美，物哀幽玄，留白与余韵"
+category: "外国"
+dimensions:
+  narrative_tone:
+    description: "第一人称内省或第三人称贴近，克制冷静，情感埋在细节里"
+    keywords: ["克制", "物哀", "留白", "细腻"]
+    example: "樱花落了。她站在树下，什么也没说。"
+  sentence_structure:
+    description: "短句零碎，段落极短，常有独句成段"
+    avg_sentence_length: "short"
+    characteristics: ["独句成段", "零碎感", "留白多"]
+    example: "樱花落了。她站在树下。什么也没说。"
+  pacing:
+    description: "日常细微处极详（一片叶、一阵风），大事反而一笔带过"
+    pattern: "细节放大 + 省略跳跃"
+    example: "【细节】一片叶、一阵风详写（3-5句）→【大事】一笔带过"
+  dialogue_style:
+    description: "简短含蓄，答非所问是常态，沉默比话语更有力"
+    attribution_pattern: "极少标签，靠上下文推断说话人"
+    speech_patterns: ["简短", "含蓄", "答非所问", "沉默"]
+    example: "你走了？嗯。还回来吗？不知道。"
+  vocabulary_register:
+    description: "朴素口语，季节感和触感词丰富，具象优先"
+    register_level: "colloquial"
+    distinctive_vocab: ["寂寥", "透明", "微光", "余韵"]
+    forbidden_vocab: ["直白抒情", "宏大叙事", "说教口吻"]
+  rhetorical_features:
+    description: "比喻精巧不滥，通感常见，以景写情"
+    devices: ["通感", "隐喻", "留白", "景物象征"]
+  forbidden_patterns:
+    patterns: ["直白的心理描写", "戏剧化冲突", "圆满结局", "道德说教"]

@@ -1,0 +1,32 @@
+style_name: "老舍式风"
+description: "老舍式京味叙事，口语鲜活，市井烟火，笑中带泪"
+category: "近现代"
+dimensions:
+  narrative_tone:
+    description: "第三人称贴近市井，语气如街坊聊天，幽默中藏着悲凉"
+    keywords: ["京味", "鲜活", "幽默", "悲凉"]
+    example: "老王坐在胡同口，叼着烟袋，看着来往的人。"
+  sentence_structure:
+    description: "口语化短句，节奏明快，像说书又像唠嗑"
+    avg_sentence_length: "short"
+    characteristics: ["口语节奏", "明快", "唠嗑感"]
+    example: "老王坐在胡同口。叼着烟袋。看着来往的人。"
+  pacing:
+    description: "市井生活细节铺开，大事反而轻描淡写"
+    pattern: "生活铺陈 → 命运转折 → 沉默承受"
+    example: "【日常】市井生活铺陈（3-5句）→【转折】命运突变（1-2句）→【承受】沉默面对（1-2句）"
+  dialogue_style:
+    description: "京腔京韵，人物开口就是性格，话里带俏皮"
+    attribution_pattern: "说、乐了、摇头道等生活化标签"
+    speech_patterns: ["京腔", "俏皮", "自带性格"]
+    example: "得嘞，您了。这事，咱甭提了。"
+  vocabulary_register:
+    description: "鲜活口语，北京方言色彩，俗中见雅"
+    register_level: "colloquial"
+    distinctive_vocab: ["得嘞", "敢情", "甭", "您"]
+    forbidden_vocab: ["书面语腔调", "文艺腔", "翻译腔"]
+  rhetorical_features:
+    description: "比喻鲜活接地气，夸张中带幽默，排比用于控诉"
+    devices: ["比喻", "夸张", "排比", "反讽"]
+  forbidden_patterns:
+    patterns: ["无故抒情", "宏大空洞", "脱离市井"]

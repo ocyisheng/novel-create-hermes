@@ -1,0 +1,32 @@
+style_name: "鲁迅式风"
+description: "鲁迅式冷峻叙事，白描中带利刺，悲悯与讽喻并存，言简意深"
+category: "近现代"
+dimensions:
+  narrative_tone:
+    description: "第一人称或第三人称冷静旁观，冷中带热，讽中藏悲"
+    keywords: ["冷峻", "讽喻", "悲悯", "犀利"]
+    example: "他笑了。我也笑了。大家都笑了。"
+  sentence_structure:
+    description: "短句如匕首，一句一刺，绝无赘语"
+    avg_sentence_length: "short"
+    characteristics: ["一句一刺", "无赘语", "反语频繁"]
+    example: "他笑了。我也笑了。大家都笑了。"
+  pacing:
+    description: "细节以小见大，日常中撬动时代，节奏紧绷不松弛"
+    pattern: "细节速写 → 议论刺出 → 沉默收束"
+    example: "【细节】日常场景速写（2-3句）→【议论】一句话刺出→【沉默】无言收束"
+  dialogue_style:
+    description: "人物对话就是社会缩影，寥寥数语尽显灵魂"
+    attribution_pattern: "道、说，极少修饰"
+    speech_patterns: ["寥寥数语", "社会缩影", "话外有刺"]
+    example: "先生，这世道...世道很好。"
+  vocabulary_register:
+    description: "白话精粹，文言底子，文白杂交自成一家"
+    register_level: "mixed"
+    distinctive_vocab: ["大抵", "罢了", "似乎", "竟至于"]
+    forbidden_vocab: ["浮华辞藻", "温情脉脉", "大团圆"]
+  rhetorical_features:
+    description: "反语、讽刺、象征、重复强调"
+    devices: ["反语", "讽刺", "象征", "排比"]
+  forbidden_patterns:
+    patterns: ["无病呻吟", "温情粉饰", "网文式爽感"]

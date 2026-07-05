@@ -1,0 +1,32 @@
+style_name: "近现代名著风"
+description: "五四以来白话文学，批判现实，语言洗练，注重心理与社会关怀"
+category: "近现代"
+dimensions:
+  narrative_tone:
+    description: "克制白描中带暗讽，冷静观察但不冷漠，有社会关怀"
+    keywords: ["克制", "暗讽", "关怀", "批判"]
+    example: "他站在街头，看着来往的人群，觉得一切都很荒谬。"
+  sentence_structure:
+    description: "白话短句洗净文言，段落节制，一句一事"
+    avg_sentence_length: "short"
+    characteristics: ["白话洗净", "短句精准", "一句一事"]
+    example: "他站在街头。看着来往的人群。觉得一切都很荒谬。"
+  pacing:
+    description: "细节以小见大，日常中见深意，节奏均匀不赶场"
+    pattern: "细节铺陈 → 暗线交织 → 静水流深"
+    example: "【细节】日常场景速写（2-3句）→【议论】社会批判（1-2句）→【沉默】无言收束"
+  dialogue_style:
+    description: "人物语言贴合身份，方言点缀，话外有音"
+    attribution_pattern: "简单道、说、问，偶用神态前置"
+    speech_patterns: ["身份贴合", "方言色彩", "含蓄留白"]
+    example: "先生，这世道...世道很好。"
+  vocabulary_register:
+    description: "规范白话，洗练精准，少成语多口语"
+    register_level: "mixed"
+    distinctive_vocab: ["大抵", "罢了", "仿佛", "向来"]
+    forbidden_vocab: ["网络流行语", "轻浮搞笑", "装腔作势"]
+  rhetorical_features:
+    description: "白描为主，比喻精当不滥，象征暗线遍布"
+    devices: ["白描", "象征", "反讽", "对照"]
+  forbidden_patterns:
+    patterns: ["网文爽感套路", "过度煽情", "辞藻堆砌", "套路化大团圆"]

@@ -68,6 +68,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 质量检测 | chunk | hot | polish |
 | 重写/修订 | chunk | hot | rewrite |
 | 编辑修改 | 根据目标类型推断 | warm | polish |
+| 风格提取/模仿文风 | style | cold | draft |
 | 记录灵感 | note | cold | draft |
 | 导出 | — | — | 走脚本 |
 | 可视化/关系图/时间线 | — | — | 走脚本：`viz --path` |
@@ -93,6 +94,40 @@ WRITING MODE: {draft|polish|rewrite}
 TASK: {用户请求的具体描述}"
 )
 ```
+
+**知识库参考注入规则（编排层直接注入）**：
+编排层（你）在调度创作任务前，直接读取知识库内容并注入到 crafter 的 prompt 中：
+
+1. 扫描用户请求中是否提及知识库书名（如"凡人修仙传"、"三体"、"星辰变"），对照 `knowledge/index.yaml` 的 `entries[].title` 和 `entries[].tags` 匹配 slug
+2. 使用 `KnowledgeReader` 读取对应内容（见下方示例），`topic` 支持多关键词 OR 查询（`["鬼道", "阴冥"]` 或 `"鬼道|阴冥"`）
+3. 将读取到的知识内容注入到 crafter prompt 末尾，作为 `### 知识库参考` 段落
+4. 纯知识查询（用户只想查书，不想写）不走此路径，走 `skill("book-knowledge")`
+
+```bash
+# 读取知识库内容
+python -c "
+import sys; sys.path.insert(0, '.opencode/shared/v2')
+from knowledge_reader import KnowledgeReader, resolve_knowledge_root
+kr = resolve_knowledge_root(r'{PROJECT_PATH}')
+reader = KnowledgeReader(kr)
+content = reader.get('fanren-xiuxian', topics=['power_system', 'pacing'], max_chars=3000)
+print(content)
+"
+```
+
+注入示例：
+```markdown
+TASK: 参考凡人修仙传的力量体系，为龙渊设计境界划分
+
+### 知识库参考（from fanren-xiuxian）
+{KnowledgeReader 读取的内容}
+```
+
+示例：
+- 用户说"参考凡人修仙传的力量体系写第3章" → 读取 `reader.get("fanren-xiuxian", topics=["power_system"])` 并注入
+- 用户说"按照凡人修仙的节奏和星辰变的境界来写" → 分别读取两个知识库，合并注入
+- 用户说"写第3章"（无参考） → 不注入知识库段落
+- 用户说"帮我查一下凡人修仙传的力量体系"（纯查询，不走 V2 创作路由）
 
 ### 焦点 ID 查找
 

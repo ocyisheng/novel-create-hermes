@@ -54,6 +54,10 @@ class Workspace:
     previous_scene_summary: str = ""        # 前置场景摘要
     writing_guides: List[str] = field(default_factory=list)  # 写作指引
     
+    # 活跃风格（V2：从 config.yaml 读取后注入）
+    active_style: str = ""
+    active_style_name: str = ""
+    
     # 完整性评分
     completeness_score: float = 1.0
     missing_gaps: List[str] = field(default_factory=list)
@@ -144,6 +148,12 @@ class Workspace:
                 for wr in self.world_rules[:3]:
                     lines.append(f"- {wr.get('unit_name', '?')}")
                 lines.append("")
+        
+        # 活跃风格（所有预热级别都注入）
+        if self.active_style:
+            lines.append(f"### 活跃风格：{self.active_style_name}")
+            lines.append(self.active_style)
+            lines.append("")
         
         if preheat_level == "hot" and self.weak_signals:
             lines.append("### 弱信号")
@@ -252,10 +262,13 @@ class WorkspaceBuilder:
         if config["prev_next"]:
             self._load_prev_next(ws, focus)
         
-        # 5. 场景级信息提取
+        # 5. 活跃风格加载
+        self._load_active_style(ws, extra_context or {})
+        
+        # 6. 场景级信息提取
         self._enrich_scene_context(ws, focus)
         
-        # 6. 完整性评估
+        # 7. 完整性评估
         self._assess_completeness(ws)
         
         return ws
@@ -410,6 +423,60 @@ class WorkspaceBuilder:
             ws.completeness_score = 0.7
         else:
             ws.completeness_score = 0.4
+    
+    def _load_active_style(self, ws: Workspace, extra_context: Dict[str, Any]):
+        """
+        从额外上下文或 config.yaml 加载活跃风格。
+        
+        优先使用 extra_context 中的 style_name 和 style_content（编排层传入），
+        兜底查找项目目录下的 styles/ 或 builtin/。
+        """
+        style_name = extra_context.get("active_style_name", "")
+        style_content = extra_context.get("active_style_content", "")
+        
+        if style_name and style_content:
+            ws.active_style_name = style_name
+            ws.active_style = style_content
+            return
+        
+        # 兜底：从 project_root 读取 config.yaml
+        import os
+        project_root = extra_context.get("project_root", "")
+        if not project_root:
+            return
+        
+        config_path = os.path.join(project_root, "config.yaml")
+        if not os.path.exists(config_path):
+            return
+        
+        try:
+            import yaml
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            style_name = config.get("活跃风格", "")
+            if not style_name:
+                return
+            
+            # 尝试 styles/{名称}.yaml
+            style_path = os.path.join(project_root, "styles", f"{style_name}.yaml")
+            if os.path.exists(style_path):
+                with open(style_path, "r", encoding="utf-8") as f:
+                    ws.active_style = f.read()
+                    ws.active_style_name = style_name
+                return
+            
+            # 兜底：builtin/{名称}.yaml（从项目根目录查找 skill 内置风格）
+            builtin_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "skills", "novel-style", "builtin", f"{style_name}.yaml"
+            )
+            if os.path.exists(builtin_path):
+                with open(builtin_path, "r", encoding="utf-8") as f:
+                    ws.active_style = f.read()
+                    ws.active_style_name = style_name
+        except Exception:
+            pass  # 安静失败，不阻塞预热
+    
     
     def _parse_json_content(self, unit: NarrativeUnit) -> dict:
         """解析叙事单元的 content 为 dict（如是 JSON 格式）"""

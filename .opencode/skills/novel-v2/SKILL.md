@@ -29,6 +29,7 @@ tags: ["novel", "v2", "graph"]
 | `world_rule` | `references/world_rule.md` | 方法论选择、自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 总纲核心决策、叙事策略、灵感记录 |
 | `chunk` | `references/chunk.md` | AI味检测、意志速度检验、主题曲检验 |
+| `style` | `references/styles/style_format.md` + `references/styles/style_extraction.md` | 7 维度格式契约、提取工作流、22 内置风格 |
 
 ### 脚本 vs 提示词的分工
 
@@ -51,7 +52,7 @@ tags: ["novel", "v2", "graph"]
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: scene | character_arc | plot_thread
+FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | style
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
@@ -102,10 +103,14 @@ python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SC
 python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --file content.json
 python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --name "新名称" --tags "新标签"
 
-# 建立关系（--type 见下方"关系类型速查表"）
+# 建立关系（--type 见下方"关系类型速查表"，加 --bidirectional 自动补反向）
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type member_of
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type contains
 python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type located_at
+python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type allied_with --bidirectional
+
+# 补齐反向边：扫描所有关系，自动补齐对称类型缺失的反向边
+python .opencode/shared/v2/v2_cli.py fix-asymmetry --path {PROJECT_PATH}
 
 # 批量推断关系（新项目迁移后必做）
 python .opencode/shared/v2/v2_cli.py batch-infer --path {PROJECT_PATH}
@@ -137,7 +142,6 @@ QUERY: plot_thread_summary(name="情节线名")
 QUERY: plot_thread_summary()
 QUERY: foreshadowing_status(id="伏笔编号")
 QUERY: foreshadowing_status()
-QUERY: style_check(text="待检查的文字")
 QUERY: advanced_search(keywords=["关键词1","关键词2"], limit=5)
 QUERY: chapter_status(number=章节号)
 QUERY: recent_context(chapter=章节号, limit=5)
@@ -187,6 +191,8 @@ python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 ```json
 {"note_type": "总纲/纪年事件/灵感", "事件": "...", "时间": "...", "备注": "..."}
 ```
+
+**风格文件**：`references/styles/` 下有 22 个内置风格 YAML 文件（通俗网文风、凡人修仙风、金庸武侠风等）。当 FOCUS TYPE=style 时，可直接 `read` 这些文件获取参考模板。
 
 不再使用 `_display` 字段。所有信息直接写入 content 字段，HTML 面板按值类型自动渲染。
 

@@ -1,0 +1,32 @@
+style_name: "古典名著风"
+description: "明清世情章回体叙事，人情冷暖，日常琐细见深意，善用闲笔、判词与诗词（源自红楼/金瓶传统）"
+category: "古典"
+dimensions:
+  narrative_tone:
+    description: "全知叙述者，时跳出评点，说书人口吻，庄谐并重"
+    keywords: ["全知", "说书人", "评点", "闲笔"]
+    example: "话说天下大势，分久必合，合久必分。"
+  sentence_structure:
+    description: "四六骈句交错白描，章回体分段，回目对仗"
+    avg_sentence_length: "mixed"
+    characteristics: ["四六句式", "回目对仗", "白话为主文点缀"]
+    example: "话说天下大势，分久必合，合久必分。"
+  pacing:
+    description: "日常生活服饰器物极详，打斗武艺招式精描，时间跨度大时一笔带过"
+    pattern: "闲笔铺陈 + 情节推进交替"
+    example: "【闲笔】服饰器物细描（3-5句）→【情节】快速推进"
+  dialogue_style:
+    description: "人物各有腔调，官府文言/市井白话分明，对话中带人物判词"
+    attribution_pattern: "道、曰、云、喝道、笑道等丰富标签"
+    speech_patterns: ["身份分明", "雅俗有别", "话中有典"]
+    example: "列位看官，你道此事从何说起？"
+  vocabulary_register:
+    description: "文白融合，典故密集，称谓语系丰富"
+    register_level: "literary"
+    distinctive_vocab: ["却说", "且说", "只见", "正是", "有诗为证"]
+    forbidden_vocab: ["现代网络用语", "西式叙事结构"]
+  rhetorical_features:
+    description: "对仗、用典、藏头诗、判词预言"
+    devices: ["对仗", "用典", "比兴", "回文"]
+  forbidden_patterns:
+    patterns: ["现代口语直白", "西方叙事结构", "抽象心理分析"]

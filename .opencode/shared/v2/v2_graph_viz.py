@@ -17,7 +17,9 @@ import json
 import argparse
 import webbrowser
 from pathlib import Path
+from typing import Optional
 from collections import defaultdict
+from datetime import datetime, timezone
 from v2_detail_template import render_detail_html
 
 V2_DIR = os.path.join(os.path.dirname(__file__), "v2")
@@ -865,8 +867,14 @@ class V2HTMLGenerator:
         Path(output_path).write_text(html, encoding="utf-8")
         return output_path
 
-    def generate_detail_pages(self, graph_data: dict, detail_dir: str, graph_file: str = "关系图.html"):
-        """为每个节点生成详情页"""
+    def generate_detail_pages(self, graph_data: dict, detail_dir: str, graph_file: str = "关系图.html",
+                               only_ids: Optional[set] = None):
+        """为每个节点生成详情页。
+
+        Args:
+            only_ids: 如果提供，只生成这些 ID 对应的详情页（增量模式）。
+                      为 None 时生成全部节点（全量模式）。
+        """
         nodes = graph_data.get("nodes", {})
         edges = graph_data.get("edges", [])
         detail_path = Path(detail_dir)
@@ -893,6 +901,8 @@ class V2HTMLGenerator:
 
         count = 0
         for nid, n in nodes.items():
+            if only_ids is not None and nid not in only_ids:
+                continue
             # Build ego network (1-hop)
             ego_nodes = {nid: n}
             ego_edges = []
@@ -919,8 +929,90 @@ class V2HTMLGenerator:
             (detail_path / f"{nid}.html").write_text(html, encoding="utf-8")
             count += 1
 
-        print(f"   详情页: {count} 个 → {detail_dir}")
+        if only_ids is not None:
+            skipped = len(nodes) - count
+            print(f"   详情页: {count} 个 (增量, 跳过 {skipped} 个未变更) → {detail_dir}")
+        else:
+            print(f"   详情页: {count} 个 → {detail_dir}")
         return count
+
+
+# ── 增量生成引擎 ────────────────────────────────────────────────────
+
+class VizIncrementalEngine:
+    """基于 unit.version 的增量生成引擎。
+
+    不依赖 events.olog（有5000条上限），而是对比每个叙事单元当前的
+    unit.version 与上次生成时记录的值，只重新生成有变化的页面。
+    """
+
+    STATE_FILE = ".viz_state.json"
+
+    def __init__(self, store, viz_dir: str):
+        self.store = store
+        self.viz_dir = Path(viz_dir)
+        self.state_path = self.viz_dir / self.STATE_FILE
+        self.state = self._load_state()
+
+    def _load_state(self) -> dict:
+        if self.state_path.exists():
+            try:
+                return json.loads(self.state_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {"node_versions": {}, "edge_count": 0}
+
+    def _save_state(self, node_versions: dict, edge_count: int):
+        state = {
+            "node_versions": node_versions,
+            "edge_count": edge_count,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self.viz_dir.mkdir(parents=True, exist_ok=True)
+        self.state_path.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def get_changed_unit_ids(self) -> set:
+        """返回 version 有变化的叙事单元 ID"""
+        old_versions = self.state.get("node_versions", {})
+        changed = set()
+        for uid, unit in self.store._units.items():
+            if unit.version > old_versions.get(uid, 0):
+                changed.add(uid)
+        return changed
+
+    def get_archived_unit_ids(self) -> set:
+        """返回已被归档且上次生成时存在的单元 ID"""
+        old_ids = set(self.state.get("node_versions", {}).keys())
+        current_ids = set(
+            uid for uid, u in self.store._units.items()
+            if u.status == UnitStatus.ARCHIVED
+        )
+        return old_ids & current_ids
+
+    def should_rebuild_graph(self, changed_ids: set) -> bool:
+        """判断主关系图是否需要重建。
+
+        关系图包含所有节点和边。只要：
+        1. 有节点变更，或者
+        2. 关系总数变了
+        都需要重建。
+        """
+        if changed_ids:
+            return True
+        if len(self.store._relations) != self.state.get("edge_count", 0):
+            return True
+        return False
+
+    def build_node_versions(self) -> dict:
+        """构建当前所有活跃单元的 version 快照"""
+        return {
+            uid: unit.version
+            for uid, unit in self.store._units.items()
+            if unit.status != UnitStatus.ARCHIVED
+        }
 
 
 # ── CLI ────────────────────────────────────────────────────────────
@@ -935,6 +1027,12 @@ def main():
     parser.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network")
     parser.add_argument("--timeline", "-t", default="", help="角色名称/ID：生成时间线")
     parser.add_argument("--list-units", action="store_true", help="列出所有叙事单元")
+
+    # 增量模式
+    parser.add_argument("--incremental", action="store_true",
+                        help="增量模式：只重新生成有变化的页面（基于 unit.version）")
+    parser.add_argument("--force", action="store_true",
+                        help="强制全量重建（忽略 --incremental）")
 
     args = parser.parse_args()
 
@@ -1028,19 +1126,77 @@ def main():
         return
 
     # 默认：全项目图谱
-    data = loader.build_full_graph()
-    graph_filename = os.path.basename(output_path)
-    gen.generate_graph(data, output_path)
-
-    # 生成详情页（默认自动生成）
+    use_incremental = args.incremental and not args.force
     detail_dir = viz_dir / "detail"
-    gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
 
-    print(f"✅ V2 关系图已生成: {output_path}")
-    print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
+    if use_incremental:
+        engine = VizIncrementalEngine(loader.store, str(viz_dir))
+        changed_ids = engine.get_changed_unit_ids()
+        archived_ids = engine.get_archived_unit_ids()
+        graph_needs_rebuild = engine.should_rebuild_graph(changed_ids)
 
-    stats = loader.store.stats()
-    print(f"   V2 graph: {stats['total_units']} 叙事单元, {stats['total_relations']} 关系")
+        if not graph_needs_rebuild and not changed_ids and not archived_ids:
+            print(f"ℹ️  V2 关系图无变更, 跳过生成 (使用 --force 强制全量)")
+            if args.open:
+                webbrowser.open(output_path)
+            return
+
+        # 清理已归档节点的详情页
+        for aid in archived_ids:
+            archived_page = detail_dir / f"{aid}.html"
+            if archived_page.exists():
+                archived_page.unlink()
+                print(f"   🗑 删除已归档节点详情页: {aid}")
+
+        # 关系图有变更 → 重建主图
+        if graph_needs_rebuild:
+            data = loader.build_full_graph()
+            graph_filename = os.path.basename(output_path)
+            gen.generate_graph(data, output_path)
+            print(f"✅ V2 关系图已生成 ({'变更触发' if changed_ids else '关系变更触发'}): {output_path}")
+            graph_filename_for_detail = graph_filename
+        else:
+            data = None
+            graph_filename_for_detail = os.path.basename(output_path)
+            print(f"ℹ️  V2 关系图无变更, 跳过")
+
+        # 详情页：只生成有变化的节点
+        if changed_ids:
+            if data is None:
+                data = loader.build_full_graph()
+            regen_ids = changed_ids | archived_ids
+            gen.generate_detail_pages(
+                data, str(detail_dir),
+                graph_file=graph_filename_for_detail,
+                only_ids=regen_ids,
+            )
+        elif archived_ids:
+            print(f"   详情页: 仅清理, 无变更节点需重新生成")
+        else:
+            # 只有关系变更（边增减），节点内容未变 → 主图已重建，详情页不需要重做
+            print(f"   详情页: 关系变更不影响详情页, 跳过")
+
+        # 保存增量状态
+        engine._save_state(
+            node_versions=engine.build_node_versions(),
+            edge_count=len(loader.store._relations),
+        )
+
+        print(f"   V2 graph: {loader.store.stats()['total_units']} 叙事单元, {loader.store.stats()['total_relations']} 关系")
+
+    else:
+        data = loader.build_full_graph()
+        graph_filename = os.path.basename(output_path)
+        gen.generate_graph(data, output_path)
+
+        # 生成详情页
+        gen.generate_detail_pages(data, str(detail_dir), graph_file=graph_filename)
+
+        print(f"✅ V2 关系图已生成: {output_path}")
+        print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
+
+        stats = loader.store.stats()
+        print(f"   V2 graph: {stats['total_units']} 叙事单元, {stats['total_relations']} 关系")
 
     if args.open:
         webbrowser.open(output_path)

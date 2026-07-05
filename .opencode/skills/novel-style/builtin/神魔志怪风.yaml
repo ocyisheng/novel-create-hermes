@@ -1,0 +1,32 @@
+style_name: "神魔志怪风"
+description: "神魔志怪叙事，亦庄亦谐，奇诡瑰丽，借妖魔写人心"
+category: "古典"
+dimensions:
+  narrative_tone:
+    description: "全知叙述，奇诡恢谐，说书人兼诗人，妖魔鬼怪皆有人性"
+    keywords: ["奇诡", "瑰丽", "诙谐", "讽喻"]
+    example: "那妖精化作人形，混入人群，无人识破。"
+  sentence_structure:
+    description: "叙事用白话流畅通俗，穿插诗词骈赋，节奏跳跃"
+    avg_sentence_length: "mixed"
+    characteristics: ["白话语流畅", "诗词穿插", "夸张跳脱"]
+    example: "那妖精化作人形，混入人群，无人识破。唯有一僧，合掌念道：阿弥陀佛。"
+  pacing:
+    description: "斗法变化极尽想象详写，行路过渡简写或跳过"
+    pattern: "遇妖 → 斗法 → 收降 → 上路 → 再遇妖"
+    example: "【遇妖】详细描写妖怪形象（3-5句）→【斗法】变化无穷（5-7句）→【收降】佛法无边（2-3句）"
+  dialogue_style:
+    description: "妖有妖语人有人言，诙谐逗趣与庄重佛理交替"
+    attribution_pattern: "喝道、笑道、骂道各具神态"
+    speech_patterns: ["妖语怪诞", "诙谐逗趣", "佛理偈语"]
+    example: "你是何方妖怪？贫僧东土大唐而来。"
+  vocabulary_register:
+    description: "白话为主，道教佛教术语密集，神魔谱系丰富"
+    register_level: "mixed"
+    distinctive_vocab: ["神通", "法宝", "变化", "降妖", "洞府"]
+    forbidden_vocab: ["科学解释", "唯物世界观"]
+  rhetorical_features:
+    description: "夸张奇想、象征寓言、排比描写、偈语双关"
+    devices: ["夸张", "象征", "排比", "偈语"]
+  forbidden_patterns:
+    patterns: ["科学化解神魔", "心理现实主义", "纯现实主义叙事"]

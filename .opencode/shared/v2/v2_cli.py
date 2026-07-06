@@ -108,10 +108,14 @@ def cmd_get_neighbors(args, store):
     from graph_schema import RelationType
     rt = RelationType(args.rel_type) if args.rel_type else None
     neighbors = store.get_neighbors(args.id, relation_type=rt, max_depth=1)
+    count = 0
     for nid in neighbors.get(1, set()):
         n = store.get_unit(nid)
         if n:
             print(f"{n.type.value}: {n.unit_name} ({nid})")
+            count += 1
+            if args.limit > 0 and count >= args.limit:
+                break
 
 
 @with_graph
@@ -179,6 +183,8 @@ def cmd_update_unit(args, store):
             content = json.dumps(json.load(f), ensure_ascii=False)
     elif args.content:
         content = args.content
+    elif args.data:
+        content = args.data
 
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
 
@@ -400,6 +406,7 @@ def cmd_check(args, store):
 
     print(f"一致性检查结果 ({len(results)} 条):")
     print()
+    shown = 0
     for severity in ("error", "warning", "info"):
         items = by_severity.get(severity, [])
         if not items:
@@ -411,6 +418,11 @@ def cmd_check(args, store):
             if r.detail:
                 for line in r.detail.split("\n"):
                     print(f"      {line}")
+            shown += 1
+            if args.limit > 0 and shown >= args.limit:
+                break
+        if args.limit > 0 and shown >= args.limit:
+            break
         print()
 
 
@@ -481,6 +493,58 @@ def cmd_report(args, store):
     print(f"\n{'=' * 50}")
 
 
+# ── 知识库查询 ──────────────────────────────────────────────────────────
+
+def cmd_read_knowledge(args):
+    """查询知识库（book-knowledge 集成）"""
+    import yaml
+    from pathlib import Path
+    from knowledge_reader import KnowledgeReader, resolve_knowledge_root
+
+    root = Path(args.path)
+    slug = args.slug
+    reader = KnowledgeReader(resolve_knowledge_root(str(root)))
+
+    slug_dir = root / "knowledge" / slug
+    source_path = slug_dir / "source.yaml"
+    source_info = {}
+    if source_path.exists():
+        with open(source_path, "r", encoding="utf-8") as f:
+            source_info = yaml.safe_load(f) or {}
+
+    title = source_info.get("title", slug)
+    author = source_info.get("author", "")
+    chapter_count = source_info.get("chapter_count", "?")
+
+    print(f"## Reference: {slug}")
+    print(f"### Source")
+    print(f"{title} — {author} ({chapter_count} chapters)")
+    print()
+
+    # 用 KnowledgeReader 按 topic 搜索
+    topics = [t.strip() for t in args.topic.split("|") if t.strip()]
+    content = reader.get(slug, topics=topics, max_chars=2000)
+    if content:
+        print(content)
+
+
+@with_graph
+def cmd_query(args, store):
+    """执行 QUERY 协议指令并输出 [QUERY RESULT] 块"""
+    from query import parse_query, QueryHandlerRegistry
+
+    query_text = args.query.strip()
+    request = parse_query(query_text)
+    if not request:
+        print(f"[QUERY ERROR] 无法解析: {query_text}")
+        return
+
+    registry = QueryHandlerRegistry(store, args.path)
+    result = registry.handle(request)
+
+    print(request.to_prompt_block(result))
+
+
 def cmd_viz(args):
     """生成可视化：全项目关系图 / 角色 Ego Network / 时间线"""
     # 委托给 v2_graph_viz.main()，避免重复维护两份相同逻辑
@@ -527,6 +591,7 @@ def main():
     p.add_argument("--type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
     p.add_argument("--name", required=True)
     p.add_argument("--content", required=True)
+    p.add_argument("--data", default="", help="同 --content（别名）")
     p.add_argument("--tags", default="", help="逗号分隔的标签列表")
     p.add_argument("--chapter", default="", help="所属章节号")
     p.add_argument("--actor", default="script")
@@ -535,7 +600,8 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
     p.add_argument("--content", default="", help="新内容（JSON 字符串，与 --file 二选一）")
-    p.add_argument("--file", default="", help="从 JSON 文件读取新内容（优先于 --content）")
+    p.add_argument("--data", default="", help="同 --content（别名）")
+    p.add_argument("--file", default="", help="从 JSON 文件读取新内容（优先于 --content/--data）")
     p.add_argument("--name", default="", help="新名称")
     p.add_argument("--tags", default="", help="逗号分隔的标签列表")
     p.add_argument("--actor", default="script")
@@ -549,6 +615,7 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--id", required=True)
     p.add_argument("--rel-type", default="", help="关系类型（如 contains / has_member / located_at 等）")
+    p.add_argument("--limit", type=int, default=0, help="最大返回数量（0=不限）")
 
     p = sub.add_parser("add-relation", help="建立关系（支持 --bidirectional 自动补反向）")
     p.add_argument("--path", required=True)
@@ -617,10 +684,20 @@ def main():
 
     p = sub.add_parser("check", help="一致性检查")
     p.add_argument("--path", required=True)
+    p.add_argument("--limit", type=int, default=0, help="最大显示条数（0=全部）")
 
     p = sub.add_parser("report", help="项目报告（统计 + gap 原始数据）")
     p.add_argument("--path", required=True)
     p.add_argument("--with-deviations", action="store_true", help="包含偏差状态统计")
+
+    p = sub.add_parser("read-knowledge", help="查询知识库（book-knowledge）")
+    p.add_argument("--path", required=True, help="项目根目录（含 knowledge/）")
+    p.add_argument("--slug", required=True, help="知识库 slug（如 fanren-xiuxian）")
+    p.add_argument("--topic", required=True, help="搜索主题（支持正则，如 宗门|势力|门派）")
+
+    p = sub.add_parser("query", help="执行 QUERY 协议指令")
+    p.add_argument("--path", required=True, help="项目根目录")
+    p.add_argument("--query", required=True, help='QUERY 指令，如 "QUERY: character_background(name=韩致)"')
 
     p = sub.add_parser("viz", help="生成可视化：关系图 / 角色网络 / 时间线")
     p.add_argument("--path", "-p", required=True, help="项目根目录")
@@ -661,7 +738,9 @@ def main():
         "search": cmd_search,
         "check": cmd_check,
         "report": cmd_report,
+        "read-knowledge": cmd_read_knowledge,
         "viz": cmd_viz,
+        "query": cmd_query,
     }
     dispatch[args.command](args)
 

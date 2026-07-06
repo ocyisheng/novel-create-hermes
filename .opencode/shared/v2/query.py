@@ -50,6 +50,7 @@ class QueryType(str, Enum):
     CHAPTER_STATUS = "chapter_status"
     BOOK_KNOWLEDGE = "book_knowledge"
     LIST_KNOWLEDGE_BOOKS = "list_knowledge_books"
+    CONSISTENCY_CHECK = "consistency_check"
 
 
 # ── 协议 ──────────────────────────────────────────────────────────────────
@@ -98,8 +99,10 @@ QUERY_PATTERN: Pattern = re.compile(
 
 PARAM_PATTERN: Pattern = re.compile(
     r"""(\w+)\s*=\s*"([^"]*)"                    # key="value"
+        |(\w+)\s*=\s*'([^']*)'                   # key='value'
         |(\w+)\s*=\s*(\d+(?:\.\d+)?)             # key=number
-        |(\w+)\s*=\s*\[([^\]]*)\]                # key=[list]""",
+        |(\w+)\s*=\s*\[([^\]]*)\]                # key=[list]
+        |(\w+)\s*=\s*([^,)\s]+)                  # key=bare_value""",
     re.VERBOSE,
 )
 
@@ -126,14 +129,14 @@ def parse_query(text: str) -> Optional[QueryRequest]:
     params = {}
     if params_str:
         for pm in PARAM_PATTERN.finditer(params_str):
-            key = pm.group(1) or pm.group(3) or pm.group(5)
-            value = pm.group(2) or pm.group(4) or pm.group(6)
+            key = pm.group(1) or pm.group(3) or pm.group(5) or pm.group(7) or pm.group(9)
+            value = pm.group(2) or pm.group(4) or pm.group(6) or pm.group(8) or pm.group(10)
             if value is not None:
                 # 列表参数
-                if pm.group(6) is not None:
-                    params[key] = [v.strip().strip('"') for v in value.split(",")]
+                if pm.group(8) is not None:
+                    params[key] = [v.strip().strip('"') for v in value.split(",") if v.strip()]
                 # 数字参数
-                elif pm.group(4) is not None:
+                elif pm.group(6) is not None:
                     params[key] = float(value) if "." in value else int(value)
                 # 字符串参数
                 else:
@@ -233,6 +236,7 @@ class QueryHandlerRegistry:
             QueryType.CHAPTER_STATUS: _handle_chapter_status,
             QueryType.BOOK_KNOWLEDGE: _handle_book_knowledge,
             QueryType.LIST_KNOWLEDGE_BOOKS: _handle_list_knowledge_books,
+            QueryType.CONSISTENCY_CHECK: _handle_consistency_check,
         }
 
 
@@ -493,39 +497,42 @@ def _handle_advanced_search(
     if isinstance(chapter, str):
         chapter = int(chapter)
     
-    # 将多关键词合并为一个查询字符串
-    query = " ".join(keywords) if keywords else ""
-    if not query:
+    if not keywords:
         return QueryResult(success=False, error="缺少搜索关键词")
     
     engine = SearchEngine(store)
-    result_set = engine.search(
-        keyword=query,
-        max_results=limit,
-    )
     
-    # 如果有 type 过滤，在结果中二次过滤
+    # OR 语义：每个关键词独立搜索，结果合并去重
+    merged = {}
+    for kw in keywords:
+        kw = kw.strip().strip("'\"")
+        if not kw:
+            continue
+        rs = engine.search(keyword=kw, max_results=limit * 2)
+        for r in rs.results:
+            if r.unit_id not in merged or r.score > merged[r.unit_id].score:
+                merged[r.unit_id] = r
+    
+    results = sorted(merged.values(), key=lambda r: r.score, reverse=True)[:limit]
+    
+    # 如果有 type 过滤
     if unit_type:
-        result_set.results = [
-            r for r in result_set.results
-            if r.unit_type.value == unit_type
-        ]
-        result_set.total = len(result_set.results)
+        results = [r for r in results if r.unit_type.value == unit_type][:limit]
     
-    if not result_set.results:
+    if not results:
         return QueryResult(summary="未找到匹配结果", content="（无）")
     
-    parts = [f"搜索结果 ({result_set.total} 条, {result_set.time_ms}ms):"]
-    for r in result_set.results:
+    parts = [f"搜索结果 ({len(results)} 条):"]
+    for r in results:
         ch = f"ch.{r.chapter}" if r.chapter else "?"
         parts.append(f"  [{r.score:.0f}pts] [{r.unit_type.value}] {r.unit_name} ({ch})")
         if r.neighbors:
             parts.append(f"    关联: {', '.join(r.neighbors[:3])}")
     
     return QueryResult(
-        summary=f"找到 {result_set.total} 条相关结果",
+        summary=f"找到 {len(results)} 条相关结果",
         content="\n".join(parts),
-        source_ids=[r.unit_id for r in result_set.results],
+        source_ids=[r.unit_id for r in results],
     )
 
 
@@ -682,4 +689,36 @@ def _handle_list_knowledge_books(
     return QueryResult(
         summary=f"可用知识库 ({len(books)}): " + ", ".join(books[:5]) + ("…" if len(books) > 5 else ""),
         content="## 可用知识库\n\n" + "\n".join(f"- {b}" for b in books),
+    )
+
+
+def _handle_consistency_check(
+    req: QueryRequest, store: GraphStoreImpl, project_root: str
+) -> QueryResult:
+    """一致性检查：委托给 SearchEngine"""
+    from search_engine import SearchEngine
+    engine = SearchEngine(store)
+    results = engine.check_consistency()
+    if not results:
+        return QueryResult(
+            summary="一致性检查通过：未发现明显问题",
+            content="（无）",
+        )
+    by_severity: Dict[str, list] = {"error": [], "warning": [], "info": []}
+    for r in results:
+        by_severity.setdefault(r.severity, []).append(r)
+    parts = [f"一致性检查结果 ({len(results)} 条):"]
+    for sev in ("error", "warning", "info"):
+        items = by_severity.get(sev, [])
+        if not items:
+            continue
+        label = {"error": "❌ 错误", "warning": "⚠️ 警告", "info": "ℹ️ 信息"}.get(sev, sev)
+        parts.append(f"  [{label}] ({len(items)} 条)")
+        for r in items[:5]:
+            parts.append(f"    - [{r.rule_id}] {r.description}")
+        if len(items) > 5:
+            parts.append(f"    ... 还有 {len(items) - 5} 条")
+    return QueryResult(
+        summary=f"一致性检查: {sum(len(v) for v in by_severity.values())} 条结果",
+        content="\n".join(parts),
     )

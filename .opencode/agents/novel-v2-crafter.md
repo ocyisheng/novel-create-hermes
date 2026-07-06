@@ -79,6 +79,15 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 
 写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）。
 
+QUERY 协议采用**多轮机制**：
+1. 你在回复中输出一条或多条 `QUERY: ...` 指令
+2. 编排层拦截后逐条执行查询
+3. 查询结果以 `[QUERY RESULT]` 块的形式注入下一轮 prompt
+4. 你可以继续查询或基于已有信息完成工作
+5. 当回复中不再包含 QUERY 指令时，编排层结束循环，输出给用户
+
+**可以在一次回复中输出多条 QUERY，编排层会逐条执行后合并注入。**
+
 支持的查询类型：
 - `QUERY: character_background(name="林昭")` — 角色完整背景
 - `QUERY: scene_detail(scene_id="sc_0015")` — 场景细节
@@ -92,9 +101,9 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
   - `max_chars`: 最大返回字符数（可选，默认 2000）
 - `QUERY: list_knowledge_books()` — 列出所有可用知识库
 
-编排层会自动拦截 QUERY，从 graph 查询后把结果注入到你的上下文中。
+> **格式严格**：必须写作 `QUERY: type(param="value")`，参数名和值之间用 `=` 连接，字符串值用双引号包裹。格式错误会导致解析失败。
 
-**QUERY 指令不要出现在最终回复中——编排层会自动剥离。**
+**QUERY 指令不要出现在最终回答中。** 在你输出最终内容前确保所有 QUERY 已被 `[QUERY RESULT]` 回答完毕。最大 3 轮交互后编排层会强制输出。
 
 ### 直接数据检索
 

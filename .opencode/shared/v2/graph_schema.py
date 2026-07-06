@@ -25,6 +25,8 @@ class UnitType(str, Enum):
     WORLD_RULE = "world_rule"           # 世界观规则：世界运行的核心法则
     NOTE = "note"                       # 创作笔记：作者/Agent 的备忘和灵感
     CHUNK = "chunk"                     # 正文片段：已写成的文字块
+    STRUCTURE = "structure"             # 结构设计：全书整体结构、模式节奏、七面观照
+    NARRATIVE_VOICE = "narrative_voice" # 叙述腔调：腔调谱系、叙事视角、笔法约定
 
     @classmethod
     def from_legacy_entity_type(cls, entity_type: str) -> "UnitType":
@@ -289,6 +291,8 @@ def create_unit_id(unit_type: Optional[UnitType] = None) -> str:
         UnitType.WORLD_RULE: "wr",
         UnitType.NOTE: "nt",
         UnitType.CHUNK: "ck",
+        UnitType.STRUCTURE: "st",
+        UnitType.NARRATIVE_VOICE: "nv",
     }
     prefix = prefix_map.get(unit_type, "xx") if unit_type else "xx"
     short_uuid = uuid.uuid4().hex[:8]

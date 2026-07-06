@@ -55,23 +55,24 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 
 创作操作按用户意图映射到焦点类型：
 
-| 用户意图 | 焦点类型 | 预热级别 | 写作模式 |
-|----------|---------|---------|---------|
-| 写第N章 | scene | warm | draft |
-| 创建/编辑角色 | character_arc | warm | draft |
-| 世界观设定 | world_rule | warm | draft |
-| 情节/伏笔设计 | plot_thread | warm | draft |
-| 总纲/故事框架 | note (tag:总纲) | warm | draft |
-| 分卷大纲 | scene | warm | draft |
-| 分纲/章节大纲 | scene | warm | draft |
-| 润色/精修 | chunk | hot | polish |
-| 质量检测 | chunk | hot | polish |
-| 重写/修订 | chunk | hot | rewrite |
-| 编辑修改 | 根据目标类型推断 | warm | polish |
-| 风格提取/模仿文风 | style | cold | draft |
-| 记录灵感 | note | cold | draft |
-| 导出 | — | — | 走脚本 |
-  | 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 可视化章节 |
+| 用户意图 | 焦点类型 | 预热级别 | 写作模式 | 备注 |
+|----------|---------|---------|---------|------|
+| 写第N章 | scene | warm | draft | |
+| 创建/编辑角色 | character_arc | warm | draft | |
+| 世界观设定 | world_rule | warm | draft | |
+| 情节/伏笔设计 | plot_thread | warm | draft | |
+| 总纲/故事框架 | structure | warm | draft | 按七面观照/模式节奏逐项生成结构设计 |
+| 叙述腔调设计 | narrative_voice | warm | draft | 决定腔调谱系、视角、笔法约定 |
+| 主题意象设计 | thematic_motif | warm | draft | 创建/追踪反复出现的象征性意象动机 |
+| 分卷大纲 | scene | warm | draft | |
+| 分纲/章节大纲 | scene | warm | draft | |
+| 润色/精修 | chunk | hot | polish | 额外注入 `references/quality_check_ref.md` |
+| 质量检测 | — | hot | polish | 无焦点类型，直接注入 `references/quality_check_ref.md`，作用于当前活跃单元 |
+| 重写/修订 | chunk | hot | rewrite | 额外注入 `references/quality_check_ref.md` |
+| 编辑修改 | 根据目标类型推断 | warm | polish | 根据目标类型判定是否注入 quality_check_ref.md |
+| 记录灵感 | note | cold | draft | |
+| 导出 | — | — | 走脚本 | |
+| 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 可视化章节 | |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）

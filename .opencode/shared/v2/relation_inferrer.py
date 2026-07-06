@@ -83,6 +83,32 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 角色 → 世界观（势力）：角色属于势力
     (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.MEMBER_OF,
      "source_to_target", 0.5),
+    # ── STRUCTURE / NARRATIVE_VOICE 推断规则 ──────────────────────────
+    # 结构 → 情节线：结构设计了情节线
+    (UnitType.STRUCTURE, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS,
+     "source_to_target", 0.5),
+    # 结构 → 场景：结构安排了场景节奏
+    (UnitType.STRUCTURE, UnitType.SCENE, RelationType.REFERENCES,
+     "source_to_target", 0.3),
+    # 腔调 → 场景：腔调策略适用于场景
+    (UnitType.NARRATIVE_VOICE, UnitType.SCENE, RelationType.REFERENCES,
+     "source_to_target", 0.4),
+    # 腔调 → 正文：腔调约束作用于正文
+    (UnitType.NARRATIVE_VOICE, UnitType.CHUNK, RelationType.REFERENCES,
+     "source_to_target", 0.3),
+    # ── THEMATIC_MOTIF 推断规则 ────────────────────────────────────────────
+    # 主题意象 → 场景：意象出现在场景
+    (UnitType.THEMATIC_MOTIF, UnitType.SCENE, RelationType.REFERENCES,
+     "source_to_target", 0.5),
+    # 主题意象 → 角色：意象关联角色
+    (UnitType.THEMATIC_MOTIF, UnitType.CHARACTER_ARC, RelationType.REFERENCES,
+     "source_to_target", 0.4),
+    # 主题意象 → 情节线：意象呼应情节
+    (UnitType.THEMATIC_MOTIF, UnitType.PLOT_THREAD, RelationType.REFERENCES,
+     "source_to_target", 0.3),
+    # 主题意象 ↔ 主题意象：意象间对照/共振
+    (UnitType.THEMATIC_MOTIF, UnitType.THEMATIC_MOTIF, RelationType.PARALLEL,
+     "source_to_target", 0.3),
 ]
 
 

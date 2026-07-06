@@ -14,7 +14,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: {scene | character_arc | plot_thread | note | style}
+FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | style | structure | narrative_voice | thematic_motif}
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
@@ -39,10 +39,25 @@ WRITING MODE: {draft | polish | rewrite}
 
 ## 二、领域参考加载 + 脚本/提示词分工
 
+### 焦点类型加载
+
 根据 `FOCUS TYPE` 加载对应的创作方法论参考：
 
 ```bash
 cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
+```
+
+### 横切参考条件加载
+
+除焦点类型外，根据以下条件额外加载横切参考文件：
+
+| 条件 | 额外加载 |
+|------|---------|
+| `WRITING MODE=polish` 或 `rewrite` | `references/quality_check_ref.md` |
+
+```bash
+# 条件加载示例（编排层已根据条件将对应文件内容注入 prompt）
+# quality_check_ref.md — 横切质检（AI味升级检测、情节逻辑、角色一致性等）
 ```
 
 **注意分工：**

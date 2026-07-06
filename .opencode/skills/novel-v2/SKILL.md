@@ -17,19 +17,32 @@ tags: ["novel", "v2", "graph"]
 
 ---
 
-## 领域参考（按焦点类型）
+## 领域参考（按焦点类型 + 横切维度）
 
-子 Agent 根据 `FOCUS TYPE` 加载对应的创作方法论参考文档：
+子 Agent 根据 `FOCUS TYPE` 加载对应的创作方法论参考文档。对于横切维度（不绑定单一焦点类型），根据特定条件额外加载。
+
+### 焦点类型 → 参考文档映射
 
 | 焦点类型 | 参考文档 | 应关注什么 |
 |---------|---------|-----------|
-| `scene` | `references/scene.md` | 场域设计、张力曲线、角色自动性、语言尸体 |
-| `character_arc` | `references/character_arc.md` | 扁平vs圆形、自动性空间、关系标签 |
-| `plot_thread` | `references/plot_thread.md` | 伏笔四分类、复调结构、松散度 |
-| `world_rule` | `references/world_rule.md` | 方法论选择、自洽性标准、延迟创建 |
-| `note` | `references/note.md` | 总纲核心决策、叙事策略、灵感记录 |
-| `chunk` | `references/chunk.md` | AI味检测、意志速度检验、主题曲检验 |
+| `scene` | `references/scene.md` | 场域设计、张力曲线、角色自动性、语言尸体、时间轴双重义务、起居注时刻 |
+| `character_arc` | `references/character_arc.md` | 扁平vs圆形、自动性空间、关系标签、秘密生活、系谱自觉 |
+| `plot_thread` | `references/plot_thread.md` | 伏笔四分类、复调结构、松散度、结局困境、巧合的正当性、洪荒界 |
+| `world_rule` | `references/world_rule.md` | 方法论选择、自洽性标准、延迟创建、笔记传统定位 |
+| `note` | `references/note.md` | 灵感记录、本体论核心问题 |
+| `chunk` | `references/chunk.md` | 正文写作、书写警觉、语言警觉（预防性）、润色原则 |
+| `structure` | `references/structure.md` | 整体结构设计：七面观照、模式vs节奏、圆形房间法、减法史观 |
+| `narrative_voice` | `references/voice.md` | 叙述腔调：腔调谱系、叙事视角决策树、笔记传统、信息分配 |
+| `thematic_motif` | `references/thematic_motif.md` | 主题意象：动机而非主题、意象生命周期、倒置与反向、跨章节追踪 |
 | `style` | `references/styles/style_format.md` + `references/styles/style_extraction.md` | 7 维度格式契约、提取工作流、22 内置风格 |
+
+### 横切参考——条件加载
+
+以下参考文档不绑定单一焦点类型，根据特定条件额外加载。编排层在构建 context 时根据条件一并注入。
+
+| 条件 | 参考文档 | 说明 |
+|-----|---------|------|
+| `WRITING MODE=polish\|rewrite` 时强制加载 | `references/quality_check_ref.md` | 横切质检：AI味升级检测、情节逻辑、角色一致性、节奏、腔调一致性、读者体验量化 |
 
 ### 脚本 vs 提示词的分工
 
@@ -52,7 +65,7 @@ tags: ["novel", "v2", "graph"]
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | style
+FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | style | structure | narrative_voice | thematic_motif
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
@@ -82,7 +95,7 @@ python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {�
 # 列出所有可用关系类型
 python .opencode/shared/v2/v2_cli.py list-relation-types
 
-# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK，支持--limit）
+# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / STRUCTURE / NARRATIVE_VOICE，支持--limit）
 python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
 python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type WORLD_RULE --limit 10
 
@@ -96,7 +109,7 @@ python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
 ### 2. 写入 graph 数据
 
 ```bash
-# 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK）
+# 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / STRUCTURE / NARRATIVE_VOICE）
 python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 
 # 更新叙事单元（内容 / 名称 / 标签，推荐用 --file 避免引号编码问题）
@@ -189,7 +202,7 @@ python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 
 **笔记 (NOTE)**：
 ```json
-{"note_type": "总纲/纪年事件/灵感", "事件": "...", "时间": "...", "备注": "..."}
+{"note_type": "灵感 | 笔记", "内容": "..."}
 ```
 
 **风格文件**：`references/styles/` 下有 22 个内置风格 YAML 文件（通俗网文风、凡人修仙风、金庸武侠风等）。当 FOCUS TYPE=style 时，可直接 `read` 这些文件获取参考模板。

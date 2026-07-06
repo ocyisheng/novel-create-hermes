@@ -68,21 +68,56 @@ PLOT_THREAD_SCHEMA = {
 WORLD_RULE_SCHEMA = {
     "实体子类型": {"type": str, "required": True, "options": [
         "world_overview","rule","power_system","faction","location",
-        "history","culture","economic_system","political_system","social_hierarchy"
+        "history","culture","economic_system","political_system","social_hierarchy",
+        "chronicle_event"
     ]},
     "二级类型": {"type": str, "required": False, "description": "子类型的细化分类"},
     "描述": {"type": str, "required": False, "description": "核心描述，自由文本"},
 }
 
 NOTE_SCHEMA = {
-    "note_type": {"type": str, "required": False, "options": ["总纲","叙事策略","灵感","笔记","纪年事件"]},
+    "note_type": {"type": str, "required": False, "options": ["灵感","笔记"]},
     # 自由文本，结构不限
+}
+
+STRUCTURE_SCHEMA = {
+    "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
+    "节奏设计": {"type": str, "required": False, "description": "主题动机及变奏点"},
+    "七面观照检视": {"type": dict, "required": False, "fields": {
+        "故事": {"type": str},
+        "人物": {"type": str},
+        "情节": {"type": str},
+        "幻想": {"type": str},
+        "预言": {"type": str},
+        "模式": {"type": str},
+        "节奏": {"type": str},
+    }},
+    "本体论核心": {"type": str, "required": False},
+    "备注": {"type": str, "required": False},
+}
+
+NARRATIVE_VOICE_SCHEMA = {
+    "腔调谱系": {"type": str, "required": True, "description": "踩谁的影子？自觉继承或走出谱系"},
+    "功能定位": {"type": str, "required": True, "options": ["催眠","警醒","复调"]},
+    "叙事视角": {"type": str, "required": True, "options": ["全知","部分全知","戏剧性手法","多视角"]},
+    "视角切换规则": {"type": str, "required": False},
+    "信息分配策略": {"type": str, "required": False, "options": ["常规","抵抗","挑衅"]},
+    "笔记传统启用": {"type": bool, "required": False},
+    "约定禁止": {"type": list, "required": False},
 }
 
 CHUNK_SCHEMA = {
     "章节号": {"type": int, "required": True},
     "正文": {"type": str, "required": True},
     "字数": {"type": int, "required": False},
+}
+
+THEMATIC_MOTIF_SCHEMA = {
+    "意象": {"type": str, "required": True, "description": "核心象征元素"},
+    "象征意义": {"type": str, "required": True, "description": "该意象承载的多层含义"},
+    "变奏方式": {"type": str, "required": False, "description": "意象如何重复并变化"},
+    "出现章节": {"type": list, "required": False},
+    "相关角色": {"type": list, "required": False},
 }
 
 # ── Schema 注册表 ────────────────────────────────────────────────────────
@@ -94,7 +129,65 @@ SCHEMA_REGISTRY: Dict[UnitType, dict] = {
     UnitType.WORLD_RULE: WORLD_RULE_SCHEMA,
     UnitType.NOTE: NOTE_SCHEMA,
     UnitType.CHUNK: CHUNK_SCHEMA,
+    UnitType.STRUCTURE: STRUCTURE_SCHEMA,
+    UnitType.NARRATIVE_VOICE: NARRATIVE_VOICE_SCHEMA,
+    UnitType.THEMATIC_MOTIF: THEMATIC_MOTIF_SCHEMA,
 }
+
+
+# ── 子类型注册表（Subtype Registry）────────────────────────────────────────
+
+# 定义每个 UnitType 的二次分类字段及消费方需要的信息。
+# 所有消费方（render_utils / v2_graph_viz / 筛选层级）统一走此注册表，
+# 新增子类型只需在此加一行。
+
+@dataclass
+class SubtypeConfig:
+    field: str
+    required: bool
+    options: list
+    value_labels: Dict[str, str] = field(default_factory=dict)
+    value_colors: Dict[str, str] = field(default_factory=dict)
+    behaviors: Dict[str, dict] = field(default_factory=dict)
+
+
+SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
+    UnitType.WORLD_RULE: SubtypeConfig(
+        field="实体子类型",
+        required=True,
+        options=[
+            "world_overview","rule","power_system","faction","location",
+            "history","culture","economic_system","political_system",
+            "social_hierarchy","chronicle_event",
+        ],
+        value_labels={"location": "地点", "faction": "势力", "chronicle_event": "纪年事件"},
+        value_colors={
+            "location": {"bg": "rgba(0,176,240,0.2)", "text": "#5BD"},
+            "faction": {"bg": "rgba(237,125,49,0.2)", "text": "#ED7D31"},
+            "chronicle_event": {"bg": "rgba(180,167,214,0.2)", "text": "#8E7CC3"},
+        },
+        behaviors={
+            "chronicle_event": {
+                "type": "timeline_event",
+                "time_field": "时间",
+                "event_field": "事件",
+            },
+        },
+    ),
+    UnitType.NOTE: SubtypeConfig(
+        field="note_type",
+        required=False,
+        options=["灵感", "笔记"],
+    ),
+}
+
+
+def get_subtype_info(unit_type: UnitType) -> Optional[SubtypeConfig]:
+    return SUBTYPE_REGISTRY.get(unit_type)
+
+
+def get_subtype_field_names() -> set:
+    return {info.field for info in SUBTYPE_REGISTRY.values()}
 
 
 # ── 验证函数 ──────────────────────────────────────────────────────────────

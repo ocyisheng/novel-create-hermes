@@ -28,9 +28,7 @@ SPECIAL_RENDER_MAP: Dict[str, str] = {
     "主要成员": "tagcloud",
     "角色参与": "tagcloud",
     "涉及角色": "tagcloud",
-    "实体子类型": "tag",
     "二级类型": "tag",
-    "note_type": "tag",
     "章节号": "tag",
     "字数": "tag",
     "章节类型": "tag",
@@ -38,6 +36,12 @@ SPECIAL_RENDER_MAP: Dict[str, str] = {
     "冲突核心": "textblock",
     "终局设计": "textblock",
 }
+
+# 自动注册 subtype 字段到特殊渲染映射
+from schemas import get_subtype_field_names
+for _f in get_subtype_field_names():
+    if _f not in SPECIAL_RENDER_MAP:
+        SPECIAL_RENDER_MAP[_f] = "tag"
 
 ENTITY_REF_FIELDS = {
     "出场角色", "关联情节线", "主要成员", "角色参与", "涉及角色",

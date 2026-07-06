@@ -210,6 +210,8 @@ class ProjectionEngine:
         lines.append(f"情节线数: {len(self.store.find_units(type=UnitType.PLOT_THREAD))}")
         lines.append(f"世界观规则数: {len(project_units)}")
         lines.append(f"笔记数: {len(self.store.find_units(type=UnitType.NOTE))}")
+        lines.append(f"结构设计数: {len(self.store.find_units(type=UnitType.STRUCTURE))}")
+        lines.append(f"叙述腔调数: {len(self.store.find_units(type=UnitType.NARRATIVE_VOICE))}")
         lines.append("```")
         lines.append("")
         

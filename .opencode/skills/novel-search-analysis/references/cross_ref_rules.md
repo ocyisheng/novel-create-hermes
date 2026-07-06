@@ -10,9 +10,9 @@
 | R2: 角色关系不对称 | warning | SearchEngine.check_consistency() 自动 |
 | R3: 孤立单元 | info | SearchEngine.check_consistency() 自动 |
 | R4: 归档单元仍有活跃关系 | warning | SearchEngine.check_consistency() 自动 |
-| R5: 能力边界一致性 | warning | SearchEngine 自动 + 输出给 novel-quality 角色一致性检测 |
-| R6: 时间线一致性 | warning | SearchEngine 自动 + 输出给 novel-quality 情节逻辑检测 |
-| R7: 情节线完成度 | info | SearchEngine 自动 + 输出给 novel-quality 情节逻辑检测 |
+| R5: 能力边界一致性 | warning | SearchEngine 自动 + 供 LLM 角色一致性判断 |
+| R6: 时间线一致性 | warning | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
+| R7: 情节线完成度 | info | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
 
 > 规则 1-4 已由 `SearchEngine.check_consistency()` 实现，通过 `v2_cli.py check` 调用。
 > 规则 5-7 需要 LLM 做语义分析，SearchEngine 只提供原始数据。

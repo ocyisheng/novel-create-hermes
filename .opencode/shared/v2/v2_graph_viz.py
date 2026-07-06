@@ -275,24 +275,25 @@ class V2GraphLoader:
                     "node_id": target.id,
                 })
 
-        # 关联的纪年事件 NOTE（content 中有"时间"字段）
-        seen_note_ids = set()
+        # 关联的纪年事件 WORLD_RULE（实体子类型=chronicle_event，content 中有"时间"+"事件"字段）
+        seen_ce_ids = set()
         for rel in self.store.get_relations(unit_id):
             other_id = rel.target_id if rel.source_id == unit_id else rel.source_id
-            if other_id in seen_note_ids:
+            if other_id in seen_ce_ids:
                 continue
-            seen_note_ids.add(other_id)
+            seen_ce_ids.add(other_id)
             other = self.store.get_unit(other_id)
-            if other and other.type == UnitType.NOTE and other.status != UnitStatus.ARCHIVED:
+            if (other and other.type == UnitType.WORLD_RULE
+                    and other.status != UnitStatus.ARCHIVED):
                 try:
                     import json as _json
                     c = _json.loads(other.content)
                     content_dict = c if isinstance(c, dict) else {}
-                    # 直接读取 content 中的字段（支持旧 _display 格式兼容）
+                    if content_dict.get("实体子类型") != "chronicle_event":
+                        continue
                     event_time = content_dict.get("时间", "") or ""
                     event_name = content_dict.get("事件", "") or ""
                     if event_time and event_name:
-                        # 从时间字符串提取年份用于排序
                         import re as _re
                         years = _re.findall(r"(\d+)", event_time)
                         sort_key = int(years[0]) if years else 0
@@ -300,15 +301,7 @@ class V2GraphLoader:
                             "sort_key": max(sort_key, 0),
                             "time_label": event_time,
                             "event": event_name,
-                            "source_type": "chapter",
-                            "node_id": other.id,
-                        })
-                    elif other.unit_name and len(other.unit_name) > 3:
-                        events.append({
-                            "sort_key": -3,
-                            "time_label": "笔记",
-                            "event": other.unit_name,
-                            "source_type": "note",
+                            "source_type": "world",
                             "node_id": other.id,
                         })
                 except (json.JSONDecodeError, AttributeError, KeyError):
@@ -355,6 +348,14 @@ class V2GraphLoader:
                 extra["_preview"] = u.content[:100]
         except json.JSONDecodeError:
             extra["_preview"] = (u.content or "")[:100]
+
+        # 从 subtype 注册表注入展示信息
+        from schemas import get_subtype_info
+        _st = get_subtype_info(u.type)
+        if _st and isinstance(extra, dict):
+            _raw = extra.get(_st.field, "")
+            extra["subtype_label"] = _st.value_labels.get(_raw, "")
+            extra["subtype_color"] = _st.value_colors.get(_raw, {})
 
         return {
             "id": u.id,
@@ -586,7 +587,7 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
           const parts = typeVal.split('.');
           if (n.type !== parts[0]) {{ ok = false; }}
           else {{
-            const st = (n.extra?.['实体子类型'] === 'location' ? '地点' : n.extra?.['实体子类型'] === 'faction' ? '势力' : n.extra?.['实体子类型'] || n.tags?.[0] || '');
+            const st = n.extra?.subtype_label || n.tags?.[0] || '';
             if (st !== parts[1]) ok = false;
           }}
         }} else if (n.type !== typeVal) {{
@@ -614,15 +615,14 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     const tl = typeLabels[info.type] || info.type;
     document.getElementById('dp-name').textContent = info.label;
 
-    // 二级标签：世界观下的地点/势力子类
+    // 二级标签：subtype 注册表驱动
     let subtypeHtml = '';
-    if (info.type === 'world_rule') {{
-      const ex = info.extra || {{}};
-      const subType = ex['实体子类型'] || '';
-      const stLabel = subType === 'location' ? '地点' : subType === 'faction' ? '势力' : '';
-      if (stLabel) {{
-        subtypeHtml = ' <span class="dp-tag" style="background:' + (stLabel === '地点' ? 'rgba(0,176,240,0.2)' : 'rgba(237,125,49,0.2)') + ';color:' + (stLabel === '地点' ? '#5BD' : '#ED7D31') + '">' + stLabel + '</span>';
-      }}
+    const ex = info.extra || {{}};
+    if (ex.subtype_label) {{
+      const c = ex.subtype_color || {{}};
+      const bg = c.bg || 'rgba(100,100,100,0.2)';
+      const text = c.text || '#666';
+      subtypeHtml = ' <span class="dp-tag" style="background:' + bg + ';color:' + text + '">' + ex.subtype_label + '</span>';
     }}
     document.getElementById('dp-meta').innerHTML = tl + ' · ' + info.status + subtypeHtml + ' · 确信度: ' + (info.confidence || '?');
 
@@ -776,18 +776,12 @@ class V2HTMLGenerator:
         legend_items = []
 
         # Collect world_rule subtypes for nested filter
-        SUBTYPE_LABEL = {"location": "地点", "faction": "势力", "rule": "规则", "power_system": "力量体系"}
         world_subtypes = {}
         for n in nodes.values():
             if n["type"] == "world_rule":
-                sub_type = n.get("extra", {}).get("实体子类型", "")
-                st_label = SUBTYPE_LABEL.get(sub_type, "")
-                if st_label:
-                    world_subtypes[st_label] = world_subtypes.get(st_label, 0) + 1
-                elif n.get("tags"):
-                    t0 = n["tags"][0] if n["tags"] else ""
-                    if t0 in ("地点", "势力"):
-                        world_subtypes[t0] = world_subtypes.get(t0, 0) + 1
+                sub_label = n.get("extra", {}).get("subtype_label", "")
+                if sub_label:
+                    world_subtypes[sub_label] = world_subtypes.get(sub_label, 0) + 1
 
         for t in type_order:
             if t in type_set:

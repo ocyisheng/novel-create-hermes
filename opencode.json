@@ -36,6 +36,18 @@
         "read": "allow",
         "write": "allow"
       }
+    },
+    "novel-ideation": {
+      "description": "创意构思子引擎。写作全程可呼叫，在已有项目中按需生成创意方向、丰富现有单元、解锁写作卡点",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": ".opencode/agents/novel-ideation.md",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "read": "allow",
+        "write": "allow"
+      }
     }
   }
 }

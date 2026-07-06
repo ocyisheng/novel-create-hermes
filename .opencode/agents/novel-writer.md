@@ -38,6 +38,8 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
   ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
+  ├─ 创意构思/灵感发散/脑洞/卡点解锁（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
+  │   └─ 走创意路由（§创意路由）
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   └─ 走 V2 创作路由（§V2 路由）
   ├─ 迁移操作（用户要求迁移项目到 V2）?
@@ -79,7 +81,42 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 - **warm**：焦点 + 1 度邻居，适量关联角色和设定（日常写作、修改）
 - **hot**：焦点 + 2 度邻居，全量关联数据，含弱信号检测（打磨、质检、重写）
 
+## 四、创意路由
+
+创意构思独立于普通创作路由，因为它的目标不是"编辑一个叙事单元"而是"生成创意内容"。
+
+| 用户意图 | 创意模式 | 焦点类型 | 预热级别 |
+|---------|---------|---------|---------|
+| 完全没想法/要新故事概念 | divergent | — | cold |
+| 已有项目/设定，要新角度 | constrained | 当前焦点 | warm |
+| 角色/场景/世界观缺细节 | enrich | 目标类型 | warm |
+| 写作卡住/写不下去 | unblock | 当前焦点 | hot |
+| 方向瓶颈/需要外部刺激 | cross_pollinate | 当前焦点 | cold |
+
 ### 调度模板
+
+```markdown
+Task(
+  subagent_type="novel-ideation",
+  load_skills=["novel-ideation"],
+  prompt="CURRENT PROJECT: {项目名}
+PROJECT PATH: {NOVELS_ROOT/项目名}
+CREATIVE MODE: {divergent|constrained|enrich|unblock|cross_pollinate}
+FOCUS TYPE: {目标叙事单元类型（如有）}
+FOCUS ID: {叙事单元ID（如有）}
+FOCUS NAME: {叙事单元名称}
+PREHEAT LEVEL: {cold|warm|hot}
+TASK: {用户请求的具体描述}"
+)
+```
+
+### 前置追问（可选）
+
+用户意图模糊时，可先用 `skill("novel-grill", user_message="mode=ideation")` 收敛需求，再调度 subagent。
+
+---
+
+## 五、V2 调度模板
 
 ```markdown
 Task(
@@ -138,7 +175,7 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 
 > 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
 
-## 四、V2 快速参考
+## 六、V2 快速参考
 
 ### 查询 Graph 状态
 
@@ -157,7 +194,7 @@ skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 
 也可直接走 CLI：`python .opencode/shared/cli.py project new "项目名" "类型" --v2`
 
-## 五、状态维护
+## 七、状态维护
 
 V2 中唯一需要持久化的状态是 graph（已由 store.flush() 自动维护）。
 
@@ -165,7 +202,7 @@ V2 中唯一需要持久化的状态是 graph（已由 store.flush() 自动维�
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 六、故障恢复
+## 八、故障恢复
 
 | 场景 | 行为 |
 |------|------|

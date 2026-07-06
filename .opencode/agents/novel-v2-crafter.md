@@ -15,6 +15,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | style | structure | narrative_voice | thematic_motif}
+SUBTYPE: {子类型值}  # 可选，如"总纲""卷大纲""章纲""推进""高潮"等
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}

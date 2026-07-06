@@ -63,11 +63,12 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 创建/编辑角色 | character_arc | warm | draft | |
 | 世界观设定 | world_rule | warm | draft | |
 | 情节/伏笔设计 | plot_thread | warm | draft | |
-| 总纲/故事框架 | structure | warm | draft | 按七面观照/模式节奏逐项生成结构设计 |
+| 总纲 | structure | warm | draft | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
+| 卷大纲 | structure | warm | draft | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
+| 章纲/分纲 | structure | warm | draft | 子类型=章纲，规划场景串联/字数/出场角色 |
 | 叙述腔调设计 | narrative_voice | warm | draft | 决定腔调谱系、视角、笔法约定 |
 | 主题意象设计 | thematic_motif | warm | draft | 创建/追踪反复出现的象征性意象动机 |
-| 分卷大纲 | scene | warm | draft | |
-| 分纲/章节大纲 | scene | warm | draft | |
+| 写场景/章节 | scene | warm | draft | 子类型=推进/高潮/过渡 |
 | 润色/精修 | chunk | hot | polish | 额外注入 `references/quality_check_ref.md` |
 | 质量检测 | — | hot | polish | 无焦点类型，直接注入 `references/quality_check_ref.md`，作用于当前活跃单元 |
 | 重写/修订 | chunk | hot | rewrite | 额外注入 `references/quality_check_ref.md` |
@@ -125,6 +126,7 @@ Task(
   prompt="CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {焦点类型}
+SUBTYPE: {子类型值}  # 如总纲/卷大纲/章纲/推进/高潮等
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
 PREHEAT LEVEL: {cold|warm|hot}

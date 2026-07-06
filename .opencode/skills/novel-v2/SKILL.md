@@ -23,18 +23,18 @@ tags: ["novel", "v2", "graph"]
 
 ### 焦点类型 → 参考文档映射
 
-| 焦点类型 | 参考文档 | 应关注什么 |
-|---------|---------|-----------|
-| `scene` | `references/scene.md` | 场域设计、张力曲线、角色自动性、语言尸体、时间轴双重义务、起居注时刻 |
-| `character_arc` | `references/character_arc.md` | 扁平vs圆形、自动性空间、关系标签、秘密生活、系谱自觉 |
-| `plot_thread` | `references/plot_thread.md` | 伏笔四分类、复调结构、松散度、结局困境、巧合的正当性、洪荒界 |
-| `world_rule` | `references/world_rule.md` | 方法论选择、自洽性标准、延迟创建、笔记传统定位 |
-| `note` | `references/note.md` | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | 正文写作、书写警觉、语言警觉（预防性）、润色原则 |
-| `structure` | `references/structure.md` | 整体结构设计：七面观照、模式vs节奏、圆形房间法、减法史观 |
-| `narrative_voice` | `references/voice.md` | 叙述腔调：腔调谱系、叙事视角决策树、笔记传统、信息分配 |
-| `thematic_motif` | `references/thematic_motif.md` | 主题意象：动机而非主题、意象生命周期、倒置与反向、跨章节追踪 |
-| `style` | `references/styles/style_format.md` + `references/styles/style_extraction.md` | 7 维度格式契约、提取工作流、22 内置风格 |
+| 焦点类型 | 参考文档 | 子类型 | 应关注什么 |
+|---------|---------|-------|-----------|
+| `scene` | `references/scene.md` | 推进/高潮/过渡/引入/收束/铺垫 | 按章节类型选择方法论：场域设计、张力曲线、角色自动性、语言尸体 |
+| `character_arc` | `references/character_arc.md` | 主角/重要配角/反派/关键配角/群像/功能性角色 | 按角色定位选择弧线深度：扁平vs圆形、自动性空间、关系标签 |
+| `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
+| `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
+| `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
+| `chunk` | `references/chunk.md` | 初稿/修订稿/定稿 | 按文本状态决定是否质检：正文写作、书写警觉、润色原则 |
+| `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
+| `narrative_voice` | `references/voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
+| `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
+| `style` | `references/styles/style_format.md` + `references/styles/style_extraction.md` | — | 7 维度格式契约、提取工作流、22 内置风格 |
 
 ### 横切参考——条件加载
 
@@ -66,6 +66,7 @@ tags: ["novel", "v2", "graph"]
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | style | structure | narrative_voice | thematic_motif
+SUBTYPE: {章节类型}  # 各类型对应的子类型值
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
@@ -187,22 +188,27 @@ python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 
 **场景 (SCENE)**：
 ```json
-{"章节类型": "推进/高潮/过渡", "结构规划": {"开篇": {...}, "发展": {...}, "转折": {...}, "收尾": {...}}, "出场角色": [...], "地点": "...", "核心冲突": "...", "一句话概要": "..."}
+{"子类型": "推进/高潮/过渡/引入/收束/铺垫", "结构规划": {"开篇": {...}, "发展": {...}, "转折": {...}, "收尾": {...}}, "出场角色": [...], "地点": "...", "核心冲突": "...", "一句话概要": "..."}
 ```
 
 **情节线 (PLOT_THREAD)**：
 ```json
-{"类型": "主线/支线", "冲突核心": "...", "关键事件": [{"章节": 10, "事件": "..."}], "终局设计": "..."}
+{"子类型": "主线/支线/暗线/感情线/成长线/世界观线", "冲突核心": "...", "关键事件": [{"章节": 10, "事件": "..."}], "终局设计": "..."}
 ```
 
 **世界观 (WORLD_RULE)**：
 ```json
-{"实体子类型": "location/faction/rule/power_system", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
+{"子类型": "地点/势力/规则/力量体系/纪年事件", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
 ```
 
 **笔记 (NOTE)**：
 ```json
-{"note_type": "灵感 | 笔记", "内容": "..."}
+{"子类型": "灵感 | 笔记", "内容": "..."}
+```
+
+**结构设计 (STRUCTURE)**：
+```json
+{"子类型": "总纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
 ```
 
 **风格文件**：`references/styles/` 下有 22 个内置风格 YAML 文件（通俗网文风、凡人修仙风、金庸武侠风等）。当 FOCUS TYPE=style 时，可直接 `read` 这些文件获取参考模板。

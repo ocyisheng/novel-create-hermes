@@ -28,7 +28,7 @@ from graph_schema import UnitType
 # 流派适配字段（如仙侠的"修为"、都市的"职业"）不由 schema 约束。
 
 SCENE_SCHEMA = {
-    "章节类型": {"type": str, "required": True, "options": ["推进","过渡","高潮","结局","转折","收尾"]},
+    "子类型": {"type": str, "required": True, "options": ["推进","高潮","过渡","引入","收束","铺垫"]},
     "结构规划": {"type": dict, "required": True, "fields": {
         "开篇": {"type": dict, "fields": {"方式": {"type": str}, "上章衔接": {"type": str}}},
         "发展": {"type": dict, "fields": {"核心冲突": {"type": str}, "推进": {"type": str}}},
@@ -39,7 +39,7 @@ SCENE_SCHEMA = {
 }
 
 CHARACTER_ARC_SCHEMA = {
-    "角色类型": {"type": str, "required": True, "options": ["主角","反派","导师","盟友","对手","次要角色"]},
+    "子类型": {"type": str, "required": True, "options": ["主角","重要配角","反派","关键配角","群像","功能性角色"]},
     "性格": {"type": dict, "required": True, "fields": {
         "核心特质": {"type": [str, list]},  # 可 string 或 string[]，render_utils 统一按 tagcloud 渲染
         "优点": {"type": list},
@@ -55,7 +55,7 @@ CHARACTER_ARC_SCHEMA = {
 }
 
 PLOT_THREAD_SCHEMA = {
-    "类型": {"type": str, "required": True, "options": ["主线","支线","角色弧"]},
+    "子类型": {"type": str, "required": True, "options": ["主线","支线","暗线","感情线","成长线","世界观线"]},
     "冲突核心": {"type": str, "required": True},
     "关键事件": {"type": list, "required": False, "item_fields": {
         "章节": {"type": int},
@@ -66,21 +66,18 @@ PLOT_THREAD_SCHEMA = {
 }
 
 WORLD_RULE_SCHEMA = {
-    "实体子类型": {"type": str, "required": True, "options": [
-        "world_overview","rule","power_system","faction","location",
-        "history","culture","economic_system","political_system","social_hierarchy",
-        "chronicle_event"
-    ]},
+    "子类型": {"type": str, "required": True, "options": ["世界观总览","规则","力量体系","势力","地点","历史","文化","经济体系","政治体系","社会阶层","纪年事件"]},
     "二级类型": {"type": str, "required": False, "description": "子类型的细化分类"},
     "描述": {"type": str, "required": False, "description": "核心描述，自由文本"},
 }
 
 NOTE_SCHEMA = {
-    "note_type": {"type": str, "required": False, "options": ["灵感","笔记"]},
+    "子类型": {"type": str, "required": False, "options": ["灵感","笔记"]},
     # 自由文本，结构不限
 }
 
 STRUCTURE_SCHEMA = {
+    "子类型": {"type": str, "required": True, "options": ["总纲","卷大纲","章纲"]},
     "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
     "节奏设计": {"type": str, "required": False, "description": "主题动机及变奏点"},
     "七面观照检视": {"type": dict, "required": False, "fields": {
@@ -97,6 +94,7 @@ STRUCTURE_SCHEMA = {
 }
 
 NARRATIVE_VOICE_SCHEMA = {
+    "子类型": {"type": str, "required": True, "options": ["第一人称","第三人称限制","第三人称全知","第二人称","多视角交替"]},
     "腔调谱系": {"type": str, "required": True, "description": "踩谁的影子？自觉继承或走出谱系"},
     "功能定位": {"type": str, "required": True, "options": ["催眠","警醒","复调"]},
     "叙事视角": {"type": str, "required": True, "options": ["全知","部分全知","戏剧性手法","多视角"]},
@@ -107,12 +105,14 @@ NARRATIVE_VOICE_SCHEMA = {
 }
 
 CHUNK_SCHEMA = {
+    "子类型": {"type": str, "required": False, "options": ["初稿","修订稿","定稿"]},
     "章节号": {"type": int, "required": True},
     "正文": {"type": str, "required": True},
     "字数": {"type": int, "required": False},
 }
 
 THEMATIC_MOTIF_SCHEMA = {
+    "子类型": {"type": str, "required": False, "options": ["贯穿性","局部性","装饰性"]},
     "意象": {"type": str, "required": True, "description": "核心象征元素"},
     "象征意义": {"type": str, "required": True, "description": "该意象承载的多层含义"},
     "变奏方式": {"type": str, "required": False, "description": "意象如何重复并变化"},
@@ -144,8 +144,9 @@ SCHEMA_REGISTRY: Dict[UnitType, dict] = {
 @dataclass
 class SubtypeConfig:
     field: str
-    required: bool
-    options: list
+    alt_fields: list = field(default_factory=list)
+    required: bool = False
+    options: list = field(default_factory=list)
     value_labels: Dict[str, str] = field(default_factory=dict)
     value_colors: Dict[str, str] = field(default_factory=dict)
     behaviors: Dict[str, dict] = field(default_factory=dict)
@@ -153,31 +154,60 @@ class SubtypeConfig:
 
 SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
     UnitType.WORLD_RULE: SubtypeConfig(
-        field="实体子类型",
+        field="子类型",
+        alt_fields=["实体子类型"],
         required=True,
-        options=[
-            "world_overview","rule","power_system","faction","location",
-            "history","culture","economic_system","political_system",
-            "social_hierarchy","chronicle_event",
-        ],
-        value_labels={"location": "地点", "faction": "势力", "chronicle_event": "纪年事件"},
+        options=["世界观总览","规则","力量体系","势力","地点","历史","文化","经济体系","政治体系","社会阶层","纪年事件"],
+        value_labels={"location": "地点", "faction": "势力", "rule": "规则", "power_system": "力量体系", "chronicle_event": "纪年事件"},
         value_colors={
-            "location": {"bg": "rgba(0,176,240,0.2)", "text": "#5BD"},
-            "faction": {"bg": "rgba(237,125,49,0.2)", "text": "#ED7D31"},
-            "chronicle_event": {"bg": "rgba(180,167,214,0.2)", "text": "#8E7CC3"},
+            "地点": {"bg": "rgba(0,176,240,0.2)", "text": "#5BD"},
+            "势力": {"bg": "rgba(237,125,49,0.2)", "text": "#ED7D31"},
+            "纪年事件": {"bg": "rgba(180,167,214,0.2)", "text": "#8E7CC3"},
         },
         behaviors={
-            "chronicle_event": {
-                "type": "timeline_event",
-                "time_field": "时间",
-                "event_field": "事件",
-            },
+            "纪年事件": {"type": "timeline_event", "time_field": "时间", "event_field": "事件"},
         },
     ),
     UnitType.NOTE: SubtypeConfig(
-        field="note_type",
+        field="子类型",
+        alt_fields=["note_type"],
         required=False,
         options=["灵感", "笔记"],
+    ),
+    UnitType.SCENE: SubtypeConfig(
+        field="子类型",
+        required=True,
+        options=["推进","高潮","过渡","引入","收束","铺垫"],
+    ),
+    UnitType.STRUCTURE: SubtypeConfig(
+        field="子类型",
+        required=True,
+        options=["总纲","卷大纲","章纲"],
+    ),
+    UnitType.CHARACTER_ARC: SubtypeConfig(
+        field="子类型",
+        required=True,
+        options=["主角","重要配角","反派","关键配角","群像","功能性角色"],
+    ),
+    UnitType.PLOT_THREAD: SubtypeConfig(
+        field="子类型",
+        required=True,
+        options=["主线","支线","暗线","感情线","成长线","世界观线"],
+    ),
+    UnitType.CHUNK: SubtypeConfig(
+        field="子类型",
+        required=False,
+        options=["初稿","修订稿","定稿"],
+    ),
+    UnitType.THEMATIC_MOTIF: SubtypeConfig(
+        field="子类型",
+        required=False,
+        options=["贯穿性","局部性","装饰性"],
+    ),
+    UnitType.NARRATIVE_VOICE: SubtypeConfig(
+        field="子类型",
+        required=True,
+        options=["第一人称","第三人称限制","第三人称全知","第二人称","多视角交替"],
     ),
 }
 

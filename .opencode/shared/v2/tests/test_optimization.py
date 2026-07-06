@@ -342,7 +342,7 @@ check("SCENE: 结构规划 → group",
 
 # 3.12 WORLD_RULE 渲染
 world = {
-    "实体子类型": "location",
+    "子类型": "地点",
     "二级类型": "海域",
     "描述": "人界最北端的极寒海域，北极元光可淬炼法宝至人界巅峰品质。",
     "位置": "人界最北端",
@@ -350,8 +350,8 @@ world = {
     "物产": ["北极元光", "玄冥水脉"],
 }
 rw = render_content(world)
-check("WORLD_RULE: 实体子类型 → tag",
-     any(r["key"] == "实体子类型" and r["mode"] == "tag" for r in rw))
+check("WORLD_RULE: 子类型 → tag",
+     any(r["key"] == "子类型" and r["mode"] == "tag" for r in rw))
 check("WORLD_RULE: 描述 → textblock",
      any(r["key"] == "描述" and r["mode"] == "textblock" for r in rw))
 check("WORLD_RULE: 重要场所 → tagcloud",
@@ -367,7 +367,7 @@ print("=" * 60)
 
 # 4.1 CHARACTER_ARC 验证
 valid_char = {
-    "角色类型": "主角",
+    "子类型": "主角",
     "性格": {"核心特质": ["坚韧"], "优点": ["隐忍"], "缺点": ["固执"]},
     "角色弧线": {"起始状态": "凡人", "最终状态": "飞升"},
 }
@@ -375,18 +375,18 @@ check("CHARACTER_ARC 有效数据通过验证",
      len(validate_content(UnitType.CHARACTER_ARC, valid_char)) == 0)
 
 # 缺少必填字段
-missing_char = {"角色类型": "主角"}
+missing_char = {"子类型": "主角"}
 check("CHARACTER_ARC 缺性格 → 报错",
      len(validate_content(UnitType.CHARACTER_ARC, missing_char)) > 0)
 
 # 角色类型枚举
-invalid_role = {"角色类型": "路人", "性格": {"核心特质": "a"}, "角色弧线": {"起始": "a", "终": "b"}}
+invalid_role = {"子类型": "路人", "性格": {"核心特质": "a"}, "角色弧线": {"起始": "a", "终": "b"}}
 errs = validate_content(UnitType.CHARACTER_ARC, invalid_role)
-check("CHARACTER_ARC 无效角色类型 → 报错", len(errs) > 0)
+check("CHARACTER_ARC 无效子类型 → 报错", len(errs) > 0)
 
 # 流派适配字段不被 schema 校验
 with_genre = {
-    "角色类型": "主角",
+    "子类型": "主角",
     "性格": {"核心特质": ["坚韧"], "优点": ["隐忍"], "缺点": ["固执"]},
     "角色弧线": {"起始状态": "凡人", "最终状态": "飞升"},
     "能力设定": {"修为": "化神期"},  # 不在 schema 中，不应触发错误
@@ -396,7 +396,7 @@ check("CHARACTER_ARC 流派字段不触发错误",
 
 # 4.2 SCENE 验证
 valid_scene = {
-    "章节类型": "推进",
+    "子类型": "推进",
     "结构规划": {
         "开篇": {"方式": "动作开场", "上章衔接": "a"},
         "发展": {"核心冲突": "b", "推进": "c"},
@@ -407,16 +407,16 @@ valid_scene = {
 check("SCENE 有效数据通过验证",
      len(validate_content(UnitType.SCENE, valid_scene)) == 0)
 
-check("SCENE 缺章节类型 → 报错",
+check("SCENE 缺子类型 → 报错",
      len(validate_content(UnitType.SCENE, {"结构规划": valid_scene["结构规划"]})) > 0)
 
 # 4.3 PLOT_THREAD 验证
-valid_plot = {"类型": "主线", "冲突核心": "灵气污染"}
+valid_plot = {"子类型": "主线", "冲突核心": "灵气污染"}
 check("PLOT_THREAD 有效数据通过验证",
      len(validate_content(UnitType.PLOT_THREAD, valid_plot)) == 0)
 
 # 4.4 WORLD_RULE 验证
-valid_world = {"实体子类型": "location"}
+valid_world = {"子类型": "地点"}
 check("WORLD_RULE 有效数据通过验证",
      len(validate_content(UnitType.WORLD_RULE, valid_world)) == 0)
 

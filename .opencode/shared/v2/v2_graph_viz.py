@@ -275,7 +275,7 @@ class V2GraphLoader:
                     "node_id": target.id,
                 })
 
-        # 关联的纪年事件 WORLD_RULE（实体子类型=chronicle_event，content 中有"时间"+"事件"字段）
+        # 关联的纪年事件 WORLD_RULE（子类型=纪年事件，content 中有"时间"+"事件"字段）
         seen_ce_ids = set()
         for rel in self.store.get_relations(unit_id):
             other_id = rel.target_id if rel.source_id == unit_id else rel.source_id
@@ -289,7 +289,8 @@ class V2GraphLoader:
                     import json as _json
                     c = _json.loads(other.content)
                     content_dict = c if isinstance(c, dict) else {}
-                    if content_dict.get("实体子类型") != "chronicle_event":
+                    subtype_raw = content_dict.get("子类型", content_dict.get("实体子类型", ""))
+                    if subtype_raw not in ("纪年事件", "chronicle_event"):
                         continue
                     event_time = content_dict.get("时间", "") or ""
                     event_name = content_dict.get("事件", "") or ""
@@ -354,7 +355,12 @@ class V2GraphLoader:
         _st = get_subtype_info(u.type)
         if _st and isinstance(extra, dict):
             _raw = extra.get(_st.field, "")
-            extra["subtype_label"] = _st.value_labels.get(_raw, "")
+            if not _raw:
+                for _af in _st.alt_fields:
+                    _raw = extra.get(_af, "")
+                    if _raw:
+                        break
+            extra["subtype_label"] = _st.value_labels.get(_raw, _raw)
             extra["subtype_color"] = _st.value_colors.get(_raw, {})
 
         return {

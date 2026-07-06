@@ -537,7 +537,7 @@ class WorkspaceBuilder:
         
         # 写作指引
         guides = []
-        chapter_type = content.get("章节类型", "")
+        chapter_type = content.get("子类型", content.get("章节类型", ""))
         if chapter_type:
             guides.append(f"本章类型：{chapter_type}")
         if isinstance(opening, dict) and opening.get("方式"):

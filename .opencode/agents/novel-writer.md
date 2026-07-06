@@ -177,59 +177,7 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 
 > 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
 
-## 六、QUERY 拦截处理
-
-子 Agent（`novel-v2-crafter`、`novel-ideation`）在写作过程中可以通过 QUERY 协议向编排层请求额外数据。编排层拦截、执行、注入结果后继续会话。
-
-### 触发条件
-
-`Task()` 返回后，检查子 Agent 输出文本中是否包含 `QUERY:` 前缀的行。
-
-### 处理流程
-
-```
-loop (最大 3 轮):
-  response = Task(task_id=当前会话, prompt=注入后的 prompt)
-
-  # 提取 QUERY 指令
-  queries = response 中所有 "QUERY: type(params)" 格式的行
-
-  if queries 为空:
-    跳出循环 — response 即为最终输出
-
-  # 批量执行 QUERY
-  query_results = []
-  for q in queries:
-    result = bash("python .opencode/shared/cli.py v2 query --path \"{PROJECT_PATH}\" --query \"{q}\"")
-    query_results.append(result)
-
-  # 合并结果，注入下一轮
-  merged = "\n".join(query_results)
-  prompt = f"[QUERY RESULT]\n{merged}\n\n请根据以上信息继续。QUERY 指令不要出现在最终输出中。"
-  # 继续循环
-
-# 第 3 轮后若有残留 QUERY，剥离后输出
-```
-
-### 命令行
-
-```bash
-# 编排层执行 QUERY 的统一入口
-python .opencode/shared/cli.py v2 query --path "{PROJECT_PATH}" --query "QUERY: character_background(name=韩致)"
-```
-
-单个 `QUERY:` 对应一条 CLI 调用，编排层逐条执行后合并结果。
-
-### 安全约束
-
-| 规则 | 说明 |
-|------|------|
-| 最大循环 | 3 轮。正常情况 1-2 轮内完成 |
-| 批量执行 | 同一轮的多条 QUERY 顺序执行，结果合并到同一 `[QUERY RESULT]` 块 |
-| 超限处理 | 第 3 轮后强制输出，残留 `QUERY:` 行从文本中剥离 |
-| 格式 | 子 Agent 必须输出严格格式 `QUERY: type(param="value")`，否则解析失败 |
-
-## 七、V2 快速参考
+## 六、V2 快速参考
 
 ### 查询 Graph 状态
 
@@ -248,7 +196,7 @@ skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 
 也可直接走 CLI：`python .opencode/shared/cli.py project new "项目名" "类型" --v2`
 
-## 八、状态维护
+## 七、状态维护
 
 V2 中唯一需要持久化的状态是 graph（已由 store.flush() 自动维护）。
 
@@ -256,7 +204,7 @@ V2 中唯一需要持久化的状态是 graph（已由 store.flush() 自动维�
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 九、故障恢复
+## 八、故障恢复
 
 | 场景 | 行为 |
 |------|------|

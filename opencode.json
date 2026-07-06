@@ -34,7 +34,9 @@
         "edit": "allow",
         "bash": "allow",
         "read": "allow",
-        "write": "allow"
+        "write": "allow",
+        "ping": "allow",
+        "graph-query": "allow"
       }
     },
     "novel-ideation": {
@@ -46,7 +48,9 @@
         "edit": "allow",
         "bash": "allow",
         "read": "allow",
-        "write": "allow"
+        "write": "allow",
+        "ping": "allow",
+        "graph-query": "allow"
       }
     }
   }

@@ -528,23 +528,6 @@ def cmd_read_knowledge(args):
         print(content)
 
 
-@with_graph
-def cmd_query(args, store):
-    """执行 QUERY 协议指令并输出 [QUERY RESULT] 块"""
-    from query import parse_query, QueryHandlerRegistry
-
-    query_text = args.query.strip()
-    request = parse_query(query_text)
-    if not request:
-        print(f"[QUERY ERROR] 无法解析: {query_text}")
-        return
-
-    registry = QueryHandlerRegistry(store, args.path)
-    result = registry.handle(request)
-
-    print(request.to_prompt_block(result))
-
-
 def cmd_viz(args):
     """生成可视化：全项目关系图 / 角色 Ego Network / 时间线"""
     # 委托给 v2_graph_viz.main()，避免重复维护两份相同逻辑
@@ -695,10 +678,6 @@ def main():
     p.add_argument("--slug", required=True, help="知识库 slug（如 fanren-xiuxian）")
     p.add_argument("--topic", required=True, help="搜索主题（支持正则，如 宗门|势力|门派）")
 
-    p = sub.add_parser("query", help="执行 QUERY 协议指令")
-    p.add_argument("--path", required=True, help="项目根目录")
-    p.add_argument("--query", required=True, help='QUERY 指令，如 "QUERY: character_background(name=韩致)"')
-
     p = sub.add_parser("viz", help="生成可视化：关系图 / 角色网络 / 时间线")
     p.add_argument("--path", "-p", required=True, help="项目根目录")
     p.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network 关系图")
@@ -740,7 +719,6 @@ def main():
         "report": cmd_report,
         "read-knowledge": cmd_read_knowledge,
         "viz": cmd_viz,
-        "query": cmd_query,
     }
     dispatch[args.command](args)
 

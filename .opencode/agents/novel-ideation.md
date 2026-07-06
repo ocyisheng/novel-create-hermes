@@ -33,24 +33,20 @@ cat .opencode/skills/novel-ideation/references/constraints_library.md
 cat .opencode/skills/novel-ideation/references/genres_compendium.md
 ```
 
-### 第二步：获取上下文（通过 QUERY 协议）
+### 第二步：获取上下文（使用 graph-query tool）
 
-在回复中直接写入以下 QUERY 指令，编排层会拦截执行并将结果以 `[QUERY RESULT]` 块注入下一轮 prompt。可以一次输出多条，编排层会批量执行。
+使用 `graph-query` tool 直接查询已有数据，无需经过编排层中转：
 
 ```
-QUERY: advanced_search(keywords=["当前项目已有*"], limit=20)
-QUERY: scene_detail(name="{FOCUS NAME}")
-QUERY: world_rule(name="{FOCUS NAME}")
-QUERY: plot_thread_summary(name="{FOCUS NAME}")
-QUERY: advanced_search(keywords=["note_type:灵感"], limit=20)
-QUERY: consistency_check()
+graph-query --type search --project <PROJECT> --keyword 当前项目已有 --limit 20
+graph-query --type search --project <PROJECT> --keyword <FOCUS NAME>
+graph-query --type search --project <PROJECT> --keyword note_type:灵感 --limit 20
+graph-query --type list-units --project <PROJECT> --unitType NOTE --limit 20
+graph-query --type stats --project <PROJECT>
+graph-query --type check --project <PROJECT>
 ```
 
-按需选择以上指令（不需要全部）。**格式严格**：必须写作 `QUERY: type(param="value")`，字符串值用双引号包裹。
-
-QUERY 协议采用多轮机制——第一轮查完后如果信息不够，第二轮可以继续查。最多 3 轮后编排层会强制输出。
-
-详细查询类型见 `novel-v2-crafter` §四 QUERY 协议。
+按需选择以上命令。详细查询类型见 `novel-v2-crafter` §四 graph 查询。
 
 ### 第三步：生成创意，写入 graph
 

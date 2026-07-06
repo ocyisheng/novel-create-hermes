@@ -30,9 +30,9 @@ WRITING MODE: {draft | polish | rewrite}
 
 参考 `novel-v2` skill 操作指南 §3（会话管理），使用 `build-workspace` 命令。
 
-写作中如需更详细的知识库内容，使用 QUERY 协议按需查询：
-`QUERY: book_knowledge(slug="fanren-xiuxian", topic="掌天瓶")`
-支持多关键词 OR 查询：`QUERY: book_knowledge(slug="fanren-xiuxian", topic="鬼道|阴冥|黄泉")`
+写作中如需更详细的知识库内容，使用 `graph-query` tool 按需查询：
+`graph-query --type read-knowledge --project <PROJECT> --slug fanren-xiuxian --topic 掌天瓶`
+支持多关键词 OR 查询：`graph-query --type read-knowledge --project <PROJECT> --slug fanren-xiuxian --topic 鬼道|阴冥`
 
 ### 第三步：了解当前焦点叙事单元
 
@@ -75,39 +75,24 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 | `polish` | 严格风格一致，全部角色一致性，逐句语言尸体检测 | COLD+WARM+HOT |
 | `rewrite` | 根据质量检测问题清单定向修复 | 全量 |
 
-## 四、QUERY 协议
+## 四、graph 查询
 
-写作过程中如果发现缺少信息，在回复中**直接写入 QUERY 指令**（不要解释你要查询）。
-
-QUERY 协议采用**多轮机制**：
-1. 你在回复中输出一条或多条 `QUERY: ...` 指令
-2. 编排层拦截后逐条执行查询
-3. 查询结果以 `[QUERY RESULT]` 块的形式注入下一轮 prompt
-4. 你可以继续查询或基于已有信息完成工作
-5. 当回复中不再包含 QUERY 指令时，编排层结束循环，输出给用户
-
-**可以在一次回复中输出多条 QUERY，编排层会逐条执行后合并注入。**
+写作过程中如果发现缺少信息，使用 `graph-query` tool 直接查询。
 
 支持的查询类型：
-- `QUERY: character_background(name="林昭")` — 角色完整背景
-- `QUERY: scene_detail(scene_id="sc_0015")` — 场景细节
-- `QUERY: world_rule(name="灵气淬体")` — 世界观规则
-- `QUERY: plot_thread_summary(name="主线")` — 情节线摘要
-- `QUERY: advanced_search(keywords=["剑", "天道宗"], limit=5)` — 关键词搜索
-- `QUERY: chapter_status(number=3)` — 章节状态
-- `QUERY: book_knowledge(slug="fanren-xiuxian", topic="power_system")` — 查询知识库参考内容
-  - `slug`: 知识库标识（如 fanren-xiuxian、three-body）
-  - `topic`: 查询主题（如 power_system、narrative_pattern、或任意中文关键词）
-  - `max_chars`: 最大返回字符数（可选，默认 2000）
-- `QUERY: list_knowledge_books()` — 列出所有可用知识库
 
-> **格式严格**：必须写作 `QUERY: type(param="value")`，参数名和值之间用 `=` 连接，字符串值用双引号包裹。格式错误会导致解析失败。
+| 用途 | 调用方式 |
+|------|---------|
+| 按 ID 或名称查单元详情 | `graph-query --type get-unit --project <PROJECT> --id <ID>` / `--name <名称>` |
+| 关键词搜索 | `graph-query --type search --project <PROJECT> --keyword <关键词> [--limit N]` |
+| 按类型列举单元 | `graph-query --type list-units --project <PROJECT> --unitType <类型> [--limit N]` |
+| 查关联关系 | `graph-query --type get-neighbors --project <PROJECT> --id <ID>` |
+| 项目统计 | `graph-query --type stats --project <PROJECT>` |
+| 一致性检查 | `graph-query --type check --project <PROJECT>` |
+| 按名称查 ID | `graph-query --type find-unit --project <PROJECT> --name <名称>` |
+| 查询知识库参考 | `graph-query --type read-knowledge --project <PROJECT> --slug <slug> --topic <主题>` |
 
-**QUERY 指令不要出现在最终回答中。** 在你输出最终内容前确保所有 QUERY 已被 `[QUERY RESULT]` 回答完毕。最大 3 轮交互后编排层会强制输出。
-
-### 直接数据检索
-
-如果只是需要确认"某数据是否存在"而不需要语义分析，可以直接调 CLI（参考 `novel-v2` SKILL.md §1 读取命令）：
+通过 `bash` 直接调 CLI 同样有效（参考 `novel-v2` SKILL.md §1 读取命令）：
 
 ```bash
 # 统一入口方式（推荐）
@@ -148,9 +133,8 @@ python .opencode/shared/v2/v2_cli.py search --path <PROJECT> --keyword "天道�
 ## 六、HARD CONSTRAINTS
 
 1. **graph 是真相源** — 先写 graph，再考虑写文件
-2. **按需查询** — 使用 QUERY，不要假设编排层已经给了你全部数据
+2. **按需查询** — 使用 `graph-query` tool 或 CLI 查询，不要假设编排层已经给了你全部数据
 3. **写后 flush** — 每次任务完成前必须 flush
 4. **标记 actor** — 所有操作传 `actor="novel-v2-crafter"`
 5. **不要编辑 graph/ 下的 JSONL 文件** — 通过 GraphStore API
-6. **QUERY 指令不要出现在最终回答中**
-7. **使用 `bash` 工具执行 Python 命令** — 不要用 `write` 直接编辑 jsonl 文件
+6. **使用 `bash` 工具执行 Python 命令** — 不要用 `write` 直接编辑 jsonl 文件

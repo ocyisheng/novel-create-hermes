@@ -578,6 +578,8 @@ def main():
     parser.add_argument("--list-projects", action="store_true", help="列出可迁移的项目")
     parser.add_argument("--novels-root", default="",
                         help="NOVELS_ROOT 路径（用于 --list-projects）")
+    parser.add_argument("--normalize", action="store_true",
+                        help="统一 graph/nodes.jsonl 中子类型字段名与值（旧→新）")
     
     args = parser.parse_args()
     
@@ -592,6 +594,24 @@ def main():
             print(f"在 {base} 下未找到项目（没有 config.yaml 的目录）")
         return
     
+    if args.normalize:
+        if not args.project_root:
+            print("错误: --normalize 需要 --project-root")
+            sys.exit(1)
+        stats = normalize_subtype_fields(args.project_root, dry_run=args.dry_run)
+        print(f"扫描节点: {stats.get('nodes_scanned', 0)}")
+        print(f"修复节点: {stats.get('nodes_fixed', 0)}")
+        if "by_type" in stats:
+            for t, n in sorted(stats["by_type"].items()):
+                print(f"  {t}: {n}")
+        if "error" in stats:
+            print(f"❌ {stats['error']}")
+        elif stats.get("nodes_fixed", 0) == 0:
+            print("✅ 无需迁移")
+        elif not args.dry_run:
+            print("✅ 迁移完成（备份: nodes.jsonl.bak）")
+        return
+
     if not args.project_root:
         parser.print_help()
         print("\n错误: 需要 --project-root 或 --list-projects")
@@ -761,6 +781,162 @@ def main():
         print()
     
     print("✅ 迁移完成")
+
+
+# ── V2 数据规范化：子类型字段统一 ────────────────────────────────────────
+# 将旧字段名（实体子类型、角色类型、章节类型、类型、note_type）统一为"子类型"，
+# 并将旧值（英文/旧中文）映射为最新选项。
+
+def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[str, int]:
+    """扫描并修复 graph/nodes.jsonl 中的子类型字段。
+
+    返回统计信息。
+    """
+    nodes_path = Path(project_root) / "graph" / "nodes.jsonl"
+    if not nodes_path.exists():
+        return {"error": f"nodes.jsonl 不存在: {nodes_path}"}
+
+    from schemas import SUBTYPE_REGISTRY
+
+    # 旧字段 → 新字段 映射
+    OLD_FIELDS = {
+        "角色类型": "子类型",
+        "章节类型": "子类型",
+        "类型": "子类型",
+        "实体子类型": "子类型",
+        "note_type": "子类型",
+        "NoteType": "子类型",
+    }
+
+    # 旧角色类型值 → 新值映射
+    CHAR_MAP = {
+        "主角": "主角",
+        "反派": "反派",
+        "导师": "关键配角",
+        "盟友": "关键配角",
+        "对手": "关键配角",
+        "次要角色": "功能性角色",
+    }
+
+    # 旧场景类型值 → 新值映射
+    SCENE_MAP = {
+        "推进": "推进",
+        "过渡": "过渡",
+        "高潮": "高潮",
+        "结局": "收束",
+        "转折": "铺垫",
+        "收尾": "收束",
+    }
+
+    # 旧情节线类型值 → 新值映射
+    PLOT_MAP = {
+        "主线": "主线",
+        "支线": "支线",
+        "角色弧": "成长线",
+    }
+
+    # NOTE 旧值 → 新值映射（不在选项中的统一归为笔记）
+    NOTE_MAP = {
+        "笔记": "笔记",
+        "灵感": "灵感",
+        "总纲": "笔记",
+        "卷大纲": "笔记",
+    }
+
+    # 从 SUBTYPE_REGISTRY 获取 WORLD_RULE 英语→中文映射
+    world_info = SUBTYPE_REGISTRY.get(UnitType.WORLD_RULE)
+    WORLD_VALUE_MAP = dict(world_info.value_labels) if world_info else {}
+
+    stats: Dict[str, int] = {"nodes_scanned": 0, "nodes_fixed": 0}
+    stats_by_type: Dict[str, int] = {}
+
+    lines = nodes_path.read_text(encoding="utf-8").splitlines()
+    out_lines = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            out_lines.append(line)
+            continue
+        try:
+            node = json.loads(line)
+        except json.JSONDecodeError:
+            out_lines.append(line)
+            continue
+
+        stats["nodes_scanned"] += 1
+        content_str = node.get("content", "{}")
+        try:
+            content = json.loads(content_str) if isinstance(content_str, str) else content_str
+        except json.JSONDecodeError:
+            out_lines.append(line)
+            continue
+
+        if not isinstance(content, dict):
+            out_lines.append(line)
+            continue
+
+        unit_type = node.get("type", "")
+        changed = False
+
+        # 检查旧字段名
+        for old_field, new_field in OLD_FIELDS.items():
+            if old_field in content:
+                # 值迁移
+                old_val = content.pop(old_field)
+                val = _map_old_value(unit_type, old_val,
+                                     CHAR_MAP, SCENE_MAP, PLOT_MAP,
+                                     NOTE_MAP, WORLD_VALUE_MAP)
+                # 只有值非空才写入
+                if val:
+                    content[new_field] = val
+                changed = True
+                break  # 每个节点只处理一个旧字段
+
+        if changed:
+            stats["nodes_fixed"] += 1
+            stats_by_type[unit_type] = stats_by_type.get(unit_type, 0) + 1
+            node["content"] = json.dumps(content, ensure_ascii=False)
+
+        out_lines.append(json.dumps(node, ensure_ascii=False))
+
+    if not dry_run and stats["nodes_fixed"] > 0:
+        # 备份
+        backup_path = nodes_path.with_suffix(".jsonl.bak")
+        if not backup_path.exists():
+            nodes_path.rename(backup_path)
+        nodes_path.write_text("\n".join(out_lines), encoding="utf-8")
+
+    stats["by_type"] = stats_by_type
+    return stats
+
+
+def _map_old_value(
+    unit_type: str, old_val: str,
+    char_map: Dict[str, str],
+    scene_map: Dict[str, str],
+    plot_map: Dict[str, str],
+    note_map: Dict[str, str],
+    world_map: Dict[str, str],
+) -> str:
+    """将旧值映射为新值"""
+    if not old_val or not isinstance(old_val, str):
+        return old_val
+
+    ut = unit_type.upper() if unit_type else ""
+
+    if ut == "CHARACTER_ARC" or ut == UnitType.CHARACTER_ARC.value:
+        return char_map.get(old_val, old_val)
+    elif ut == "SCENE" or ut == UnitType.SCENE.value:
+        return scene_map.get(old_val, old_val)
+    elif ut == "PLOT_THREAD" or ut == UnitType.PLOT_THREAD.value:
+        return plot_map.get(old_val, old_val)
+    elif ut in ("WORLD_RULE", UnitType.WORLD_RULE.value):
+        return world_map.get(old_val, old_val)
+    elif ut in ("NOTE", UnitType.NOTE.value):
+        return note_map.get(old_val, old_val)
+
+    return old_val
 
 
 if __name__ == "__main__":

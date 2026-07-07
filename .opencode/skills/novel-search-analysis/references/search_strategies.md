@@ -6,38 +6,27 @@
 
 ### 统一搜索入口
 
-```python
-from search_engine import SearchEngine
+通过 novel-tool 搜索：
 
-engine = SearchEngine(store)  # store 是已初始化的 GraphStore 实例
-
-# 关键词搜索（子串匹配 name/content/tags）
-result = engine.search(keyword="天道宗")
-
-# 正则搜索（re.search 遍历 content）
-result = engine.search(pattern=r"筑基.*期", regex=True)
-
-# 实体搜索（按名称查找 + 1 度邻居展开）
-result = engine.search(entity="林昭")
-
-# 过滤和限制
-result = engine.search(keyword="剑", scope=[UnitType.SCENE], max_results=10)
+```
+novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
+novel-tool --operation graph.search --project <PROJECT> --pattern "筑基.*期" --regex
+novel-tool --operation graph.search --project <PROJECT> --keyword "剑" --unitType SCENE --limit 10
 ```
 
-也可以通过 CLI：
+搜索逻辑（供理解，不直接使用）：
+- 关键词搜索：子串匹配 name/content/tags
+- 正则搜索：re.search 遍历 content
+- 实体搜索：按名称查找 + 1 度邻居展开
 
-```bash
-# 关键词搜索
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"
+也可以通过 Python 直接调用 SearchEngine：
 
-# 实体搜索（含邻居）
-python .opencode/shared/v2_cli.py search --path <PROJECT> --entity "林昭"
-
-# 正则搜索
-python .opencode/shared/v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex
-
-# 限定类型
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "剑" --scope SCENE --limit 10
+```
+novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
+novel-tool --operation graph.search --project <PROJECT> --pattern "筑基.*期" --regex
+novel-tool --operation graph.search --project <PROJECT> --keyword "剑" --unitType SCENE --limit 10
 ```
 
 ### 增量分析
@@ -58,10 +47,10 @@ results = engine.check_consistency()
 # R4: 归档单元仍有活跃关系（warning）
 ```
 
-CLI：
+novel-tool：
 
-```bash
-python .opencode/shared/v2_cli.py check --path <PROJECT>
+```
+novel-tool --operation graph.check --project <PROJECT>
 ```
 
 ---
@@ -105,13 +94,13 @@ class SearchResultSet:
 
 ## 搜索模式组合
 
-| 用户意图 | CLI 命令 | 说明 |
+| 用户意图 | novel-tool 操作 | 说明 |
 |---------|---------|------|
-| "找所有提到天道宗的地方" | `search --keyword "天道宗"` | 全范围搜索 |
-| "查查第5章写了什么" | `search --keyword "" --scope SCENE` + find_units(chapter=5) | 按章节查场景 |
-| "林昭在第3章说了什么" | `search --entity "林昭" --scope CHUNK --limit 20` | 实体+类型过滤 |
-| "有哪些角色还没出场" | `report --path <PROJECT>` | gap 统计 |
-| "检查设定有没有冲突" | `check --path <PROJECT>` | 一致性检查 |
+| "找所有提到天道宗的地方" | `graph.search --keyword "天道宗"` | 全范围搜索 |
+| "查查第5章写了什么" | `graph.search` + find_units(chapter=5) | 按章节查场景 |
+| "林昭在第3章说了什么" | `graph.search --keyword "林昭" --unitType CHUNK --limit 20` | 关键词+类型过滤 |
+| "有哪些角色还没出场" | `graph.stats` + `graph.list_units --unitType CHARACTER_ARC` | 统计 |
+| "检查设定有没有冲突" | `graph.check` | 一致性检查 |
 
 ---
 

@@ -28,9 +28,10 @@ chmod +x .opencode/shared/env/setup_env.sh && ./.opencode/shared/env/setup_env.s
 脚本自动检测 Python 来源（系统 Python → conda），创建 `.venv` + `pip install -r .opencode/shared/env/requirements.txt`。
 
 ### 验证环境
-```bash
-python .opencode/shared/env/env_setup.py                 # 检查
-python .opencode/shared/env/env_setup.py --fix           # 修复
+```
+novel-tool --operation env.check       # 检查
+novel-tool --operation env.fix         # 修复缺失依赖
+novel-tool --operation env.force       # 强制重建 .venv
 ```
 
 ## 流程

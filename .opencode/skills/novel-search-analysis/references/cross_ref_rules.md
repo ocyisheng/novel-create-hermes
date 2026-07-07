@@ -14,19 +14,19 @@
 | R6: 时间线一致性 | warning | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
 | R7: 情节线完成度 | info | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
 
-> 规则 1-4 已由 `SearchEngine.check_consistency()` 实现，通过 `v2_cli.py check` 调用。
+> 规则 1-4 已由 `SearchEngine.check_consistency()` 实现，通过 `graph.check` 调用。
 > 规则 5-7 需要 LLM 做语义分析，SearchEngine 只提供原始数据。
 
-CLI 速查：
+novel-tool 速查：
 
-```bash
+```
 # 快速一致性检查（规则 1-4）
-python .opencode/shared/v2_cli.py check --path <PROJECT>
+novel-tool --operation graph.check --project <PROJECT>
 
 # 获取原始数据供 LLM 分析
-python .opencode/shared/v2_cli.py search --path <PROJECT> --entity "林昭"           # 实体及邻居
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "灵气" --scope CHUNK  # 关键词搜索
-python .opencode/shared/v2_cli.py report --path <PROJECT>                          # 统计 + gap 数据
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"            # 实体搜索
+novel-tool --operation graph.search --project <PROJECT> --keyword "灵气" --unitType CHUNK  # 关键词搜索
+novel-tool --operation graph.stats --project <PROJECT>                              # 统计
 ```
 
 ---
@@ -117,12 +117,9 @@ R4 warning: 单元『无名老者』(character_arc)已归档，但仍有 2 条�
 - `CHUNK.content` → 全文语义分析（需 LLM 参与）
 
 **获取数据**：
-```bash
-# 获取角色档案
-python .opencode/shared/v2_cli.py search --path <PROJECT> --entity "林昭"
-
-# 获取角色相关正文片段
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "林昭" --scope CHUNK
+```
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --unitType CHUNK
 ```
 
 **LLM 分析步骤**：
@@ -157,12 +154,9 @@ python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "林昭" --s
 - `CHUNK` → `belongs_to_chapter` 字段（隐式顺序）
 
 **获取数据**：
-```bash
-# 获取时间线笔记
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "时间线" --scope NOTE
-
-# 获取所有正文片段
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "" --scope CHUNK --limit 100
+```
+novel-tool --operation graph.search --project <PROJECT> --keyword "时间线" --unitType NOTE
+novel-tool --operation graph.search --project <PROJECT> --unitType CHUNK --limit 100
 ```
 
 **LLM 分析**：比对时间线记录中的事件顺序 vs 按章节排序的正文内容。
@@ -182,12 +176,9 @@ python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "" --scope C
 - `CHUNK` + `SCENE` → 已覆盖的内容（按 `belongs_to_chapter` 排序）
 
 **获取数据**：
-```bash
-# 获取所有情节线
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "" --scope PLOT_THREAD
-
-# 获取项目统计（含 gap 分析）
-python .opencode/shared/v2_cli.py report --path <PROJECT>
+```
+novel-tool --operation graph.list_units --project <PROJECT> --unitType PLOT_THREAD
+novel-tool --operation graph.stats --project <PROJECT>
 ```
 
 **LLM 分析**：对每条情节线，提取关键事件列表，检查对应的场景或正文是否已写。

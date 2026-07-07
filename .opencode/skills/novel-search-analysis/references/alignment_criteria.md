@@ -53,7 +53,7 @@
 
 **评估方法**：
 1. 提取 NOTE 中关于角色性格的偏好描述
-2. 用 `SearchEngine.search(entity="林昭", scope=[CHUNK])` 获取相关正文
+2. 用 `graph.search --keyword "林昭" --unitType CHUNK` 获取相关正文
 3. 对比语气、行为模式是否符合性格设定
 4. 标记偏差段落
 
@@ -67,7 +67,7 @@
 
 **评估方法**：
 1. 提取用户对世界观规则的具体要求（如"灵气有限""有反噬风险"）
-2. 用 `SearchEngine.search(keyword="灵气", scope=[CHUNK])` 检查章节中的规则执行
+2. 用 `graph.search --keyword "灵气" --unitType CHUNK` 检查章节中的规则执行
 3. 标记规则违反的场景
 
 ---
@@ -93,7 +93,7 @@
 
 **评估方法**：
 1. 提取用户明确说"不要"的元素
-2. 用 `SearchEngine.search(keyword=排除项)` 检查所有单元
+2. 用 `graph.search --keyword <排除项>` 检查所有单元
 3. 如果出现 → 标记为"违反排除项"
 
 **严重级别**：critical——用户明确排除的内容不应在任何生成内容中出现。

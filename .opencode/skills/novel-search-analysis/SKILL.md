@@ -28,10 +28,10 @@ tags: ["novel", "search", "analysis", "quality", "v2"]
 ```
 你（LLM） ← skill 指令指导你的分析思路
   │
-  ├── 调 SearchEngine / v2_cli.py → 拿原始数据
+  ├── 调 SearchEngine / novel-tool → 拿原始数据
   ├── 自己读 deviation_state.yaml → 历史上下文
   ├── 自己做语义分析、对比、归因
-  └── 用 DeviationManager 记录发现的偏差
+   └── 用 deviation.* 操作持久化发现的偏差
 ```
 
 ## 调用方式
@@ -51,10 +51,10 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 
 ### 直接搜索（不需要 skill）
 
-如果用户只是问"在哪里出现过"这种简单问题，不需要 LLM 分析——直接调 CLI：
+如果用户只是问"在哪里出现过"这种简单问题，不需要 LLM 分析——直接调 novel-tool：
 
 ```
-bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"
+novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
 ```
 
 ### 分析类任务（需要 skill）
@@ -73,7 +73,7 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
 
 ```
 ① 拿到原始数据：
-   调 SearchEngine(v2_cli.py) 搜索关键词/正则/实体
+   调 novel-tool (graph.search) 搜索关键词/正则/实体
    
 ② 语义分析：
    ├─ 关键词在 content 中是什么语境（设定描述/角色对话/叙事旁白）？
@@ -101,7 +101,7 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
    └─ 排除项（如"不要系统流设定"）
 
 ③ 逐项对比：
-   ├─ 用 SearchEngine 搜索目标实体的所有引用
+    ├─ 用 novel-tool (graph.search) 搜索目标实体的所有引用
    ├─ 对比实际内容 vs 期望
    └─ 每项打分 1-5，标注状态 ✅ / ⚠️ / ❌ / ❓
 
@@ -109,8 +109,8 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
 
 ⑤ deviation_manager.merge() 写入偏差状态
 
-> 评估维度详见 references/alignment_criteria.md
 ```
+> 评估维度详见 references/alignment_criteria.md
 
 ### 三、mode=cross-ref — 交叉引用检测
 
@@ -133,15 +133,15 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
 
 规则 5: 能力边界一致性（需 LLM 语义分析）
   → CHARACTER_ARC 中记录的能力 vs CHUNK 中实际使用的能力
-  方法: SearchEngine.search(entity="林昭") 获取角色档案，search(keyword="林昭", scope=[CHUNK]) 获取正文
+  方法: 检索角色档案 + 含该角色的正文片段
 
 规则 6: 时间线一致性（需 LLM 语义分析）
   → NOTE[tags=时间线] 中的事件顺序 vs CHUNK 按章节排列的顺序
-  方法: SearchEngine.search(keyword="时间线", scope=[NOTE]) 获取时间线记录
+  方法: 检索时间线笔记 + 按章节排序的正文
 
 规则 7: 情节线完成度（需 LLM 语义分析）
   → PLOT_THREAD 中的关键事件 vs 已写的 CHUNK
-  方法: SearchEngine.search(scope=[PLOT_THREAD]) 获取情节线
+  方法: 检索情节线 + 正文统计
 
 详见 references/cross_ref_rules.md 获取完整说明。
 
@@ -154,7 +154,7 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
 ### 四、mode=gap — 使用率分析
 
 ```
-① 从 SearchEngine / GraphStore 获取统计数据：
+① 从 novel-tool (graph.stats / graph.list_units) 获取统计数据：
   - 角色总数 vs 有 PARTICIPATES_IN 关系的角色数
   - 世界观规则总数 vs 被 REFERENCES 引用的规则数
   - 情节线关键事件数 vs 已写 CHUNK 数
@@ -171,13 +171,12 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
 ### 五、mode=full-diagnose — 增量综合诊断
 
 ```
-① 读 deviation_state.yaml
-   ├─ scan.full_scan_version（全局已分析的版本）
-   └─ scan.last_scan_at（上次分析时间）
+① 确定当前扫描版本
+   deviation.stats → full_scan_version
 
-② 调 SearchEngine.get_modified_units(full_scan_version)
-   ├─ 遍历所有非 ARCHIVED 单元
-   └─ 返回 unit.version > full_scan_version 的变更单元
+② 获取自该版本以来的变更单元
+   graph.get_modified_units --since_version <full_scan_version>
+   → 返回 version > full_scan_version 的非 ARCHIVED 单元
 
 ③ 只对变更单元运行 align + cross-ref + gap（增量分析）
    注意：如果变更单元数量很大（>20个），优先分析：
@@ -185,83 +184,65 @@ bash: python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天�
    - 世界观规则变更（影响面次之）
    - 创建新的单元（而不是只修改内容）
 
-④ deviation_manager.merge() 合并新旧偏差
-
-⑤ 写回 deviation_state.yaml：
-   ├─ full_scan_version = 当前全局最大 version
-   └─ 更新已扫描单元的 version
+④ 合并新偏差并更新扫描版本
+   deviation.merge --findings [...] --full_scan_version <最大unit.version>
 ```
-
-> **为什么不基于 events.olog？** events.olog 是操作日志，按操作数增长而非内容数增长。
-> 正确做法是 **unit.version 对比**——与 VizIncrementalEngine 同一模式（见 `v2_graph_viz.py:942`），
-> O(n_units) 而非 O(n_events)。
 
 ---
 
 ## 工具使用指引
 
-### SearchEngine（纯数据检索，不做分析）
+### 获取数据
 
-你（LLM）通过以下方式获取原始数据：
+你（LLM）通过 `novel-tool` 获取原始数据：
 
-```python
-# 方式一：直接 import（在编排层可用 Python 的环境中）
-from search_engine import SearchEngine
-engine = SearchEngine(store)
-result = engine.search(keyword="天道宗", max_results=20)
-
-# 方式二：通过 CLI（在 bash 中执行）
-python .opencode/shared/v2_cli.py search --path <PROJECT> --keyword "天道宗"
-python .opencode/shared/v2_cli.py search --path <PROJECT> --entity "林昭" --limit 10
+```
+novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --limit 10
 ```
 
-SearchEngine 的输出是 `SearchResultSet`，包含：
-- `results`: `List[SearchResult]`（每个含 unit_id/name/type/content_preview/version/neighbors）
-- `total`: 总数
-- `time_ms`: 耗时
+返回结果包含：`unit_id`、`unit_name`、`unit_type`、`content_preview`、`chapter`、`score`、`tags`、`status`、`version`、`neighbors` 等字段。
 
-**重要**：SearchEngine 只回答"数据在哪"，不回答"这意味着什么"。
+**重要**：novel-tool 只回答"数据在哪"，不回答"这意味着什么"。
 后面的分析工作是你（LLM）的事。
 
-### CLI 命令参考
+### novel-tool 命令参考
 
-```bash
+```
 # 搜索
-v2_cli.py search --path <PROJECT> --keyword "天道宗"
-v2_cli.py search --path <PROJECT> --entity "林昭"
-v2_cli.py search --path <PROJECT> --pattern "筑基.*期" --regex
-v2_cli.py search --path <PROJECT> --keyword "剑" --scope SCENE --limit 10
+novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
+novel-tool --operation graph.search --project <PROJECT> --pattern "筑基.*期" --regex
+novel-tool --operation graph.search --project <PROJECT> --keyword "剑" --scope SCENE --limit 10
 
 # 一致性检查（输出供 LLM 分析的结构化数据）
-v2_cli.py check --path <PROJECT>
-# 输出：7 条规则的结构化数据
+novel-tool --operation graph.check --project <PROJECT>
+# 输出：4 条规则的结构化数据
 
-# 项目报告
-v2_cli.py report --path <PROJECT>
-v2_cli.py report --path <PROJECT> --with-deviations
+# 项目统计 + gap 数据
+novel-tool --operation graph.stats --project <PROJECT>
 ```
 
-### DeviationManager（状态存储）
+### 偏差持久化
 
-分析中发现的偏差通过 DeviationManager 持久化：
+分析中发现的偏差通过 `deviation.*` 操作持久化到 `graph/deviation_state.yaml`：
 
-```python
-from deviation_manager import DeviationManager, DeviationItem
-
-mgr = DeviationManager(project_root)
-mgr.merge([DeviationItem(
-    dimension="character_trait",
-    entity="林昭",
-    scanned_version=15,
-    summary="角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'",
-    suggested_changeset={"changes": [
-        {"op": "replace", "path": "性格.核心特质", "old_value": "隐忍果断", "new_value": "杀伐果断"}
-    ]},
-)])
-mgr.save()
 ```
+# 合并新发现
+novel-tool --operation deviation.merge --project <PROJECT> --findings '[{"dimension":"character_trait","entity":"林昭","severity":"warning","summary":"角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'"}]'
 
-偏差状态文件存储在 `graph/deviation_state.yaml`。
+# 查看当前待处理偏差
+novel-tool --operation deviation.pending --project <PROJECT>
+
+# 标记为已解决
+novel-tool --operation deviation.resolve --project <PROJECT> --id <偏差ID>
+
+# 标记为保留（正常设计）
+novel-tool --operation deviation.retain --project <PROJECT> --id <偏差ID>
+
+# 偏差统计
+novel-tool --operation deviation.stats --project <PROJECT>
+```
 
 ---
 
@@ -271,12 +252,12 @@ mgr.save()
 
 ```
 Step 1: 确定分析范围
-  ├─ 用户指定了实体/目标 → 缩小范围（SearchEngine.search(entity=...)）
+  ├─ 用户指定了实体/目标 → 缩小范围（graph.search 按关键词/名称检索）
   └─ 未指定 → 读 scan.full_scan_version，分析 version 有变动的
-       单元（SearchEngine.get_modified_units(version)）
+       单元（通过 graph.stats 确定完整扫描版本）
 
 Step 2: 获取原始数据
-  ├─ 调 SearchEngine / v2_cli.py → 结构化数据
+  ├─ 调 novel-tool (graph.search / graph.stats / graph.check) → 结构化数据
   └─ 读 deviation_state.yaml → 历史状态
 
 Step 3: LLM 逐项分析
@@ -339,6 +320,6 @@ Step 5: 生成可执行动作
 | **无阶段概念** | 搜索分析不是"写完后才能做的事"，任何时候都可以 |
 | **焦点驱动** | 分析范围由焦点实体确定，不是整个项目 |
 | **冷/温/热预热** | full-diagnose 只分析 version 有变动的单元 |
-| **QUERY 协议** | 子 agent 通过 QUERY 获取搜索数据 |
+| **novel-tool 统一接口** | 子 agent 通过 novel-tool 进行所有数据操作 |
 | **事件溯源** | events.olog 用于调试；增量分析用 unit.version |
 | **创作循环** | 偏差状态可以被后续写作引用和解决 |

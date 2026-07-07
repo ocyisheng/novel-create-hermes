@@ -11,63 +11,51 @@ tags: ["novel", "project-management"]
 
 ## 操作方式
 
-通过 `bash` 执行 Python 脚本：
+通过 `novel-tool` tool 执行。
 
 ### 新建项目
-```bash
-# 标准三卷三幕（默认）
-python .opencode/shared/project/project_init.py new "项目名" "玄幻"
+
+```
+# V2 原生项目（推荐）
+novel-tool --operation project.new --name "项目名" --genre "玄幻" --v2
+
+# 标准三卷三幕（V1）
+novel-tool --operation project.new --name "项目名" --genre "玄幻" --volumes 3 --acts 3
 
 # 五卷五幕史诗结构
-python .opencode/shared/project/project_init.py new "星辰帝国" "玄幻" --volumes 5 --structure 五幕
-
-# 四卷三幕（自定义幕数）
-python .opencode/shared/project/project_init.py new "迷雾追踪" "悬疑" --volumes 4 --acts 3
-
-# V2 原生项目（跳过旧 YAML 目录，直接初始化 graph/）
-python .opencode/shared/project/project_init.py new "龙渊" "玄幻" --v2
+novel-tool --operation project.new --name "星辰帝国" --genre "玄幻" --volumes 5 --structure "五幕"
 ```
-创建标准目录、config.yaml、模板文件。使用 `--v2` 创建 V2 原生项目，不建旧 YAML 目录。项目默认创建到工具根目录下的 `novels/` 子目录（可通过 `-d` 指定其他位置）。卷数 (`--volumes`) 和幕结构 (`--structure`/`--acts`) 控制生成的分纲目录数和总纲模板格式。
-
-💡 项目创建完成后，init.py 已自动完成初始实体索引（无需手动运行）。
 
 ### 导入已有小说
-```bash
-python .opencode/shared/project/project_init.py import "源路径" "项目名"
-```
-导入完成。
 
-💡 导入完成后，init.py 已自动完成初始实体索引（无需手动运行）。
+```
+novel-tool --operation project.import --name "项目名" --source_path "源路径"
+```
 
 ### 查看状态
-```bash
-python .opencode/shared/project/project_init.py status "项目名" [--phase 阶段]
+
 ```
+novel-tool --operation project.status --name "项目名"
+```
+可选 `--name "项目名" --phase "阶段"` 同时更新写作阶段。
 
 ### 续写
-```bash
-python .opencode/shared/project/project_init.py resume "项目名"
+
+```
+novel-tool --operation project.resume --name "项目名"
 ```
 
 ### 切换
 
-```bash
-# 标准切换：同步旧项目→持久化旧→同步新→推导新 notepad→验证一致性
-python .opencode/shared/project/project_init.py switch "项目名"
-
-# 仅预览，不修改任何文件
-python .opencode/shared/project/project_init.py switch "项目名" --dry-run
-
-# 跳过索引同步（紧急情况下，避免触发 rebuild）
-python .opencode/shared/project/project_init.py switch "项目名" --skip-sync
-
-# 跳过 phase_detect 一致性验证
-python .opencode/shared/project/project_init.py switch "项目名" --no-verify
 ```
+novel-tool --operation project.switch --name "项目名"
+```
+试运行：`--name "项目名" --dryRun`
 
 ### 删除
-```bash
-python .opencode/shared/project/project_init.py delete "项目名" [--force]
+
+```
+novel-tool --operation project.delete --name "项目名" --force
 ```
 
 ## 前提

@@ -1,6 +1,6 @@
 ---
 name: "novel-v2"
-description: "V2 创作引擎：基于叙事单元网络(graph)的下一代创作能力。用于已迁移项目的章节写作、角色管理、世界观维护、情节规划、质量检测、可视化等全部创作操作。触发词：V2、graph、叙事单元、QUERY、migrate、可视化、关系图、时间线、viz"
+description: "V2 创作引擎：基于叙事单元网络(graph)的下一代创作能力。用于已迁移项目的章节写作、角色管理、世界观维护、情节规划、质量检测、可视化等全部创作操作。触发词：V2、graph、叙事单元、migrate、可视化、关系图、时间线、viz"
 license: "MIT"
 version: "1.0.0"
 compatibility: "OpenCode"
@@ -34,7 +34,6 @@ tags: ["novel", "v2", "graph"]
 | `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
 | `narrative_voice` | `references/voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
-| `style` | `references/styles/style_format.md` + `references/styles/style_extraction.md` | — | 7 维度格式契约、提取工作流、22 内置风格 |
 
 ### 横切参考——条件加载
 
@@ -75,109 +74,88 @@ WRITING MODE: draft | polish | rewrite
 
 ---
 
-## V2 操作指南（CLI 命令的唯一源头）
+## V2 操作指南（Tool 的唯一源头）
 
-所有 V2 操作通过 `v2_cli.py` 执行。以下命令列表是唯一权威参考——Agent 和子 Agent 的 prompt 不应重复这些命令，应引用本指南。
+所有 V2 操作通过 `novel-tool` tool 执行。以下命令列表是唯一权威参考。
 
 ### 1. 读取 graph 数据
 
-```bash
+```
 # 按名称查找叙事单元 ID
-python .opencode/shared/v2/v2_cli.py find-unit --path {PROJECT_PATH} --name "{名称}"
+novel-tool --operation graph.find_unit --project {PROJECT} --name "{名称}"
 
 # 获取叙事单元详情
-python .opencode/shared/v2/v2_cli.py get-unit --path {PROJECT_PATH} --id {单元ID}
+novel-tool --operation graph.get_unit --project {PROJECT} --id {单元ID}
 
 # 查询单元的关联关系（1-hop 邻居，可按关系类型过滤）
-python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID}
-python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID} --rel-type contains
-python .opencode/shared/v2/v2_cli.py get-neighbors --path {PROJECT_PATH} --id {单元ID} --rel-type member_of
+novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID}
+novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --relType contains
+novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --relType member_of
 
 # 列出所有可用关系类型
-python .opencode/shared/v2/v2_cli.py list-relation-types
+novel-tool --operation graph.list_relation_types
 
 # 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / STRUCTURE / NARRATIVE_VOICE，支持--limit）
-python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type SCENE
-python .opencode/shared/v2/v2_cli.py list-units --path {PROJECT_PATH} --type WORLD_RULE --limit 10
+novel-tool --operation graph.list_units --project {PROJECT} --unitType SCENE
+novel-tool --operation graph.list_units --project {PROJECT} --unitType WORLD_RULE --limit 10
 
 # 项目统计
-python .opencode/shared/v2/v2_cli.py stats --path {PROJECT_PATH}
+novel-tool --operation graph.stats --project {PROJECT}
 
 # 最近事件
-python .opencode/shared/v2/v2_cli.py recent-events --path {PROJECT_PATH}
+novel-tool --operation graph.recent_events --project {PROJECT}
 ```
 
 ### 2. 写入 graph 数据
 
-```bash
-# 创建叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / STRUCTURE / NARRATIVE_VOICE）
-python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
+```
+# 创建叙事单元
+novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 
-# 更新叙事单元（内容 / 名称 / 标签，推荐用 --file 避免引号编码问题）
-python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --file content.json
-python .opencode/shared/v2/v2_cli.py update-unit --path {PROJECT_PATH} --id {单元ID} --name "新名称" --tags "新标签"
+# 更新叙事单元（内容 / 名称 / 标签）
+novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --content "{新内容JSON}"
+novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --name "新名称" --tags "新标签"
 
-# 建立关系（--type 见下方"关系类型速查表"，加 --bidirectional 自动补反向）
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type member_of
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type contains
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type located_at
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {源ID} --target {目标ID} --type allied_with --bidirectional
+# 建立关系（--bidirectional 自动补反向）
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type member_of
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type contains
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type located_at
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type allied_with --bidirectional
 
-# 补齐反向边：扫描所有关系，自动补齐对称类型缺失的反向边
-python .opencode/shared/v2/v2_cli.py fix-asymmetry --path {PROJECT_PATH}
+# 补齐反向边
+novel-tool --operation graph.fix_asymmetry --project {PROJECT}
 
 # 批量推断关系（新项目迁移后必做）
-python .opencode/shared/v2/v2_cli.py batch-infer --path {PROJECT_PATH}
+novel-tool --operation graph.batch_infer --project {PROJECT}
 ```
 
 ### 3. 会话管理
 
-```bash
+```
 # 启动创作会话
-python .opencode/shared/v2/v2_cli.py start-session --path {PROJECT_PATH} --type SCENE --id {单元ID}
+novel-tool --operation graph.start_session --project {PROJECT} --type SCENE --id {单元ID}
 
 # 构建工作空间上下文
-python .opencode/shared/v2/v2_cli.py build-workspace --path {PROJECT_PATH} --id {焦点单元ID} --level warm
+novel-tool --operation graph.build_workspace --project {PROJECT} --id {焦点单元ID} --level warm
 
 # 持久化 graph
-python .opencode/shared/v2/v2_cli.py flush --path {PROJECT_PATH}
+novel-tool --operation graph.flush --project {PROJECT}
 ```
 
-### 4. 通过 QUERY 协议获取上下文
-
-写作过程中如果缺少信息，在回复中包含 QUERY 指令：
+### 4. 导出和迁移
 
 ```
-QUERY: character_background(name="角色名")
-QUERY: scene_detail(scene_id="场景ID")  
-QUERY: scene_detail(name="场景名")
-QUERY: world_rule(name="规则名")
-QUERY: plot_thread_summary(name="情节线名")
-QUERY: plot_thread_summary()
-QUERY: foreshadowing_status(id="伏笔编号")
-QUERY: foreshadowing_status()
-QUERY: advanced_search(keywords=["关键词1","关键词2"], limit=5)
-QUERY: chapter_status(number=章节号)
-QUERY: recent_context(chapter=章节号, limit=5)
-```
-
-编排层会拦截 QUERY，从 graph 查询，将结果注入 session 上下文。
-**QUERY 指令不会出现在最终输出中。**
-
-### 5. 导出和迁移
-
-```bash
 # V1→V2 迁移
-python .opencode/shared/v2/migrate.py --project-root {PROJECT_PATH} --verify --report
+novel-tool --operation graph.migrate --project {PROJECT} --verify --report
 
 # 导出结构化文档（Markdown，输出到 graph/export/）
-python .opencode/shared/v2/v2_cli.py export-docs --path {PROJECT_PATH}
+novel-tool --operation graph.export_docs --project {PROJECT}
 
 # 导出章节 TXT 文件
-python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
+novel-tool --operation graph.export_chunks --project {PROJECT}
 ```
 
-### 6. 数据格式标准
+### 5. 数据格式标准
 
 创建叙事单元时，content 字段遵循标准格式（详见 `references/数据格式标准.md`）：
 
@@ -211,7 +189,7 @@ python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 {"子类型": "总纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
 ```
 
-**风格文件**：`references/styles/` 下有 22 个内置风格 YAML 文件（通俗网文风、凡人修仙风、金庸武侠风等）。当 FOCUS TYPE=style 时，可直接 `read` 这些文件获取参考模板。
+**风格文件**：风格管理由 `novel-style` 技能负责，内置 22 种风格 YAML 文件位于 `.opencode/skills/novel-style/builtin/`，格式定义见 `.opencode/skills/novel-style/references/style_format.md`。
 
 不再使用 `_display` 字段。所有信息直接写入 content 字段，HTML 面板按值类型自动渲染。
 
@@ -220,8 +198,8 @@ python .opencode/shared/v2/v2_cli.py export --path {PROJECT_PATH}
 ## 核心原则（HARD CONSTRAINTS）
 
 1. **graph 是真相源** — 所有创作数据优先写入 graph，投影到文件是次要的
-2. **按需查询，勿全量推送** — 使用 QUERY 协议获取缺失信息，不要一次性加载全部数据
-3. **写后 flush** — 每次 task() 完成后执行 `store.flush()` 确保持久化
+2. **按需查询，勿全量推送** — 使用 `novel-tool` 按需查询，不要一次性加载全部数据
+3. **写后 flush** — 每次 task() 完成后执行 `novel-tool --operation graph.flush` 确保持久化
 4. **记录 actor** — 所有 create/update 操作传入 `actor` 参数（如 `actor="novel-v2-crafter"`）
 5. **不要手工编辑 graph/ 下的 JSONL 文件** — 通过 GraphStore API 操作
-6. **不要在回复中包含 QUERY 指令原文** — QUERY 是编排层协议，不会自动剥离
+6. **通过 novel-tool 操作** — 所有数据读写通过 `novel-tool` tool 执行，不要直接调用 Python API 或编辑 JSONL 文件

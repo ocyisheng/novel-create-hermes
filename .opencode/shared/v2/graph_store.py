@@ -78,11 +78,17 @@ class GraphStore:
         self.graph_dir.mkdir(parents=True, exist_ok=True)
         self.snapshots_dir.mkdir(exist_ok=True)
         
+        # 优先从缓存恢复，缓存失效或不存在时回退到 JSONL 逐行加载
+        if self._load_cache():
+            self._initialized = True
+            return
+        
         self._load_nodes()
         self._load_edges()
         self._load_events()
         self._rebuild_indices()
         self._initialized = True
+        self._save_cache()
     
     def _load_nodes(self):
         """从 JSONL 加载叙事单元"""
@@ -155,6 +161,91 @@ class GraphStore:
         for uid, unit in self._units.items():
             self._unit_by_name[unit.unit_name] = uid
     
+    # ── 缓存（.index.json） ────────────────────────────────────────────
+    
+    def _get_mtime_ns(self, path: Path) -> int:
+        """获取文件修改时间（纳秒），文件不存在时返回 0"""
+        try:
+            return path.stat().st_mtime_ns
+        except OSError:
+            return 0
+    
+    def _save_cache(self):
+        """将当前状态缓存到 .index.json，附带源文件 mtime 用于后续校验"""
+        if not self._initialized:
+            return
+        cache = {
+            "_cache_version": 1,
+            "nodes_mtime": self._get_mtime_ns(self.nodes_path),
+            "edges_mtime": self._get_mtime_ns(self.edges_path),
+            "events_mtime": self._get_mtime_ns(self.events_path),
+            "units": {uid: u.to_dict() for uid, u in self._units.items()},
+            "relations": {rid: r.to_dict() for rid, r in self._relations.items()},
+            "events": [e.to_dict() for e in self._events],
+        }
+        with open(self._index_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, default=str)
+    
+    def _load_cache(self) -> bool:
+        """
+        尝试从 .index.json 缓存恢复状态。
+        校验源文件 mtime 一致后才使用，否则返回 False 回退到 JSONL 加载。
+        """
+        if not self._index_path.exists():
+            return False
+        try:
+            with open(self._index_path, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return False
+        
+        # 校验缓存版本和源文件 mtime
+        if cache.get("_cache_version") != 1:
+            return False
+        if (cache.get("nodes_mtime") != self._get_mtime_ns(self.nodes_path) or
+            cache.get("edges_mtime") != self._get_mtime_ns(self.edges_path) or
+            cache.get("events_mtime") != self._get_mtime_ns(self.events_path)):
+            return False
+        
+        # 恢复单元
+        for uid, data in cache.get("units", {}).items():
+            self._units[uid] = NarrativeUnit.from_dict(data)
+        
+        # 恢复关系
+        for rid, data in cache.get("relations", {}).items():
+            rel = Relation(
+                id=data["id"],
+                source_id=data["source_id"],
+                target_id=data["target_id"],
+                relation_type=RelationType(data["relation_type"]),
+                weight=data.get("weight", 0.5),
+                description=data.get("description", ""),
+                metadata=data.get("metadata", {}),
+            )
+            if "created_at" in data and isinstance(data["created_at"], str):
+                rel.created_at = datetime.fromisoformat(data["created_at"])
+            self._relations[rid] = rel
+        
+        # 恢复事件
+        for e_data in cache.get("events", []):
+            event = Event(
+                event_id=e_data["event_id"],
+                timestamp=datetime.fromisoformat(e_data["timestamp"]),
+                actor=e_data["actor"],
+                event_type=EventType(e_data["event_type"]),
+                target_type=e_data.get("target_type"),
+                target_ids=e_data.get("target_ids", []),
+                payload=e_data.get("payload", {}),
+                session_id=e_data.get("session_id"),
+                parent_event_id=e_data.get("parent_event_id"),
+            )
+            self._events.append(event)
+        self._last_flushed_event = len(self._events)
+        
+        # 重建索引
+        self._rebuild_indices()
+        return True
+    
     def _flush_nodes(self):
         """将内存中的叙事单元写回 JSONL（全量覆写）"""
         with open(self.nodes_path, "w", encoding="utf-8") as f:
@@ -194,6 +285,8 @@ class GraphStore:
             self._flush_edges()
         if self._dirty_events:
             self._flush_events()
+        if self._dirty_nodes or self._dirty_edges or self._dirty_events:
+            self._save_cache()
     
     # ── 事件记录 ────────────────────────────────────────────────────────
     
@@ -461,6 +554,7 @@ class GraphStore:
         weight: float = 0.5,
         description: str = "",
         actor: str = "script",
+        record_event: bool = True,
     ) -> Optional[Relation]:
         """在两个叙事单元之间建立关系"""
         if source_id not in self._units or target_id not in self._units:
@@ -484,18 +578,19 @@ class GraphStore:
         self._outgoing_edges[source_id].append(rel.id)
         self._incoming_edges[target_id].append(rel.id)
         
-        self._record_event(
-            EventType.RELATION_ADDED,
-            actor=actor,
-            target_type="relation",
-            target_ids=[rel.id],
-            payload={
-                "source_id": source_id,
-                "target_id": target_id,
-                "relation_type": relation_type.value,
-                "relations_affected": [rel.id],
-            },
-        )
+        if record_event:
+            self._record_event(
+                EventType.RELATION_ADDED,
+                actor=actor,
+                target_type="relation",
+                target_ids=[rel.id],
+                payload={
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "relation_type": relation_type.value,
+                    "relations_affected": [rel.id],
+                },
+            )
         self._dirty_edges = True
         return rel
     

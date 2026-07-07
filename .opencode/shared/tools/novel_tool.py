@@ -116,9 +116,6 @@ def _handle_graph(op: str, params: dict) -> str:
         if not u:
             return _ok(None)
         result = _unit_to_dict(u)
-        if not params.get("verbose"):
-            if len(result.get("content", "")) > 200:
-                result["content"] = result["content"][:200] + "..."
         return _ok(result)
 
     if op == "graph.find_unit":
@@ -253,6 +250,17 @@ def _handle_graph(op: str, params: dict) -> str:
         ut = UnitType[params.get("type", "").upper()]
         unit_name = params.get("name", "")
         content = params.get("content", "")
+        file_path = params.get("file")
+        if file_path:
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                content = f.read()
+        if content:
+            import json
+            from json_repair import loads as repair_loads
+            try:
+                content = json.dumps(repair_loads(content), ensure_ascii=False)
+            except Exception:
+                pass
         tags = [t.strip() for t in params.get("tags", "").split(",") if t.strip()] if params.get("tags") else None
         chapter = params.get("chapter") or None
         actor = params.get("actor", "novel-tool")
@@ -270,6 +278,17 @@ def _handle_graph(op: str, params: dict) -> str:
         from graph_schema import UnitStatus
         uid = params.get("id", "")
         content = params.get("content")
+        file_path = params.get("file")
+        if file_path:
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                content = f.read()
+        if content:
+            import json
+            from json_repair import loads as repair_loads
+            try:
+                content = json.dumps(repair_loads(content), ensure_ascii=False)
+            except Exception:
+                pass
         unit_name = params.get("name")
         tags_raw = params.get("tags")
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None

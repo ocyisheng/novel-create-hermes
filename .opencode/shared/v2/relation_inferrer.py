@@ -305,6 +305,7 @@ class RelationInferrer:
             weight=weight,
             description="auto-inferred",
             actor=actor,
+            record_event=not self._batch_mode,
         )
         if rel:
             self._stats["created"] += 1

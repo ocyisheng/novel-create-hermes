@@ -156,11 +156,24 @@ def cmd_start_session(args):
 def cmd_create_unit(args, store):
     from graph_schema import UnitType
     from relation_inferrer import RelationInferrer
+    content = args.content
+    if args.file:
+        with open(args.file, "r", encoding="utf-8-sig") as f:
+            content = f.read()
+    elif args.data:
+        content = args.data
+    if content:
+        import json
+        from json_repair import loads as repair_loads
+        try:
+            content = json.dumps(repair_loads(content), ensure_ascii=False)
+        except Exception:
+            pass
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
     u = store.create_unit(
         type=UnitType[args.type.upper()],
         unit_name=args.name,
-        content=args.content,
+        content=content,
         tags=tags,
         belongs_to_chapter=int(args.chapter) if args.chapter else None,
         actor=args.actor,
@@ -178,13 +191,19 @@ def cmd_create_unit(args, store):
 def cmd_update_unit(args, store):
     content = None
     if args.file:
-        import json
         with open(args.file, "r", encoding="utf-8-sig") as f:
-            content = json.dumps(json.load(f), ensure_ascii=False)
+            content = f.read()
     elif args.content:
         content = args.content
     elif args.data:
         content = args.data
+    if content:
+        import json
+        from json_repair import loads as repair_loads
+        try:
+            content = json.dumps(repair_loads(content), ensure_ascii=False)
+        except Exception:
+            pass
 
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
 
@@ -573,8 +592,9 @@ def main():
     p.add_argument("--path", required=True)
     p.add_argument("--type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
     p.add_argument("--name", required=True)
-    p.add_argument("--content", required=True)
+    p.add_argument("--content", default="", help="内容（JSON 字符串，与 --file 二选一）")
     p.add_argument("--data", default="", help="同 --content（别名）")
+    p.add_argument("--file", default="", help="从 JSON 文件读取内容（优先于 --content/--data）")
     p.add_argument("--tags", default="", help="逗号分隔的标签列表")
     p.add_argument("--chapter", default="", help="所属章节号")
     p.add_argument("--actor", default="script")

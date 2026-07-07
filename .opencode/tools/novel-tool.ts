@@ -68,6 +68,7 @@ export default tool({
     limit: tool.schema.number().optional().describe("结果上限"),
     relType: tool.schema.string().optional().describe("关系类型过滤"),
     content: tool.schema.string().optional().describe("单元内容 (JSON 字符串)"),
+    file: tool.schema.string().optional().describe("从文件读取内容（优先于 content）"),
     type: tool.schema.string().optional().describe("类型（创建单元时的 UnitType / 关系类型 / 会话焦点类型）"),
     source: tool.schema.string().optional().describe("关系源 ID"),
     target: tool.schema.string().optional().describe("关系目标 ID"),

@@ -36,6 +36,8 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
   ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
   ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
+  ├─ 风格操作（提取/模仿/切换文风/用XX风格写/换一种风格）?
+  │   └─ 走风格路由（§风格路由）
   ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/脑洞/卡点解锁（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
@@ -117,7 +119,33 @@ TASK: {用户请求的具体描述}"
 
 ---
 
-## 五、V2 调度模板
+## 五、风格路由
+
+风格操作不依赖 FOCUS TYPE，直接由编排层处理：
+
+### 提取模式（参考文本 → style.yaml）
+
+用户提供了 2-3 段参考文本时（"模仿这个文风"、"用这个风格写"）：
+
+1. 调用 `task(subagent_type="general", load_skills=["novel-style"])` 让子 Agent 按 7 维度分析
+2. 子 Agent 将分析结果写为 `styles/{名称}.yaml`
+3. 通过 `edit` 修改 `config.yaml` 的 `活跃风格` 字段
+
+### 切换模式（使用已有风格）
+
+用户说 "用XX风格写"、"换一种风格"：
+
+1. 从内置风格（`novel-style/builtin/` 下 22 个 `.yaml`）或项目 `styles/` 目录中找到对应风格
+2. 通过 `edit` 修改 `config.yaml` 的 `活跃风格` 字段
+
+### 参考文档
+
+- 风格格式定义 → `.opencode/skills/novel-style/references/style_format.md`
+- 风格提取工作流 → `.opencode/skills/novel-style/SKILL.md` 和 `references/style_extraction.md`
+
+---
+
+## 六、V2 调度模板
 
 ```markdown
 Task(
@@ -143,9 +171,8 @@ TASK: {用户请求的具体描述}"
 3. 将读取到的知识内容注入到 crafter prompt 末尾，作为 `### 知识库参考` 段落
 4. 纯知识查询（用户只想查书，不想写）不走此路径，走 `skill("book-knowledge")`
 
-```bash
-# 读取知识库内容
-python .opencode/shared/cli.py v2 read-knowledge --path {PROJECT_PATH} --slug fanren-xiuxian --topic power_system
+```
+novel-tool --operation knowledge.read --project {PROJECT_PATH} --slug fanren-xiuxian --topic power_system
 
 注入示例：
 ```markdown
@@ -177,7 +204,7 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 
 > 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
 
-## 六、V2 快速参考
+## 七、V2 快速参考
 
 ### 查询 Graph 状态
 
@@ -194,21 +221,21 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 ```
 
-也可直接走 CLI：`python .opencode/shared/cli.py project new "项目名" "类型" --v2`
+也可直接走 tool：`novel-tool --operation project.new --name "项目名" --genre "类型" --v2`
 
-## 七、状态维护
+## 八、状态维护
 
-V2 中唯一需要持久化的状态是 graph（已由 store.flush() 自动维护）。
+V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush 自动维护）。
 
 - **项目状态**：graph 包含全部叙事单元和关系，是单一真相源
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 八、故障恢复
+## 九、故障恢复
 
 | 场景 | 行为 |
 |------|------|
 | graph 数据异常 | `store.restore_snapshot(snapshot_id)` 恢复到最近的快照 |
-| 迁移后文件与 graph 不一致 | `ProjectionEngine.rebuild_all()` 重新投影 |
+| 迁移后文件与 graph 不一致 | `novel-tool --operation graph.export_docs` 重新导出 |
 | 子 Agent 返回不完整 | `Task(task_id="ses_...", prompt="fix: ...")` 继续会话 |
 | 用户要求回退 | 事件溯源找到变更事件，create_snapshot 后 restore 到之前的状态 |

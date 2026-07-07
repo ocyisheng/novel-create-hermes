@@ -15,7 +15,7 @@ description: "创意构思子引擎。写作全程可呼叫，在已有项目中
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 CREATIVE MODE: {divergent | constrained | enrich | unblock | cross_pollinate}
-FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | style}
+FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk}
 FOCUS ID: {当前焦点叙事单元ID（可选）}
 FOCUS NAME: {当前焦点名称}
 PREHEAT LEVEL: {cold | warm | hot}
@@ -33,31 +33,29 @@ cat .opencode/skills/novel-ideation/references/constraints_library.md
 cat .opencode/skills/novel-ideation/references/genres_compendium.md
 ```
 
-### 第二步：获取上下文（使用 graph-query tool）
+### 第二步：获取上下文（使用 novel-tool tool）
 
-使用 `graph-query` tool 直接查询已有数据，无需经过编排层中转：
+使用 `novel-tool` tool 直接查询已有数据，无需经过编排层中转：
 
 ```
-graph-query --type search --project <PROJECT> --keyword 当前项目已有 --limit 20
-graph-query --type search --project <PROJECT> --keyword <FOCUS NAME>
-graph-query --type search --project <PROJECT> --keyword note_type:灵感 --limit 20
-graph-query --type list-units --project <PROJECT> --unitType NOTE --limit 20
-graph-query --type stats --project <PROJECT>
-graph-query --type check --project <PROJECT>
+novel-tool --operation graph.search --project <PROJECT> --keyword 当前项目已有 --limit 20
+novel-tool --operation graph.search --project <PROJECT> --keyword <FOCUS NAME>
+novel-tool --operation graph.search --project <PROJECT> --keyword note_type:灵感 --limit 20
+novel-tool --operation graph.list_units --project <PROJECT> --unitType NOTE --limit 20
+novel-tool --operation graph.stats --project <PROJECT>
+novel-tool --operation graph.check --project <PROJECT>
 ```
 
 按需选择以上命令。详细查询类型见 `novel-v2-crafter` §四 graph 查询。
 
 ### 第三步：生成创意，写入 graph
 
-生成结果通过以下 CLI 命令写入 graph：
+生成结果通过 `novel-tool` 写入 graph：
 
-```bash
-# 创建创意 NOTE（灵感）
-python .opencode/shared/v2/v2_cli.py create-unit --path {PROJECT_PATH} --type NOTE --name "{创意标题}" --content '{"note_type": "灵感", "tag": "creative_direction", "方向": "..."}' --tags "创意,{具体标签}"
+```
+novel-tool --operation graph.create_unit --project <PROJECT> --type NOTE --name "{创意标题}" --content '{"note_type": "灵感", "tag": "creative_direction", "方向": "..."}' --tags "创意,{具体标签}"
 
-# 与当前焦点单元建立关系
-python .opencode/shared/v2/v2_cli.py add-relation --path {PROJECT_PATH} --source {FOCUS_ID} --target {新NOTE_ID} --type inspires
+novel-tool --operation graph.add_relation --project <PROJECT> --source {FOCUS_ID} --target {新NOTE_ID} --type inspires
 ```
 
 ## 二、五种创意模式

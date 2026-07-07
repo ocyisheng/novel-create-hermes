@@ -134,36 +134,23 @@ def cmd_new(args):
     chapter_dist = _calc_chapter_distribution(volumes, acts)
 
     config = {
+        "架构": "v1",
         "项目名称": name,
         "项目类型": genre,
         "活跃风格": "通俗网文风",
-        "作者": "",
-        "状态": "进行中",
-        "当前阶段": "创意构思",
+        "当前状态": "起步",
+        "预期结构": f"{volumes}卷{sum(chapter_dist)}章",
         "创建时间": NOW,
-        "最后编辑": NOW,
-        "结构配置": {
-            "结构类型": structure,
-            "卷数": volumes,
-            "幕数": acts,
-            "章节分布": chapter_dist,
-        },
-        "创作进度": {
-            "当前章节": 0,
-            "已完成字数": 0,
+        "写作进度": {
+            "当前卷": 0,
+            "当前章": 0,
+            "卷大纲状态": "",
+            "卷大纲完成数": 0,
         },
         "创作目标": {
             "目标字数": 200000,
             "目标章节数": sum(chapter_dist),
             "每日目标": 2000,
-        },
-        "工作流": {
-            "AI自主度": True,
-            "检查频率": "weekly",
-        },
-        "质量检查": {
-            "章节最少字数": 1500,
-            "章节最多字数": 6000,
         },
     }
     save_config(name, config)
@@ -227,16 +214,21 @@ def _cmd_new_v2(args):
         print(f"  可稍后手动初始化")
         graph_ok = False
 
-    # 创建 config.yaml
+    # 创建 config.yaml（V2 精简版：运行时必需 + 项目概览字段）
     config = {
+        "架构": "v2",
         "项目名称": name,
         "项目类型": genre,
         "活跃风格": "通俗网文风",
-        "架构": "v2",
-        "作者": "",
-        "状态": "进行中",
+        "当前状态": "起步",
+        "预期结构": "待定",
         "创建时间": NOW,
-        "最后编辑": NOW,
+        "写作进度": {
+            "当前卷": 0,
+            "当前章": 0,
+            "卷大纲状态": "",
+            "卷大纲完成数": 0,
+        },
         "创作目标": {
             "目标字数": 200000,
             "目标章节数": 40,
@@ -323,20 +315,19 @@ def cmd_status(args):
 
     print(f"━━━ 项目状态: {name} ━━━")
     print(f"类型: {config.get('项目类型', '未设置')}")
-    print(f"阶段: {config.get('当前阶段', '未设置')}")
-    print(f"状态: {config.get('状态', '未设置')}")
     print(f"活跃风格: {config.get('活跃风格', '未设置')}")
+    print(f"当前状态: {config.get('当前状态', '未设置')}")
+    print(f"预期结构: {config.get('预期结构', '未设置')}")
 
-    progress = config.get("创作进度", {})
-    print(f"当前章节: {progress.get('当前章节', 0)}")
-    print(f"已完成字数: {progress.get('已完成字数', 0)}")
+    prog = config.get("写作进度", {})
+    print(f"写作进度: 第{prog.get('当前卷', 0)}卷 第{prog.get('当前章', 0)}章")
+    vds = prog.get("卷大纲状态", "")
+    if vds:
+        print(f"卷大纲: {vds}")
 
     goals = config.get("创作目标", {})
     print(f"目标章节: {goals.get('目标章节数', 0)}")
     print(f"目标字数: {goals.get('目标字数', 0)}")
-
-    struct = config.get("结构配置", {})
-    print(f"结构: {struct.get('结构类型', '三幕')} ({struct.get('卷数', 3)}卷/{struct.get('幕数', 3)}幕)")
 
     # 统计（V2 优先）
     proj = project_path(name)
@@ -364,14 +355,6 @@ def cmd_status(args):
         ch_count = len(list(Path(proj).glob("chapters/*.txt")))
         print(f"架构: V1（YAML 文件）")
         print(f"角色: {char_count} | 世界观: {wb_count} | 章节: {ch_count}")
-    print(f"最后编辑: {config.get('最后编辑', '未知')}")
-
-    # 如果指定了 --phase，更新阶段
-    if args.phase:
-        config["当前阶段"] = args.phase
-        config["最后编辑"] = NOW
-        save_config(name, config)
-        print(f"  阶段已更新为: {args.phase}")
 
 
 # ── 子命令：续写 ───────────────────────────────────────────────────────────
@@ -384,9 +367,41 @@ def cmd_resume(args):
         sys.exit(1)
 
     config = load_config(name)
-    config["最后编辑"] = NOW
     save_config(name, config)
     print(f"✅ 项目「{name}」已刷新，可以继续创作")
+
+
+# ── 子命令：更新写作进度 ──────────────────────────────────────────────────
+
+def cmd_update_progress(args):
+    """更新项目的写作进度字段"""
+    name = args.name.strip()
+    if not project_exists(name):
+        print(f"❌ 项目不存在: {name}")
+        sys.exit(1)
+
+    config = load_config(name)
+    progress = config.setdefault("写作进度", {})
+    changed = []
+
+    if args.current_volume is not None:
+        progress["当前卷"] = args.current_volume
+        changed.append(f"当前卷={args.current_volume}")
+    if args.current_chapter is not None:
+        progress["当前章"] = args.current_chapter
+        changed.append(f"当前章={args.current_chapter}")
+    if args.outline_status is not None:
+        progress["卷大纲状态"] = args.outline_status
+        changed.append(f"卷大纲状态={args.outline_status}")
+    if args.outline_done is not None:
+        progress["卷大纲完成数"] = args.outline_done
+        changed.append(f"卷大纲完成数={args.outline_done}")
+
+    if changed:
+        save_config(name, config)
+        print(f"✅ 写作进度已更新: {' | '.join(changed)}")
+    else:
+        print("⚠️ 未指定任何进度字段（--current-volume, --current-chapter, --outline-status, --outline-done）")
 
 
 # ── 子命令：切换项目 ──────────────────────────────────────────────────────
@@ -411,7 +426,6 @@ def cmd_switch(args):
 
     # 生成新的 context 内容
     genre = config.get("项目类型", "未知")
-    phase = config.get("当前阶段", "未知")
     style = config.get("活跃风格", "通俗网文风")
 
     context = f"""__CURRENT_PROJECT__: {name}
@@ -427,8 +441,6 @@ def cmd_switch(args):
 - 环境已初始化：True
 
 ## 当前状态
-- 写作阶段：{phase}
-- 上次写作：{NOW}
 - 活跃风格：{style}
 - 切换时间：{NOW}
 """
@@ -514,6 +526,14 @@ def main():
     p.add_argument("name", help="项目名称")
     p.add_argument("--force", action="store_true", help="跳过确认")
 
+    # update-progress
+    p = sub.add_parser("update-progress", help="更新写作进度")
+    p.add_argument("name", help="项目名称")
+    p.add_argument("--current-volume", type=int, default=None, help="当前卷号")
+    p.add_argument("--current-chapter", type=int, default=None, help="当前章节号")
+    p.add_argument("--outline-status", default=None, help="卷大纲状态描述")
+    p.add_argument("--outline-done", type=int, default=None, help="已完成大纲的卷数")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -527,6 +547,7 @@ def main():
         "resume": cmd_resume,
         "switch": cmd_switch,
         "delete": cmd_delete,
+        "update-progress": cmd_update_progress,
     }
 
     dispatch[args.command](args)

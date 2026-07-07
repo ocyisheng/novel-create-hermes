@@ -25,7 +25,7 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射
         │ task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"])
         ▼
 novel-v2-crafter（创作引擎）→ 统一处理全部创作任务
-        │ GraphStore API → QUERY 协议 → WorkspaceBuilder
+        │ GraphStore API + novel-tool → WorkspaceBuilder
         ▼
 shared/v2/（数据层）→ GraphStore + ProjectionEngine + SessionManager
         │ JSONL 持久化 + 事件溯源 + 快照
@@ -42,7 +42,7 @@ graph/（存储层）→ nodes.jsonl + edges.jsonl + events.olog
 | **存储** | 离散YAML + 手动索引重建 | JSONL (graph/) + 事件溯源 |
 | **阶段** | 线性状态机 | 创作循环（焦点驱动，无阶段概念） |
 | **上下文** | chapter_context.py 全量推送 | WorkspaceBuilder 按焦点按需加载 |
-| **信息获取** | 编排层决定你需要什么 | 子 Agent 通过 QUERY 协议自主请求 |
+| **信息获取** | 编排层决定你需要什么 | 子 Agent 通过 novel-tool 自主请求 |
 | **后处理** | fix_yaml_indent + rebuild_index + set-phase | store.flush() + 可选投影重建 |
 | **回滚** | .bak 文件还原 | 事件溯源 + 快照 |
 | **灵感** | 无捕获机制 | NOTE 类型 + 意图列表 |

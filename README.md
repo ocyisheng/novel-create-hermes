@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/小说项目-可移植-3b82f6?style=flat-square" alt="Portable">
   <img src="https://img.shields.io/badge/架构-V2_叙事单元网络-8b5cf6?style=flat-square" alt="Architecture">
   <img src="https://img.shields.io/badge/导出格式-5种-ec4899?style=flat-square" alt="Export Formats">
-  <img src="https://img.shields.io/badge/内置风格-20+-f59e0b?style=flat-square" alt="Styles">
+  <img src="https://img.shields.io/badge/内置风格-22-f59e0b?style=flat-square" alt="Styles">
   <img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License">
 </p>
 
@@ -36,7 +36,7 @@ Hermes 把这个过程变成了对话——你说"新建项目'龙渊'，类型�
 | **👤 角色创建** | 角色档案、性格弧线、成长轨迹 | `创建主角林渊` |
 | **📋 总纲与情节** | 故事框架、主线/支线、伏笔设计 | `设计故事大纲` / `设计主线` |
 | **📑 分纲与章节** | 分卷大纲到逐章分纲，再到正文写作 | `写分纲` / `写第1章` |
-| **🎨 风格切换** | 20+ 内置风格，也可从参考文本提取 | `用凡人修仙风写` |
+| **🎨 风格切换** | 22 种内置风格，也可从参考文本提取 | `用凡人修仙风写` |
 | **🔍 质量检测** | AI味、情节逻辑、角色一致性、世界观漏洞 | `检测AI味` / `看看写得怎么样` |
 | **📚 知识库** | 导入参考书籍，写作时直接引用 | `把凡人修仙传加入知识库` |
 | **✏️ 编辑修改** | 润色章节、调整角色、修改设定 | `把主角改得更果断一些` |
@@ -60,7 +60,7 @@ Hermes V2 自动完成：
   投影  →  文件系统视图自动从 graph 生成
 ```
 
-背后是**叙事单元网络** + **按需上下文加载** + **QUERY 协议**，让每一步都自然衔接。你只管说想做什么，剩下的交给系统。
+背后是**叙事单元网络** + **按需上下文加载** + **novel-tool 统一工具**，让每一步都自然衔接。你只管说想做什么，剩下的交给系统。
 
 ---
 
@@ -169,7 +169,7 @@ AI： — 正在读取星辰变知识库 —
 切换成古龙风              ← 一样的效果
 ```
 
-内置 20+ 风格：凡人修仙风、金庸武侠风、古龙武侠风、古典名著风、悬疑推理风、热血少年风……你也可以提交自己的参考文本，AI 会自动提取风格特征。
+内置 22 种风格：凡人修仙风、金庸武侠风、古龙武侠风、古典名著风、悬疑推理风、热血少年风……你也可以提交自己的参考文本，AI 会自动提取风格特征。
 
 ---
 
@@ -221,7 +221,7 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射
         │ task(subagent_type="novel-v2-crafter")
         ▼
 novel-v2-crafter（统一创作引擎）→ 处理全部创作任务
-        │ GraphStore API + QUERY 协议 + WorkspaceBuilder
+        │ GraphStore API + novel-tool + WorkspaceBuilder
         ▼
 shared/v2/（数据层）→ 叙事单元 CRUD + 事件溯源 + 投影
         │ JSONL 持久化 + 快照

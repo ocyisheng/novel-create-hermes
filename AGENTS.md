@@ -30,7 +30,7 @@ novel-create-hermes/              ← 工具项目根目录
 │       ├── graph_store.py          ← 叙事单元 CRUD + 事件溯源
 │       ├── search_engine.py        ← 搜索/一致性检查引擎
 │       ├── deviation_manager.py    ← 偏差状态持久化管理
-│       ├── query.py                ← QUERY 协议 + 高级搜索接口
+│       ├── v2_cli.py               ← CLI 入口（search/check/report/viz/stats/list-units）
 │       ├── v2_cli.py               ← CLI 入口（search/check/report/viz/stats/list-units）
 │       ├── v2_graph_viz.py         ← 关系图/时间线可视化
 │       ├── projection_engine.py    ← graph → 文件系统投影

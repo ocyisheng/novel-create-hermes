@@ -833,7 +833,9 @@ class V2HTMLGenerator:
             legend_html="\n  ".join(legend_items),
         )
 
-        Path(output_path).write_text(html, encoding="utf-8")
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html, encoding="utf-8")
         return output_path
 
     def generate_timeline(self, timeline_data: dict, output_path: str):
@@ -864,7 +866,9 @@ class V2HTMLGenerator:
             timeline_html=timeline_body,
         )
 
-        Path(output_path).write_text(html, encoding="utf-8")
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html, encoding="utf-8")
         return output_path
 
     def generate_detail_pages(self, graph_data: dict, detail_dir: str, graph_file: str = "关系图.html",
@@ -1072,6 +1076,8 @@ def main():
     viz_dir = project_root / "graph" / "viz"
     if args.output:
         output_path = str(Path(args.output).resolve())
+        # 当指定了 --output, 用输出文件的父目录作为 detail 目录
+        viz_dir = Path(output_path).parent
     else:
         viz_dir.mkdir(parents=True, exist_ok=True)
         if args.timeline:

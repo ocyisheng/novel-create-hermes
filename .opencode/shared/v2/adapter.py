@@ -162,30 +162,43 @@ class LegacyFileAdapter:
         file_path: str,
         chapter_text: str,
         chapter_number: int,
+        draft_type: str = "初稿",
         actor: str = "script",
     ) -> bool:
         """
         写入章节正文（TXT）+ 更新 graph。
         
-        章节正文仍然存为 TXT 文件（drafts/chapters/），
-        但与此同时在 graph 中创建或更新对应的 CHUNK 叙事单元。
+        章节正文存为 TXT 文件（file_path），
+        graph 中的 CHUNK 单元只存元数据 JSON。
+        file_path 为空时自动按约定生成：chapters/第{chapter_number}章_{draft_type}.txt
         """
-        # Step 1: 写入 graph
-        chunk_unit = self.store.create_unit(
-            type=UnitType.CHUNK,
-            unit_name=f"第{chapter_number}章",
-            content=chapter_text,
-            belongs_to_chapter=chapter_number,
-            actor=actor,
-        )
-        self._stats["graph_writes"] += 1
+        import json
         
-        # Step 2: 写 TXT 文件
+        if not file_path:
+            file_path = f"chapters/第{chapter_number}章_{draft_type}.txt"
+        
+        # Step 1: 写 TXT 文件
         if self.mode != AdapterMode.GRAPH_ONLY:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(chapter_text)
             self._stats["file_writes"] += 1
+        
+        # Step 2: 写入 graph（只存元数据）
+        content_meta = json.dumps({
+            "章节号": chapter_number,
+            "正文路径": file_path,
+            "子类型": draft_type,
+            "字数": len(chapter_text),
+        }, ensure_ascii=False)
+        chunk_unit = self.store.create_unit(
+            type=UnitType.CHUNK,
+            unit_name=f"第{chapter_number}章_{draft_type}",
+            content=content_meta,
+            belongs_to_chapter=chapter_number,
+            actor=actor,
+        )
+        self._stats["graph_writes"] += 1
         
         # Step 3: 持久化
         self.store.flush()

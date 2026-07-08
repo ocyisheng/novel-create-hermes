@@ -15,11 +15,11 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | structure | narrative_voice | thematic_motif}
-SUBTYPE: {子类型值}  # 可选，如"总纲""卷大纲""章纲""推进""高潮"等
+SUBTYPE: {子类型值}  # 可选，如总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | 初稿/修订稿/定稿
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
-WRITING MODE: {draft | polish | rewrite}
+WRITING MODE: {draft | polish}
 ```
 
 ### 第一步：初始化创作会话
@@ -42,25 +42,14 @@ WRITING MODE: {draft | polish | rewrite}
 
 ### 焦点类型加载
 
-根据 `FOCUS TYPE` 加载对应的创作方法论参考：
+根据 `FOCUS TYPE` 加载对应的创作方法论参考。chunk 类型按 `WRITING MODE` 只读对应段落：
 
 ```bash
+# chunk 类型：根据 WRITING MODE 读取对应 ## draft 或 ## polish 段
+# 其他类型：读取完整文件
 cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 ```
 
-
-### 横切参考条件加载
-
-除焦点类型外，根据以下条件额外加载横切参考文件：
-
-| 条件 | 额外加载 |
-|------|---------|
-| `WRITING MODE=polish` 或 `rewrite` | `references/quality_check_ref.md` |
-
-```bash
-# 条件加载示例（编排层已根据条件将对应文件内容注入 prompt）
-# quality_check_ref.md — 横切质检（AI味升级检测、情节逻辑、角色一致性等）
-```
 
 **注意分工：**
 - **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
@@ -72,9 +61,8 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 
 | 模式 | 质量标准 | 上下文需求 |
 |------|---------|-----------|
-| `draft` | 风格宽松，只检查主角一致性，不检查语言尸体 | COLD+WARM |
-| `polish` | 严格风格一致，全部角色一致性，逐句语言尸体检测 | COLD+WARM+HOT |
-| `rewrite` | 根据质量检测问题清单定向修复 | 全量 |
+| `draft` | 根据章纲展开正文：谁在何时何地干了啥、反应、环境 | COLD+WARM |
+| `polish` | 在初稿上扩展润色，运用写作手法提升表现力 | COLD+WARM+HOT |
 
 ## 四、graph 查询
 
@@ -105,9 +93,25 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 - **写入正文** → 先创建 CHUNK 单元，再关联到场景
 - **持久化** → `novel-tool --operation graph.flush --project <PROJECT>`
 
-### 章节正文的兼容写入
+### 章节正文写入
 
-创建 CHUNK 后，用 `write` 工具将正文写入 `chapters/` 目录下的 TXT 文件，保持向后兼容。
+CHUNK 只存元数据（章节号、字数、正文路径），正文写入 TXT 文件：
+
+```
+1. novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
+     --name "第3章" --actor novel-v2-crafter \
+     --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":0}'
+
+2. 用 write 工具将正文写入 chapters/第3章_初稿.txt（UTF-8 纯文本）
+
+3. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
+     --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":5200}'
+
+4. novel-tool --operation graph.flush --project {PROJECT}
+```
+
+正文路径为空时默认：`chapters/第{章节号}章_{子类型}.txt`。
+修订时创建新 CHUNK（如 修订稿 → `chapters/第3章_修订稿.txt`），不覆盖初稿。
 
 ### 写后自动推进写作进度
 

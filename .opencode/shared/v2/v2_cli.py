@@ -366,16 +366,17 @@ def cmd_export_docs(args, store):
 
 @with_graph
 def cmd_export(args, store):
-    """导出 CHUNK 叙事单元为章节 TXT 文件"""
+    """导出章节正文 TXT 文件（从 CHUNK 元数据或 chapters/ 目录读取）"""
     from graph_schema import UnitType
     from pathlib import Path
+    import json
     chunks = store.find_units(type=UnitType.CHUNK)
     if not chunks:
         print("没有找到 CHUNK 类型的叙事单元")
         return
     out_dir = Path(args.out) if args.out else Path(args.path) / "chapters"
-    if not out_dir.exists():
-        out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    project_dir = Path(args.path)
     exported = 0
     for c in chunks:
         ch = c.belongs_to_chapter
@@ -384,7 +385,22 @@ def cmd_export(args, store):
         else:
             fname = f"{c.unit_name}.txt"
         fpath = out_dir / fname
-        fpath.write_text(c.content or "", encoding="utf-8")
+
+        # 优先从 正文路径 读取
+        text = ""
+        try:
+            content_dict = json.loads(c.content) if c.content else {}
+        except (json.JSONDecodeError, ValueError):
+            content_dict = {}
+        source_path = content_dict.get("正文路径", "")
+        if source_path:
+            src = project_dir / source_path
+            if src.exists():
+                text = src.read_text(encoding="utf-8")
+        if not text:
+            # 兜底：从 CHUNK.content 本身读（旧格式纯文本兼容）
+            text = c.content or ""
+        fpath.write_text(text, encoding="utf-8")
         exported += 1
         print(f"  📄 {fpath.name}")
     print(f"\n导出完成: {exported} 个章节文件 → {out_dir}")

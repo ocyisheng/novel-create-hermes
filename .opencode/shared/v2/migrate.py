@@ -180,13 +180,21 @@ class ImportEngine:
             
             # 创建单元
             extra = {"source_file": rel_path, "imported_at": datetime.now(timezone.utc).isoformat()}
-            if file_path.suffix == ".txt":
+            if unit_type == UnitType.CHUNK:
+                # CHUNK 只存元数据，正文保留在原文件
+                content_meta = json.dumps({
+                    "章节号": belongs_to_chapter or 0,
+                    "正文路径": str(file_path),
+                    "字数": len(content),
+                }, ensure_ascii=False)
                 extra["word_count"] = len(content)
+            else:
+                content_meta = content
             
             unit = self.store.create_unit(
                 type=unit_type,
                 unit_name=name,
-                content=content,
+                content=content_meta,
                 status=UnitStatus.MATURE,
                 tags=tags,
                 belongs_to_chapter=belongs_to_chapter,
@@ -818,13 +826,13 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
         "次要角色": "功能性角色",
     }
 
-    # 旧场景类型值 → 新值映射
+    # 旧场景类型值 → 新值映射（V1 的章段类型 → V2 单场域类型）
     SCENE_MAP = {
         "推进": "推进",
         "过渡": "过渡",
-        "高潮": "高潮",
+        "高潮": "冲突",
         "结局": "收束",
-        "转折": "铺垫",
+        "转折": "转折",
         "收尾": "收束",
     }
 

@@ -49,9 +49,7 @@ class Workspace:
     story_time: str = ""                    # 故事内时间
     location: str = ""                      # 地点
     scene_function: str = ""                # 本场景叙事目标
-    tension_targets: Dict[str, int] = field(default_factory=dict)  # 张力目标
     character_states: List[Dict[str, str]] = field(default_factory=list)  # [{name, status, description}]
-    previous_scene_summary: str = ""        # 前置场景摘要
     writing_guides: List[str] = field(default_factory=list)  # 写作指引
     
     # 活跃风格（V2：从 config.yaml 读取后注入）
@@ -99,13 +97,8 @@ class Workspace:
         # 段2：你需要知道
         lines.append("### 你需要知道")
         idx = 1
-        if self.previous_scene_summary:
-            lines.append(f"{idx}. 【前置】{self.previous_scene_summary}"); idx += 1
         if self.scene_function:
-            lines.append(f"{idx}. 【功能】{self.scene_function}"); idx += 1
-        if self.tension_targets:
-            parts = " / ".join(f"{k}={v}" for k, v in sorted(self.tension_targets.items()))
-            lines.append(f"{idx}. 【张力】{parts}"); idx += 1
+            lines.append(f"{idx}. 【核心】{self.scene_function}"); idx += 1
         for cs in self.character_states:
             desc = cs.get("description", "")
             if desc:
@@ -497,30 +490,11 @@ class WorkspaceBuilder:
             return
         
         # 提取场景信息
-        ws.story_time = content.get("故事时间", "")
+        ws.story_time = content.get("时间", "")
+        ws.location = content.get("地点", "")
         
-        locations = content.get("涉及地点", [])
-        if isinstance(locations, list):
-            ws.location = "，".join(str(l) for l in locations if l)
-        elif isinstance(locations, str):
-            ws.location = locations
-        
-        # 从结构规划中提取场景功能
-        structure = content.get("结构规划", {})
-        if isinstance(structure, dict):
-            development = structure.get("发展", {})
-            if isinstance(development, dict):
-                ws.scene_function = development.get("核心冲突", "")
-            # 前置场景摘要
-            opening = structure.get("开篇", {})
-            closing = structure.get("收尾", {})
-            if isinstance(closing, dict):
-                ws.previous_scene_summary = closing.get("下章铺垫", closing.get("结果", ""))
-        
-        # 张力目标
-        tension = content.get("张力曲线", {})
-        if isinstance(tension, dict):
-            ws.tension_targets = {k: int(v) for k, v in tension.items() if isinstance(v, (int, float))}
+        # 场域核心信息
+        ws.scene_function = content.get("核心冲突", content.get("一句话概要", ""))
         
         # 角色状态
         characters = content.get("出场角色", [])
@@ -537,11 +511,10 @@ class WorkspaceBuilder:
         
         # 写作指引
         guides = []
-        chapter_type = content.get("子类型", content.get("章节类型", ""))
-        if chapter_type:
-            guides.append(f"本章类型：{chapter_type}")
-        if isinstance(opening, dict) and opening.get("方式"):
-            guides.append(f"开篇方式：{opening['方式']}")
-        if "开场" in tension:
-            guides.append("推荐冷笔开场")
+        scene_type = content.get("子类型", "")
+        if scene_type:
+            guides.append(f"场域功能：{scene_type}")
+        summary = content.get("一句话概要", "")
+        if summary:
+            guides.append(f"概要：{summary}")
         ws.writing_guides = guides

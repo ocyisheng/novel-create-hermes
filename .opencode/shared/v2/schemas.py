@@ -28,14 +28,15 @@ from graph_schema import UnitType
 # 流派适配字段（如仙侠的"修为"、都市的"职业"）不由 schema 约束。
 
 SCENE_SCHEMA = {
-    "子类型": {"type": str, "required": True, "options": ["推进","高潮","过渡","引入","收束","铺垫"]},
-    "结构规划": {"type": dict, "required": True, "fields": {
-        "开篇": {"type": dict, "fields": {"方式": {"type": str}, "上章衔接": {"type": str}}},
-        "发展": {"type": dict, "fields": {"核心冲突": {"type": str}, "推进": {"type": str}}},
-        "转折": {"type": dict, "fields": {"事件": {"type": str}}},
-        "收尾": {"type": dict, "fields": {"结果": {"type": str}, "下章铺垫": {"type": str}}},
-    }},
-    # 出场角色、关联情节线、张力曲线、场域规划 等为流派适配字段，不在此定义
+    "子类型": {"type": str, "required": True, "options": ["开篇","推进","冲突","转折","展示","过渡","收束"]},
+    "POV角色": {"type": str, "required": True},
+    "地点": {"type": str, "required": True},
+    "时间": {"type": str, "required": False},
+    "一句话概要": {"type": str, "required": True},
+    "出场角色": {"type": list, "required": False},
+    "核心冲突": {"type": str, "required": False},
+    "关联情节线": {"type": list, "required": False},
+    "字数": {"type": int, "required": False},
 }
 
 CHARACTER_ARC_SCHEMA = {
@@ -107,7 +108,7 @@ NARRATIVE_VOICE_SCHEMA = {
 CHUNK_SCHEMA = {
     "子类型": {"type": str, "required": False, "options": ["初稿","修订稿","定稿"]},
     "章节号": {"type": int, "required": True},
-    "正文": {"type": str, "required": True},
+    "正文路径": {"type": str, "required": False},
     "字数": {"type": int, "required": False},
 }
 
@@ -177,7 +178,7 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
     UnitType.SCENE: SubtypeConfig(
         field="子类型",
         required=True,
-        options=["推进","高潮","过渡","引入","收束","铺垫"],
+        options=["开篇","推进","冲突","转折","展示","过渡","收束"],
     ),
     UnitType.STRUCTURE: SubtypeConfig(
         field="子类型",
@@ -233,7 +234,7 @@ def validate_content(unit_type: UnitType, content: Any) -> List[str]:
         try:
             content = json.loads(content)
         except (json.JSONDecodeError, ValueError):
-            # 纯文本内容（如 CHUNK 的章节正文）不验证
+            # 非 JSON 内容（如旧格式 CHUNK 纯文本）跳过验证
             return []
     
     if not isinstance(content, dict):

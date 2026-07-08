@@ -264,6 +264,54 @@ class ProjectionEngine:
         
         return "\n".join(lines)
     
+    @staticmethod
+    def _format_scene_content(content_json: str) -> str:
+        """将 SCENE content JSON 格式化为可读文本"""
+        if not content_json:
+            return "（暂无内容）"
+        try:
+            d = json.loads(content_json)
+        except (json.JSONDecodeError, ValueError):
+            return content_json[:300]
+        if not isinstance(d, dict):
+            return content_json[:300]
+
+        lines = []
+        subtype = d.get("子类型", "")
+        if subtype:
+            lines.append(f"功能: {subtype}")
+        summary = d.get("一句话概要", "")
+        if summary:
+            lines.append(f"概要: {summary}")
+        pov = d.get("POV角色", "")
+        if pov:
+            lines.append(f"POV: {pov}")
+        loc = d.get("地点", "")
+        if loc:
+            lines.append(f"地点: {loc}")
+        time_str = d.get("时间", "")
+        if time_str:
+            lines.append(f"时间: {time_str}")
+        conflict = d.get("核心冲突", "")
+        if conflict and conflict != summary:
+            lines.append(f"冲突: {conflict}")
+        chars = d.get("出场角色", [])
+        if chars:
+            lines.append(f"出场: {', '.join(chars) if isinstance(chars, list) else chars}")
+        word_count = d.get("字数", 0)
+        if word_count:
+            lines.append(f"字数: {word_count}")
+
+        # 如果有新 schema 字段则返回格式化结果，否则回退 raw JSON
+        if lines:
+            return "\n".join(lines)
+        # 检查是否为旧 schema（有结构规划）
+        if "结构规划" in d:
+            lines.append("（旧 schema 数据，请运行 migrate_scene_schema.py 升级）")
+            lines.append(content_json[:200])
+            return "\n".join(lines)
+        return content_json[:300]
+
     def _project_chapter_outline(self, volume: int = 1, chapter: int = 1) -> str:
         """分纲投影：将指定章节的场景群投影为分纲 YAML"""
         scenes = self.store.find_units(
@@ -289,7 +337,7 @@ class ProjectionEngine:
                 lines.append(f"tags: {', '.join(scene.tags)}")
             lines.append("")
             if scene.content:
-                lines.append(scene.content)
+                lines.append(self._format_scene_content(scene.content))
                 lines.append("")
             
             # 关联信息
@@ -721,9 +769,8 @@ class ProjectionEngine:
                     lines.append(f"- **出场角色**: {', '.join(chars)}")
 
                 if s.content:
-                    preview = s.content[:300]
                     lines.append(f"")
-                    lines.append(preview)
+                    lines.append(self._format_scene_content(s.content))
                 lines.append(f"")
 
         content = "\n".join(lines)

@@ -25,23 +25,15 @@ tags: ["novel", "v2", "graph"]
 
 | 焦点类型 | 参考文档 | 子类型 | 应关注什么 |
 |---------|---------|-------|-----------|
-| `scene` | `references/scene.md` | 推进/高潮/过渡/引入/收束/铺垫 | 按章节类型选择方法论：场域设计、张力曲线、角色自动性、语言尸体 |
+| `scene` | `references/scene.md` | 开篇/推进/冲突/转折/展示/过渡/收束 | 按场域功能选择方法论：POV选择、一句话概要、核心冲突 |
 | `character_arc` | `references/character_arc.md` | 主角/重要配角/反派/关键配角/群像/功能性角色 | 按角色定位选择弧线深度：扁平vs圆形、自动性空间、关系标签 |
 | `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
 | `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | 初稿/修订稿/定稿 | 按文本状态决定是否质检：正文写作、书写警觉、润色原则 |
+| `chunk` | `references/chunk.md` | — | 按 WRITING MODE 读取 ## draft 或 ## polish 段：展开章纲或扩展润色 |
 | `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
 | `narrative_voice` | `references/voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
-
-### 横切参考——条件加载
-
-以下参考文档不绑定单一焦点类型，根据特定条件额外加载。编排层在构建 context 时根据条件一并注入。
-
-| 条件 | 参考文档 | 说明 |
-|-----|---------|------|
-| `WRITING MODE=polish\|rewrite` 时强制加载 | `references/quality_check_ref.md` | 横切质检：AI味升级检测、情节逻辑、角色一致性、节奏、腔调一致性、读者体验量化 |
 
 ### 脚本 vs 提示词的分工
 
@@ -64,12 +56,12 @@ tags: ["novel", "v2", "graph"]
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | style | structure | narrative_voice | thematic_motif
+FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | structure | narrative_voice | thematic_motif
 SUBTYPE: {章节类型}  # 各类型对应的子类型值
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
-WRITING MODE: draft | polish | rewrite
+WRITING MODE: draft | polish
 ```
 
 ---
@@ -166,7 +158,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **场景 (SCENE)**：
 ```json
-{"子类型": "推进/高潮/过渡/引入/收束/铺垫", "结构规划": {"开篇": {...}, "发展": {...}, "转折": {...}, "收尾": {...}}, "出场角色": [...], "地点": "...", "核心冲突": "...", "一句话概要": "..."}
+{"子类型": "开篇/推进/冲突/转折/展示/过渡/收束", "POV角色": "林渊", "地点": "落云宗后山练剑坪", "一句话概要": "林渊第一次拔剑", "出场角色": ["林渊", "苏长老"], "核心冲突": "练剑被阻", "字数": 1500}
 ```
 
 **情节线 (PLOT_THREAD)**：
@@ -189,7 +181,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 {"子类型": "总纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
 ```
 
-**风格文件**：风格管理由 `novel-style` 技能负责，内置 22 种风格 YAML 文件位于 `.opencode/skills/novel-style/builtin/`，格式定义见 `.opencode/skills/novel-style/references/style_format.md`。
+
 
 不再使用 `_display` 字段。所有信息直接写入 content 字段，HTML 面板按值类型自动渲染。
 

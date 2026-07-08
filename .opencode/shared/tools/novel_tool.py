@@ -423,7 +423,14 @@ def _handle_graph(op: str, params: dict) -> str:
         if params.get("incremental"):
             viz_argv.append("--incremental")
         sys.argv = viz_argv
-        viz_main()
+        # redirect viz stdout to stderr so JSON response is clean
+        import io
+        _old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            viz_main()
+        finally:
+            sys.stdout = _old_stdout
         return _ok({"viz_generated": True})
 
     if op == "graph.migrate":
@@ -438,7 +445,13 @@ def _handle_graph(op: str, params: dict) -> str:
             sys.argv.append("--report")
         if dry_run:
             sys.argv.append("--dry-run")
-        migrate_main()
+        import io
+        _old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            migrate_main()
+        finally:
+            sys.stdout = _old_stdout
         return _ok({"migrated": True})
 
     return _err(f"未知 graph 操作: {op}")
@@ -451,6 +464,10 @@ def _handle_graph(op: str, params: dict) -> str:
 def _handle_project(op: str, params: dict) -> str:
     NOVELS_ROOT = _find_novels_root()
     name = params.get("name", "").strip()
+    if not name:
+        # fallback: extract name from "project" param
+        proj = params.get("project", "").strip()
+        name = os.path.basename(proj) if proj else ""
     proj_path = os.path.join(NOVELS_ROOT, name)
 
     if op == "project.new":
@@ -579,7 +596,8 @@ def _handle_project(op: str, params: dict) -> str:
                 config = yaml.safe_load(f) or {}
         genre = config.get("项目类型", "未知")
         style = config.get("活跃风格", "通俗网文风")
-        ctx_dir = os.path.join(os.path.dirname(_SHARED_DIR), ".omo", "notepads")
+        tool_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        ctx_dir = os.path.join(tool_root, ".omo", "notepads")
         os.makedirs(ctx_dir, exist_ok=True)
         ctx_path = os.path.join(ctx_dir, "novel-context.md")
         context = f"""__CURRENT_PROJECT__: {name}

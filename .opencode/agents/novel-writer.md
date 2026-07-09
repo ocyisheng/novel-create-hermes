@@ -35,7 +35,9 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 环境待初始化? → skill("novel-env-setup")
   ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
   ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
-  ├─ 搜索分析（搜索/查找/分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
+  ├─ 搜索分析?
+  │   ├─ 简单数据检索（"找找天道宗在哪出现过"）? → novel-tool graph.search（直接调 tool）
+  │   └─ 深度诊断（分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
   ├─ 扩展/润色/精修?
   │   └─ 走 V2 创作路由（WRITING MODE=polish）
   ├─ 仿写/去AI味（太像AI了/不自然/去除模板感/人性化）?

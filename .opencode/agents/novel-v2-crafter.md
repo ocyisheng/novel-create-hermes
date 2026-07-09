@@ -80,8 +80,18 @@ cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
 | 一致性检查 | `novel-tool --operation graph.check --project <PROJECT>` |
 | 按名称查 ID | `novel-tool --operation graph.find_unit --project <PROJECT> --name <名称>` |
 | 查询知识库参考 | `novel-tool --operation knowledge.read --project <PROJECT> --slug <slug> --topic <主题>` |
+| 偏差持久化 | `novel-tool --operation deviation.merge --project <PROJECT> --findings '<JSON>'` |
 
-当需要 LLM 做分析推理（如"检查设定有没有矛盾"），用 `skill("novel-search-analysis")` 切换到分析路径。
+### 写作中的搜索分析
+
+写作过程中需要查数据或分析一致性的，直接通过 novel-tool 自己完成，不需要调外部 skill：
+
+1. **数据检索** → `novel-tool graph.search / graph.get_neighbors`
+2. **机械一致性检查**（已故角色出场/关系不对称/孤立单元/归档有活跃关系）→ `novel-tool graph.check`
+3. **语义分析** → 你（LLM）读搜索结果后自己判断
+4. **发现偏差** → `novel-tool deviation.merge` 持久化到偏差状态文件
+
+深度诊断（整体检查/增量扫描）不走这里，由编排层单独调度。
 
 ## 五、创作操作
 

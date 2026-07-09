@@ -42,8 +42,10 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   └─ 读 chunk 文本→ skill("humanizer-zh-enhanced") → 写回
   ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
-  ├─ 创意构思/灵感发散/脑洞/卡点解锁（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
-  │   └─ 走创意路由（§创意路由）
+  ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
+  │   ├─ 先走 grill（按 §3.1 模糊判断规则）
+  │   ├─ grill 后 → 按 §3.3 判断是否需要 ideation 生成方案
+  │   └─ 用户确认方向 → 按 §3.3 后续路由
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 用户请求明确（包含具体名称/方向）?
   │   │   └─ 走 V2 创作路由（§V2 路由），跳过 grill 直接调度 crafter
@@ -113,42 +115,104 @@ Grill 调度规则：
 - **warm**：焦点 + 1 度邻居，适量关联角色和设定（日常写作、修改）
 - **hot**：焦点 + 2 度邻居，全量关联数据
 
-## 四、创意路由
+### 3.3 Grill 后续操作：Ideation 方案生成
 
-创意构思独立于普通创作路由，因为它的目标不是"编辑一个叙事单元"而是"生成创意内容"。
+grill 收敛用户需求后，编排层询问用户是否想看看参考方案。如用户需要，调度 ideation subagent 生成方案。
 
-| 用户意图 | 创意模式 | 焦点类型 | 预热级别 |
-|---------|---------|---------|---------|
-| 完全没想法/要新故事概念 | divergent | — | cold |
-| 已有项目/设定，要新角度 | constrained | 当前焦点 | warm |
-| 角色/场景/世界观缺细节 | enrich | 目标类型 | warm |
-| 写作卡住/写不下去 | unblock | 当前焦点 | hot |
-| 方向瓶颈/需要外部刺激 | cross_pollinate | 当前焦点 | cold |
+#### Grill 前置判断
 
-### 调度模板
+| 场景 | 前置 grill | 后续模式 |
+|------|-----------|---------|
+| "帮我想个创意"无方向 | ✅ `skill("novel-grill", "note:")` 收敛需求 | divergent |
+| "用 X 类型写个 Y 题材" | ❌ 直接调 | divergent |
+| "帮我建个反派"模糊 | ✅ `skill("novel-grill", "character_arc:")` | focused |
+| "主角太扁平了" | ❌ 直接调 ideation | focused |
+| "从新角度写主角" | ❌ 直接调 ideation | focused |
+| "给我想几套力量体系" | ✅ 可选 grill | focused |
+| "写不下去了" | ❌ 走 crafter（卡点解锁不由 ideation 处理） | — |
 
+> grill 前置后，将确认的 `### 创作需求` 注入 ideation prompt 作为约束输入。
+
+#### 调度模板
+
+**divergent 模式**（无焦点，纯概念发散）：
 ```markdown
 Task(
   subagent_type="novel-ideation",
   load_skills=["novel-ideation"],
   prompt="CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-CREATIVE MODE: {divergent|constrained|enrich|unblock|cross_pollinate}
-FOCUS TYPE: {目标叙事单元类型（如有）}
-FOCUS ID: {叙事单元ID（如有）}
-FOCUS NAME: {叙事单元名称}
-PREHEAT LEVEL: {cold|warm|hot}
-TASK: {用户请求的具体描述}"
+CREATIVE MODE: divergent
+
+根据以下需求生成 3-5 个全新的小说概念方向：
+
+### 创作需求（来自 grill）
+{grill 确认的类型/基调/核心元素}
+"
 )
 ```
 
-### 前置追问（可选）
+**focused 模式**（有焦点，方案生成）：
+```markdown
+Task(
+  subagent_type="novel-ideation",
+  load_skills=["novel-ideation"],
+  prompt="CURRENT PROJECT: {项目名}
+PROJECT PATH: {NOVELS_ROOT/项目名}
+CREATIVE MODE: focused
+FOCUS TYPE: {焦点类型}
+FOCUS NAME: {目标名称}
 
-用户意图模糊时，可先用 `skill("novel-grill", user_message="mode=ideation")` 收敛需求，再调度 subagent。
+邻居信息（焦点单元的 1 度关联单元）：
+{邻居列表}
+
+### 创作需求（来自 grill）
+{grill 确认的用户偏好}
+
+### 知识库参考（可选，仅 with_knowledge 场景）
+{编排层注入的知识库内容}
+"
+)
+```
+
+#### 用户确认后路由
+
+| 用户后续指令 | 路由目标 | 注入内容 |
+|------------|---------|---------|
+| "用方案2" + 创作请求（写角色/写章/写总纲） | crafter（对应 focus type） | `### 创意方向` + 选中方案 |
+| "帮我细化方案2" | 再次 ideation（focused） | 注入选中方案作为上下文 |
+| "就这个方向，帮我建个项目" | `skill("novel-project-manager", "new ...")` | 概念描述转为项目参数 |
+| "再想想" | 结束，等待新指令 | — |
+
+#### 概念注入规则
+
+当用户从创意方向中选择方案并确认创作动作后，编排层将选中方案注入 crafter TASK：
+
+```markdown
+Task(
+  subagent_type="novel-v2-crafter",
+  load_skills=["novel-v2"],
+  prompt="CURRENT PROJECT: {项目名}
+PROJECT PATH: {NOVELS_ROOT/项目名}
+FOCUS TYPE: {用户确认的操作类型}
+FOCUS ID: —
+FOCUS NAME: {目标名称}
+PREHEAT LEVEL: warm
+WRITING MODE: draft
+TASK: {用户确认的创作请求}
+
+### 创作需求（来自 grill）
+{grill 确认的需求}
+
+### 创意方向（来自 ideation）
+{选中的方案内容}
+"
+)
+```
 
 ---
 
-## 六、V2 调度模板
+## 五、V2 调度模板
 
 ```markdown
 Task(
@@ -207,7 +271,7 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 
 > 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
 
-## 七、V2 快速参考
+## 六、V2 快速参考
 
 ### 查询 Graph 状态
 
@@ -226,7 +290,7 @@ skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 
 也可直接走 tool：`novel-tool --operation project.new --name "项目名" --genre "类型" --v2`
 
-## 八、状态维护
+## 七、状态维护
 
 V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush 自动维护）。
 
@@ -234,7 +298,7 @@ V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush �
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 九、故障恢复
+## 八、故障恢复
 
 | 场景 | 行为 |
 |------|------|

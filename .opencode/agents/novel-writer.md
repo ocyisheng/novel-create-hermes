@@ -37,7 +37,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
   ├─ 搜索分析?
   │   ├─ 简单数据检索（"找找天道宗在哪出现过"）? → novel-tool graph.search（直接调 tool）
-  │   └─ 深度诊断（分析/核验/对齐/整体检测）? → skill("novel-search-analysis")
+  │   └─ 深度诊断（分析/核验/对齐/整体检测）? → task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], prompt="ANALYSIS MODE: 见下文")
   ├─ 扩展/润色/精修?
   │   └─ 走 V2 创作路由（WRITING MODE=polish）
   ├─ 仿写/去AI味（太像AI了/不自然/去除模板感/人性化）?

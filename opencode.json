@@ -28,7 +28,7 @@
     "novel-v2-crafter": {
       "description": "V2 统一创作子引擎。基于叙事单元网络(graph)处理全部创作任务：章节写作、角色管理、世界观建设、情节设计、总纲大纲、质量检测、编辑修订",
       "mode": "subagent",
-      "model": "deepseek/deepseek-v4-flash",
+      "model": "opencode/hy3-free",
       "prompt": ".opencode/agents/novel-v2-crafter.md",
       "permission": {
         "edit": "allow",
@@ -51,7 +51,7 @@
     "novel-ideation": {
       "description": "创意方案生成器。在 grill 收敛需求后，基于约束库和焦点上下文生成可选方案",
       "mode": "subagent",
-      "model": "deepseek/deepseek-v4-flash",
+      "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-ideation.md",
       "permission": {
         "edit": "allow",

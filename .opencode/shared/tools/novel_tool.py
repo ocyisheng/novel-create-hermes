@@ -916,10 +916,55 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(_err("需要 JSON 参数"))
         sys.exit(1)
+
+    raw = sys.argv[1]
+
+    # Windows shell 兼容：去除首尾多余引号/空格
+    # PowerShell/CMD 传递带空格的参数时，外层引号会残留
+    while raw and raw[0] in ('"', "'", " ", "\t"):
+        raw = raw[1:]
+    while raw and raw[-1] in ('"', "'", " ", "\t"):
+        raw = raw[:-1]
+
+    request = None
+    err_msg = None
+
+    # 1. 标准 json.loads
     try:
-        request = json.loads(sys.argv[1])
+        request = json.loads(raw)
     except json.JSONDecodeError as e:
-        print(_err(f"JSON 解析失败: {e}"))
+        err_msg = str(e)
+
+    # 2. 尝试 json_repair 容错解析（项目已依赖 json_repair）
+    if request is None:
+        try:
+            from json_repair import loads as repair_loads
+            request = repair_loads(raw)
+        except Exception:
+            pass
+
+    # 3. 针对 Windows 路径反斜杠导致 JSON 非法的额外修复：
+    # 将未转义的反斜杠替换为双反斜杠后再次尝试
+    if request is None:
+        try:
+            import re
+            # 把 JSON 字符串中 "C:\Users" 这种反斜杠统一替换成双反斜杠
+            fixed = re.sub(r'(?<!\\)\\(?!\\|"|/|b|f|n|r|t|u[0-9a-fA-F]{4})', r'\\\\', raw)
+            request = json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+
+    # 4. 某些终端/环境会把 JSON 内部的双引号替换成单引号，尝试恢复
+    if request is None:
+        try:
+            fixed = raw.replace("'", '"')
+            request = json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+
+    if request is None:
+        print(_err(f"JSON 解析失败: {err_msg}"))
         sys.exit(1)
+
     result = handle_request(request)
     print(result)

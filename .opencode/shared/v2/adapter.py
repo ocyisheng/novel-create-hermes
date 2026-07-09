@@ -61,9 +61,10 @@ class LegacyFileAdapter:
         ("characters/", UnitType.CHARACTER_ARC),
         ("worldbuilding/", UnitType.WORLD_RULE),
         ("outline/情节线/", UnitType.PLOT_THREAD),
-        ("outline/分纲/", UnitType.SCENE),
+        ("outline/分纲/", UnitType.STRUCTURE),
         ("ideation/", UnitType.NOTE),
         ("quality/", UnitType.NOTE),
+        ("chapters/", UnitType.CHUNK),
     ]
     
     def __init__(
@@ -164,6 +165,7 @@ class LegacyFileAdapter:
         chapter_number: int,
         draft_type: str = "初稿",
         actor: str = "script",
+        scene_id: Optional[str] = None,
     ) -> bool:
         """
         写入章节正文（TXT）+ 更新 graph。
@@ -171,36 +173,68 @@ class LegacyFileAdapter:
         章节正文存为 TXT 文件（file_path），
         graph 中的 CHUNK 单元只存元数据 JSON。
         file_path 为空时自动按约定生成：chapters/第{chapter_number}章_{draft_type}.txt
+        
+        如果 scene_id 不为空，自动建立 CHUNK→SCENE 的 BELONGS_TO 关系。
         """
         import json
         
         if not file_path:
             file_path = f"chapters/第{chapter_number}章_{draft_type}.txt"
         
-        # Step 1: 写 TXT 文件
+        # Step 1: 检测重复（同一章节+同一子类型的 CHUNK）
+        unit_name = f"第{chapter_number}章_{draft_type}"
+        existing = self.store.get_unit_by_name(unit_name)
+        if existing and existing.type == UnitType.CHUNK:
+            # 已有同名 CHUNK：更新元数据，不创建新单元
+            content_meta = json.dumps({
+                "章节号": chapter_number,
+                "正文路径": file_path,
+                "子类型": draft_type,
+                "字数": len(chapter_text),
+            }, ensure_ascii=False)
+            self.store.update_unit(
+                existing.id,
+                content=content_meta,
+                actor=actor,
+            )
+            self._stats["graph_writes"] += 1
+            chunk_id = existing.id
+        else:
+            content_meta = json.dumps({
+                "章节号": chapter_number,
+                "正文路径": file_path,
+                "子类型": draft_type,
+                "字数": len(chapter_text),
+            }, ensure_ascii=False)
+            chunk_unit = self.store.create_unit(
+                type=UnitType.CHUNK,
+                unit_name=unit_name,
+                content=content_meta,
+                belongs_to_chapter=chapter_number,
+                actor=actor,
+            )
+            chunk_id = chunk_unit.id
+            self._stats["graph_writes"] += 1
+        
+        # Step 2: 写 TXT 文件
         if self.mode != AdapterMode.GRAPH_ONLY:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(chapter_text)
             self._stats["file_writes"] += 1
         
-        # Step 2: 写入 graph（只存元数据）
-        content_meta = json.dumps({
-            "章节号": chapter_number,
-            "正文路径": file_path,
-            "子类型": draft_type,
-            "字数": len(chapter_text),
-        }, ensure_ascii=False)
-        chunk_unit = self.store.create_unit(
-            type=UnitType.CHUNK,
-            unit_name=f"第{chapter_number}章_{draft_type}",
-            content=content_meta,
-            belongs_to_chapter=chapter_number,
-            actor=actor,
-        )
-        self._stats["graph_writes"] += 1
+        # Step 3: 建立 BELONGS_TO 关系到场景
+        if scene_id:
+            scene = self.store.get_unit(scene_id)
+            if scene and scene.type == UnitType.SCENE:
+                self.store.add_relation(
+                    source_id=chunk_id,
+                    target_id=scene_id,
+                    relation_type=RelationType.BELONGS_TO,
+                    actor=actor,
+                )
         
-        # Step 3: 持久化
+        # Step 4: 持久化
         self.store.flush()
         
         return True
@@ -291,7 +325,7 @@ class LegacyFileAdapter:
                     name = data["索引信息"].get("名称", f.stem)
                     vol = data["索引信息"].get("所属分卷", 1)
                     self.store.create_unit(
-                        type=UnitType.SCENE,
+                        type=UnitType.STRUCTURE,
                         unit_name=name,
                         content=json.dumps(data, ensure_ascii=False),
                         belongs_to_chapter=ch,

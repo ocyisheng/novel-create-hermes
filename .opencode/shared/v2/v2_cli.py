@@ -397,9 +397,22 @@ def cmd_export(args, store):
             src = project_dir / source_path
             if src.exists():
                 text = src.read_text(encoding="utf-8")
+            else:
+                print(f"  ⚠️ 正文文件缺失: {source_path}")
         if not text:
-            # 兜底：从 CHUNK.content 本身读（旧格式纯文本兼容）
-            text = c.content or ""
+            # 兜底：检测是 V2 元数据 JSON 还是 V1 纯文本
+            if c.content:
+                try:
+                    parsed = json.loads(c.content)
+                    if isinstance(parsed, dict) and "章节号" in parsed:
+                        print(f"  ⚠️ {fname}: content 为元数据 JSON，非正文文本（文件可能已丢失）")
+                        text = f"[正文文件缺失: {source_path}]"
+                    else:
+                        text = c.content
+                except (json.JSONDecodeError, ValueError):
+                    text = c.content
+            else:
+                text = ""
         fpath.write_text(text, encoding="utf-8")
         exported += 1
         print(f"  📄 {fpath.name}")

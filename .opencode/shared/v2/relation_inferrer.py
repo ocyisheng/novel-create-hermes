@@ -48,7 +48,10 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
      "source_to_target", 0.5),
     # 正文 → 场景：正文属于场景
     (UnitType.CHUNK, UnitType.SCENE, RelationType.BELONGS_TO,
-     "target_to_source", 0.5),
+     "source_to_target", 0.5),
+    # 正文 → 结构：正文属于章纲
+    (UnitType.CHUNK, UnitType.STRUCTURE, RelationType.BELONGS_TO,
+     "source_to_target", 0.4),
     # 正文 → 角色：正文涉及角色
     (UnitType.CHUNK, UnitType.CHARACTER_ARC, RelationType.REFERENCES,
      "source_to_target", 0.3),

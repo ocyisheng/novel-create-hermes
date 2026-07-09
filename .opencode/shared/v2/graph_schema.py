@@ -44,7 +44,7 @@ class UnitType(str, Enum):
             "political_system": UnitType.WORLD_RULE,
             "social_hierarchy": UnitType.WORLD_RULE,
             "plot_thread": UnitType.PLOT_THREAD,
-            "chapter": UnitType.SCENE,  # 现有分纲→场景群
+            "chapter": UnitType.STRUCTURE,  # V1 分纲→V2 章纲（STRUCTURE 子类型=章纲）
         }
         return mapping.get(entity_type, UnitType.NOTE)
 

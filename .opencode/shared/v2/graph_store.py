@@ -423,6 +423,19 @@ class GraphStore:
         
         changed_fields = {}
         if content is not None:
+            # content 非空且在 create_unit 后可能第二次被更新
+            # 此时 unit 的 type 已确定，进行 schema 校验
+            try:
+                content_dict = json.loads(content) if isinstance(content, str) and content.startswith("{") else None
+            except json.JSONDecodeError:
+                content_dict = None
+            if content_dict:
+                errors = validate_content(unit.type, content_dict)
+                if errors:
+                    self._record_event(
+                        EventType.SYSTEM_EVENT, actor=actor,
+                        payload={"warning": f"content schema 校验不通过: {errors}"},
+                    )
             changed_fields["content"] = (unit.content, content)
             unit.content = content
         if status is not None:

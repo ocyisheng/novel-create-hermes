@@ -212,6 +212,7 @@ class ProjectionEngine:
         lines.append(f"笔记数: {len(self.store.find_units(type=UnitType.NOTE))}")
         lines.append(f"结构设计数: {len(self.store.find_units(type=UnitType.STRUCTURE))}")
         lines.append(f"叙述腔调数: {len(self.store.find_units(type=UnitType.NARRATIVE_VOICE))}")
+        lines.append(f"正文数: {len(self.store.find_units(type=UnitType.CHUNK))}")
         lines.append("```")
         lines.append("")
         

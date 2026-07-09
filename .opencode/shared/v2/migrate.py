@@ -12,7 +12,7 @@ V2 迁移工具：将现有项目文件导入到叙事单元网络（graph）。
   - characters/*.yaml      → CHARACTER_ARC
   - worldbuilding/*.yaml   → WORLD_RULE
   - outline/情节线/*.yaml  → PLOT_THREAD
-  - outline/分纲/**/*.yaml → SCENE
+   - outline/分纲/**/*.yaml → STRUCTURE(章纲), 场域拆分为独立SCENE
   - outline/分卷/*.yaml    → NOTE（卷大纲）
   - outline/总纲.yaml      → NOTE（总纲）
   - outline/叙事策略.yaml  → NOTE
@@ -182,9 +182,20 @@ class ImportEngine:
             extra = {"source_file": rel_path, "imported_at": datetime.now(timezone.utc).isoformat()}
             if unit_type == UnitType.CHUNK:
                 # CHUNK 只存元数据，正文保留在原文件
+                # 从文件名推测子类型（如 第3章_初稿.txt → "初稿"），默认 "初稿"
+                from schemas import get_subtype_info
+                chunk_subtype_config = get_subtype_info(UnitType.CHUNK)
+                chunk_options = chunk_subtype_config.options if chunk_subtype_config else ["初稿","修订稿","定稿"]
+                detected_subtype = "初稿"
+                stem = file_path.stem  # "第3章_初稿"
+                if stem and "_" in stem:
+                    possible = stem.split("_")[-1]
+                    if possible in chunk_options:
+                        detected_subtype = possible
                 content_meta = json.dumps({
                     "章节号": belongs_to_chapter or 0,
                     "正文路径": str(file_path),
+                    "子类型": detected_subtype,
                     "字数": len(content),
                 }, ensure_ascii=False)
                 extra["word_count"] = len(content)
@@ -679,10 +690,10 @@ def main():
         "characters": UnitType.CHARACTER_ARC,
         "worldbuilding": UnitType.WORLD_RULE,
         "plot_threads": UnitType.PLOT_THREAD,
-        "outlines": UnitType.SCENE,
+        "outlines": UnitType.STRUCTURE,
         "volumes": UnitType.NOTE,
         "synopsis": UnitType.NOTE,
-        "narrative_strategy": UnitType.NOTE,
+        "narrative_strategy": UnitType.NARRATIVE_VOICE,
         "timeline": UnitType.NOTE,
         "foreshadowing": UnitType.NOTE,
         "tracking": UnitType.NOTE,
@@ -827,6 +838,7 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
     }
 
     # 旧场景类型值 → 新值映射（V1 的章段类型 → V2 单场域类型）
+    # 与 migrate_scene_schema.py SUBTYPE_MAP 保持同步
     SCENE_MAP = {
         "推进": "推进",
         "过渡": "过渡",
@@ -834,6 +846,8 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
         "结局": "收束",
         "转折": "转折",
         "收尾": "收束",
+        "引入": "开篇",
+        "铺垫": "展示",
     }
 
     # 旧情节线类型值 → 新值映射

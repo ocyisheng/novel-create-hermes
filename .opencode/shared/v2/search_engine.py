@@ -17,6 +17,8 @@ SearchEngine 是对 LLM 提问"数据在哪里"的回答，不是对"这意味�
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Any
@@ -174,6 +176,12 @@ class SearchEngine:
         
         # 规则 4: 已归档但仍有 outgoing 关系的单元
         results.extend(self._check_archived_with_active_relations())
+        
+        # 规则 5: CHUNK 正文文件丢失
+        results.extend(self._check_chunk_missing_file())
+        
+        # 规则 6: CHUNK 缺少 belongs_to_chapter
+        results.append(self._check_chunk_no_chapter())
         
         return results
 
@@ -375,6 +383,61 @@ class SearchEngine:
                     detail="关系: " + ", ".join(rel_names) if rel_names else "",
                 ))
         return results
+
+    # ── CHUNK 一致性检查 ──────────────────────────────────────────────────
+
+    def _check_chunk_missing_file(self) -> List[CheckResult]:
+        """规则 5: CHUNK 的正文文件（正文路径）不存在"""
+        results = []
+        import json
+        for unit in self.store._units.values():
+            if unit.type != UnitType.CHUNK:
+                continue
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+            try:
+                content_dict = json.loads(unit.content) if unit.content else {}
+            except (json.JSONDecodeError, ValueError):
+                continue
+            source_path = content_dict.get("正文路径", "")
+            if not source_path:
+                continue
+            # 正文路径可能是相对或绝对，先查相对（project_root）
+            if not os.path.exists(source_path):
+                results.append(CheckResult(
+                    rule_name="CHUNK 正文文件丢失",
+                    rule_id="R5",
+                    severity="warning",
+                    description=f"CHUNK『{unit.unit_name}』的正文文件不存在: {source_path}",
+                    units_involved=[unit.id],
+                ))
+        return results
+
+    def _check_chunk_no_chapter(self) -> CheckResult:
+        """规则 6: CHUNK 缺少 belongs_to_chapter（未分配章节）"""
+        count = 0
+        names: List[str] = []
+        for unit in self.store._units.values():
+            if unit.type != UnitType.CHUNK:
+                continue
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+            if unit.belongs_to_chapter is None:
+                count += 1
+                names.append(unit.unit_name)
+        detail = ""
+        if names:
+            detail = "\n".join(f"  - {n}" for n in names[:10])
+            if len(names) > 10:
+                detail += f"\n  ... 等共 {len(names)} 个"
+        return CheckResult(
+            rule_name="CHUNK 缺少章节分配",
+            rule_id="R6",
+            severity="info",
+            description=f"有 {count} 个 CHUNK 单元未分配章节号" if count else "所有 CHUNK 都有归属章节",
+            units_involved=[],
+            detail=detail,
+        )
 
     # ── 工具方法 ─────────────────────────────────────────────────────────
 

@@ -47,7 +47,9 @@ WRITING MODE: {draft | polish}
 ```bash
 # chunk 类型：根据 WRITING MODE 读取对应 ## draft 或 ## polish 段
 # 其他类型：读取完整文件
-cat .opencode/skills/novel-v2/references/{FOCUS TYPE}.md
+# 注：narrative_voice 对应的文件是 voice.md（非 narrative_voice.md）
+REF_FILE="$(echo {FOCUS TYPE} | sed 's/narrative_voice/voice/')"
+cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 ```
 
 
@@ -100,12 +102,17 @@ CHUNK 只存元数据（章节号、字数、正文路径），正文写入 TXT 
      --name "第3章" --actor novel-v2-crafter \
      --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":0}'
 
-2. 用 write 工具将正文写入 chapters/第3章_初稿.txt（UTF-8 纯文本）
+2. # 关联到所属场景（如果有关联的 SCENE 单元）
+   # 通过 --chapter 参数，或通过 graph.find_unit 找到对应 SCENE 的 ID
+   novel-tool --operation graph.add_relation --project {PROJECT} \
+     --source {CHUNK_ID} --target {SCENE_ID} --type belongs_to
 
-3. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
+3. 用 write 工具将正文写入 chapters/第3章_初稿.txt（UTF-8 纯文本）
+
+4. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
      --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":5200}'
 
-4. novel-tool --operation graph.flush --project {PROJECT}
+5. novel-tool --operation graph.flush --project {PROJECT}
 ```
 
 正文路径为空时默认：`chapters/第{章节号}章_{子类型}.txt`。

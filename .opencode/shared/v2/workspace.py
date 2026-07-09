@@ -37,6 +37,11 @@ class Workspace:
     plot_threads: List[Dict[str, Any]] = field(default_factory=list)
     world_rules: List[Dict[str, Any]] = field(default_factory=list)
     scenes: List[Dict[str, Any]] = field(default_factory=list)
+    chunks: List[Dict[str, Any]] = field(default_factory=list)
+    structures: List[Dict[str, Any]] = field(default_factory=list)
+    narrative_voices: List[Dict[str, Any]] = field(default_factory=list)
+    thematic_motifs: List[Dict[str, Any]] = field(default_factory=list)
+    notes: List[Dict[str, Any]] = field(default_factory=list)
     
     # 弱信号
     weak_signals: List[Dict[str, Any]] = field(default_factory=list)
@@ -92,6 +97,17 @@ class Workspace:
             lines.append(f"类型：{self.focus_type}")
             if self.focus_unit:
                 lines.append(f"名称：{self.focus_unit.unit_name}")
+            if self.focus_type == "chunk":
+                ch = self.focus_unit.belongs_to_chapter or "?"
+                lines.append(f"章节：第{ch}章")
+                if self.previous_unit:
+                    lines.append(f"前版：{self.previous_unit.get('unit_name', '?')}")
+                if self.next_unit:
+                    lines.append(f"后版：{self.next_unit.get('unit_name', '?')}")
+                if self.location:
+                    lines.append(f"地点：{self.location}")
+                if self.story_time:
+                    lines.append(f"时间：{self.story_time}")
         lines.append("")
         
         # 段2：你需要知道
@@ -141,6 +157,38 @@ class Workspace:
                 for wr in self.world_rules[:3]:
                     lines.append(f"- {wr.get('unit_name', '?')}")
                 lines.append("")
+            if self.scenes:
+                lines.append(f"### 场景 ({len(self.scenes)})")
+                for s in self.scenes[:5]:
+                    ch = s.get("chapter", "")
+                    ch_str = f"（第{ch}章）" if ch else ""
+                    lines.append(f"- {s.get('unit_name', '?')} {ch_str}")
+                lines.append("")
+            if self.chunks:
+                lines.append(f"### 正文 ({len(self.chunks)})")
+                for ck in self.chunks[:5]:
+                    lines.append(f"- {ck.get('unit_name', '?')}")
+                lines.append("")
+            if self.structures:
+                lines.append(f"### 结构设计 ({len(self.structures)})")
+                for st in self.structures[:3]:
+                    lines.append(f"- {st.get('unit_name', '?')}")
+                lines.append("")
+            if self.narrative_voices:
+                lines.append(f"### 叙述腔调 ({len(self.narrative_voices)})")
+                for nv in self.narrative_voices[:3]:
+                    lines.append(f"- {nv.get('unit_name', '?')}")
+                lines.append("")
+            if self.thematic_motifs:
+                lines.append(f"### 主体意象 ({len(self.thematic_motifs)})")
+                for tm in self.thematic_motifs[:3]:
+                    lines.append(f"- {tm.get('unit_name', '?')}")
+                lines.append("")
+            if self.notes:
+                lines.append(f"### 笔记 ({len(self.notes)})")
+                for nt in self.notes[:5]:
+                    lines.append(f"- {nt.get('unit_name', '?')}")
+                lines.append("")
         
         # 活跃风格（所有预热级别都注入）
         if self.active_style:
@@ -165,6 +213,11 @@ class Workspace:
             "plot_thread_count": len(self.plot_threads),
             "world_rule_count": len(self.world_rules),
             "scene_count": len(self.scenes),
+            "chunk_count": len(self.chunks),
+            "structure_count": len(self.structures),
+            "narrative_voice_count": len(self.narrative_voices),
+            "thematic_motif_count": len(self.thematic_motifs),
+            "note_count": len(self.notes),
             "weak_signal_count": len(self.weak_signals),
             "completeness": self.completeness_score,
             "gaps": self.missing_gaps,
@@ -258,8 +311,9 @@ class WorkspaceBuilder:
         # 5. 活跃风格加载
         self._load_active_style(ws, extra_context or {})
         
-        # 6. 场景级信息提取
-        self._enrich_scene_context(ws, focus)
+        # 6. 场景级信息提取（仅 SCENE 焦点需要）
+        if focus.type == UnitType.SCENE:
+            self._enrich_scene_context(ws, focus)
         
         # 7. 完整性评估
         self._assess_completeness(ws)
@@ -309,6 +363,33 @@ class WorkspaceBuilder:
                         "unit_id": neighbor.id,
                         "unit_name": neighbor.unit_name,
                         "chapter": neighbor.belongs_to_chapter,
+                    })
+                elif neighbor.type == UnitType.CHUNK:
+                    ws.chunks.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                    })
+                elif neighbor.type == UnitType.STRUCTURE:
+                    ws.structures.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
+                    })
+                elif neighbor.type == UnitType.NARRATIVE_VOICE:
+                    ws.narrative_voices.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                    })
+                elif neighbor.type == UnitType.THEMATIC_MOTIF:
+                    ws.thematic_motifs.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                    })
+                elif neighbor.type == UnitType.NOTE:
+                    ws.notes.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
                     })
     
     def _load_type_specific(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
@@ -362,6 +443,100 @@ class WorkspaceBuilder:
                         "unit_name": source.unit_name,
                         "chapter": source.belongs_to_chapter,
                     })
+        
+        elif focus.type == UnitType.CHUNK:
+            # 正在写正文：通过 BELONGS_TO 找所属场景，再由场景加载角色和情节线
+            for rel in self.store.get_relations(focus.id, direction="outgoing"):
+                if rel.relation_type != RelationType.BELONGS_TO:
+                    continue
+                scene = self.store.get_unit(rel.target_id)
+                if not scene or scene.type != UnitType.SCENE:
+                    continue
+                
+                # 记录场景
+                ws.scenes.append({
+                    "unit_id": scene.id,
+                    "unit_name": scene.unit_name,
+                    "chapter": scene.belongs_to_chapter,
+                })
+                
+                # 从场景 content 提取时间/地点/核心冲突/角色状态/写作指引
+                self._extract_scene_context(ws, scene)
+                
+                # 通过场景加载关联角色和情节线（1-hop from scene）
+                for rel2 in self.store.get_relations(scene.id, direction="both"):
+                    neighbor = self.store.get_unit(
+                        rel2.source_id if rel2.target_id == scene.id else rel2.target_id
+                    )
+                    if not neighbor or neighbor.id == focus.id:
+                        continue
+                    if neighbor.type == UnitType.CHARACTER_ARC:
+                        if len(ws.character_arcs) < config["character_limit"]:
+                            ws.character_arcs.append({
+                                "unit_id": neighbor.id,
+                                "unit_name": neighbor.unit_name,
+                            })
+                    elif neighbor.type == UnitType.PLOT_THREAD:
+                        if len(ws.plot_threads) < config["plot_limit"]:
+                            ws.plot_threads.append({
+                                "unit_id": neighbor.id,
+                                "unit_name": neighbor.unit_name,
+                            })
+        
+        elif focus.type == UnitType.WORLD_RULE:
+            # 世界观焦点：找引用了该规则的场景
+            for rel in self.store.get_relations(focus.id, direction="incoming"):
+                source = self.store.get_unit(rel.source_id)
+                if source and source.type == UnitType.SCENE:
+                    ws.scenes.append({
+                        "unit_id": source.id,
+                        "unit_name": source.unit_name,
+                        "chapter": source.belongs_to_chapter,
+                    })
+        
+        elif focus.type == UnitType.STRUCTURE:
+            # 结构设计焦点：找关联的场景和正文
+            for rel in self.store.get_relations(focus.id, direction="incoming"):
+                source = self.store.get_unit(rel.source_id)
+                if source and source.type == UnitType.SCENE:
+                    ws.scenes.append({
+                        "unit_id": source.id,
+                        "unit_name": source.unit_name,
+                        "chapter": source.belongs_to_chapter,
+                    })
+                elif source and source.type == UnitType.CHUNK:
+                    ws.chunks.append({
+                        "unit_id": source.id,
+                        "unit_name": source.unit_name,
+                    })
+        
+        elif focus.type == UnitType.NARRATIVE_VOICE:
+            # 叙述腔调焦点：找使用该腔调的场景
+            for rel in self.store.get_relations(focus.id, direction="incoming"):
+                source = self.store.get_unit(rel.source_id)
+                if source and source.type == UnitType.SCENE:
+                    ws.scenes.append({
+                        "unit_id": source.id,
+                        "unit_name": source.unit_name,
+                        "chapter": source.belongs_to_chapter,
+                    })
+        
+        elif focus.type == UnitType.THEMATIC_MOTIF:
+            # 主体意象焦点：找关联的场景和角色
+            for rel in self.store.get_relations(focus.id, direction="incoming"):
+                source = self.store.get_unit(rel.source_id)
+                if source and source.type == UnitType.SCENE:
+                    ws.scenes.append({
+                        "unit_id": source.id,
+                        "unit_name": source.unit_name,
+                        "chapter": source.belongs_to_chapter,
+                    })
+                elif source and source.type == UnitType.CHARACTER_ARC:
+                    if len(ws.character_arcs) < config["character_limit"]:
+                        ws.character_arcs.append({
+                            "unit_id": source.id,
+                            "unit_name": source.unit_name,
+                        })
     
     def _load_prev_next(self, ws: Workspace, focus: NarrativeUnit):
         """加载同类型的前置/后置叙事单元"""
@@ -403,6 +578,42 @@ class WorkspaceBuilder:
             # 角色设计应该至少有场景引用
             if not ws.scenes:
                 gaps.append("没有关联到任何场景")
+        
+        elif ws.focus_type == "chunk":
+            # 正文写作需要场景上下文
+            if not ws.scenes:
+                gaps.append("没有关联到场景信息，写作上下文可能不足")
+            if not ws.character_arcs and not ws.plot_threads:
+                gaps.append("没有加载到角色或情节线上下文")
+        
+        elif ws.focus_type == "plot_thread":
+            # 情节线设计应该有关联场景
+            if not ws.scenes:
+                gaps.append("没有关联到任何场景")
+        
+        elif ws.focus_type == "world_rule":
+            # 世界观设定应该有关联场景
+            if not ws.scenes:
+                gaps.append("没有关联到使用该设定的场景")
+        
+        elif ws.focus_type == "structure":
+            # 结构设计最好有关联的场景或正文
+            if not ws.scenes and not ws.chunks:
+                gaps.append("没有关联到场景或正文")
+        
+        elif ws.focus_type == "narrative_voice":
+            # 叙述腔调应该有关联场景
+            if not ws.scenes:
+                gaps.append("没有关联到使用该腔调的场景")
+        
+        elif ws.focus_type == "thematic_motif":
+            # 主体意象应该有关联的场景或角色
+            if not ws.scenes and not ws.character_arcs:
+                gaps.append("没有关联到使用该意象的场景或角色")
+        
+        elif ws.focus_type == "note":
+            # 笔记不要求强关联，只需邻居信息
+            pass
         
         if not ws.immediate_context:
             gaps.append("没有加载到直接关联的叙事单元")
@@ -480,12 +691,9 @@ class WorkspaceBuilder:
         except (json.JSONDecodeError, ValueError):
             return {}
     
-    def _enrich_scene_context(self, ws: Workspace, focus: NarrativeUnit):
-        """提取场景级上下文信息"""
-        if not focus or focus.type != UnitType.SCENE:
-            return
-        
-        content = self._parse_json_content(focus)
+    def _extract_scene_context(self, ws: Workspace, scene_unit: NarrativeUnit):
+        """从 SCENE 单元提取场景上下文到工作空间（供 SCENE/CHUNK 焦点共用）"""
+        content = self._parse_json_content(scene_unit)
         if not content:
             return
         
@@ -510,11 +718,15 @@ class WorkspaceBuilder:
                     ws.character_states.append({"name": c, "status": "", "description": ""})
         
         # 写作指引
-        guides = []
         scene_type = content.get("子类型", "")
         if scene_type:
-            guides.append(f"场域功能：{scene_type}")
+            ws.writing_guides.append(f"场域功能：{scene_type}")
         summary = content.get("一句话概要", "")
         if summary:
-            guides.append(f"概要：{summary}")
-        ws.writing_guides = guides
+            ws.writing_guides.append(f"场景概要：{summary}")
+    
+    def _enrich_scene_context(self, ws: Workspace, focus: NarrativeUnit):
+        """提取场景级上下文信息（SCENE 焦点专用）"""
+        if not focus or focus.type != UnitType.SCENE:
+            return
+        self._extract_scene_context(ws, focus)

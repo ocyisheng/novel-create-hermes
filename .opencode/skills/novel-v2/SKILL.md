@@ -30,7 +30,7 @@ tags: ["novel", "v2", "graph"]
 | `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
 | `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | — | 按 WRITING MODE 读取 ## draft 或 ## polish 段：展开章纲或扩展润色 |
+| `chunk` | `references/chunk.md` | 初稿/修订稿/定稿 | 按 WRITING MODE 读取 ## draft 或 ## polish 段：展开章纲或扩展润色 |
 | `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
 | `narrative_voice` | `references/voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
@@ -158,7 +158,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **场景 (SCENE)**：
 ```json
-{"子类型": "开篇/推进/冲突/转折/展示/过渡/收束", "POV角色": "林渊", "地点": "落云宗后山练剑坪", "一句话概要": "林渊第一次拔剑", "出场角色": ["林渊", "苏长老"], "核心冲突": "练剑被阻", "字数": 1500}
+{"子类型": "开篇/推进/冲突/转折/展示/过渡/收束", "POV角色": "林渊", "地点": "落云宗后山练剑坪", "时间": "午后", "一句话概要": "林渊第一次拔剑", "出场角色": ["林渊", "苏长老"], "核心冲突": "练剑被阻", "关联情节线": ["主线·剑道之争"], "字数": 1500}
 ```
 
 **情节线 (PLOT_THREAD)**：

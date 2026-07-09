@@ -66,13 +66,13 @@ NOVELS_ROOT/                       ← 小说项目根目录（novel-create-herm
 | `novel-v2` | **V2 统一创作** — 章节写作、角色管理、世界观建设、情节设计、总纲大纲、风格切换、编辑修订、导出全部格式 | `Task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"], ...)` + focus / preheat / mode |
 | `novel-project-manager` | 新建/导入/查看状态/续写/切换/删除项目 | `skill("novel-project-manager")` |
 | `novel-env-setup` | 环境初始化 / .venv 故障修复 | `skill("novel-env-setup")` |
-| `novel-search-analysis` | V2 搜索分析 — 机械搜索（SearchEngine）+ 偏差管理（DeviationManager）+ LLM 分析框架（5 种分析模式） | `skill("novel-search-analysis")` |
+| `novel-search-analysis` | V2 搜索分析 — 机械搜索（SearchEngine）+ 偏差管理（DeviationManager）+ LLM 分析框架（4 种分析模式） | `task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], ...)` 编排层调度 |
 | `novel-grill` | 需求发现：创作前交互式追问收敛需求 | `skill("novel-grill")` |
 | `book-knowledge` | 知识库管理：检索、查询、引用已导入的知识 | `skill("book-knowledge")` |
 | `book-to-knowledge` | 将书籍（PDF/EPUB/TXT/HTML/MOBI）导入为结构化知识库 | `skill("book-to-knowledge")` |
 
 > **V2 创作路由**：所有创作任务（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出）统一走 `novel-v2-crafter`，通过 `FOCUS TYPE`、`PREHEAT LEVEL`、`WRITING MODE` 参数区分操作类型。详见 `novel-writer.md` V2 路由表。
 >
-> **搜索分析**：V2 搜索分析分为三层——SearchEngine（纯机械搜索/一致性检查）+ DeviationManager（跨 session 偏差状态持久化）+ SKILL.md（LLM 分析框架：search/align/cross-ref/gap/full-diagnose 五种模式）。
+> **搜索分析**：简单数据检索走 `novel-tool graph.search` 直接调 tool；深度诊断（align/cross-ref/gap/full-diagnose 四种模式）由 orchestrator 通过 `task(subagent_type="novel-search-analysis")` 调度子 Agent。SearchEngine（纯机械搜索）+ DeviationManager（偏差状态持久化）是 Tool 层，子 Agent 在其上做 LLM 语义分析。
 >
 > **历史 V1 技能**（novel-ideation/style/worldbuilding/character/synopsis/plot/outline/chapter/edit/export/quality）：在 V2 中不再使用独立 subagent，其能力已整合到 `novel-v2` 技能中，通过不同的 focus type 调用。

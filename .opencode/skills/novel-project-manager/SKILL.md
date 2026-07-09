@@ -1,10 +1,10 @@
 ---
 name: "novel-project-manager"
-description: "小说项目管理。新建/导入/查看状态/续写/切换/删除。触发词：新建项目、导入项目、查看状态、续写、切换项目、删除项目、项目管理、novel project"
+description: "小说项目管理（V2）。新建/导入/查看状态/续写/切换/删除。触发词：新建项目、导入项目、查看状态、续写、切换项目、删除项目、项目管理、novel project"
 license: "MIT"
-version: "3.1.0"
+version: "4.0.0"
 compatibility: "OpenCode"
-tags: ["novel", "project-management"]
+tags: ["novel", "project-management", "v2"]
 ---
 
 # 小说项目管理
@@ -16,14 +16,7 @@ tags: ["novel", "project-management"]
 ### 新建项目
 
 ```
-# V2 原生项目（推荐）
-novel-tool --operation project.new --name "项目名" --genre "玄幻" --v2
-
-# 标准三卷三幕（V1）
-novel-tool --operation project.new --name "项目名" --genre "玄幻" --volumes 3 --acts 3
-
-# 五卷五幕史诗结构
-novel-tool --operation project.new --name "星辰帝国" --genre "玄幻" --volumes 5 --structure "五幕"
+novel-tool --operation project.new --name "项目名" --genre "玄幻"
 ```
 
 ### 导入已有小说
@@ -72,8 +65,8 @@ novel-tool --operation project.delete --name "项目名" --force
 
 | 子命令 | 用途 | 关键 flag |
 |--------|------|----------|
-| `new` | 新建项目 | `--volumes`, `--acts`, `--structure`, `--v2` |
-| `import` | 导入旧项目 | `--root`, `--volumes` |
+| `new` | 新建项目（V2 原生，graph/ 为真相源） | `--genre` |
+| `import` | 导入旧项目 | `--source_path` |
 | `status` | 查看/更新状态 | `--phase` |
 | `resume` | 续写项目（同一项目刷新） | — |
 | `switch` | 切换项目（不同项目间原子化） | `--dry-run`, `--skip-sync`, `--no-verify` |
@@ -86,3 +79,4 @@ novel-tool --operation project.delete --name "项目名" --force
 3. 删除操作无 `--force` 时必须确认
 4. 切换项目优先使用 `switch` 子命令（原子化），不要手动 read/write notepad
 5. `switch --dry-run` 可用于检查切换计划而不修改任何文件
+6. `project.new` 默认创建 V2 原生项目（graph/ 为单一真相源）

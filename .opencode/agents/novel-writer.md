@@ -45,7 +45,14 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 创意构思/灵感发散/脑洞/卡点解锁（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   └─ 走创意路由（§创意路由）
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
-  │   └─ 走 V2 创作路由（§V2 路由）
+  │   ├─ 用户请求明确（包含具体名称/方向）?
+  │   │   └─ 走 V2 创作路由（§V2 路由），跳过 grill 直接调度 crafter
+  │   └─ 用户请求模糊（抽象意图无细节）?
+  │       ├─ 焦点类型为 chunk?
+  │       │   └─ chunk 跳过 grill，直接调度 crafter
+  │       └─ 非 chunk?
+  │           ├─ skill("novel-grill", user_message="{FOCUS TYPE}:{FOCUS NAME}") → 收敛需求
+  │           └─ 用户确认后 → 走 V2 创作路由（§V2 路由）调度 crafter
   ├─ 迁移操作（用户要求迁移项目到 V2）?
   │   └─ 执行迁移 + 报告
   └─ 不匹配? → 询问用户意图
@@ -57,28 +64,49 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 
 **未指定项目**：读 `.omo/notepads/novel-context.md` 的 `__CURRENT_PROJECT__`；为空则扫描 NOVELS_ROOT 列出项目，询问用户。
 
-## 三、V2 路由
+## 三、V2 路由与需求发现
+
+### 3.1 需求发现前置（Grill Dispatch）
+
+用户请求按明确程度分两条路径：
+
+- **明确指令**（如"写第3章""创建主角林渊，剑修""用凡人修仙风"） → 跳过 grill，直接调度 crafter
+- **模糊意图**（如"帮我建个角色""加个设定""我想想怎么写这章"） → 先走 grill 收敛需求，再调度 crafter
+
+Grill 调度规则：
+1. 识别用户意图对应的焦点类型（见路由表）
+2. 判断请求是否模糊——包含明确的名称/方向/具体描述 → 明确；只有抽象意图无细节 → 模糊
+3. 模糊请求 → `skill("novel-grill", user_message="{FOCUS TYPE}:{FOCUS NAME}")`，等用户确认后再调 crafter
+4. 明确请求 → 直接调 crafter
+5. chunk 类型不经过 grill（正文写作无需需求发现，编排层直接调度）
+6. **grill 确认后**：将确认的需求清单组织为 `### 创作需求` 段落，注入 crafter 的 TASK prompt。
+   - 实体级属性（性格、背景、定位等）→ 注入 TASK，crafter 写入 unit content
+   - 任务级指令（节奏、侧重、排除项）→ 注入 TASK，一次性消费
+   - 项目级偏好（罕见）→ 注入 TASK，编排层自行判断后续是否需要重复注入
+   - **不要写入 deviation_state.yaml**——grill 不做持久化，结论直接传入 crafter
+
+### 3.2 焦点路由表
 
 创作操作按用户意图映射到焦点类型：
 
-| 用户意图 | 焦点类型 | 预热级别 | 写作模式 | 备注 |
-|----------|---------|---------|---------|------|
-| 章纲/分纲（规划整章骨架） | structure | warm | draft | 子类型=章纲，定场景序列/节奏密度/字数分配 |
-| 设计场域（规划单个叙事切片） | scene | warm | draft | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | warm | draft | 自动关联到所属 scene，子类型=初稿 |
-| 创建/编辑角色 | character_arc | warm | draft | |
-| 世界观设定 | world_rule | warm | draft | |
-| 情节/伏笔设计 | plot_thread | warm | draft | |
-| 总纲 | structure | warm | draft | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
-| 卷大纲 | structure | warm | draft | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
-| 叙述腔调设计 | narrative_voice | warm | draft | 决定腔调谱系、视角、笔法约定 |
-| 主题意象设计 | thematic_motif | warm | draft | 创建/追踪反复出现的象征性意象动机 |
-| 扩展/润色/精修 | chunk | hot | polish | |
-| 仿写/去AI味 | chunk | hot | — | 走 skill("humanizer-zh-enhanced") 不在 crafter |
-| 编辑修改 | 根据目标类型推断 | warm | draft | |
-| 记录灵感 | note | cold | draft | |
-| 导出 | — | — | 走脚本 | |
-| 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 可视化章节 | |
+| 用户意图 | 焦点类型 | 预热级别 | 写作模式 | 推荐前置 grill | 备注 |
+|----------|---------|---------|---------|---------------|------|
+| 章纲/分纲（规划整章骨架） | structure | warm | draft | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
+| 设计场域（规划单个叙事切片） | scene | warm | draft | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
+| 写第N章正文（写出实际文字） | chunk | warm | draft | ❌ chunk 跳过 | 自动关联到所属 scene，子类型=初稿 |
+| 创建/编辑角色 | character_arc | warm | draft | ✅ 模糊时推荐 | |
+| 世界观设定 | world_rule | warm | draft | ✅ 模糊时推荐 | |
+| 情节/伏笔设计 | plot_thread | warm | draft | ✅ 模糊时推荐 | |
+| 总纲 | structure | warm | draft | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
+| 卷大纲 | structure | warm | draft | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
+| 叙述腔调设计 | narrative_voice | warm | draft | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
+| 主题意象设计 | thematic_motif | warm | draft | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
+| 扩展/润色/精修 | chunk | hot | polish | ❌ | |
+| 仿写/去AI味 | chunk | hot | — | ❌ | 走 skill("humanizer-zh-enhanced") 不在 crafter |
+| 编辑修改 | 根据目标类型推断 | warm | draft | ✅ 仅模糊修改请求 | |
+| 记录灵感 | note | cold | draft | ❌ | |
+| 导出 | — | — | 走脚本 | ❌ | |
+| 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 | ❌ | |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）
@@ -117,8 +145,6 @@ TASK: {用户请求的具体描述}"
 ### 前置追问（可选）
 
 用户意图模糊时，可先用 `skill("novel-grill", user_message="mode=ideation")` 收敛需求，再调度 subagent。
-
----
 
 ---
 

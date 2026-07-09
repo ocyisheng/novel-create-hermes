@@ -39,7 +39,7 @@
       }
     },
     "novel-ideation": {
-      "description": "创意构思子引擎。写作全程可呼叫，在已有项目中按需生成创意方向、丰富现有单元、解锁写作卡点",
+      "description": "创意方案生成器。在 grill 收敛需求后，基于约束库和焦点上下文生成可选方案",
       "mode": "subagent",
       "model": "deepseek/deepseek-v4-flash",
       "prompt": ".opencode/agents/novel-ideation.md",

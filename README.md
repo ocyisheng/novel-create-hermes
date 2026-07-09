@@ -217,16 +217,17 @@ GPT 是对话窗口，每次都要手动粘贴上下文；Hermes 是**结构化�
 V2 基于**叙事单元网络**，取代了传统的线性阶段和离散 YAML 文件体系。
 
 ```
-novel-writer.md（编排层）→ 意图识别 + 焦点映射
-        │ task(subagent_type="novel-v2-crafter")
+novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现
+        │
+        ├─ novel-v2-crafter      ← V2 统一创作（章节/角色/世界观/质检/导出）
+        ├─ novel-ideation        ← 创意方案生成（grill 后可选）
+        └─ novel-search-analysis ← 深度诊断（只读，偏差检测）
+        │
         ▼
-novel-v2-crafter（统一创作引擎）→ 处理全部创作任务
-        │ GraphStore API + novel-tool + WorkspaceBuilder
+shared/v2/ → GraphStore + SearchEngine + DeviationManager + WorkspaceBuilder
+        │ JSONL 持久化 + 事件溯源 + 快照
         ▼
-shared/v2/（数据层）→ 叙事单元 CRUD + 事件溯源 + 投影
-        │ JSONL 持久化 + 快照
-        ▼
-graph/（存储层）→ nodes.jsonl + edges.jsonl + events.olog
+graph/ → nodes.jsonl + edges.jsonl + events.olog
 ```
 
 详细的架构说明见 [DEVELOPER.md](DEVELOPER.md)。

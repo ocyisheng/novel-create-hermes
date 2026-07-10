@@ -30,9 +30,9 @@ tags: ["novel", "v2", "graph"]
 | `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
 | `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | 初稿/修订稿/定稿 | 按 WRITING MODE 读取 ## draft 或 ## polish 段：展开章纲或扩展润色 |
+| `chunk` | `references/chunk.md` | 版本标签 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
 | `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
-| `narrative_voice` | `references/voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
+| `narrative_voice` | `references/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
 
 ### 脚本 vs 提示词的分工
@@ -61,7 +61,6 @@ SUBTYPE: {章节类型}  # 各类型对应的子类型值
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
-WRITING MODE: draft | polish
 ```
 
 ---
@@ -125,10 +124,10 @@ novel-tool --operation graph.batch_infer --project {PROJECT}
 
 ```
 # 启动创作会话
-novel-tool --operation graph.start_session --project {PROJECT} --type SCENE --id {单元ID}
+novel-tool --operation session.start --project {PROJECT} --type SCENE --id {单元ID}
 
 # 构建工作空间上下文
-novel-tool --operation graph.build_workspace --project {PROJECT} --id {焦点单元ID} --level warm
+novel-tool --operation session.build_workspace --project {PROJECT} --id {焦点单元ID} --level warm
 
 # 持久化 graph
 novel-tool --operation graph.flush --project {PROJECT}

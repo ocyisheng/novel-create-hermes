@@ -163,7 +163,7 @@ class LegacyFileAdapter:
         file_path: str,
         chapter_text: str,
         chapter_number: int,
-        draft_type: str = "初稿",
+        version_label: str = "v1",
         actor: str = "script",
         scene_id: Optional[str] = None,
     ) -> bool:
@@ -172,24 +172,24 @@ class LegacyFileAdapter:
         
         章节正文存为 TXT 文件（file_path），
         graph 中的 CHUNK 单元只存元数据 JSON。
-        file_path 为空时自动按约定生成：chapters/第{chapter_number}章_{draft_type}.txt
+        file_path 为空时自动按约定生成：chapters/第{chapter_number}章_{version_label}.txt
         
         如果 scene_id 不为空，自动建立 CHUNK→SCENE 的 BELONGS_TO 关系。
         """
         import json
         
         if not file_path:
-            file_path = f"chapters/第{chapter_number}章_{draft_type}.txt"
+            file_path = f"chapters/第{chapter_number}章_{version_label}.txt"
         
-        # Step 1: 检测重复（同一章节+同一子类型的 CHUNK）
-        unit_name = f"第{chapter_number}章_{draft_type}"
+        # Step 1: 检测重复（同一章节+同一版本标签的 CHUNK）
+        unit_name = f"第{chapter_number}章_{version_label}"
         existing = self.store.get_unit_by_name(unit_name)
         if existing and existing.type == UnitType.CHUNK:
             # 已有同名 CHUNK：更新元数据，不创建新单元
             content_meta = json.dumps({
                 "章节号": chapter_number,
                 "正文路径": file_path,
-                "子类型": draft_type,
+                "子类型": version_label,
                 "字数": len(chapter_text),
             }, ensure_ascii=False)
             self.store.update_unit(
@@ -203,7 +203,7 @@ class LegacyFileAdapter:
             content_meta = json.dumps({
                 "章节号": chapter_number,
                 "正文路径": file_path,
-                "子类型": draft_type,
+                "子类型": version_label,
                 "字数": len(chapter_text),
             }, ensure_ascii=False)
             chunk_unit = self.store.create_unit(

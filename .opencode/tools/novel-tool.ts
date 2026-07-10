@@ -40,8 +40,6 @@ export default tool({
         "graph.create_unit", "graph.update_unit", "graph.add_relation",
         "graph.flush", "graph.fix_asymmetry", "graph.batch_infer",
         "graph.archive_unit",
-        // graph session
-        "graph.start_session", "graph.build_workspace",
         // graph exports
         "graph.export_docs", "graph.export_chunks",
         // graph viz & migrate
@@ -54,6 +52,8 @@ export default tool({
         "env.check", "env.fix", "env.force",
         // knowledge
         "knowledge.read", "knowledge.list_books",
+        // session
+        "session.start", "session.build_workspace", "session.info", "session.set_cycle", "session.set_phase",
         // deviation
         "deviation.merge", "deviation.list", "deviation.pending",
         "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats",
@@ -68,6 +68,7 @@ export default tool({
     limit: tool.schema.number().optional().describe("结果上限"),
     relType: tool.schema.string().optional().describe("关系类型过滤"),
     content: tool.schema.string().optional().describe("单元内容 (JSON 字符串)"),
+    status: tool.schema.string().optional().describe("单元状态 (sprout/growing/mature/frozen/archived)"),
     file: tool.schema.string().optional().describe("从文件读取内容（优先于 content）"),
     type: tool.schema.string().optional().describe("类型（创建单元时的 UnitType / 关系类型 / 会话焦点类型）"),
     source: tool.schema.string().optional().describe("关系源 ID"),
@@ -99,6 +100,8 @@ export default tool({
     scope: tool.schema.string().optional().describe("搜索范围（逗号分隔的类型）"),
     regex: tool.schema.boolean().optional().describe("启用正则搜索"),
     caseSensitive: tool.schema.boolean().optional().describe("区分大小写"),
+    cycle_type: tool.schema.string().optional().describe("会话循环类型 (expansion/refinement/proofing/planning)"),
+    phase: tool.schema.string().optional().describe("会话阶段 (ideation/planning/expansion/refinement/proofing)"),
     incremental: tool.schema.boolean().optional().describe("增量生成"),
     verify: tool.schema.boolean().optional().describe("迁移时验证"),
     report: tool.schema.boolean().optional().describe("迁移时输出报告"),

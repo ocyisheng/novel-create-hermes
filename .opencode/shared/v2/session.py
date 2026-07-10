@@ -442,23 +442,6 @@ class SessionManager:
 
         return "warm"
 
-    def recommend_mode(self) -> str:
-        """
-        根据会话状态推荐写作模式。
-        
-        返回 "draft" | "polish" | "rewrite"
-        """
-        if not self.active_session:
-            return "draft"
-
-        if self.active_session.cycle_type == CycleType.REFINEMENT:
-            return "polish"
-        if self.active_session.cycle_type == CycleType.PROOFING:
-            return "polish"
-        if self.user_state.current_cycle > 2:
-            return "rewrite"
-        return "draft"
-
     # ── 钩子系统 ─────────────────────────────────────────────────────────
 
     def on(self, event: str, callback: Callable):

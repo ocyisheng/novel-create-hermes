@@ -292,8 +292,10 @@ def _handle_graph(op: str, params: dict) -> str:
         unit_name = params.get("name")
         tags_raw = params.get("tags")
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
+        status_raw = params.get("status")
+        status = UnitStatus[status_raw.upper()] if status_raw else None
         actor = params.get("actor", "novel-tool")
-        u = store.update_unit(unit_id=uid, content=content, unit_name=unit_name, tags=tags, actor=actor)
+        u = store.update_unit(unit_id=uid, content=content, unit_name=unit_name, tags=tags, status=status, actor=actor)
         if u:
             store.flush()
             return _ok({"id": u.id, "name": u.unit_name, "version": u.version, "tags": list(u.tags)})
@@ -361,28 +363,6 @@ def _handle_graph(op: str, params: dict) -> str:
         store.flush()
         after = store.stats()["total_relations"]
         return _ok({"new_relations": total, "total_before": before, "total_after": after})
-
-    if op == "graph.start_session":
-        from graph_schema import UnitType
-        from session import SessionManager
-        mgr = SessionManager(project)
-        mgr.load_user_state()
-        if mgr.active_session:
-            s = mgr.resume_session()
-        else:
-            ft = UnitType[params.get("type", "SCENE").upper()]
-            fid = params.get("id", "")
-            s = mgr.start_session(focus_type=ft, focus_unit_id=fid)
-        mgr.save_user_state()
-        return _ok({"session_id": s.id if hasattr(s, 'id') else str(s)})
-
-    if op == "graph.build_workspace":
-        from workspace import WorkspaceBuilder
-        b = WorkspaceBuilder(store)
-        fid = params.get("id", "")
-        level = params.get("level", "warm")
-        ws = b.build(fid, preheat_level=level)
-        return _ok({"context": ws.to_prompt_block(level)})
 
     if op == "graph.export_docs":
         from projection_engine import ProjectionEngine
@@ -789,6 +769,147 @@ def _handle_knowledge(op: str, params: dict) -> str:
 
 
 # ──────────────────────────────────────────────
+#  会话管理操作
+# ──────────────────────────────────────────────
+
+def _handle_session(op: str, params: dict) -> str:
+    project = _resolve_project(params.get("project", ""))
+    if not project or not os.path.isfile(os.path.join(project, "config.yaml")):
+        return _err(f"项目不存在或路径无效: {project}")
+
+    from session import SessionManager, CycleType, SessionPhase
+    mgr = SessionManager(project)
+    mgr.load_user_state()
+
+    if op == "session.start":
+        from graph_schema import UnitType
+        if mgr.active_session:
+            s = mgr.resume_session()
+        else:
+            ft = UnitType[params.get("type", "SCENE").upper()]
+            fid = params.get("id", "")
+            s = mgr.start_session(focus_type=ft, focus_unit_id=fid)
+        mgr.save_user_state()
+        return _ok({"session_id": s.id if hasattr(s, 'id') else str(s)})
+
+    if op == "session.build_workspace":
+        from workspace import WorkspaceBuilder
+        store = _get_store(project)
+        b = WorkspaceBuilder(store)
+        fid = params.get("id", "")
+        level = params.get("level", "warm")
+        ws = b.build(fid, preheat_level=level)
+        return _ok({"context": ws.to_prompt_block(level)})
+
+    if op == "session.info":
+        """
+        返回当前会话状态，供编排层决策。
+        
+        chunk 焦点时：
+          - iteration_count: 该章节已有 CHUNK 数量（决定版本标签）
+          - exist_chunks: 已有正文路径列表（供 preheat 加载）
+          - cycle_type: 当前循环类型
+          - session_phase: 当前阶段
+          - preheat: 推荐的预热级别
+        """
+        if not mgr.active_session:
+            return _ok({
+                "has_session": False,
+                "cycle_type": None,
+                "session_phase": None,
+                "iteration_count": 0,
+                "exist_chunks": [],
+                "preheat": "cold",
+            })
+        s = mgr.active_session
+        iteration_count = 0
+        exist_chunks = []
+        preheat = "warm"
+
+        # chunk 焦点：从 graph 统计已有正文数
+        if s.focus_type and hasattr(s.focus_unit_id, '__str__'):
+            try:
+                from graph_store import GraphStore
+                from graph_schema import UnitType
+                store = GraphStore(project)
+                store.initialize()
+                focus_unit = store.get_unit(s.focus_unit_id)
+                if focus_unit and focus_unit.type == UnitType.CHUNK:
+                    chapter = focus_unit.belongs_to_chapter
+                    if chapter:
+                        chunks = store.find_units(type=UnitType.CHUNK)
+                        same_chapter = [c for c in chunks if c.belongs_to_chapter == chapter]
+                        iteration_count = len(same_chapter)
+                        paths = []
+                        for c in same_chapter:
+                            if c.content:
+                                try:
+                                    meta = json.loads(c.content) if isinstance(c.content, str) else c.content
+                                    p = meta.get("正文路径", "")
+                                    if p:
+                                        full = os.path.join(project, p)
+                                        paths.append(full)
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                        exist_chunks = paths
+                elif focus_unit and focus_unit.type == UnitType.SCENE:
+                    # scene 焦点时找关联的 CHUNK
+                    neighbors = store.get_neighbors(s.focus_unit_id, max_depth=1)
+                    chunk_ids = set()
+                    for neighbors_at_depth in neighbors.values():
+                        for nid in neighbors_at_depth:
+                            n = store.get_unit(nid)
+                            if n and n.type == UnitType.CHUNK:
+                                chunk_ids.add(nid)
+                    iteration_count = len(chunk_ids)
+                    if iteration_count > 0:
+                        preheat = "hot"
+            except Exception as e:
+                pass
+
+        return _ok({
+            "has_session": True,
+            "session_id": s.id if hasattr(s, 'id') else str(s),
+            "focus_type": s.focus_type.value if hasattr(s.focus_type, 'value') else str(s.focus_type) if s.focus_type else None,
+            "cycle_type": s.cycle_type.value if hasattr(s.cycle_type, 'value') else str(s.cycle_type) if s.cycle_type else None,
+            "session_phase": s.phase.value if hasattr(s.phase, 'value') else str(s.phase) if hasattr(s, 'phase') and s.phase else None,
+            "iteration_count": iteration_count,
+            "exist_chunks": exist_chunks,
+            "preheat": preheat,
+        })
+
+    if op == "session.set_cycle":
+        if not mgr.active_session:
+            return _err("没有活跃会话，请先启动会话")
+        cycle_raw = params.get("cycle_type", "")
+        if not cycle_raw:
+            return _err("set_cycle 需要 cycle_type 参数")
+        try:
+            ct = CycleType[cycle_raw.upper()]
+        except KeyError:
+            return _err(f"无效 cycle_type: {cycle_raw}，可选: {', '.join(c.name for c in CycleType)}")
+        mgr.set_cycle_type(ct)
+        mgr.save_user_state()
+        return _ok({"cycle_type": ct.value})
+
+    if op == "session.set_phase":
+        if not mgr.active_session:
+            return _err("没有活跃会话，请先启动会话")
+        phase_raw = params.get("phase", "")
+        if not phase_raw:
+            return _err("set_phase 需要 phase 参数")
+        try:
+            ph = SessionPhase[phase_raw.upper()]
+        except KeyError:
+            return _err(f"无效 phase: {phase_raw}，可选: {', '.join(p.name for p in SessionPhase)}")
+        mgr.set_phase(ph)
+        mgr.save_user_state()
+        return _ok({"phase": ph.value})
+
+    return _err(f"未知 session 操作: {op}")
+
+
+# ──────────────────────────────────────────────
 #  偏差管理操作
 # ──────────────────────────────────────────────
 
@@ -904,6 +1025,8 @@ def handle_request(request: dict) -> str:
             return _handle_env(op, request)
         if op.startswith("knowledge."):
             return _handle_knowledge(op, request)
+        if op.startswith("session."):
+            return _handle_session(op, request)
         if op.startswith("deviation."):
             return _handle_deviation(op, request)
         return _err(f"未知操作领域: {op}")

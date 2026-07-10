@@ -106,8 +106,9 @@ NARRATIVE_VOICE_SCHEMA = {
 }
 
 CHUNK_SCHEMA = {
-    "子类型": {"type": str, "required": True, "options": ["初稿","修订稿","定稿"]},
+    "子类型": {"type": str, "required": False},
     "章节号": {"type": int, "required": True},
+    "章节名": {"type": str, "required": False},
     "正文路径": {"type": str, "required": False},
     "字数": {"type": int, "required": False},
 }

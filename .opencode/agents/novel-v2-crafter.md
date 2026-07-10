@@ -15,20 +15,19 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | structure | narrative_voice | thematic_motif}
-SUBTYPE: {子类型值}  # 可选，如总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | 初稿/修订稿/定稿
+SUBTYPE: {子类型值}  # 可选，如总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
-WRITING MODE: {draft | polish}
 ```
 
 ### 第一步：初始化创作会话
 
-`novel-tool --operation graph.start_session --project <PROJECT> --type <FOCUS_TYPE> --id <FOCUS_ID>`
+`novel-tool --operation session.start --project <PROJECT> --type <FOCUS_TYPE> --id <FOCUS_ID>`
 
 ### 第二步：获取工作空间上下文
 
-`novel-tool --operation graph.build_workspace --project <PROJECT> --id <FOCUS_ID> --level <PREHEAT_LEVEL>`
+`novel-tool --operation session.build_workspace --project <PROJECT> --id <FOCUS_ID> --level <PREHEAT_LEVEL>`
 
 写作中如需更详细的知识库内容，使用 `novel-tool` tool 按需查询：
 `novel-tool --operation knowledge.read --project <PROJECT> --slug fanren-xiuxian --topic 掌天瓶`
@@ -42,31 +41,18 @@ WRITING MODE: {draft | polish}
 
 ### 焦点类型加载
 
-根据 `FOCUS TYPE` 加载对应的创作方法论参考。chunk 类型按 `WRITING MODE` 只读对应段落：
+根据 `FOCUS TYPE` 加载对应的创作方法论参考。所有类型读取完整文件：
 
 ```bash
-# chunk 类型：根据 WRITING MODE 读取对应 ## draft 或 ## polish 段
-# 其他类型：读取完整文件
-# 注：narrative_voice 对应的文件是 voice.md（非 narrative_voice.md）
-REF_FILE="$(echo {FOCUS TYPE} | sed 's/narrative_voice/voice/')"
+REF_FILE="{FOCUS TYPE}"
 cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 ```
-
 
 **注意分工：**
 - **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
 - **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。
 
-## 三、写作模式
-
-根据 `WRITING MODE` 参数调整质量标准：
-
-| 模式 | 质量标准 | 上下文需求 |
-|------|---------|-----------|
-| `draft` | 根据章纲展开正文：谁在何时何地干了啥、反应、环境 | COLD+WARM |
-| `polish` | 在初稿上扩展润色，运用写作手法提升表现力 | COLD+WARM+HOT |
-
-## 四、graph 查询
+## 三、graph 查询
 
 写作过程中如果发现缺少信息，使用 `novel-tool` tool 直接查询。
 
@@ -83,7 +69,7 @@ cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 | 按名称查 ID | `novel-tool --operation graph.find_unit --project <PROJECT> --name <名称>` |
 | 查询知识库参考 | `novel-tool --operation knowledge.read --project <PROJECT> --slug <slug> --topic <主题>` |
 
-## 五、创作操作
+## 四、创作操作
 
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
 
@@ -95,28 +81,30 @@ cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 
 ### 章节正文写入
 
-CHUNK 只存元数据（章节号、字数、正文路径），正文写入 TXT 文件：
+CHUNK 只存元数据（章节号、章节名、字数、正文路径），正文写入 TXT 文件。
+
+`--name` 保持 `"第N章"` 作为单元标识，章节名存于 `content.章节名`。
 
 ```
 1. novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
      --name "第3章" --actor novel-v2-crafter \
-     --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":0}'
+     --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
 
 2. # 关联到所属场景（如果有关联的 SCENE 单元）
    # 通过 --chapter 参数，或通过 graph.find_unit 找到对应 SCENE 的 ID
    novel-tool --operation graph.add_relation --project {PROJECT} \
      --source {CHUNK_ID} --target {SCENE_ID} --type belongs_to
 
-3. 用 write 工具将正文写入 chapters/第3章_初稿.txt（UTF-8 纯文本）
+3. 用 write 工具将正文写入 chapters/第3章_v1.txt（UTF-8 纯文本）
 
 4. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
-     --content '{"章节号":3,"正文路径":"chapters/第3章_初稿.txt","子类型":"初稿","字数":5200}'
+     --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":5200}'
 
 5. novel-tool --operation graph.flush --project {PROJECT}
 ```
 
 正文路径为空时默认：`chapters/第{章节号}章_{子类型}.txt`。
-修订时创建新 CHUNK（如 修订稿 → `chapters/第3章_修订稿.txt`），不覆盖初稿。
+修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
 
 ### 写后自动推进写作进度
 
@@ -138,7 +126,7 @@ novel-tool --operation project.update_progress --project <PROJECT> --volumeOutli
 - 如果一次写了多章（如 5-8 章合写），把 `当前章` 直接推进到最后一章编号
 - 非章节写作操作（角色创建、世界观设定、质检等）不需要更新进度
 
-## 六、HARD CONSTRAINTS
+## 五、HARD CONSTRAINTS
 
 1. **graph 是真相源** — 先写 graph，再考虑写文件
 2. **按需操作** — 所有读写操作通过 `novel-tool` tool，不要假设编排层已经给了你全部数据

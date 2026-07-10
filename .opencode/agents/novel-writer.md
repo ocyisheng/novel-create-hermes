@@ -18,7 +18,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 |---|------|------|
 | 0 | MUST | 所有 `Task()` prompt 注入 `CURRENT PROJECT` + `PROJECT PATH` |
 | 1 | MUST | 写作任务统一走 `task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"], ...)` |
-| 2 | MUST | 子 Agent prompt 必须包含 `FOCUS TYPE`、`FOCUS ID`、`FOCUS NAME`、`PREHEAT LEVEL`、`WRITING MODE` |
+| 2 | MUST | 子 Agent prompt 必须包含 `FOCUS TYPE`、`FOCUS ID`、`FOCUS NAME`、`PREHEAT LEVEL` |
 | 3 | MUST | V2 项目以 graph 为真相源，不再依赖文件后处理链 |
 | 4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | 5 | NEVER | 安装系统 Python |
@@ -39,7 +39,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   ├─ 简单数据检索（"找找天道宗在哪出现过"）? → novel-tool graph.search（直接调 tool）
   │   └─ 深度诊断（分析/核验/对齐/整体检测）? → task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], prompt="ANALYSIS MODE: 见下文")
   ├─ 扩展/润色/精修?
-  │   └─ 走 V2 创作路由（WRITING MODE=polish）
+  │   └─ 先查 session.info → cycle_type=refinement → PREHEAT=hot 走 V2 创作路由
   ├─ 仿写/去AI味（太像AI了/不自然/去除模板感/人性化）?
   │   └─ 读 chunk 文本→ skill("humanizer-zh-enhanced") → 写回
   ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
@@ -98,24 +98,24 @@ Grill 调度规则：
 
 创作操作按用户意图映射到焦点类型：
 
-| 用户意图 | 焦点类型 | 预热级别 | 写作模式 | 推荐前置 grill | 备注 |
-|----------|---------|---------|---------|---------------|------|
-| 章纲/分纲（规划整章骨架） | structure | warm | draft | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
-| 设计场域（规划单个叙事切片） | scene | warm | draft | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | warm | draft | ❌ chunk 跳过 | 自动关联到所属 scene，子类型=初稿 |
-| 创建/编辑角色 | character_arc | warm | draft | ✅ 模糊时推荐 | |
-| 世界观设定 | world_rule | warm | draft | ✅ 模糊时推荐 | |
-| 情节/伏笔设计 | plot_thread | warm | draft | ✅ 模糊时推荐 | |
-| 总纲 | structure | warm | draft | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
-| 卷大纲 | structure | warm | draft | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
-| 叙述腔调设计 | narrative_voice | warm | draft | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
-| 主题意象设计 | thematic_motif | warm | draft | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
-| 扩展/润色/精修 | chunk | hot | polish | ❌ | |
-| 仿写/去AI味 | chunk | hot | — | ❌ | 走 skill("humanizer-zh-enhanced") 不在 crafter |
-| 编辑修改 | 根据目标类型推断 | warm | draft | ✅ 仅模糊修改请求 | |
-| 记录灵感 | note | cold | draft | ❌ | |
-| 导出 | — | — | 走脚本 | ❌ | |
-| 可视化/关系图/时间线 | — | — | 参考 novel-v2 skill §6 | ❌ | |
+| 用户意图 | 焦点类型 | 预热级别 | 推荐前置 grill | 备注 |
+|----------|---------|---------|---------------|------|
+| 章纲/分纲（规划整章骨架） | structure | warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
+| 设计场域（规划单个叙事切片） | scene | warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
+| 写第N章正文（写出实际文字） | chunk | 查 session.info | ❌ chunk 跳过 | 新写→preheat=warm, 版本标签=v1；精修→preheat=hot, 版本标签递增 |
+| 创建/编辑角色 | character_arc | warm | ✅ 模糊时推荐 | |
+| 世界观设定 | world_rule | warm | ✅ 模糊时推荐 | |
+| 情节/伏笔设计 | plot_thread | warm | ✅ 模糊时推荐 | |
+| 总纲 | structure | warm | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
+| 卷大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
+| 叙述腔调设计 | narrative_voice | warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
+| 主题意象设计 | thematic_motif | warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
+| 扩展/润色/精修 | chunk | 查 session.info | ❌ | 先查 session cycle_type, refinement→hot |
+| 仿写/去AI味 | chunk | hot | ❌ | 走 skill("humanizer-zh-enhanced") 不在 crafter |
+| 编辑修改 | 根据目标类型推断 | warm | ✅ 仅模糊修改请求 | |
+| 记录灵感 | note | cold | ❌ | |
+| 导出 | — | — | ❌ | |
+| 可视化/关系图/时间线 | — | — | ❌ | 参考 novel-v2 skill §6 |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）
@@ -205,7 +205,6 @@ FOCUS TYPE: {用户确认的操作类型}
 FOCUS ID: —
 FOCUS NAME: {目标名称}
 PREHEAT LEVEL: warm
-WRITING MODE: draft
 TASK: {用户确认的创作请求}
 
 ### 创作需求（来自 grill）
@@ -232,7 +231,7 @@ SUBTYPE: {子类型值}  # 总纲/卷大纲/章纲 | 开篇/推进/冲突/转折
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
 PREHEAT LEVEL: {cold|warm|hot}
-WRITING MODE: {draft | polish}
+
 TASK: {用户请求的具体描述}"
 )
 ```

@@ -106,6 +106,36 @@ CHUNK 只存元数据（章节号、章节名、字数、正文路径），正�
 正文路径为空时默认：`chapters/第{章节号}章_{子类型}.txt`。
 修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
 
+### 正文分章（超长自动拆分）
+
+当正文初步完成且字数超过 config.yaml 的 `质量检查.章节最多字数` 时，执行分章操作。
+
+```
+1. 判断超长：实写字数 > config.yaml → 质量检查.章节最多字数（默认 4500 字）
+
+2. 找断点：在正文中寻找自然叙事分界点
+   - 场景切换（空行分隔处）
+   - 时间跳转（次日/午后/黄昏等）
+   - POV 切换
+   - 叙事段落自然完结处
+
+3. 切文件：将原正文文件拆为两个文件
+   chapters/第{N}章_上.txt（前半段）
+   chapters/第{N}章_下.txt（后半段）
+
+4. 更新原 CHUNK：
+   --id {原CHUNK_ID}
+   --content '{"章节号":N, "正文分片":{"序号":1,"标题":"上段标题","文件":"chapters/第{N}章_上.txt"}, "字数":上半段字数}'
+
+5. 新建 CHUNK（同章节号）：
+   --type CHUNK --name "第{N}章_{原标题}（续）" --actor novel-v2-crafter \
+   --content '{"章节号":N, "正文分片":{"序号":2,"标题":"下段标题","文件":"chapters/第{N}章_下.txt"}, "字数":下半段字数}'
+
+6. 可选：关联新 CHUNK 到同一 SCENE（graph.add_relation --type belongs_to）
+
+注意：不需要创建新 SCENE，不需要新 STRUCTURE（章纲），不需要重编号后序章节。
+```
+
 ### 写后自动推进写作进度
 
 **每完成一章正文写作后，必须更新项目的写作进度：**
@@ -134,3 +164,4 @@ novel-tool --operation project.update_progress --project <PROJECT> --volumeOutli
 4. **标记 actor** — 所有操作传 `--actor novel-v2-crafter`
 5. **不要编辑 graph/ 下的 JSONL 文件** — 通过 novel-tool（底层用 GraphStore API 保障 schema 校验和事件溯源）
 6. **章后更新进度** — 完成章节正文写作后必须调用 `project.update_progress` 推进 `当前章`；非章节操作（角色/世界观/质检）不需要
+7. **超长分章** — 当正文超过 config.yaml 的 `质量检查.章节最多字数` 时，必须按「正文分章」流程执行拆分

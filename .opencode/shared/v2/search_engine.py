@@ -387,7 +387,7 @@ class SearchEngine:
     # ── CHUNK 一致性检查 ──────────────────────────────────────────────────
 
     def _check_chunk_missing_file(self) -> List[CheckResult]:
-        """规则 5: CHUNK 的正文文件（正文路径）不存在"""
+        """规则 5: CHUNK 的正文文件（正文路径/正文分片）不存在"""
         results = []
         import json
         for unit in self.store._units.values():
@@ -399,10 +399,23 @@ class SearchEngine:
                 content_dict = json.loads(unit.content) if unit.content else {}
             except (json.JSONDecodeError, ValueError):
                 continue
+            # 优先检查 正文分片
+            slice_info = content_dict.get("正文分片")
+            if slice_info:
+                slice_path = slice_info.get("文件", "")
+                if slice_path and not os.path.exists(slice_path):
+                    results.append(CheckResult(
+                        rule_name="CHUNK 分片文件丢失",
+                        rule_id="R5a",
+                        severity="warning",
+                        description=f"CHUNK『{unit.unit_name}』的分片文件不存在: {slice_path}",
+                        units_involved=[unit.id],
+                    ))
+                continue  # 有 正文分片 就不检查 正文路径
+            # 回退到 正文路径
             source_path = content_dict.get("正文路径", "")
             if not source_path:
                 continue
-            # 正文路径可能是相对或绝对，先查相对（project_root）
             if not os.path.exists(source_path):
                 results.append(CheckResult(
                     rule_name="CHUNK 正文文件丢失",

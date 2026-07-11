@@ -110,6 +110,7 @@ CHUNK_SCHEMA = {
     "章节号": {"type": int, "required": True},
     "章节名": {"type": str, "required": False},
     "正文路径": {"type": str, "required": False},
+    "正文分片": {"type": dict, "required": False},
     "字数": {"type": int, "required": False},
 }
 

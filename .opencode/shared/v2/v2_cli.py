@@ -378,44 +378,88 @@ def cmd_export(args, store):
     out_dir.mkdir(parents=True, exist_ok=True)
     project_dir = Path(args.path)
     exported = 0
-    for c in chunks:
-        ch = c.belongs_to_chapter
-        if ch:
-            fname = f"第{ch}章.txt"
-        else:
-            fname = f"{c.unit_name}.txt"
-        fpath = out_dir / fname
 
-        # 优先从 正文路径 读取
-        text = ""
+    def _read_chunk_text(c, project_dir):
+        """从 CHUNK 读取正文文本，优先使用 正文分片，回退到 正文路径"""
         try:
             content_dict = json.loads(c.content) if c.content else {}
         except (json.JSONDecodeError, ValueError):
             content_dict = {}
+        # 优先从 正文分片 读取
+        slice_info = content_dict.get("正文分片")
+        if slice_info:
+            slice_path = slice_info.get("文件", "")
+            if slice_path:
+                src = project_dir / slice_path
+                if src.exists():
+                    return src.read_text(encoding="utf-8")
+                else:
+                    return f"[分片文件缺失: {slice_path}]"
+        # 回退到 正文路径
         source_path = content_dict.get("正文路径", "")
         if source_path:
             src = project_dir / source_path
             if src.exists():
-                text = src.read_text(encoding="utf-8")
-            else:
-                print(f"  ⚠️ 正文文件缺失: {source_path}")
-        if not text:
-            # 兜底：检测是 V2 元数据 JSON 还是 V1 纯文本
-            if c.content:
-                try:
-                    parsed = json.loads(c.content)
-                    if isinstance(parsed, dict) and "章节号" in parsed:
-                        print(f"  ⚠️ {fname}: content 为元数据 JSON，非正文文本（文件可能已丢失）")
-                        text = f"[正文文件缺失: {source_path}]"
-                    else:
-                        text = c.content
-                except (json.JSONDecodeError, ValueError):
-                    text = c.content
-            else:
-                text = ""
+                return src.read_text(encoding="utf-8")
+        # 兜底
+        if c.content:
+            try:
+                parsed = json.loads(c.content)
+                if isinstance(parsed, dict) and "章节号" in parsed:
+                    return f"[正文文件缺失]"
+                else:
+                    return c.content
+            except (json.JSONDecodeError, ValueError):
+                return c.content
+        return ""
+
+    # 按章节号分组，同章多个 CHUNK（如分片）合并为一份
+    from collections import defaultdict
+    chapter_groups = defaultdict(list)
+    no_chapter = []
+    for c in chunks:
+        ch = c.belongs_to_chapter
+        if ch is not None:
+            chapter_groups[ch].append(c)
+        else:
+            no_chapter.append(c)
+
+    for ch in sorted(chapter_groups.keys()):
+        group = chapter_groups[ch]
+        fname = f"第{ch}章.txt"
+        fpath = out_dir / fname
+
+        # 组内按 正文分片.序号 排序
+        def _sort_key(c):
+            try:
+                cd = json.loads(c.content) if c.content else {}
+            except (json.JSONDecodeError, ValueError):
+                cd = {}
+            si = cd.get("正文分片")
+            if si:
+                return si.get("序号", 0)
+            return 0
+        group.sort(key=_sort_key)
+
+        parts = []
+        for c in group:
+            text = _read_chunk_text(c, project_dir)
+            if text:
+                parts.append(text)
+        full_text = "\n\n".join(parts)
+        fpath.write_text(full_text, encoding="utf-8")
+        exported += 1
+        print(f"  📄 {fpath.name} ({len(group)} 分片)")
+
+    # 无章节号的 CHUNK 按原名逐文件导出
+    for c in no_chapter:
+        fname = f"{c.unit_name}.txt"
+        fpath = out_dir / fname
+        text = _read_chunk_text(c, project_dir)
         fpath.write_text(text, encoding="utf-8")
         exported += 1
         print(f"  📄 {fpath.name}")
+
     print(f"\n导出完成: {exported} 个章节文件 → {out_dir}")
 
 

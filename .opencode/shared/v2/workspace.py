@@ -453,17 +453,20 @@ class WorkspaceBuilder:
                 if not scene or scene.type != UnitType.SCENE:
                     continue
                 
-                # 记录场景
-                ws.scenes.append({
-                    "unit_id": scene.id,
-                    "unit_name": scene.unit_name,
-                    "chapter": scene.belongs_to_chapter,
-                })
+                # 记录场景（去重）
+                if not any(e["unit_id"] == scene.id for e in ws.scenes):
+                    ws.scenes.append({
+                        "unit_id": scene.id,
+                        "unit_name": scene.unit_name,
+                        "chapter": scene.belongs_to_chapter,
+                    })
                 
                 # 从场景 content 提取时间/地点/核心冲突/角色状态/写作指引
                 self._extract_scene_context(ws, scene)
                 
                 # 通过场景加载关联角色和情节线（1-hop from scene）
+                seen_chars = {e["unit_id"] for e in ws.character_arcs}
+                seen_plots = {e["unit_id"] for e in ws.plot_threads}
                 for rel2 in self.store.get_relations(scene.id, direction="both"):
                     neighbor = self.store.get_unit(
                         rel2.source_id if rel2.target_id == scene.id else rel2.target_id
@@ -471,13 +474,15 @@ class WorkspaceBuilder:
                     if not neighbor or neighbor.id == focus.id:
                         continue
                     if neighbor.type == UnitType.CHARACTER_ARC:
-                        if len(ws.character_arcs) < config["character_limit"]:
+                        if neighbor.id not in seen_chars and len(ws.character_arcs) < config["character_limit"]:
+                            seen_chars.add(neighbor.id)
                             ws.character_arcs.append({
                                 "unit_id": neighbor.id,
                                 "unit_name": neighbor.unit_name,
                             })
                     elif neighbor.type == UnitType.PLOT_THREAD:
-                        if len(ws.plot_threads) < config["plot_limit"]:
+                        if neighbor.id not in seen_plots and len(ws.plot_threads) < config["plot_limit"]:
+                            seen_plots.add(neighbor.id)
                             ws.plot_threads.append({
                                 "unit_id": neighbor.id,
                                 "unit_name": neighbor.unit_name,

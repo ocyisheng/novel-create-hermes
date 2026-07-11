@@ -390,6 +390,7 @@ class SearchEngine:
         """规则 5: CHUNK 的正文文件（正文路径/正文分片）不存在"""
         results = []
         import json
+        project_root = self.store.project_root
         for unit in self.store._units.values():
             if unit.type != UnitType.CHUNK:
                 continue
@@ -403,7 +404,7 @@ class SearchEngine:
             slice_info = content_dict.get("正文分片")
             if slice_info:
                 slice_path = slice_info.get("文件", "")
-                if slice_path and not os.path.exists(slice_path):
+                if slice_path and not (project_root / slice_path).exists():
                     results.append(CheckResult(
                         rule_name="CHUNK 分片文件丢失",
                         rule_id="R5a",
@@ -416,7 +417,7 @@ class SearchEngine:
             source_path = content_dict.get("正文路径", "")
             if not source_path:
                 continue
-            if not os.path.exists(source_path):
+            if not (project_root / source_path).exists():
                 results.append(CheckResult(
                     rule_name="CHUNK 正文文件丢失",
                     rule_id="R5",

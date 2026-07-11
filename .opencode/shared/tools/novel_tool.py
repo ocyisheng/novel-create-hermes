@@ -175,7 +175,7 @@ def _handle_graph(op: str, params: dict) -> str:
         t = params.get("type", "")
         ut = UnitType[t.upper()] if t and t.upper() != "ALL" else None
         limit = params.get("limit", 0)
-        units = store.list_units(type=ut) if hasattr(store, "list_units") else store.find_units(type=ut)
+        units = store.find_units(type=ut)
         if limit and limit > 0:
             units = units[:limit]
         return _ok([
@@ -373,18 +373,61 @@ def _handle_graph(op: str, params: dict) -> str:
 
     if op == "graph.export_chunks":
         from graph_schema import UnitType
+        from collections import defaultdict
         chunks = store.find_units(type=UnitType.CHUNK)
         if not chunks:
             return _ok({"files": []})
-        out_dir = Path(params.get("out", "")) if params.get("out") else Path(project) / "chapters"
+        project_root = Path(project)
+        out_dir = Path(params.get("out", "")) if params.get("out") else project_root / "chapters"
         out_dir.mkdir(parents=True, exist_ok=True)
-        files = []
+
+        def _read_chunk_text(c):
+            try:
+                cd = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
+            except (json.JSONDecodeError, ValueError):
+                cd = {}
+            slice_info = cd.get("正文分片")
+            if slice_info:
+                sp = slice_info.get("文件", "")
+                if sp:
+                    src = project_root / sp
+                    if src.exists():
+                        return src.read_text(encoding="utf-8")
+            source_path = cd.get("正文路径", "")
+            if source_path:
+                src = project_root / source_path
+                if src.exists():
+                    return src.read_text(encoding="utf-8")
+            return ""
+
+        chapter_groups = defaultdict(list)
         for c in chunks:
             ch = c.belongs_to_chapter
-            fname = f"第{ch}章.txt" if ch else f"{c.unit_name}.txt"
+            if ch is not None:
+                chapter_groups[ch].append(c)
+
+        files = []
+        for ch in sorted(chapter_groups.keys()):
+            group = chapter_groups[ch]
+            def _sort_key(c):
+                try:
+                    cd = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
+                except (json.JSONDecodeError, ValueError):
+                    cd = {}
+                si = cd.get("正文分片")
+                return si.get("序号", 0) if si else 0
+            group.sort(key=_sort_key)
+            parts = []
+            for c in group:
+                text = _read_chunk_text(c)
+                if text:
+                    parts.append(text)
+            full_text = "\n\n".join(parts)
+            fname = f"第{ch}章.txt"
             fpath = out_dir / fname
-            fpath.write_text(c.content or "", encoding="utf-8")
+            fpath.write_text(full_text, encoding="utf-8")
             files.append(str(fpath))
+
         return _ok({"files": files})
 
     if op == "graph.viz":
@@ -827,13 +870,13 @@ def _handle_session(op: str, params: dict) -> str:
         preheat = "warm"
 
         # chunk 焦点：从 graph 统计已有正文数
-        if s.focus_type and hasattr(s.focus_unit_id, '__str__'):
+        if s.focus and s.focus.type and hasattr(s.focus.unit_id, '__str__'):
             try:
                 from graph_store import GraphStore
                 from graph_schema import UnitType
                 store = GraphStore(project)
                 store.initialize()
-                focus_unit = store.get_unit(s.focus_unit_id)
+                focus_unit = store.get_unit(s.focus.unit_id)
                 if focus_unit and focus_unit.type == UnitType.CHUNK:
                     chapter = focus_unit.belongs_to_chapter
                     if chapter:
@@ -854,7 +897,7 @@ def _handle_session(op: str, params: dict) -> str:
                         exist_chunks = paths
                 elif focus_unit and focus_unit.type == UnitType.SCENE:
                     # scene 焦点时找关联的 CHUNK
-                    neighbors = store.get_neighbors(s.focus_unit_id, max_depth=1)
+                    neighbors = store.get_neighbors(s.focus.unit_id, max_depth=1)
                     chunk_ids = set()
                     for neighbors_at_depth in neighbors.values():
                         for nid in neighbors_at_depth:
@@ -870,7 +913,7 @@ def _handle_session(op: str, params: dict) -> str:
         return _ok({
             "has_session": True,
             "session_id": s.id if hasattr(s, 'id') else str(s),
-            "focus_type": s.focus_type.value if hasattr(s.focus_type, 'value') else str(s.focus_type) if s.focus_type else None,
+            "focus_type": s.focus.type.value if hasattr(s.focus.type, 'value') else str(s.focus.type) if s.focus.type else None,
             "cycle_type": s.cycle_type.value if hasattr(s.cycle_type, 'value') else str(s.cycle_type) if s.cycle_type else None,
             "session_phase": s.phase.value if hasattr(s.phase, 'value') else str(s.phase) if hasattr(s, 'phase') and s.phase else None,
             "iteration_count": iteration_count,

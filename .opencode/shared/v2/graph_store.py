@@ -247,18 +247,32 @@ class GraphStore:
         return True
     
     def _flush_nodes(self):
-        """将内存中的叙事单元写回 JSONL（全量覆写）"""
-        with open(self.nodes_path, "w", encoding="utf-8") as f:
-            for unit in self._units.values():
-                f.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
-        self._dirty_nodes = False
+        """将内存中的叙事单元写回 JSONL（全量覆写，原子写入）"""
+        tmp = self.nodes_path.with_suffix(".jsonl.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                for unit in self._units.values():
+                    f.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
+            tmp.replace(self.nodes_path)
+            self._dirty_nodes = False
+        except Exception:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            raise
     
     def _flush_edges(self):
-        """将内存中的关系写回 JSONL"""
-        with open(self.edges_path, "w", encoding="utf-8") as f:
-            for rel in self._relations.values():
-                f.write(json.dumps(rel.to_dict(), ensure_ascii=False) + "\n")
-        self._dirty_edges = False
+        """将内存中的关系写回 JSONL（原子写入）"""
+        tmp = self.edges_path.with_suffix(".jsonl.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                for rel in self._relations.values():
+                    f.write(json.dumps(rel.to_dict(), ensure_ascii=False) + "\n")
+            tmp.replace(self.edges_path)
+            self._dirty_edges = False
+        except Exception:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            raise
     
     def _flush_events(self):
         """将新增事件追加到 olog（只写未持久化的新事件）"""
@@ -278,15 +292,33 @@ class GraphStore:
         self._dirty_events = False
     
     def flush(self):
-        """将所有脏数据写回磁盘"""
-        if self._dirty_nodes:
-            self._flush_nodes()
-        if self._dirty_edges:
-            self._flush_edges()
-        if self._dirty_events:
-            self._flush_events()
-        if self._dirty_nodes or self._dirty_edges or self._dirty_events:
-            self._save_cache()
+        """将所有脏数据写回磁盘（事务性：全部成功或全部保留脏标记）"""
+        if not (self._dirty_nodes or self._dirty_edges or self._dirty_events):
+            return
+        # 先全部写入临时文件
+        saved_nodes = not self._dirty_nodes
+        saved_edges = not self._dirty_edges
+        saved_events = not self._dirty_events
+        try:
+            if self._dirty_nodes:
+                self._flush_nodes()
+                saved_nodes = True
+            if self._dirty_edges:
+                self._flush_edges()
+                saved_edges = True
+            if self._dirty_events:
+                self._flush_events()
+                saved_events = True
+        except Exception:
+            # 写入失败，恢复脏标记，下次 flush 重试
+            if not saved_nodes:
+                self._dirty_nodes = True
+            if not saved_edges:
+                self._dirty_edges = True
+            if not saved_events:
+                self._dirty_events = True
+            raise
+        self._save_cache()
     
     # ── 事件记录 ────────────────────────────────────────────────────────
     

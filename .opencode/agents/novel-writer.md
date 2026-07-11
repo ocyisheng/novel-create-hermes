@@ -227,7 +227,7 @@ Task(
   prompt="CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {焦点类型}
-SUBTYPE: {子类型值}  # 总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | 初稿/修订稿/定稿
+SUBTYPE: {子类型值}  # 总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | v1/v2/v3
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
 PREHEAT LEVEL: {cold|warm|hot}

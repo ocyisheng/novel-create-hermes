@@ -555,6 +555,9 @@ class ProjectionEngine:
         # 7. relations.md — 关系网络摘要
         written.append(self._export_relations(export_dir))
 
+        # 8. chapters.md — 章节正文清单
+        written.append(self._export_chapters(export_dir))
+
         return written
 
     def _export_index(self, export_dir: Path) -> str:
@@ -856,5 +859,57 @@ class ProjectionEngine:
 
         content = "\n".join(lines)
         path = export_dir / "relations.md"
+        path.write_text(content, encoding="utf-8")
+        return str(path)
+
+    def _export_chapters(self, export_dir: Path) -> str:
+        """章节正文清单（列出每个 CHUNK 的元数据与文件引用）"""
+        from graph_schema import UnitType
+        from collections import defaultdict
+        import json
+
+        chunks = self.store.find_units(type=UnitType.CHUNK)
+        by_chapter = defaultdict(list)
+        for c in chunks:
+            ch = c.belongs_to_chapter or 0
+            by_chapter[ch].append(c)
+
+        lines = [
+            f"# 章节正文清单",
+            f"",
+            f"共 {len(chunks)} 个正文片段，分布在 {len(by_chapter)} 个章节",
+            f"",
+        ]
+
+        for ch in sorted(by_chapter.keys()):
+            group = by_chapter[ch]
+            label = f"第{ch}章" if ch else "未分配章节"
+            lines.append(f"## {label} ({len(group)} 分片)")
+            lines.append(f"")
+
+            for c in group:
+                meta = {}
+                try:
+                    meta = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+                slice_info = meta.get("正文分片")
+                if slice_info:
+                    seq = slice_info.get("序号", "?")
+                    path_ref = slice_info.get("文件", "?")
+                    lines.append(f"- {c.unit_name} [分片 #{seq}] → `{path_ref}`")
+                else:
+                    path_ref = meta.get("正文路径", "?")
+                    lines.append(f"- {c.unit_name} → `{path_ref}`")
+
+                lines.append(f"  - 版本: v{c.version} | 子类型: {meta.get('子类型', '?')} | 字数: {meta.get('字数', '?')}")
+
+                if c.tags:
+                    lines.append(f"  - 标签: {', '.join(c.tags)}")
+                lines.append(f"")
+
+        content = "\n".join(lines)
+        path = export_dir / "chapters.md"
         path.write_text(content, encoding="utf-8")
         return str(path)

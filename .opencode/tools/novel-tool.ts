@@ -28,7 +28,7 @@ function run(args: Record<string, unknown>, worktree: string): string {
 
 export default tool({
   name: "novel-tool",
-  description: "V2 小说创作统一工具。替代 graph-query.ts 和全部 CLI 命令。涵盖 graph CRUD、项目管理、环境、知识库、可视化、导出等全部操作。返回 JSON。",
+  description: "V2 小说创作统一工具, 涵盖 graph CRUD、项目管理、环境、知识库、可视化、导出等全部操作。返回 JSON。",
   args: {
     operation: tool.schema
       .enum([

@@ -182,12 +182,12 @@ class ImportEngine:
             extra = {"source_file": rel_path, "imported_at": datetime.now(timezone.utc).isoformat()}
             if unit_type == UnitType.CHUNK:
                 # CHUNK 只存元数据，正文保留在原文件
-                # 从文件名推测子类型（如 第3章_初稿.txt → "初稿"），默认 "初稿"
+                # 从文件名推测子类型（如 第3章_v1.txt → "v1"），默认 "v1"
                 from schemas import get_subtype_info
                 chunk_subtype_config = get_subtype_info(UnitType.CHUNK)
-                chunk_options = chunk_subtype_config.options if chunk_subtype_config else ["初稿","修订稿","定稿"]
-                detected_subtype = "初稿"
-                stem = file_path.stem  # "第3章_初稿"
+                chunk_options = chunk_subtype_config.options if chunk_subtype_config else ["v1","v2","v3"]
+                detected_subtype = "v1"
+                stem = file_path.stem  # "第3章_v1"
                 if stem and "_" in stem:
                     possible = stem.split("_")[-1]
                     if possible in chunk_options:

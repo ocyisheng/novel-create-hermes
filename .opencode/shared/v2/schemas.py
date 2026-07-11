@@ -200,7 +200,7 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
     UnitType.CHUNK: SubtypeConfig(
         field="子类型",
         required=True,
-        options=["初稿","修订稿","定稿"],
+        options=["v1","v2","v3"],
     ),
     UnitType.THEMATIC_MOTIF: SubtypeConfig(
         field="子类型",

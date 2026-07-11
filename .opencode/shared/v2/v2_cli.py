@@ -218,6 +218,13 @@ def cmd_update_unit(args, store):
         print("更新失败：叙事单元不存在")
         return
 
+    # 关系推断钩子：内容更新后自动同步 edge
+    from relation_inferrer import RelationInferrer
+    inferrer = RelationInferrer(store)
+    created = inferrer.infer_on_create(u)
+    if created:
+        print(f"关系推断: 新增 {created} 条关联")
+
     store.flush()
     print(f"更新成功: {u.id}")
     print(f"  名称: {u.unit_name}")

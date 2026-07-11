@@ -107,9 +107,15 @@ novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE --name
 novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --content "{新内容JSON}"
 novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --name "新名称" --tags "新标签"
 
-# 建立关系（--bidirectional 自动补反向）
+# ── 建立关系（关系走 edge，content 只存可读名称） ──
+# 场景 → 情节线：场景实现了哪条情节线
+novel-tool --operation graph.add_relation --project {PROJECT} --source {场景ID} --target {情节线ID} --type implements
+# 章纲 → 场景：章纲包含哪些场景
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
+# 角色 → 场景：角色参与哪些场景
+novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target {场景ID} --type participates_in
+# 成员/位置/同盟（--bidirectional 自动补反向）
 novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type member_of
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type contains
 novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type located_at
 novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --type allied_with --bidirectional
 
@@ -160,6 +166,8 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 {"子类型": "开篇/推进/冲突/转折/展示/过渡/收束", "POV角色": "林渊", "地点": "落云宗后山练剑坪", "时间": "午后", "一句话概要": "林渊第一次拔剑", "出场角色": ["林渊", "苏长老"], "核心冲突": "练剑被阻", "关联情节线": ["主线·剑道之争"], "字数": 1500}
 ```
 
+> `关联情节线` 和 `出场角色` 存可读名称（非内部 ID），真实关系走 edge。详见 §2。
+
 **情节线 (PLOT_THREAD)**：
 ```json
 {"子类型": "主线/支线/暗线/感情线/成长线/世界观线", "冲突核心": "...", "关键事件": [{"章节": 10, "事件": "..."}], "终局设计": "..."}
@@ -189,8 +197,9 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 ## 核心原则（HARD CONSTRAINTS）
 
 1. **graph 是真相源** — 所有创作数据优先写入 graph，投影到文件是次要的
-2. **按需查询，勿全量推送** — 使用 `novel-tool` 按需查询，不要一次性加载全部数据
-3. **写后 flush** — 每次 task() 完成后执行 `novel-tool --operation graph.flush` 确保持久化
-4. **记录 actor** — 所有 create/update 操作传入 `actor` 参数（如 `actor="novel-v2-crafter"`）
-5. **不要手工编辑 graph/ 下的 JSONL 文件** — 通过 GraphStore API 操作
-6. **通过 novel-tool 操作** — 所有数据读写通过 `novel-tool` tool 执行，不要直接调用 Python API 或编辑 JSONL 文件
+2. **关系走 edge，content 存可读名称** — content 里不写内部 ID（`sc_xxx` / `pt_xxx` 等）。`关联情节线` 和 `出场角色` 存的是可读名称用于快速查阅，真实关系通过 `graph.add_relation` 写入 edge。
+3. **按需查询，勿全量推送** — 使用 `novel-tool` 按需查询，不要一次性加载全部数据
+4. **写后 flush** — 每次 task() 完成后执行 `novel-tool --operation graph.flush` 确保持久化
+5. **记录 actor** — 所有 create/update 操作传入 `actor` 参数（如 `actor="novel-v2-crafter"`）
+6. **不要手工编辑 graph/ 下的 JSONL 文件** — 通过 GraphStore API 操作
+7. **通过 novel-tool 操作** — 所有数据读写通过 `novel-tool` tool 执行，不要直接调用 Python API 或编辑 JSONL 文件

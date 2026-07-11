@@ -966,6 +966,8 @@ def _handle_deviation(op: str, params: dict) -> str:
 
     if op == "deviation.merge":
         findings = params.get("findings", [])
+        if isinstance(findings, str):
+            findings = json.loads(findings)
         source = params.get("source", "novel-tool")
         scan_version = params.get("scan_version", 0)
         items = []

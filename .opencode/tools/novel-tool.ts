@@ -38,7 +38,7 @@ export default tool({
         "graph.list_relation_types", "graph.recent_events", "graph.get_modified_units",
         // graph writes
         "graph.create_unit", "graph.update_unit", "graph.add_relation",
-        "graph.flush", "graph.fix_asymmetry", "graph.batch_infer",
+        "graph.flush", "graph.fix_asymmetry", "graph.get_relations", "graph.remove_relation", "graph.batch_infer",
         "graph.archive_unit",
         // graph hierarchy queries
         "graph.find_descendants", "graph.find_ancestors",
@@ -82,6 +82,7 @@ export default tool({
     volume: tool.schema.number().optional().describe("卷号"),
     parent_id: tool.schema.string().optional().describe("创建单元时的父级单元 ID（自动建 CONTAINS 边）"),
     max_depth: tool.schema.number().optional().describe("find_descendants 最大深度"),
+    direction: tool.schema.string().optional().describe("方向 (outgoing/incoming/both，默认 both)"),
     actor: tool.schema.string().optional().describe("操作者标识"),
     character: tool.schema.string().optional().describe("可视化：角色名称/ID"),
     timeline: tool.schema.string().optional().describe("可视化：时间线角色"),

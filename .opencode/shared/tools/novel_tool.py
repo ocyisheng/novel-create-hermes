@@ -75,8 +75,8 @@ def _unit_to_dict(u) -> dict:
         "status": u.status.value if hasattr(u.status, "value") else str(u.status),
         "confidence": u.confidence,
         "tags": list(u.tags) if u.tags else [],
-        "chapter": u.belongs_to_chapter,
-        "volume": u.belongs_to_volume,
+        "chapter": u.chapter_number,
+        "volume": None,
         "version": u.version,
         "content": u.content,
         "created_at": str(u.created_at) if u.created_at else None,
@@ -270,7 +270,7 @@ def _handle_graph(op: str, params: dict) -> str:
             chapter = int(chapter)
         u = store.create_unit(
             type=ut, unit_name=unit_name, content=content, tags=tags,
-            belongs_to_chapter=chapter, belongs_to_volume=volume,
+            chapter_number=chapter,
             parent_id=parent_id, actor=actor,
         )
         inferrer = RelationInferrer(store) if hasattr(RelationInferrer, "__call__") else None
@@ -361,6 +361,55 @@ def _handle_graph(op: str, params: dict) -> str:
         store.flush()
         return _ok({"created": created, "skipped": skipped})
 
+    if op == "graph.get_relations":
+        from graph_schema import RelationType
+        uid = params.get("id", "")
+        rel_type_name = params.get("type", "") or params.get("relType", "") or ""
+        direction = params.get("direction", "both")
+        rel_type = RelationType[rel_type_name.upper()] if rel_type_name else None
+        relations = store.get_relations(unit_id=uid or None, relation_type=rel_type, direction=direction)
+        return _ok([
+            {
+                "id": r.id,
+                "source_id": r.source_id,
+                "target_id": r.target_id,
+                "type": r.relation_type.value,
+                "weight": r.weight,
+                "description": r.description,
+            }
+            for r in relations
+        ])
+
+    if op == "graph.remove_relation":
+        rid = params.get("id", "")
+        source = params.get("source", "")
+        target = params.get("target", "")
+        rtype_name = params.get("type", "") or params.get("relType", "") or ""
+        actor = params.get("actor", "novel-tool")
+
+        if rid:
+            ok = store.remove_relation(rid, actor=actor)
+            removed_id = rid
+        elif source and target and rtype_name:
+            from graph_schema import RelationType
+            rtype = RelationType[rtype_name.upper()]
+            found = None
+            for r in store.get_relations():
+                if r.source_id == source and r.target_id == target and r.relation_type == rtype:
+                    found = r
+                    break
+            if found:
+                ok = store.remove_relation(found.id, actor=actor)
+                removed_id = found.id
+            else:
+                return _err("未找到匹配的关系")
+        else:
+            return _err("remove_relation 需要 id 或 source+target+type")
+        if not ok:
+            return _err("关系不存在或删除失败")
+        store.flush()
+        return _ok({"removed": True, "relation_id": removed_id})
+
     if op == "graph.batch_infer":
         from relation_inferrer import RelationInferrer
         before = store.stats()["total_relations"]
@@ -406,10 +455,11 @@ def _handle_graph(op: str, params: dict) -> str:
                     return src.read_text(encoding="utf-8")
             return ""
 
+        from graph_schema import get_unit_chapter
         chapter_groups = defaultdict(list)
         for c in chunks:
-            ch = c.belongs_to_chapter
-            if ch is not None:
+            ch = get_unit_chapter(c)
+            if ch:
                 chapter_groups[ch].append(c)
 
         files = []
@@ -936,10 +986,11 @@ def _handle_session(op: str, params: dict) -> str:
                 store.initialize()
                 focus_unit = store.get_unit(s.focus.unit_id)
                 if focus_unit and focus_unit.type == UnitType.CHUNK:
-                    chapter = focus_unit.belongs_to_chapter
+                    from graph_schema import get_unit_chapter
+                    chapter = get_unit_chapter(focus_unit)
                     if chapter:
                         chunks = store.find_units(type=UnitType.CHUNK)
-                        same_chapter = [c for c in chunks if c.belongs_to_chapter == chapter]
+                        same_chapter = [c for c in chunks if get_unit_chapter(c) == chapter]
                         iteration_count = len(same_chapter)
                         paths = []
                         for c in same_chapter:

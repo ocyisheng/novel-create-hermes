@@ -228,11 +228,59 @@ class ProjectionEngine:
         path = self._format_path(view, params)
         return str(self.projections_dir / path)
     
+    @staticmethod
+    def _build_structure_path(structure_path: List[Any]) -> str:
+        """
+        将任意深度的 structure_path 列表转为文件系统路径。
+        
+        例子:
+            [15]                            → "第15章"
+            [2, 15]                         → "卷2/第15章"
+            ["人界篇", 2, 15]               → "人界篇/卷2/第15章"
+            ["人界篇", "黄枫谷卷", 15]      → "人界篇/黄枫谷卷/第15章"
+            ["人界篇", "黄枫谷卷", "秘境篇", 15] → "人界篇/黄枫谷卷/秘境篇/第15章"
+        """
+        if not structure_path:
+            return ""
+        segments = []
+        for item in structure_path:
+            if isinstance(item, int):
+                segments.append(f"第{item}章")
+            elif isinstance(item, str):
+                segments.append(item)
+            else:
+                segments.append(str(item))
+        return "/".join(segments)
+    
+    def _build_outline_title(self, structure_path: List[Any]) -> str:
+        """从 structure_path 生成分纲投影的标题。
+        
+        例子:
+            [15]                            → "第15章"
+            ["人界篇", 2, 15]               → "人界篇 · 卷2 · 第15章"
+            ["人界篇", "黄枫谷卷", 15]      → "人界篇 · 黄枫谷卷 · 第15章"
+        """
+        parts = []
+        for item in structure_path:
+            if isinstance(item, int):
+                parts.append(f"第{item}章")
+            elif isinstance(item, str):
+                parts.append(item)
+            else:
+                parts.append(str(item))
+        return " · ".join(parts)
+
     def _format_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
         """根据视图和参数格式化相对路径（支持动态层级）"""
         template = self.PROJECTION_PATHS[view]
         
         if view == ProjectionView.CHAPTER_OUTLINE:
+            # 优先使用 structure_path 构建完整层级路径
+            sp = params.get("structure_path", [])
+            if sp:
+                path = self._build_structure_path(sp)
+                return f"outline/分纲/{path}.md"
+            # 回退到旧版 params 模板
             return template.format(
                 part=params.get("part", "default"),
                 volume=params.get("volume", 1),
@@ -426,27 +474,40 @@ class ProjectionEngine:
             return "\n".join(lines)
         return content_json[:300]
 
-    def _project_chapter_outline(self, volume: int = 1, chapter: int = 1, part: str = "") -> str:
-        """分纲投影：将指定章节的场景群投影为分纲 YAML"""
+    def _project_chapter_outline(self, volume: int = 1, chapter: int = 1,
+                                  part: str = "",
+                                  structure_path: Optional[List[Any]] = None) -> str:
+        """分纲投影：将指定章节的场景群投影为分纲 YAML
+
+        Args:
+            volume: 卷号（旧版兼容）
+            chapter: 章节号
+            part: 部/篇名（旧版兼容）
+            structure_path: 完整结构路径，支持任意深度。
+                           提供时优先使用，回退到 volume/chapter/part。
+        """
         scenes = self.store.find_units(
             type=UnitType.SCENE,
             chapter=chapter,
             volume=volume,
         )
         
-        # 尝试从 structure_path 加载部信息（如无，回退到 config 中的部名）
-        part_label = part
-        if not part_label:
-            for s in scenes:
-                if s.structure_path and len(s.structure_path) >= 3:
-                    part_label = str(s.structure_path[0])
-                    break
-        
         lines = []
-        if part_label:
-            lines.append(f"# {part_label} · 第{chapter}章 分纲（V2 Graph 投影）")
+        if structure_path:
+            title = self._build_outline_title(structure_path)
+            lines.append(f"# {title} 分纲（V2 Graph 投影）")
         else:
-            lines.append(f"# 第{chapter}章 分纲（V2 Graph 投影）")
+            # 旧版兼容：从 structure_path 或 config 尝试加载部信息
+            part_label = part
+            if not part_label:
+                for s in scenes:
+                    if s.structure_path and len(s.structure_path) >= 3:
+                        part_label = str(s.structure_path[0])
+                        break
+            if part_label:
+                lines.append(f"# {part_label} · 第{chapter}章 分纲（V2 Graph 投影）")
+            else:
+                lines.append(f"# 第{chapter}章 分纲（V2 Graph 投影）")
         lines.append(f"projected_at: {datetime.now(timezone.utc).isoformat()}")
         lines.append(f"scene_count: {len(scenes)}")
         lines.append("")
@@ -597,7 +658,7 @@ class ProjectionEngine:
         for rel in related_rels:
             target = self.store.get_unit(rel.target_id)
             if target:
-                lines.append(f"- {target.unit_name} (ch.{target.belongs_to_chapter})")
+                lines.append(f"- {target.unit_name} (ch.{get_unit_chapter(target)})")
         
         return "\n".join(lines)
     

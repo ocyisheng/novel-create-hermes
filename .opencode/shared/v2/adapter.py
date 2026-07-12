@@ -210,7 +210,7 @@ class LegacyFileAdapter:
                 type=UnitType.CHUNK,
                 unit_name=unit_name,
                 content=content_meta,
-                belongs_to_chapter=chapter_number,
+                chapter_number=chapter_number,
                 actor=actor,
             )
             chunk_id = chunk_unit.id
@@ -328,8 +328,7 @@ class LegacyFileAdapter:
                         type=UnitType.STRUCTURE,
                         unit_name=name,
                         content=json.dumps(data, ensure_ascii=False),
-                        belongs_to_chapter=ch,
-                        belongs_to_volume=vol,
+                        chapter_number=ch,
                         actor="migration",
                     )
                     migrated["outlines"] += 1
@@ -420,8 +419,7 @@ class LegacyFileAdapter:
                 content=content,
                 status=status,
                 tags=tags,
-                belongs_to_chapter=chapter,
-                belongs_to_volume=volume,
+                chapter_number=chapter,
                 extra=extra,
             )
         ]

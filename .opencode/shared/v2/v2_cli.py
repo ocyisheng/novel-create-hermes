@@ -32,6 +32,12 @@ V2 CLI 工具 — 编排层 prompt 中调用的脚本入口。
     python .opencode/shared/v2/v2_cli.py export-docs --path <PROJECT>
     python .opencode/shared/v2/v2_cli.py export --path <PROJECT>
 
+    # 层级结构（CONTAINS）
+    python .opencode/shared/v2/v2_cli.py find-descendants --path <PROJECT> --id <ID> [--max-depth N]
+    python .opencode/shared/v2/v2_cli.py find-ancestors --path <PROJECT> --id <ID>
+    python .opencode/shared/v2/v2_cli.py rebuild-structure-path --path <PROJECT> --id <ID>
+    python .opencode/shared/v2/v2_cli.py migrate-structure --path <PROJECT>
+
     # 统计与工具
     python .opencode/shared/v2/v2_cli.py stats --path <PROJECT>
     python .opencode/shared/v2/v2_cli.py list-relation-types
@@ -82,6 +88,7 @@ def cmd_find_unit(args, store):
 
 @with_graph
 def cmd_get_unit(args, store):
+    from graph_schema import get_unit_chapter
     u = store.get_unit(args.id)
     if not u:
         print("NOT_FOUND")
@@ -91,7 +98,7 @@ def cmd_get_unit(args, store):
     print(f"状态: {u.status.value}")
     print(f"确信度: {u.confidence}")
     print(f"标签: {', '.join(u.tags) if u.tags else '无'}")
-    ch = f"第{u.belongs_to_chapter}章" if u.belongs_to_chapter else "无"
+    ch = f"第{get_unit_chapter(u)}章" if get_unit_chapter(u) else "无"
     print(f"章节: {ch}")
     if u.content:
         if args.verbose:
@@ -175,7 +182,7 @@ def cmd_create_unit(args, store):
         unit_name=args.name,
         content=content,
         tags=tags,
-        belongs_to_chapter=int(args.chapter) if args.chapter else None,
+        chapter_number=int(args.chapter) if args.chapter else None,
         actor=args.actor,
     )
     # 关系推断钩子：自动建立关联
@@ -359,6 +366,67 @@ def cmd_batch_infer(args, store):
     print(f"  关系总计: {before} → {after}")
 
 
+# ── 层级结构 CLI ───────────────────────────────────────────────────
+
+@with_graph
+def cmd_find_descendants(args, store):
+    """查找指定单元的所有后代（CONTAINS 递归）"""
+    descendants = store.find_descendants(args.id, max_depth=args.max_depth)
+    if not descendants:
+        print("未找到后代单元")
+        return
+    from graph_schema import get_unit_chapter
+    print(f"找到 {len(descendants)} 个后代单元:")
+    for uid in descendants:
+        u = store.get_unit(uid)
+        if u:
+            ch_n = get_unit_chapter(u)
+            ch = f" [第{ch_n}章]" if ch_n else ""
+            print(f"  • {u.type.value}: {u.unit_name} ({uid}){ch}")
+
+
+@with_graph
+def cmd_find_ancestors(args, store):
+    """查找指定单元的所有祖先（CONTAINS 递归向上）"""
+    ancestors = store.find_ancestors(args.id)
+    if not ancestors:
+        print("未找到祖先单元")
+        return
+    print(f"找到 {len(ancestors)} 个祖先单元:")
+    for uid in ancestors:
+        u = store.get_unit(uid)
+        if u:
+            print(f"  • {u.type.value}: {u.unit_name} ({uid})")
+
+
+@with_graph
+def cmd_rebuild_structure_path(args, store):
+    """从 CONTAINS 关系重建结构路径"""
+    path = store.rebuild_structure_path_from_edges(args.id)
+    if not path:
+        print("未重建出结构路径")
+        return
+    print(f"结构路径 ({len(path)} 级):")
+    for item in path:
+        u = store.get_unit(item["id"])
+        label = f"{u.type.value}: {u.unit_name}" if u else item["id"]
+        print(f"  [{item['level']}] {label}")
+
+
+@with_graph
+def cmd_migrate_structure(args, store):
+    """将结构路径字段（chapter_number/volume_number）迁移为 CONTAINS 边"""
+    actor = getattr(args, "actor", "cli")
+    result = store.migrate_structure_path_to_edges(actor=actor)
+    print(f"迁移完成:")
+    print(f"  新建边: {result.get('edges_created', 0)}")
+    print(f"  已存在: {result.get('edges_skipped', 0)}")
+    print(f"  错误:   {result.get('errors', 0)}")
+    if result.get("details"):
+        for d in result["details"][:10]:
+            print(f"  • {d}")
+
+
 @with_graph
 def cmd_export_docs(args, store):
     """导出结构化文档（Markdown）到 graph/export/"""
@@ -421,12 +489,13 @@ def cmd_export(args, store):
         return ""
 
     # 按章节号分组，同章多个 CHUNK（如分片）合并为一份
+    from graph_schema import get_unit_chapter
     from collections import defaultdict
     chapter_groups = defaultdict(list)
     no_chapter = []
     for c in chunks:
-        ch = c.belongs_to_chapter
-        if ch is not None:
+        ch = get_unit_chapter(c)
+        if ch:
             chapter_groups[ch].append(c)
         else:
             no_chapter.append(c)
@@ -789,6 +858,24 @@ def main():
     p.add_argument("--force", action="store_true",
                    help="强制全量重建（忽略 --incremental）")
 
+    # ── 层级结构命令 ────────────────────────────────────────────────
+
+    p = sub.add_parser("find-descendants", help="递归查找所有后代（CONTAINS）")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+    p.add_argument("--max-depth", type=int, default=10, help="递归深度（默认 10）")
+
+    p = sub.add_parser("find-ancestors", help="递归查找所有祖先（CONTAINS）")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("rebuild-structure-path", help="从 CONTAINS 关系重建结构路径")
+    p.add_argument("--path", required=True)
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("migrate-structure", help="将结构路径字段迁移为 CONTAINS 边")
+    p.add_argument("--path", required=True)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -819,8 +906,13 @@ def main():
         "report": cmd_report,
         "read-knowledge": cmd_read_knowledge,
         "viz": cmd_viz,
+        "find-descendants": cmd_find_descendants,
+        "find-ancestors": cmd_find_ancestors,
+        "rebuild-structure-path": cmd_rebuild_structure_path,
+        "migrate-structure": cmd_migrate_structure,
     }
     dispatch[args.command](args)
+
 
 
 if __name__ == "__main__":

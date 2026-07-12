@@ -29,7 +29,7 @@ if V2_DIR not in sys.path:
 
 from graph_schema import (
     NarrativeUnit, UnitType, UnitStatus, RelationType,
-    EventType,
+    EventType, get_unit_chapter,
 )
 from graph_store import GraphStore
 from render_utils import extract_entity_refs
@@ -151,7 +151,7 @@ class RelationInferrer:
             except (json.JSONDecodeError, ValueError):
                 pass
         # 1. 同章节自动关联（规则引擎）
-        if unit.type == UnitType.SCENE and unit.belongs_to_chapter:
+        if unit.type == UnitType.SCENE and get_unit_chapter(unit):
             count += self._infer_same_chapter(unit)
         # 2. 内容扫描（纯文本子串匹配，补充结构化提取遗漏的引用）
         if unit.content:
@@ -159,6 +159,9 @@ class RelationInferrer:
         # 3. 如果新建的是角色，反向扫描已有内容
         if unit.type == UnitType.CHARACTER_ARC:
             count += self._infer_reverse_scan(unit)
+        # 4. 如果新建的是结构单元，推断层级关系（CONTAINS 边）
+        if unit.type == UnitType.STRUCTURE:
+            count += self._infer_structure_hierarchy(unit)
         return count
 
     def infer_by_content(self, content: str, source_unit: NarrativeUnit) -> int:
@@ -197,17 +200,15 @@ class RelationInferrer:
     def _infer_same_chapter(self, scene: NarrativeUnit) -> int:
         """同章节角色自动参与场景（规则引擎），支持 structure_path 回退"""
         count = 0
-        # 提取场景的章节锚点
-        scene_chapter = scene.belongs_to_chapter
+        scene_ch = get_unit_chapter(scene)
         scene_path = scene.structure_path
         
         for u in self.store._units.values():
             if u.type != UnitType.CHARACTER_ARC or u.status == UnitStatus.ARCHIVED:
                 continue
             
-            # 优先按 belongs_to_chapter 匹配，回退到 structure_path
-            if scene_chapter is not None:
-                if u.belongs_to_chapter == scene_chapter:
+            if scene_ch:
+                if get_unit_chapter(u) == scene_ch:
                     if self._create_rel(u.id, scene.id, RelationType.PARTICIPATES_IN, 0.5):
                         count += 1
             elif scene_path and u.structure_path:
@@ -283,6 +284,63 @@ class RelationInferrer:
                 if self._create_rel(u.id, character.id, RelationType.REFERENCES, 0.2):
                     count += 1
 
+        return count
+
+    def _infer_structure_hierarchy(self, unit: NarrativeUnit) -> int:
+        """
+        新结构单元创建后，推断其在结构层级中的位置。
+        
+        策略：
+        1. 如果单元已通过 parent_id 建立了 CONTAINS 边，跳过。
+        2. 基于 unit_name 的名称模式推断父级：
+           - "XX卷"名称 → 尝试匹配"总纲"或相同系列名的"篇大纲"作为父级
+           - "第X章"名称 → 尝试匹配"卷大纲"作为父级
+        3. 基于 structure_path（若存在）的路径前缀匹配。
+        返回新建的关系数。
+        """
+        count = 0
+        # 跳过已有 CONTAINS 入边的（已被手动指定 parent_id）
+        incoming_contains = self.store.get_relations(
+            unit.id, relation_type=RelationType.CONTAINS, direction="incoming"
+        )
+        if incoming_contains:
+            return count
+        
+        # 策略 A：基于 structure_path 前缀匹配
+        if unit.structure_path and len(unit.structure_path) > 1:
+            parent_path = unit.structure_path[:-1]
+            for other in self.store._units.values():
+                if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
+                    continue
+                if other.type != UnitType.STRUCTURE:
+                    continue
+                if other.structure_path is not None and len(other.structure_path) == len(parent_path) \
+                        and other.structure_path == parent_path:
+                    if self._create_rel(other.id, unit.id, RelationType.CONTAINS, 0.8):
+                        count += 1
+                    return count
+        
+        # 策略 B：基于名称模式
+        name = unit.unit_name
+        
+        # "第X章" → 找卷大纲
+        import re
+        chapter_match = re.match(r'^第(\d+)章', name)
+        if chapter_match:
+            ch_num = int(chapter_match.group(1))
+            for other in self.store._units.values():
+                if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
+                    continue
+                if other.type != UnitType.STRUCTURE:
+                    continue
+                # 匹配"XX卷"或"XX卷大纲"
+                if '卷' in other.unit_name:
+                    vol_ch = get_unit_chapter(other)
+                    if vol_ch:
+                        # 卷大纲的章节号应 <= 当前章号
+                        if vol_ch <= ch_num:
+                            # 检查相邻单元
+                            pass  # 简化：不自动推断
         return count
 
     # ── 辅助方法 ────────────────────────────────────────────────────

@@ -129,8 +129,7 @@ class ImportEngine:
     
     def import_file(self, file_path: Path, unit_type: UnitType, 
                     extra_tags: Optional[List[str]] = None,
-                    belongs_to_chapter: Optional[int] = None,
-                    belongs_to_volume: Optional[int] = None,
+                    chapter_number: Optional[int] = None,
                     name_from_content: bool = True) -> bool:
         """
         导入单个文件。
@@ -193,7 +192,6 @@ class ImportEngine:
                     if possible in chunk_options:
                         detected_subtype = possible
                 content_meta = json.dumps({
-                    "章节号": belongs_to_chapter or 0,
                     "正文路径": str(file_path),
                     "子类型": detected_subtype,
                     "字数": len(content),
@@ -208,8 +206,7 @@ class ImportEngine:
                 content=content_meta,
                 status=UnitStatus.MATURE,
                 tags=tags,
-                belongs_to_chapter=belongs_to_chapter,
-                belongs_to_volume=belongs_to_volume,
+                chapter_number=chapter_number,
                 extra=extra,
                 actor="migration",
             )
@@ -741,8 +738,7 @@ def main():
             
             importer.import_file(fpath, unit_type, 
                                 extra_tags=tags,
-                                belongs_to_chapter=chapter,
-                                belongs_to_volume=volume)
+                                chapter_number=chapter)
     
     importer_report = importer.report()
     print(f"  创建: {importer_report['created']}")

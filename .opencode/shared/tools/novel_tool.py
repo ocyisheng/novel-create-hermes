@@ -263,10 +263,16 @@ def _handle_graph(op: str, params: dict) -> str:
                 pass
         tags = [t.strip() for t in params.get("tags", "").split(",") if t.strip()] if params.get("tags") else None
         chapter = params.get("chapter") or None
+        volume = params.get("volume") or None
+        parent_id = params.get("parent_id") or None
         actor = params.get("actor", "novel-tool")
         if chapter:
             chapter = int(chapter)
-        u = store.create_unit(type=ut, unit_name=unit_name, content=content, tags=tags, belongs_to_chapter=chapter, actor=actor)
+        u = store.create_unit(
+            type=ut, unit_name=unit_name, content=content, tags=tags,
+            belongs_to_chapter=chapter, belongs_to_volume=volume,
+            parent_id=parent_id, actor=actor,
+        )
         inferrer = RelationInferrer(store) if hasattr(RelationInferrer, "__call__") else None
         created = None
         if inferrer and hasattr(inferrer, "infer_on_create"):
@@ -476,6 +482,45 @@ def _handle_graph(op: str, params: dict) -> str:
         finally:
             sys.stdout = _old_stdout
         return _ok({"migrated": True})
+
+    # ── CONTAINS 层级查询 ───────────────────────────────────────────────
+
+    if op == "graph.find_descendants":
+        uid = params.get("id", "")
+        if not uid:
+            return _err("find_descendants 需要 id")
+        max_depth = params.get("max_depth", 10)
+        descendant_ids = store.find_descendants(uid, max_depth=max_depth)
+        result = []
+        for did in descendant_ids:
+            u = store.get_unit(did)
+            if u:
+                result.append(_unit_to_dict(u))
+        return _ok(result)
+
+    if op == "graph.find_ancestors":
+        uid = params.get("id", "")
+        if not uid:
+            return _err("find_ancestors 需要 id")
+        ancestor_ids = store.find_ancestors(uid)
+        result = []
+        for aid in ancestor_ids:
+            u = store.get_unit(aid)
+            if u:
+                result.append(_unit_to_dict(u))
+        return _ok(result)
+
+    if op == "graph.rebuild_structure_path":
+        uid = params.get("id", "")
+        if not uid:
+            return _err("rebuild_structure_path 需要 id")
+        path = store.rebuild_structure_path_from_edges(uid)
+        return _ok({"id": uid, "structure_path": path})
+
+    if op == "graph.migrate_structure_to_edges":
+        actor = params.get("actor", "novel-tool")
+        result = store.migrate_structure_path_to_edges(actor=actor)
+        return _ok(result)
 
     return _err(f"未知 graph 操作: {op}")
 

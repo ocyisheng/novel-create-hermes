@@ -40,6 +40,9 @@ export default tool({
         "graph.create_unit", "graph.update_unit", "graph.add_relation",
         "graph.flush", "graph.fix_asymmetry", "graph.batch_infer",
         "graph.archive_unit",
+        // graph hierarchy queries
+        "graph.find_descendants", "graph.find_ancestors",
+        "graph.rebuild_structure_path", "graph.migrate_structure_to_edges",
         // graph exports
         "graph.export_docs", "graph.export_chunks",
         // graph viz & migrate
@@ -76,6 +79,9 @@ export default tool({
     bidirectional: tool.schema.boolean().optional().describe("是否自动建立反向关系"),
     tags: tool.schema.string().optional().describe("标签（逗号分隔）"),
     chapter: tool.schema.number().optional().describe("章节号"),
+    volume: tool.schema.number().optional().describe("卷号"),
+    parent_id: tool.schema.string().optional().describe("创建单元时的父级单元 ID（自动建 CONTAINS 边）"),
+    max_depth: tool.schema.number().optional().describe("find_descendants 最大深度"),
     actor: tool.schema.string().optional().describe("操作者标识"),
     character: tool.schema.string().optional().describe("可视化：角色名称/ID"),
     timeline: tool.schema.string().optional().describe("可视化：时间线角色"),

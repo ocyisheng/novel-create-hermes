@@ -14,6 +14,7 @@ from collections import defaultdict
 
 from graph_schema import (
     NarrativeUnit, UnitType, UnitStatus, RelationType,
+    get_unit_chapter,
 )
 from graph_store import GraphStore as GraphStoreImpl
 GraphStore = GraphStoreImpl  # type alias for type annotations
@@ -80,9 +81,8 @@ class Workspace:
         if self.focus_unit and self.focus_unit.type == UnitType.SCENE:
             # 场景级信息
             lines.append(f"你正在写场景：{self.focus_unit.unit_name}")
-            ch = self.focus_unit.belongs_to_chapter or "?"
-            vol = self.focus_unit.belongs_to_volume or "?"
-            lines.append(f"归属：第{ch}章 · 卷{vol}")
+            ch = get_unit_chapter(self.focus_unit) or "?"
+            lines.append(f"归属：第{ch}章")
             if self.story_time:
                 lines.append(f"时间：{self.story_time}")
             if self.location:
@@ -98,7 +98,7 @@ class Workspace:
             if self.focus_unit:
                 lines.append(f"名称：{self.focus_unit.unit_name}")
             if self.focus_type == "chunk":
-                ch = self.focus_unit.belongs_to_chapter or "?"
+                ch = get_unit_chapter(self.focus_unit) or "?"
                 lines.append(f"章节：第{ch}章")
                 if self.previous_unit:
                     lines.append(f"前版：{self.previous_unit.get('unit_name', '?')}")
@@ -414,7 +414,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": neighbor.id,
                         "unit_name": neighbor.unit_name,
-                        "chapter": neighbor.belongs_to_chapter,
+                        "chapter": get_unit_chapter(neighbor),
                     })
                 elif neighbor.type == UnitType.CHUNK:
                     ws.chunks.append({
@@ -449,9 +449,10 @@ class WorkspaceBuilder:
         
         if focus.type == UnitType.SCENE:
             # 正在写场景：找同章的角色弧线 + 情节线
-            if focus.belongs_to_chapter:
+            ch = get_unit_chapter(focus)
+            if ch:
                 same_chapter = self.store.find_units(
-                    chapter=focus.belongs_to_chapter
+                    chapter=ch
                 )
                 for unit in same_chapter:
                     if unit.id == focus.id:
@@ -477,7 +478,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
+                        "chapter": get_unit_chapter(source),
                     })
                 elif source and source.type == UnitType.PLOT_THREAD:
                     ws.plot_threads.append({
@@ -493,7 +494,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
+                        "chapter": get_unit_chapter(source),
                     })
         
         elif focus.type == UnitType.CHUNK:
@@ -510,7 +511,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": scene.id,
                         "unit_name": scene.unit_name,
-                        "chapter": scene.belongs_to_chapter,
+                        "chapter": get_unit_chapter(scene),
                     })
                 
                 # 从场景 content 提取时间/地点/核心冲突/角色状态/写作指引
@@ -548,24 +549,45 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
+                        "chapter": get_unit_chapter(source),
                     })
         
         elif focus.type == UnitType.STRUCTURE:
-            # 结构设计焦点：找关联的场景和正文
-            for rel in self.store.get_relations(focus.id, direction="incoming"):
-                source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
-                    ws.scenes.append({
-                        "unit_id": source.id,
-                        "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
-                    })
-                elif source and source.type == UnitType.CHUNK:
-                    ws.chunks.append({
-                        "unit_id": source.id,
-                        "unit_name": source.unit_name,
-                    })
+            # 结构设计焦点：通过 CONTAINS 边递归聚合子结构 + 关联内容
+            # 阶段 1：收集当前结构节点 + 所有后代结构节点
+            structure_ids = {focus.id}
+            descendants = self.store.find_descendants(focus.id, max_depth=10)
+            structure_ids.update(descendants)
+            
+            # 阶段 2：在每个结构节点上查找关联的 SCENE/CHUNK
+            seen_scene_ids: Set[str] = set()
+            seen_chunk_ids: Set[str] = set()
+            for sid in structure_ids:
+                # 子结构单元也添加到 structures 列表
+                if sid != focus.id:
+                    child = self.store.get_unit(sid)
+                    if child and child.type == UnitType.STRUCTURE:
+                        ws.structures.append({
+                            "unit_id": child.id,
+                            "unit_name": child.unit_name,
+                            "tags": child.tags,
+                        })
+                # 查找指向此结构节点的 SCENE/CHUNK（BELONGS_TO / REFERENCES 入边）
+                for rel in self.store.get_relations(sid, direction="incoming"):
+                    source = self.store.get_unit(rel.source_id)
+                    if source and source.type == UnitType.SCENE and source.id not in seen_scene_ids:
+                        seen_scene_ids.add(source.id)
+                        ws.scenes.append({
+                            "unit_id": source.id,
+                            "unit_name": source.unit_name,
+                            "chapter": get_unit_chapter(source),
+                        })
+                    elif source and source.type == UnitType.CHUNK and source.id not in seen_chunk_ids:
+                        seen_chunk_ids.add(source.id)
+                        ws.chunks.append({
+                            "unit_id": source.id,
+                            "unit_name": source.unit_name,
+                        })
         
         elif focus.type == UnitType.NARRATIVE_VOICE:
             # 叙述腔调焦点：找使用该腔调的场景
@@ -575,7 +597,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
+                        "chapter": get_unit_chapter(source),
                     })
         
         elif focus.type == UnitType.THEMATIC_MOTIF:
@@ -586,7 +608,7 @@ class WorkspaceBuilder:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
-                        "chapter": source.belongs_to_chapter,
+                        "chapter": get_unit_chapter(source),
                     })
                 elif source and source.type == UnitType.CHARACTER_ARC:
                     if len(ws.character_arcs) < config["character_limit"]:
@@ -597,22 +619,14 @@ class WorkspaceBuilder:
     
     def _load_prev_next(self, ws: Workspace, focus: NarrativeUnit):
         """加载同类型的前置/后置叙事单元"""
-        # 优先按 belongs_to_chapter 分组，回退到 structure_path
-        anchor_value = focus.belongs_to_chapter
+        # 分组优先级：structure_path → CONTAINS 兄弟 → 同类型全部
         anchor_path = focus.structure_path
-        
-        if anchor_value is None and anchor_path is None:
-            return
+        focus_ch = get_unit_chapter(focus)
         
         all_same_type = self.store.find_units(type=focus.type)
+        same_group: List[NarrativeUnit] = []
         
-        if anchor_value is not None:
-            same_group = [
-                u for u in all_same_type
-                if u.belongs_to_chapter == anchor_value
-                and u.id != focus.id
-            ]
-        elif anchor_path:
+        if anchor_path:
             # 用 structure_path 的最后一层做锚点
             anchor_last = anchor_path[-1] if anchor_path else None
             same_group = [
@@ -621,8 +635,15 @@ class WorkspaceBuilder:
                 and u.structure_path[-1] == anchor_last
                 and u.id != focus.id
             ]
-        else:
-            same_group = []
+        elif focus.type == UnitType.STRUCTURE:
+            # CONTAINS 兄弟查找：找共享同一父级 CONTAINS 边的兄弟
+            parents = self.store.get_relations(focus.id, relation_type=RelationType.CONTAINS, direction="incoming")
+            if parents:
+                parent_id = parents[0].source_id
+                # 查找父级的所有 outgoing CONTAINS 目标
+                siblings = self.store.get_relations(parent_id, relation_type=RelationType.CONTAINS, direction="outgoing")
+                sibling_ids = {r.target_id for r in siblings if r.target_id != focus.id}
+                same_group = [u for u in all_same_type if u.id in sibling_ids]
         
         # 找创建时间排序中的前后单元
         same_group.sort(key=lambda u: u.created_at)
@@ -694,9 +715,19 @@ class WorkspaceBuilder:
                 gaps.append("没有关联到使用该设定的场景")
         
         elif ws.focus_type == "structure":
-            # 结构设计最好有关联的场景或正文
-            if not ws.scenes and not ws.chunks:
-                gaps.append("没有关联到场景或正文")
+            # 区分聚合节点（篇大纲/卷大纲）和叶子节点（章纲）
+            children = self.store.get_relations(
+                ws.focus_unit.id, relation_type=RelationType.CONTAINS, direction="outgoing"
+            ) if ws.focus_unit else []
+            if children:
+                # 聚合节点应包含子结构单元
+                if not ws.structures:
+                    gaps.append("聚合节点但没有加载到子结构单元")
+                # 聚合节点是否还关联场景/正文是可选的
+            else:
+                # 叶子节点（章纲）应关联场景或正文
+                if not ws.scenes and not ws.chunks:
+                    gaps.append("章纲未关联到场景或正文")
         
         elif ws.focus_type == "narrative_voice":
             # 叙述腔调应该有关联场景

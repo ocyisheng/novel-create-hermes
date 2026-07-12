@@ -175,15 +175,16 @@ class NarrativeUnit:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
-    # 可选的层级归属（用于快速投影）
-    belongs_to_chapter: Optional[int] = None
-    belongs_to_volume: Optional[int] = None
+    # 层级归属（CONTAINS 边是唯一真相源，以下字段为缓存/快捷字段）
     belongs_to_project: Optional[str] = None
-    # 通用结构路径，替代独立 belongs_to_* 字段
+    # 精确章节号（CONTAINS 边关系下的真实章节标号）
+    chapter_number: Optional[int] = None
+    # 通用结构路径，CONTAINS 边的缓存
     # 示例：["人界篇", "黄枫谷卷", 15] 表示第15章，在黄枫谷卷、人界篇下
     # 示例：[15] 仅章节号，无篇无卷
     # 示例：None 无层级归属（事件驱动、非线性叙事）
-    # 与 belongs_to_chapter/belongs_to_volume 并存，逐步迁移
+    # NOTE: structure_path 不是持久化来源——边的 CONTAINS 层级关系才是唯一真相源。
+    # structure_path 可由 rebuild_structure_path_from_edges() 重新构建，仅作为缓存。
     structure_path: Optional[List[Any]] = None
     
     # 历史版本（仅保留最新版本 + diff 链）
@@ -193,15 +194,32 @@ class NarrativeUnit:
     extra: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
-        result = asdict(self)
+        """
+        序列化到 dict（用于持久化 JSONL）。
+        
+        structure_path 不作为持久化字段——CONTAINS 边才是层级关系唯一真相源。
+        加载时 through from_dict() 会自动从 JSONL 读取旧数据兼容。
+        """
+        result = {}
+        result["id"] = self.id
         result["type"] = self.type.value
+        result["unit_name"] = self.unit_name
+        result["content"] = self.content
         result["status"] = self.status.value
+        result["confidence"] = self.confidence
+        result["tags"] = self.tags
         result["created_at"] = self.created_at.isoformat()
         result["updated_at"] = self.updated_at.isoformat()
+        result["belongs_to_project"] = self.belongs_to_project
+        result["chapter_number"] = self.chapter_number
+        result["version"] = self.version
+        result["extra"] = self.extra
+        # 不序列化 structure_path — CONTAINS 边是唯一真相源
         return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NarrativeUnit":
+        """从 dict 反序列化。自动忽略已废弃的旧字段以保证向后兼容。"""
         data = dict(data)
         data["type"] = UnitType(data["type"])
         data["status"] = UnitStatus(data.get("status", "sprout"))
@@ -209,6 +227,9 @@ class NarrativeUnit:
             data["created_at"] = datetime.fromisoformat(data["created_at"])
         if isinstance(data.get("updated_at"), str):
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        # 移除已废弃的旧字段（存量 JSONL 中可能还有），structure_path 保留
+        for old_key in ("belongs_to_chapter", "belongs_to_volume"):
+            data.pop(old_key, None)
         return cls(**data)
 
 
@@ -290,11 +311,11 @@ class GraphSnapshot:
 
 def get_unit_chapter(unit: NarrativeUnit) -> int:
     """
-    获取单元的章节号，回退链：belongs_to_chapter → structure_path 末位 → 0。
-    用于排序和分组，确保无论使用旧字段还是新字段都能正确归类。
+    获取单元的章节号，回退链：chapter_number → structure_path 末位 → 0。
+    用于排序和分组。
     """
-    if unit.belongs_to_chapter is not None:
-        return unit.belongs_to_chapter
+    if unit.chapter_number is not None:
+        return unit.chapter_number
     if unit.structure_path and len(unit.structure_path) > 0:
         last = unit.structure_path[-1]
         if isinstance(last, int):

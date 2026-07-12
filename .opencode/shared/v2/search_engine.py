@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Any
 from collections import defaultdict
 
-from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType
+from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType, get_unit_chapter
 from graph_store import GraphStore
 
 
@@ -429,8 +429,7 @@ class SearchEngine:
 
     def _check_chunk_no_chapter(self) -> CheckResult:
         """
-        规则 6: CHUNK content 中有章节号但 belongs_to_chapter 未设置（不一致）。
-        章节号现为可选项，纯无章节号不视为问题。
+        规则 6: CHUNK content 中有章节号但 chapter_number 未同步。
         """
         import json
         count = 0
@@ -440,8 +439,8 @@ class SearchEngine:
                 continue
             if unit.status == UnitStatus.ARCHIVED:
                 continue
-            # 仅当 content 中显式设置了章节号但 belongs_to_chapter 未同步时才标记
-            if unit.belongs_to_chapter is None and unit.content:
+            # 仅当 content 中显式设置了章节号但 get_unit_chapter 返回 0 时才标记
+            if not get_unit_chapter(unit) and unit.content:
                 try:
                     content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
                     if content_dict.get("章节号") is not None:
@@ -458,7 +457,7 @@ class SearchEngine:
             rule_name="CHUNK 章节号不一致",
             rule_id="R6",
             severity="info",
-            description=f"有 {count} 个 CHUNK 的 content 含章节号但 belongs_to_chapter 未同步" if count else "CHUNK 章节状态一致",
+            description=f"有 {count} 个 CHUNK 的 content 含章节号但 chapter_number 未同步" if count else "CHUNK 章节状态一致",
             units_involved=[],
             detail=detail,
         )
@@ -474,8 +473,8 @@ class SearchEngine:
             unit_type=unit.type,
             content_preview=preview,
             content_length=len(unit.content) if unit.content else 0,
-            chapter=unit.belongs_to_chapter,
-            volume=unit.belongs_to_volume,
+            chapter=get_unit_chapter(unit),
+            volume=None,
             score=score,
             tags=list(unit.tags),
             status=unit.status,

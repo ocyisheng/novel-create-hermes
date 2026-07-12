@@ -89,19 +89,9 @@ NOTE_SCHEMA = {
 }
 
 STRUCTURE_SCHEMA = {
-    "子类型": {"type": str, "required": True, "options": ["总纲","卷大纲","章纲"]},
+    "子类型": {"type": str, "required": True, "options": ["总纲","卷大纲","章纲","篇大纲","部大纲"]},
     "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
     "节奏设计": {"type": str, "required": False, "description": "主题动机及变奏点"},
-    "七面观照检视": {"type": dict, "required": False, "fields": {
-        "故事": {"type": str},
-        "人物": {"type": str},
-        "情节": {"type": str},
-        "幻想": {"type": str},
-        "预言": {"type": str},
-        "模式": {"type": str},
-        "节奏": {"type": str},
-    }},
-    "本体论核心": {"type": str, "required": False},
     "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
     "场景序列": {"type": list, "required": False, "description": "章纲专用：场景顺序概述（字符串列表）"},
     "章节弧线": {"type": str, "required": False, "description": "章纲专用：本章情绪走向（如'从安逸→紧张→释放→期待'）"},

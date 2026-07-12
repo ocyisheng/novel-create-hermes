@@ -179,6 +179,12 @@ class NarrativeUnit:
     belongs_to_chapter: Optional[int] = None
     belongs_to_volume: Optional[int] = None
     belongs_to_project: Optional[str] = None
+    # 通用结构路径，替代独立 belongs_to_* 字段
+    # 示例：["人界篇", "黄枫谷卷", 15] 表示第15章，在黄枫谷卷、人界篇下
+    # 示例：[15] 仅章节号，无篇无卷
+    # 示例：None 无层级归属（事件驱动、非线性叙事）
+    # 与 belongs_to_chapter/belongs_to_volume 并存，逐步迁移
+    structure_path: Optional[List[Any]] = None
     
     # 历史版本（仅保留最新版本 + diff 链）
     version: int = 1
@@ -280,6 +286,27 @@ class GraphSnapshot:
 
 
 # ── 查询帮助函数 ──────────────────────────────────────────────────────────
+
+
+def get_unit_chapter(unit: NarrativeUnit) -> int:
+    """
+    获取单元的章节号，回退链：belongs_to_chapter → structure_path 末位 → 0。
+    用于排序和分组，确保无论使用旧字段还是新字段都能正确归类。
+    """
+    if unit.belongs_to_chapter is not None:
+        return unit.belongs_to_chapter
+    if unit.structure_path and len(unit.structure_path) > 0:
+        last = unit.structure_path[-1]
+        if isinstance(last, int):
+            return last
+    return 0
+
+
+def get_unit_chapter_label(unit: NarrativeUnit) -> str:
+    """获取章节显示标签（如 '第3章'），无章节时返回 '?'"""
+    ch = get_unit_chapter(unit)
+    return f"第{ch}章" if ch else "?"
+
 
 def create_unit_id(unit_type: Optional[UnitType] = None) -> str:
     """生成全局唯一的叙事单元 ID（人类可读前缀 + UUID 短码）"""

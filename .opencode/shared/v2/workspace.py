@@ -232,7 +232,7 @@ class WorkspaceBuilder:
     按需加载关联数据。
     """
     
-    # 预热级别 → 加载深度映射
+    # 预热级别 → 加载深度映射（默认值，可从 config.yaml 覆盖）
     # 预热级别的选择由 Agent prompt (novel-writer.md) 根据写作模式决定
     PREHEAT_DEPTH = {
         "cold": {
@@ -263,6 +263,58 @@ class WorkspaceBuilder:
     
     def __init__(self, store: GraphStoreImpl):
         self.store = store
+        self._project_config: Optional[Dict[str, Any]] = None
+    
+    # ── 从 config.yaml 加载预热配置 ─────────────────────────────────────
+    
+    def _load_project_config(self) -> Dict[str, Any]:
+        """读取项目的 config.yaml，优先从 store.project_root 加载"""
+        if self._project_config is not None:
+            return self._project_config
+        
+        self._project_config = {}
+        try:
+            config_path = self.store.project_root / "config.yaml"
+            if config_path.exists():
+                import yaml
+                with open(config_path, "r", encoding="utf-8") as f:
+                    self._project_config = yaml.safe_load(f) or {}
+        except Exception:
+            pass  # 静默失败，回退到默认值
+        return self._project_config
+    
+    def _get_preheat_config(self, preheat_level: str) -> Dict[str, Any]:
+        """
+        获取指定预热级别的配置，优先级：config.yaml > 类默认值。
+        
+        映射表（config.yaml 中文键 → 代码键）：
+          角色上限 → character_limit
+          情节线上限 → plot_limit
+          世界观上限 → world_limit
+          弱信号检测 → weak_signals
+        """
+        defaults = self.PREHEAT_DEPTH.get(preheat_level, self.PREHEAT_DEPTH["warm"]).copy()
+        
+        project_config = self._load_project_config()
+        warmup_config = project_config.get("上下文预热", {})
+        level_config = warmup_config.get(preheat_level, {})
+        
+        # 中文键 → 代码键映射
+        KEY_MAP = {
+            "角色上限": "character_limit",
+            "情节线上限": "plot_limit",
+            "世界观上限": "world_limit",
+        }
+        
+        for cn_key, code_key in KEY_MAP.items():
+            if cn_key in level_config and level_config[cn_key] is not None:
+                defaults[code_key] = level_config[cn_key]
+        
+        # 弱信号检测（不在分级别配置里，在顶层）
+        if "弱信号检测" in warmup_config:
+            defaults["weak_signals"] = bool(warmup_config["弱信号检测"])
+        
+        return defaults
     
     def build(
         self,
@@ -281,7 +333,7 @@ class WorkspaceBuilder:
         Returns:
             Workspace 对象
         """
-        config = self.PREHEAT_DEPTH.get(preheat_level, self.PREHEAT_DEPTH["warm"])
+        config = self._get_preheat_config(preheat_level)
         focus = self.store.get_unit(focus_unit_id)
         
         if not focus:
@@ -545,25 +597,42 @@ class WorkspaceBuilder:
     
     def _load_prev_next(self, ws: Workspace, focus: NarrativeUnit):
         """加载同类型的前置/后置叙事单元"""
-        if focus.belongs_to_chapter is None:
+        # 优先按 belongs_to_chapter 分组，回退到 structure_path
+        anchor_value = focus.belongs_to_chapter
+        anchor_path = focus.structure_path
+        
+        if anchor_value is None and anchor_path is None:
             return
         
         all_same_type = self.store.find_units(type=focus.type)
-        same_chapter = [
-            u for u in all_same_type
-            if u.belongs_to_chapter == focus.belongs_to_chapter
-            and u.id != focus.id
-        ]
+        
+        if anchor_value is not None:
+            same_group = [
+                u for u in all_same_type
+                if u.belongs_to_chapter == anchor_value
+                and u.id != focus.id
+            ]
+        elif anchor_path:
+            # 用 structure_path 的最后一层做锚点
+            anchor_last = anchor_path[-1] if anchor_path else None
+            same_group = [
+                u for u in all_same_type
+                if u.structure_path and len(u.structure_path) > 0
+                and u.structure_path[-1] == anchor_last
+                and u.id != focus.id
+            ]
+        else:
+            same_group = []
         
         # 找创建时间排序中的前后单元
-        same_chapter.sort(key=lambda u: u.created_at)
-        for i, u in enumerate(same_chapter):
+        same_group.sort(key=lambda u: u.created_at)
+        for i, u in enumerate(same_group):
             if u.id == focus.id:
                 if i > 0:
-                    prev = same_chapter[i - 1]
+                    prev = same_group[i - 1]
                     ws.previous_unit = {"unit_id": prev.id, "unit_name": prev.unit_name}
-                if i < len(same_chapter) - 1:
-                    nxt = same_chapter[i + 1]
+                if i < len(same_group) - 1:
+                    nxt = same_group[i + 1]
                     ws.next_unit = {"unit_id": nxt.id, "unit_name": nxt.unit_name}
                 break
     
@@ -590,6 +659,29 @@ class WorkspaceBuilder:
                 gaps.append("没有关联到场景信息，写作上下文可能不足")
             if not ws.character_arcs and not ws.plot_threads:
                 gaps.append("没有加载到角色或情节线上下文")
+            
+            # 字数偏差诊断：实际字数与场景密度建议对比
+            if ws.focus_unit and ws.focus_unit.content:
+                import json
+                try:
+                    chunk_meta = json.loads(ws.focus_unit.content) if isinstance(ws.focus_unit.content, str) else {}
+                    actual_words = chunk_meta.get("字数", 0) if isinstance(chunk_meta, dict) else 0
+                    if actual_words > 0 and ws.scenes:
+                        # 从第一个关联场景的 content 获取建议字数
+                        scene_info = ws.scenes[0]
+                        scene_unit = self.store.get_unit(scene_info.get("unit_id", ""))
+                        if scene_unit and scene_unit.content:
+                            try:
+                                scene_content = json.loads(scene_unit.content) if isinstance(scene_unit.content, str) else {}
+                                if isinstance(scene_content, dict):
+                                    suggested = scene_content.get("建议字数", 0)
+                                    if suggested and actual_words > suggested * 1.5:
+                                        gaps.append(f"⚠️ 字数({actual_words})超出场景建议字数({suggested})的1.5倍，"
+                                                   f"考虑是否场景过载或需分拆")
+                            except (json.JSONDecodeError, ValueError):
+                                pass
+                except (json.JSONDecodeError, ValueError):
+                    pass
         
         elif ws.focus_type == "plot_thread":
             # 情节线设计应该有关联场景

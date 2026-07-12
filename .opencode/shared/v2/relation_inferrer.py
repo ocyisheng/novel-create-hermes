@@ -195,15 +195,27 @@ class RelationInferrer:
     # ── 内部方法 ────────────────────────────────────────────────────
 
     def _infer_same_chapter(self, scene: NarrativeUnit) -> int:
-        """同章节角色自动参与场景（规则引擎）"""
+        """同章节角色自动参与场景（规则引擎），支持 structure_path 回退"""
         count = 0
+        # 提取场景的章节锚点
+        scene_chapter = scene.belongs_to_chapter
+        scene_path = scene.structure_path
+        
         for u in self.store._units.values():
-            if (u.type == UnitType.CHARACTER_ARC
-                    and u.status != UnitStatus.ARCHIVED
-                    and u.belongs_to_chapter == scene.belongs_to_chapter):
-                # 角色 → 场景：PARTICIPATES_IN
-                if self._create_rel(u.id, scene.id, RelationType.PARTICIPATES_IN, 0.5):
-                    count += 1
+            if u.type != UnitType.CHARACTER_ARC or u.status == UnitStatus.ARCHIVED:
+                continue
+            
+            # 优先按 belongs_to_chapter 匹配，回退到 structure_path
+            if scene_chapter is not None:
+                if u.belongs_to_chapter == scene_chapter:
+                    if self._create_rel(u.id, scene.id, RelationType.PARTICIPATES_IN, 0.5):
+                        count += 1
+            elif scene_path and u.structure_path:
+                # 按 structure_path 最后一层匹配（章节号）
+                if (len(scene_path) > 0 and len(u.structure_path) > 0
+                        and scene_path[-1] == u.structure_path[-1]):
+                    if self._create_rel(u.id, scene.id, RelationType.PARTICIPATES_IN, 0.5):
+                        count += 1
         return count
 
     def _infer_by_content(

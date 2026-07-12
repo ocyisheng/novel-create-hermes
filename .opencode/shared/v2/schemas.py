@@ -37,6 +37,17 @@ SCENE_SCHEMA = {
     "核心冲突": {"type": str, "required": False},
     "关联情节线": {"type": list, "required": False},
     "字数": {"type": int, "required": False},
+    "叙事密度": {
+        "type": str,
+        "required": False,
+        "options": ["舒缓", "标准", "密集"],
+        "description": "本场景预期的叙事密度，影响建议字数范围",
+    },
+    "建议字数": {
+        "type": int,
+        "required": False,
+        "description": "基于子类型+密度+情节负载自动推算的建议字数",
+    },
 }
 
 CHARACTER_ARC_SCHEMA = {
@@ -91,6 +102,9 @@ STRUCTURE_SCHEMA = {
         "节奏": {"type": str},
     }},
     "本体论核心": {"type": str, "required": False},
+    "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
+    "场景序列": {"type": list, "required": False, "description": "章纲专用：场景顺序概述（字符串列表）"},
+    "章节弧线": {"type": str, "required": False, "description": "章纲专用：本章情绪走向（如'从安逸→紧张→释放→期待'）"},
     "备注": {"type": str, "required": False},
 }
 
@@ -107,7 +121,7 @@ NARRATIVE_VOICE_SCHEMA = {
 
 CHUNK_SCHEMA = {
     "子类型": {"type": str, "required": False},
-    "章节号": {"type": int, "required": True},
+    "章节号": {"type": int, "required": False},
     "章节名": {"type": str, "required": False},
     "正文路径": {"type": str, "required": False},
     "正文分片": {"type": dict, "required": False},

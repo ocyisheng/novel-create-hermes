@@ -428,7 +428,11 @@ class SearchEngine:
         return results
 
     def _check_chunk_no_chapter(self) -> CheckResult:
-        """规则 6: CHUNK 缺少 belongs_to_chapter（未分配章节）"""
+        """
+        规则 6: CHUNK content 中有章节号但 belongs_to_chapter 未设置（不一致）。
+        章节号现为可选项，纯无章节号不视为问题。
+        """
+        import json
         count = 0
         names: List[str] = []
         for unit in self.store._units.values():
@@ -436,19 +440,25 @@ class SearchEngine:
                 continue
             if unit.status == UnitStatus.ARCHIVED:
                 continue
-            if unit.belongs_to_chapter is None:
-                count += 1
-                names.append(unit.unit_name)
+            # 仅当 content 中显式设置了章节号但 belongs_to_chapter 未同步时才标记
+            if unit.belongs_to_chapter is None and unit.content:
+                try:
+                    content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
+                    if content_dict.get("章节号") is not None:
+                        count += 1
+                        names.append(unit.unit_name)
+                except (json.JSONDecodeError, ValueError):
+                    pass
         detail = ""
         if names:
             detail = "\n".join(f"  - {n}" for n in names[:10])
             if len(names) > 10:
                 detail += f"\n  ... 等共 {len(names)} 个"
         return CheckResult(
-            rule_name="CHUNK 缺少章节分配",
+            rule_name="CHUNK 章节号不一致",
             rule_id="R6",
             severity="info",
-            description=f"有 {count} 个 CHUNK 单元未分配章节号" if count else "所有 CHUNK 都有归属章节",
+            description=f"有 {count} 个 CHUNK 的 content 含章节号但 belongs_to_chapter 未同步" if count else "CHUNK 章节状态一致",
             units_involved=[],
             detail=detail,
         )

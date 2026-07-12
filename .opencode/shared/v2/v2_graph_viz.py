@@ -21,6 +21,7 @@ from typing import Optional
 from collections import defaultdict
 from datetime import datetime, timezone
 from v2_detail_template import render_detail_html
+from graph_schema import get_unit_chapter, get_unit_chapter_label
 
 V2_DIR = os.path.join(os.path.dirname(__file__), "v2")
 if V2_DIR not in sys.path:
@@ -234,8 +235,8 @@ class V2GraphLoader:
             source = self.store.get_unit(rel.source_id)
             if source and source.type == UnitType.SCENE and source.status != UnitStatus.ARCHIVED:
                 events.append({
-                    "sort_key": source.belongs_to_chapter or 0,
-                    "time_label": f"第{source.belongs_to_chapter}章" if source.belongs_to_chapter else "未分配",
+                    "sort_key": get_unit_chapter(source),
+                    "time_label": get_unit_chapter_label(source),
                     "event": source.unit_name,
                     "source_type": "chapter",
                     "node_id": source.id,
@@ -243,8 +244,8 @@ class V2GraphLoader:
 
             if source and source.type == UnitType.CHUNK:
                 events.append({
-                    "sort_key": source.belongs_to_chapter or 0,
-                    "time_label": f"第{source.belongs_to_chapter}章" if source.belongs_to_chapter else "未分配",
+                    "sort_key": get_unit_chapter(source),
+                    "time_label": get_unit_chapter_label(source),
                     "event": f"正文: {source.unit_name}",
                     "source_type": "chunk",
                     "node_id": source.id,
@@ -375,7 +376,8 @@ class V2GraphLoader:
             "status": u.status.value,
             "confidence": u.confidence,
             "tags": u.tags,
-            "chapter": u.belongs_to_chapter,
+            "chapter": get_unit_chapter(u),
+            "chapter_label": get_unit_chapter_label(u),
             "extra": extra,
             "pre_rendered_html": pre_rendered_html,
             "is_center": is_center,

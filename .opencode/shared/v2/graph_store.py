@@ -362,6 +362,7 @@ class GraphStore:
         belongs_to_volume: Optional[int] = None,
         extra: Optional[Dict[str, Any]] = None,
         actor: str = "script",
+        structure_path: Optional[List[Any]] = None,
     ) -> NarrativeUnit:
         """创建一个新的叙事单元"""
         # 校验 content 结构（如果是 JSON）
@@ -377,6 +378,15 @@ class GraphStore:
                     payload={"warning": "content schema 校验不通过", "errors": errors},
                 )
         
+        # 自动从 belongs_to_* 推导 structure_path（如未显式提供）
+        if structure_path is None and (belongs_to_chapter is not None or belongs_to_volume is not None):
+            path: List[Any] = []
+            if belongs_to_volume is not None:
+                path.append(belongs_to_volume)
+            if belongs_to_chapter is not None:
+                path.append(belongs_to_chapter)
+            structure_path = path if path else None
+        
         unit = NarrativeUnit(
             id=create_unit_id(type),
             type=type,
@@ -387,6 +397,7 @@ class GraphStore:
             tags=tags or [],
             belongs_to_chapter=belongs_to_chapter,
             belongs_to_volume=belongs_to_volume,
+            structure_path=structure_path,
             extra=extra or {},
         )
         self._units[unit.id] = unit
@@ -447,6 +458,7 @@ class GraphStore:
         extra: Optional[Dict[str, Any]] = None,
         unit_name: Optional[str] = None,
         actor: str = "script",
+        structure_path: Optional[List[Any]] = None,
     ) -> Optional[NarrativeUnit]:
         """更新叙事单元（仅修改提供的字段）"""
         unit = self._units.get(unit_id)
@@ -490,6 +502,9 @@ class GraphStore:
             changed_fields["unit_name"] = (unit.unit_name, unit_name)
             unit.unit_name = unit_name
             self._unit_by_name[unit.unit_name] = unit.id
+        if structure_path is not None:
+            changed_fields["structure_path"] = (unit.structure_path, structure_path)
+            unit.structure_path = structure_path
         
         unit.updated_at = datetime.now(timezone.utc)
         unit.version += 1

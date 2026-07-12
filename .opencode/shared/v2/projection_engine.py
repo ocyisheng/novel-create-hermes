@@ -25,6 +25,7 @@ from graph_schema import (
     UnitStatus,
     RelationType,
     ProjectionView,
+    get_unit_chapter,
 )
 from graph_store import GraphStore
 
@@ -37,15 +38,29 @@ class ProjectionEngine:
     支持全量重建和增量更新。
     """
     
-    # 投影文件路径模板（相对于项目根目录）
+    # 投影文件路径模板（相对于项目根目录，基础版）
+    # 实际路径在 __init__ 中根据 config 的 叙事层级 动态调整
+    # 所有投影输出为 Markdown 格式，故使用 .md 扩展名
     PROJECTION_PATHS = {
-        ProjectionView.OUTLINE: "outline/总纲.yaml",
-        ProjectionView.CHAPTER_OUTLINE: "outline/分纲/卷{volume}/第{chapter}章.yaml",
-        ProjectionView.CHARACTER: "characters/{name}.yaml",
-        ProjectionView.WORLDBUILDING: "worldbuilding/{name}.yaml",
-        ProjectionView.PLOT: "outline/情节线/{name}.yaml",
-        ProjectionView.TRACKING: "outline/追踪/{name}.yaml",
-        ProjectionView.TIMELINE: "outline/时间线设计.yaml",
+        ProjectionView.OUTLINE: "outline/总纲.md",
+        ProjectionView.CHAPTER_OUTLINE: "outline/分纲/第{chapter}章.md",
+        ProjectionView.CHARACTER: "characters/{name}.md",
+        ProjectionView.WORLDBUILDING: "worldbuilding/{name}.md",
+        ProjectionView.PLOT: "outline/情节线/{name}.md",
+        ProjectionView.TRACKING: "outline/追踪/{name}.md",
+        ProjectionView.TIMELINE: "outline/时间线设计.md",
+    }
+    
+    # ── 密度系数表（内置默认，项目可在 config.yaml 中覆盖） ─────────────
+    # 子类型 → {密度 → (建议字数下限, 建议字数上限)}
+    DENSITY_TABLE = {
+        "开篇": {"舒缓": (3000, 5000), "标准": (2000, 3500), "密集": (1500, 2500)},
+        "推进": {"舒缓": (4000, 6000), "标准": (2500, 4500), "密集": (1500, 3000)},
+        "冲突": {"舒缓": (3500, 5000), "标准": (2000, 4000), "密集": (1000, 2500)},
+        "转折": {"舒缓": (3000, 4000), "标准": (2000, 3000), "密集": (1000, 2000)},
+        "展示": {"舒缓": (3000, 6000), "标准": (2500, 5000), "密集": (1500, 3500)},
+        "过渡": {"舒缓": (2000, 4000), "标准": (1500, 2500), "密集": (800, 1500)},
+        "收束": {"舒缓": (3000, 5000), "标准": (2000, 3500), "密集": (1500, 2000)},
     }
     
     def __init__(self, store: GraphStore, project_root: str, output_mode: str = "in_place"):
@@ -60,6 +75,10 @@ class ProjectionEngine:
         self.output_mode = output_mode
         self.projections_dir = self.project_root / "projections"
         self._projection_cache: Dict[str, str] = {}  # path → content
+        self._project_config: Optional[Dict[str, Any]] = None
+        
+        # 根据项目 config 动态调整 CHAPTER_OUTLINE 路径模板
+        self._init_path_templates()
         
         # 注册投影器
         self._projectors: Dict[ProjectionView, Callable] = {
@@ -159,6 +178,46 @@ class ProjectionEngine:
         
         return written
     
+    # ── 项目配置加载 ────────────────────────────────────────────────────
+    
+    def _load_project_config(self) -> Dict[str, Any]:
+        """读取项目的 config.yaml"""
+        if self._project_config is not None:
+            return self._project_config
+        self._project_config = {}
+        try:
+            config_path = self.project_root / "config.yaml"
+            if config_path.exists():
+                import yaml
+                with open(config_path, "r", encoding="utf-8") as f:
+                    self._project_config = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+        return self._project_config
+    
+    def _init_path_templates(self):
+        """
+        根据项目的 叙事层级 配置，动态构建 CHAPTER_OUTLINE 路径模板。
+        所有投影输出为 Markdown 格式。
+        
+        默认（无配置）：outline/分纲/第{chapter}章.md
+        含卷：         outline/分纲/卷{volume}/第{chapter}章.md
+        含部+卷：      outline/分纲/{part}/卷{volume}/第{chapter}章.md
+        """
+        config = self._load_project_config()
+        hierarchy = config.get("叙事层级", {})
+        
+        if hierarchy.get("部") and hierarchy.get("卷"):
+            self.PROJECTION_PATHS[ProjectionView.CHAPTER_OUTLINE] = \
+                "outline/分纲/{part}/卷{volume}/第{chapter}章.md"
+        elif hierarchy.get("部"):
+            self.PROJECTION_PATHS[ProjectionView.CHAPTER_OUTLINE] = \
+                "outline/分纲/{part}/第{chapter}章.md"
+        elif hierarchy.get("卷"):
+            self.PROJECTION_PATHS[ProjectionView.CHAPTER_OUTLINE] = \
+                "outline/分纲/卷{volume}/第{chapter}章.md"
+        # 否则保持默认：outline/分纲/第{chapter}章.md
+    
     def _resolve_in_place_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
         """解析原位文件路径"""
         path = self._format_path(view, params)
@@ -170,11 +229,12 @@ class ProjectionEngine:
         return str(self.projections_dir / path)
     
     def _format_path(self, view: ProjectionView, params: Dict[str, Any]) -> str:
-        """根据视图和参数格式化相对路径"""
+        """根据视图和参数格式化相对路径（支持动态层级）"""
         template = self.PROJECTION_PATHS[view]
         
         if view == ProjectionView.CHAPTER_OUTLINE:
             return template.format(
+                part=params.get("part", "default"),
                 volume=params.get("volume", 1),
                 chapter=params.get("chapter", 1),
             )
@@ -187,6 +247,59 @@ class ProjectionEngine:
             return template.format(name=name)
         else:
             return template
+    
+    # ── 通用工具方法 ─────────────────────────────────────────────────────
+    
+    @staticmethod
+    def _get_unit_chapter(unit: NarrativeUnit) -> int:
+        """委托到 graph_schema.get_unit_chapter"""
+        return get_unit_chapter(unit)
+    
+    def _get_density_range(self, subtype: str, density: str) -> tuple:
+        """根据子类型和密度级别返回建议字数范围"""
+        subtype_table = self.DENSITY_TABLE.get(subtype, {})
+        default = (1500, 3000)  # 兜底
+        if not subtype_table:
+            return default
+        
+        # 允许项目 config 覆盖密度表
+        config = self._load_project_config()
+        density_profile = config.get("叙事密度", {})
+        override_table = density_profile.get("密度表覆盖", {})
+        if override_table:
+            subtype_override = override_table.get(subtype, {})
+            if density in subtype_override:
+                r = subtype_override[density]
+                return (r[0], r[1]) if isinstance(r, list) else default
+        
+        return subtype_table.get(density, subtype_table.get("标准", default))
+    
+    def _format_scene_with_density(self, content_json: str) -> List[str]:
+        """
+        格式化场景内容 + 密度/字数建议。
+        返回多行文本列表，供 _project_chapter_outline 调用。
+        """
+        lines = []
+        if not content_json:
+            return lines
+        try:
+            d = json.loads(content_json)
+        except (json.JSONDecodeError, ValueError):
+            return lines
+        if not isinstance(d, dict):
+            return lines
+        
+        # 密度与建议字数
+        density = d.get("叙事密度", "")
+        subtype = d.get("子类型", "")
+        if density and subtype:
+            lo, hi = self._get_density_range(subtype, density)
+            lines.append(f"密度: {density}")
+            lines.append(f"建议字数: {lo}-{hi}")
+        elif density:
+            lines.append(f"密度: {density}")
+        
+        return lines
     
     # ── 各视图投影器 ────────────────────────────────────────────────────
     
@@ -254,7 +367,7 @@ class ProjectionEngine:
             lines.append("")
             chapters = defaultdict(list)
             for s in scenes:
-                ch = s.belongs_to_chapter or 0
+                ch = self._get_unit_chapter(s)
                 chapters[ch].append(s)
             for ch in sorted(chapters.keys()):
                 chapter_scenes = chapters[ch]
@@ -313,7 +426,7 @@ class ProjectionEngine:
             return "\n".join(lines)
         return content_json[:300]
 
-    def _project_chapter_outline(self, volume: int = 1, chapter: int = 1) -> str:
+    def _project_chapter_outline(self, volume: int = 1, chapter: int = 1, part: str = "") -> str:
         """分纲投影：将指定章节的场景群投影为分纲 YAML"""
         scenes = self.store.find_units(
             type=UnitType.SCENE,
@@ -321,12 +434,21 @@ class ProjectionEngine:
             volume=volume,
         )
         
+        # 尝试从 structure_path 加载部信息（如无，回退到 config 中的部名）
+        part_label = part
+        if not part_label:
+            for s in scenes:
+                if s.structure_path and len(s.structure_path) >= 3:
+                    part_label = str(s.structure_path[0])
+                    break
+        
         lines = []
-        lines.append(f"# 第{chapter}章 分纲（V2 Graph 投影）")
-        lines.append(f"volume: {volume}")
-        lines.append(f"chapter: {chapter}")
-        lines.append(f"scene_count: {len(scenes)}")
+        if part_label:
+            lines.append(f"# {part_label} · 第{chapter}章 分纲（V2 Graph 投影）")
+        else:
+            lines.append(f"# 第{chapter}章 分纲（V2 Graph 投影）")
         lines.append(f"projected_at: {datetime.now(timezone.utc).isoformat()}")
+        lines.append(f"scene_count: {len(scenes)}")
         lines.append("")
         
         for i, scene in enumerate(scenes):
@@ -337,8 +459,13 @@ class ProjectionEngine:
             if scene.tags:
                 lines.append(f"tags: {', '.join(scene.tags)}")
             lines.append("")
+            
+            # 场景内容 + 密度/字数建议
             if scene.content:
                 lines.append(self._format_scene_content(scene.content))
+                density_lines = self._format_scene_with_density(scene.content)
+                if density_lines:
+                    lines.extend(density_lines)
                 lines.append("")
             
             # 关联信息
@@ -492,7 +619,7 @@ class ProjectionEngine:
         scenes = self.store.find_units(type=UnitType.SCENE)
         chapters = defaultdict(list)
         for s in scenes:
-            ch = s.belongs_to_chapter or 0
+            ch = self._get_unit_chapter(s)
             chapters[ch].append(s)
         for ch in sorted(chapters.keys()):
             ch_scenes = chapters[ch]
@@ -504,7 +631,7 @@ class ProjectionEngine:
     def _project_timeline(self, **kwargs) -> str:
         """时间线投影"""
         scenes = self.store.find_units(type=UnitType.SCENE)
-        scenes.sort(key=lambda s: (s.belongs_to_chapter or 0, s.created_at))
+        scenes.sort(key=lambda s: (self._get_unit_chapter(s), s.created_at))
         
         lines = []
         lines.append("# 时间线设计（V2 Graph 投影）")
@@ -514,8 +641,9 @@ class ProjectionEngine:
         lines.append("")
         
         for scene in scenes:
-            ch = scene.belongs_to_chapter or "?"
-            lines.append(f"- **第{ch}章**: {scene.unit_name}")
+            ch = self._get_unit_chapter(scene)
+            ch_label = f"第{ch}章" if ch else "?"
+            lines.append(f"- **{ch_label}**: {scene.unit_name}")
             if scene.tags:
                 lines.append(f"  - 标签: {', '.join(scene.tags)}")
         
@@ -718,8 +846,10 @@ class ProjectionEngine:
                     scenes.append(source)
             if scenes:
                 lines.append(f"- **关联场景**: {len(scenes)}")
-                for s in sorted(scenes, key=lambda x: x.belongs_to_chapter or 0):
-                    lines.append(f"  - 第{s.belongs_to_chapter or '?'}章: {s.unit_name}")
+                for s in sorted(scenes, key=lambda x: self._get_unit_chapter(x)):
+                    ch = self._get_unit_chapter(s)
+                    label = f"第{ch}章" if ch else "?"
+                    lines.append(f"  - {label}: {s.unit_name}")
 
             if u.content:
                 lines.append(f"")
@@ -734,13 +864,13 @@ class ProjectionEngine:
     def _export_scenes(self, export_dir: Path) -> str:
         """场景列表（按章节）"""
         scenes = self.store.find_units(type=UnitType.SCENE)
-        scenes.sort(key=lambda s: (s.belongs_to_chapter or 0, s.created_at))
+        scenes.sort(key=lambda s: (self._get_unit_chapter(s), s.created_at))
 
         # 按章节分组
         from collections import defaultdict
         by_chapter = defaultdict(list)
         for s in scenes:
-            by_chapter[s.belongs_to_chapter or 0].append(s)
+            by_chapter[self._get_unit_chapter(s)].append(s)
 
         lines = [
             f"# 场景列表",
@@ -785,7 +915,7 @@ class ProjectionEngine:
     def _export_timeline(self, export_dir: Path) -> str:
         """时间线"""
         scenes = self.store.find_units(type=UnitType.SCENE)
-        scenes.sort(key=lambda s: (s.belongs_to_chapter or 0, s.created_at))
+        scenes.sort(key=lambda s: (self._get_unit_chapter(s), s.created_at))
 
         lines = [
             f"# 时间线",
@@ -795,8 +925,9 @@ class ProjectionEngine:
         ]
 
         for s in scenes:
-            ch = s.belongs_to_chapter or "?"
-            lines.append(f"- **第{ch}章**: {s.unit_name}")
+            ch = self._get_unit_chapter(s)
+            label = f"第{ch}章" if ch else "?"
+            lines.append(f"- **{label}**: {s.unit_name}")
 
         # 也包含 NOTE 类型中带"时间线"标签的内容
         notes = self.store.find_units(type=UnitType.NOTE)
@@ -871,7 +1002,7 @@ class ProjectionEngine:
         chunks = self.store.find_units(type=UnitType.CHUNK)
         by_chapter = defaultdict(list)
         for c in chunks:
-            ch = c.belongs_to_chapter or 0
+            ch = self._get_unit_chapter(c)
             by_chapter[ch].append(c)
 
         lines = [

@@ -104,10 +104,15 @@ class Workspace:
                     lines.append(f"前版：{self.previous_unit.get('unit_name', '?')}")
                 if self.next_unit:
                     lines.append(f"后版：{self.next_unit.get('unit_name', '?')}")
-                if self.location:
+                # 多场景时列出场景清单而非单个时间/地点
+                if len(self.scenes) > 1:
+                    lines.append(f"包含 {len(self.scenes)} 个场景：")
+                    for s in self.scenes:
+                        lines.append(f"  - {s.get('unit_name', '?')}")
+                elif self.location:
                     lines.append(f"地点：{self.location}")
-                if self.story_time:
-                    lines.append(f"时间：{self.story_time}")
+                    if self.story_time:
+                        lines.append(f"时间：{self.story_time}")
         lines.append("")
         
         # 段2：你需要知道
@@ -681,26 +686,28 @@ class WorkspaceBuilder:
             if not ws.character_arcs and not ws.plot_threads:
                 gaps.append("没有加载到角色或情节线上下文")
             
-            # 字数偏差诊断：实际字数与场景密度建议对比
+            # 字数偏差诊断：实际字数与各场景密度建议对比
             if ws.focus_unit and ws.focus_unit.content:
                 import json
                 try:
                     chunk_meta = json.loads(ws.focus_unit.content) if isinstance(ws.focus_unit.content, str) else {}
                     actual_words = chunk_meta.get("字数", 0) if isinstance(chunk_meta, dict) else 0
                     if actual_words > 0 and ws.scenes:
-                        # 从第一个关联场景的 content 获取建议字数
-                        scene_info = ws.scenes[0]
-                        scene_unit = self.store.get_unit(scene_info.get("unit_id", ""))
-                        if scene_unit and scene_unit.content:
-                            try:
-                                scene_content = json.loads(scene_unit.content) if isinstance(scene_unit.content, str) else {}
-                                if isinstance(scene_content, dict):
-                                    suggested = scene_content.get("建议字数", 0)
-                                    if suggested and actual_words > suggested * 1.5:
-                                        gaps.append(f"⚠️ 字数({actual_words})超出场景建议字数({suggested})的1.5倍，"
-                                                   f"考虑是否场景过载或需分拆")
-                            except (json.JSONDecodeError, ValueError):
-                                pass
+                        total_suggested = 0
+                        for scene_info in ws.scenes:
+                            scene_unit = self.store.get_unit(scene_info.get("unit_id", ""))
+                            if scene_unit and scene_unit.content:
+                                try:
+                                    scene_content = json.loads(scene_unit.content) if isinstance(scene_unit.content, str) else {}
+                                    if isinstance(scene_content, dict):
+                                        suggested = scene_content.get("建议字数", 0)
+                                        if suggested:
+                                            total_suggested += suggested
+                                except (json.JSONDecodeError, ValueError):
+                                    pass
+                        if total_suggested > 0 and actual_words > total_suggested * 1.5:
+                            gaps.append(f"⚠️ 字数({actual_words})超出所有场景建议字数总和({total_suggested})的1.5倍，"
+                                       f"考虑是否场景过载或需分拆")
                 except (json.JSONDecodeError, ValueError):
                     pass
         
@@ -825,12 +832,18 @@ class WorkspaceBuilder:
         if not content:
             return
         
-        # 提取场景信息
-        ws.story_time = content.get("时间", "")
-        ws.location = content.get("地点", "")
+        # 提取场景信息（多次调用时累加，避免最后一条覆盖前面）
+        t = content.get("时间", "")
+        if t:
+            ws.story_time = f"{ws.story_time}；{t}" if ws.story_time else t
+        loc = content.get("地点", "")
+        if loc:
+            ws.location = f"{ws.location}；{loc}" if ws.location else loc
         
-        # 场域核心信息
-        ws.scene_function = content.get("核心冲突", content.get("一句话概要", ""))
+        # 场域核心信息（多次调用时累加）
+        func = content.get("核心冲突", content.get("一句话概要", ""))
+        if func:
+            ws.scene_function = f"{ws.scene_function}；{func}" if ws.scene_function else func
         
         # 角色状态
         characters = content.get("出场角色", [])

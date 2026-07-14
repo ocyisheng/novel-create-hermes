@@ -91,7 +91,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 
 ### 章纲与场景创建
 
-章纲是蓝图，SCENE 是执行。创建章纲后，必须为每个计划的场景创建独立的 SCENE 单元，通过 CONTAINS 边关联到章纲。
+章纲是蓝图，SCENE 是执行。创建章纲后，必须为每个计划的场景创建独立的 SCENE 单元，通过 PLANS 边关联到章纲（规划意图）。正文（CHUNK）通过 BELONGS_TO 边关联实际执行的 SCENE（执行归属）。规划与执行解耦——增减场景只操作 BELONGS_TO，不动章纲的 PLANS 边。
 
 **第一步：创建章纲**。只写结构级信息——节奏走向、场景数量、情绪弧线。不写感官细节、角色动作、对话。
 
@@ -107,15 +107,15 @@ novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
 novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
   --name "第N章_场景名" --actor novel-v2-crafter \
   --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}'
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type plans
 ```
 
 **第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，通过每个 SCENE 的 `子类型` 对照 `scene.md` 密度预算表（默认使用「标准」密度档位），累加上界得到预期总字数。
 对照章纲字数带（参考数据 → 章纲字数带）：快速章2000-3000 / 标准章3000-5000 / 长章5000-8000。如果累计超长章上限（8000），则按 SCENE 边界拆分为两章再写——不要在写之前明知会超预算还硬写成一个文件。
 
 **关键约束**：
-- CONTAINS 边的创建顺序 = 场景的叙事顺序
-- 写作中新发现需要增减场景：直接创建/删除 SCENE 单元 + 调整 CONTAINS 边
+- PLANS 边的创建顺序 = 场景的计划叙事顺序（章纲的规划意图）
+- 写作中新发现需要增减场景：创建/删除 SCENE 单元 + 调整 CHUNK 的 BELONGS_TO 边即可。章纲的 PLANS 边保持规划时原样不动——后续可通过比对 PLANS 与 BELONGS_TO 的差集生成"计划 vs 执行"偏差报告
 
 ### 章节正文写入
 

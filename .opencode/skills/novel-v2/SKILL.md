@@ -110,8 +110,8 @@ novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --n
 # ── 建立关系（关系走 edge，content 只存可读名称） ──
 # 场景 → 情节线：场景实现了哪条情节线
 novel-tool --operation graph.add_relation --project {PROJECT} --source {场景ID} --target {情节线ID} --type implements
-# 章纲 → 场景：章纲包含哪些场景
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
+# 章纲 → 场景：章纲规划哪些场景（规划意图，非结构归属）
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type plans
 # 角色 → 场景：角色参与哪些场景
 novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target {场景ID} --type participates_in
 # 成员/位置/同盟（--bidirectional 自动补反向）

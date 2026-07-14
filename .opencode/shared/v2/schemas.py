@@ -89,12 +89,12 @@ NOTE_SCHEMA = {
 }
 
 STRUCTURE_SCHEMA = {
-    "子类型": {"type": str, "required": True, "options": ["总纲","卷大纲","章纲","篇大纲","部大纲"]},
+    "子类型": {"type": str, "required": True, "options": ["总纲","部大纲","篇大纲","卷大纲","章纲"]},
     "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
-    "节奏设计": {"type": str, "required": False, "description": "主题动机及变奏点"},
+    "节奏设计": {"type": str, "required": False, "description": "节奏走向（总纲→全书变奏点；卷大纲→卷内节奏；章纲→场景间递进关系）"},
     "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
-    "场景序列": {"type": list, "required": False, "description": "章纲专用：场景顺序概述（字符串列表）"},
-    "章节弧线": {"type": str, "required": False, "description": "章纲专用：本章情绪走向（如'从安逸→紧张→释放→期待'）"},
+    "场景规划摘要": {"type": str, "required": False, "description": "章纲专用：场景规划意图草稿（非结构列表；写时允许增减；CONTAINS边表达真实归属）"},
+    "章节弧线": {"type": str, "required": False, "description": "章纲专用：本章情绪曲线"},
     "备注": {"type": str, "required": False},
 }
 
@@ -110,7 +110,7 @@ NARRATIVE_VOICE_SCHEMA = {
 }
 
 CHUNK_SCHEMA = {
-    "子类型": {"type": str, "required": False},
+    "子类型": {"type": str, "required": True, "options": ["v1","v2","v3"]},
     "章节号": {"type": int, "required": False},
     "章节名": {"type": str, "required": False},
     "正文路径": {"type": str, "required": False},
@@ -189,7 +189,7 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
     UnitType.STRUCTURE: SubtypeConfig(
         field="子类型",
         required=True,
-        options=["总纲","卷大纲","章纲"],
+        options=["总纲","部大纲","篇大纲","卷大纲","章纲"],
     ),
     UnitType.CHARACTER_ARC: SubtypeConfig(
         field="子类型",

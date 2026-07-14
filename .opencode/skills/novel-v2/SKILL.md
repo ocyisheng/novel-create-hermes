@@ -28,10 +28,10 @@ tags: ["novel", "v2", "graph"]
 | `scene` | `references/scene.md` | 开篇/推进/冲突/转折/展示/过渡/收束 | 按场域功能选择方法论：POV选择、一句话概要、核心冲突 |
 | `character_arc` | `references/character_arc.md` | 主角/重要配角/反派/关键配角/群像/功能性角色 | 按角色定位选择弧线深度：扁平vs圆形、自动性空间、关系标签 |
 | `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
-| `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
+| `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | 版本标签 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
-| `structure` | `references/structure.md` | 总纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
+| `chunk` | `references/chunk.md` | v1/v2/v3 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
+| `structure` | `references/structure.md` | 总纲/部大纲/篇大纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
 | `narrative_voice` | `references/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
 
@@ -175,7 +175,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **世界观 (WORLD_RULE)**：
 ```json
-{"子类型": "地点/势力/规则/力量体系/纪年事件", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
+{"子类型": "世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
 ```
 
 **笔记 (NOTE)**：
@@ -185,12 +185,8 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **结构设计 (STRUCTURE)**：
 ```json
-{"子类型": "总纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
+{"子类型": "总纲/部大纲/篇大纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
 ```
-
-
-
-不再使用 `_display` 字段。所有信息直接写入 content 字段，HTML 面板按值类型自动渲染。
 
 ---
 

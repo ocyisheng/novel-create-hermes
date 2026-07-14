@@ -102,11 +102,13 @@ Grill 调度规则：
 |----------|---------|---------|---------------|------|
 | 章纲/分纲（规划整章骨架） | structure | warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
 | 设计场域（规划单个叙事切片） | scene | warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | 查 session.info | ❌ chunk 跳过 | 新写→preheat=warm, 版本标签=v1；精修→preheat=hot, 版本标签递增 |
+| 写第N章正文（写出实际文字） | chunk | 查 session.info | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修→preheat=hot, 子类型递增 |
 | 创建/编辑角色 | character_arc | warm | ✅ 模糊时推荐 | |
 | 世界观设定 | world_rule | warm | ✅ 模糊时推荐 | |
 | 情节/伏笔设计 | plot_thread | warm | ✅ 模糊时推荐 | |
 | 总纲 | structure | warm | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
+| 部大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=部大纲，设计部弧线/跨卷节奏 |
+| 篇大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=篇大纲，设计篇弧线/跨卷节奏 |
 | 卷大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
 | 叙述腔调设计 | narrative_voice | warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
 | 主题意象设计 | thematic_motif | warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |

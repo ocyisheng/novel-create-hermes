@@ -89,45 +89,31 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 - **写入正文** → 先创建 CHUNK 单元，再关联到场景
 - **持久化** → `novel-tool --operation graph.flush --project <PROJECT>`
 
-### 章纲与场景创建（两步流程）
+### 章纲与场景创建
 
-章纲和 SCENE 是两个不同的叙事单元类型，创建章纲后必须拆分创建对应的 SCENE 单元。
+章纲是蓝图，SCENE 是执行。创建章纲后，必须为每个计划的场景创建独立的 SCENE 单元，通过 CONTAINS 边关联到章纲。
 
-**第一步：创建章纲（只规划不写具体内容）**
-
-章纲是结构蓝图。只描述"这一章由几个场景组成，每个场景在叙事中起什么作用"——**不写任何具体的感官细节、角色动作、对话，那些属于 SCENE。**
+**第一步：创建章纲**。只写结构级信息——节奏走向、场景数量、情绪弧线。不写感官细节、角色动作、对话。
 
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
-  --content '{"子类型":"章纲","结构模式":"沙漏","节奏设计":"开篇舒缓→中段推进→高潮冲突→收束回落","本章功能":"...","场景规划摘要":"预计4-5个场景：①法场行刑（开篇，定基调）②赵不危闯入（转折，引入悬念）③停尸棚验尸（推进，释放信息）④驿站夜谈（收束，留余韵）","章节弧线":"从紧张→释放→悬疑"}'
+  --content '{"子类型":"章纲","结构模式":"...","节奏设计":"...","本章功能":"...","场景规划摘要":"预计N个场景","章节弧线":"..."}'
 ```
 
-**第二步：为每个场景创建独立的 SCENE 单元**
-
-将 `场景规划摘要` 中的每个场景拆分为独立 SCENE。每个 SCENE 必须使用 `CONTAINS` 边关联到章纲。
+**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
 
 ```
-# 场景1：法场行刑
 novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
-  --name "第N章_法场行刑" --actor novel-v2-crafter \
-  --content '{"子类型":"开篇","POV角色":"宋盏儿","地点":"太平县法场","时间":"春末·卯时","一句话概要":"十三岁的盏儿第一次目睹行刑，铁链拖地声中她看见了囚车里的年轻人","出场角色":["宋盏儿","曹墨","太平县百姓（群像）"],"核心冲突":"曹墨即将被斩","叙事密度":"标准","建议字数":2500}'
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景1ID} --type contains
-
-# 场景2：赵不危闯入
-novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
-  --name "第N章_赵不危闯入" --actor novel-v2-crafter \
-  --content '{"子类型":"转折","POV角色":"宋盏儿","地点":"太平县法场","时间":"春末·卯时末","一句话概要":"赵不危骑马持信闯入法场，在人群中短暂与盏儿目光相接","出场角色":["宋盏儿","赵不危","竹英姑"],"核心冲突":"行刑被中断","叙事密度":"密集","建议字数":1200}'
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景2ID} --type contains
-
-# ... 继续创建剩余场景，每个用 CONTAINS 边连接到章纲
-novel-tool --operation graph.flush --project {PROJECT}
+  --name "第N章_场景名" --actor novel-v2-crafter \
+  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...],"叙事密度":"标准","建议字数":...}'
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
 ```
 
 **关键约束**：
-- 每个 CONTAINS 边的创建顺序定义了场景的叙事顺序
-- 章纲 content 中只保留结构级信息（节奏设计、章节弧线、场景规划摘要）——**不要写感官细节、角色动作、对话片段**
-- 如果写作中新发现需要增加或删除场景，创建/删除 SCENE 单元 + 调整 CONTAINS 边即可，不需要修改章纲
+- CONTAINS 边的创建顺序 = 场景的叙事顺序
+- 写作中新发现需要增减场景：直接创建/删除 SCENE 单元 + 调整 CONTAINS 边，章纲不需要修改
+- 每个 SCENE 必须填 `叙事密度` 和 `建议字数`，供后续 CHUNK 写作的密度预算检查使用
 
 ### 章节正文写入
 

@@ -145,53 +145,50 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
 
 ### 正文分章（写作后拆分）
 
-**先写出完整的章节内容，再判断是否需要拆分为多个分片。写的时候不要自我限制字数。**
+一章对应一个 CHUNK，一个 CHUNK 对应多个 SCENE。分章判断基于**累计总量**而非单个场景。
 
-写完正文并更新字数后，检查各场景的字数是否超出其密度预算。如果超出，按场景功能完结度决定拆分点。
-
-密度预算表（各子类型×密度的字数范围）见 `references/scene.md` §叙事密度指引。项目可在 `config.yaml` → `叙事密度.密度表覆盖` 中自定义。此处不再重复。
-
-#### 分章判断流程
+**判断流程**：
 
 ```
-1. 读取当前章节下所有 SCENE 的 content，获取每个场景的：
+1. 通过章纲的 CONTAINS 边获取该章所有 SCENE 的 content，获取每个场景的：
    - 子类型（开篇/推进/冲突/转折/展示/过渡/收束）
    - 叙事密度（舒缓/标准/密集）
-   - 实际字数
+   - 建议字数
 
-2. 对照密度预算表，判断是否超预算：
-   - 单个场景的实际字数超出其密度档位上界 × 1.5 倍？
-   - 累积场景数 ≥ 5 个且字数增长不受控制？
-   - 以上任一成立 → 需要分章
+2. 计算预期总字数 = 所有 SCENE 建议字数的上界累加。
+   对照密度预算表（见 references/scene.md §叙事密度指引）：
+   - CHUNK 实际字数 > 预期总字数 × 1.5 → 需要分章
+   - 累积场景数 ≥ 6 个 → 需要分章
 
-3. 找拆分点（按优先级）：
-   A) [首选] 场景叙事功能已完结的场景边界
-      — 收束/过渡场景自然结束处
-      — 冲突场景的高潮回落处
-      — 转折场景的揭示完成后
-   B) [次选] 自然叙事分界
-      — 场景切换（空行分隔）
-      — 时间跳转（次日/午后等）
-      — POV 切换
-      — 叙事段落完整完结处
-   C) [兜底] 按字数比例估算中点
+3. 找拆分点（在 SCENE 之间，不允许在 SCENE 内部切）：
+   A) [首选] 叙事功能已完结的场景边界 — 收束/过渡场景之后
+   B) [次选] 自然叙事分界 — 时间跳转 / POV 切换
+   C) [兜底] 按字数比例估算中点场景
 
-4. 切割正文文件：
-   chapters/第{N}章_上.txt（前半段含完整场景群）
-   chapters/第{N}章_下.txt（后半段）
+4. 操作：
+   # 更新原 CHUNK 为前半段
+   novel-tool --operation graph.update_unit --project {PROJECT} --id {原CHUNK_ID} \
+     --content '{"章节号":N, "章节名":"上半段主题", "字数":前半段字数, ...}'
+   # 原 CHUNK 的 BELONGS_TO 边指向前半段的 SCENE
 
-5. 更新原 CHUNK 为分片格式：
-   --id {原CHUNK_ID}
-   --content '{"章节号":N, "正文分片":{"序号":1,"标题":"上半段主题","文件":"chapters/第{N}章_上.txt"}, "字数":上半段字数}'
+   # 创建新章纲 — 后半段是独立章节
+   novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
+     --name "章纲_第{N+1}章_..." --actor novel-v2-crafter \
+     --content '{"子类型":"章纲", ...}'
 
-6. 新建 CHUNK 承接后半段：
-   --type CHUNK --name "第{N}章"（续） --actor novel-v2-crafter \
-   --content '{"章节号":N, "正文分片":{"序号":2,"标题":"下半段主题","文件":"chapters/第{N}章_下.txt"}, "字数":下半段字数}'
+   # 后半段 SCENE 的 CONTAINS 边从原章纲移到新章纲
+   # （删除旧 CONTAINS，添加新 CONTAINS）
 
-7. 可选：关联两个 CHUNK 到对应 SCENE（graph.add_relation --type belongs_to）
+   # 创建新 CHUNK
+   novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
+     --name "第{N+1}章" --actor novel-v2-crafter \
+     --content '{"章节号":{N+1}, ...}'
+   # 新 CHUNK BELONGS_TO 后半段的 SCENE
+
+   # 重编号后续所有章节（N+1 → N+2, ...）
 ```
 
-注意：不需要创建新 SCENE，不需要新 STRUCTURE（章纲），不需要重编号后序章节。
+注意：拆分点是 SCENE 边界，不是任意文本位置。这确保了每个 SCENE 保持完整，新的章节也有自己的章纲。
 
 ### 写后自动推进写作进度
 

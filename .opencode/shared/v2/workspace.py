@@ -685,31 +685,6 @@ class WorkspaceBuilder:
                 gaps.append("没有关联到场景信息，写作上下文可能不足")
             if not ws.character_arcs and not ws.plot_threads:
                 gaps.append("没有加载到角色或情节线上下文")
-            
-            # 字数偏差诊断：实际字数与各场景密度建议对比
-            if ws.focus_unit and ws.focus_unit.content:
-                import json
-                try:
-                    chunk_meta = json.loads(ws.focus_unit.content) if isinstance(ws.focus_unit.content, str) else {}
-                    actual_words = chunk_meta.get("字数", 0) if isinstance(chunk_meta, dict) else 0
-                    if actual_words > 0 and ws.scenes:
-                        total_suggested = 0
-                        for scene_info in ws.scenes:
-                            scene_unit = self.store.get_unit(scene_info.get("unit_id", ""))
-                            if scene_unit and scene_unit.content:
-                                try:
-                                    scene_content = json.loads(scene_unit.content) if isinstance(scene_unit.content, str) else {}
-                                    if isinstance(scene_content, dict):
-                                        suggested = scene_content.get("建议字数", 0)
-                                        if suggested:
-                                            total_suggested += suggested
-                                except (json.JSONDecodeError, ValueError):
-                                    pass
-                        if total_suggested > 0 and actual_words > total_suggested * 1.5:
-                            gaps.append(f"⚠️ 字数({actual_words})超出所有场景建议字数总和({total_suggested})的1.5倍，"
-                                       f"考虑是否场景过载或需分拆")
-                except (json.JSONDecodeError, ValueError):
-                    pass
         
         elif ws.focus_type == "plot_thread":
             # 情节线设计应该有关联场景

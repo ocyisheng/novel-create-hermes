@@ -41,12 +41,7 @@ SCENE_SCHEMA = {
         "type": str,
         "required": False,
         "options": ["舒缓", "标准", "密集"],
-        "description": "本场景预期的叙事密度，影响建议字数范围",
-    },
-    "建议字数": {
-        "type": int,
-        "required": False,
-        "description": "基于子类型+密度+情节负载自动推算的建议字数",
+        "description": "本场景预期的叙事密度，影响写作时的节奏控制和字数分配",
     },
 }
 

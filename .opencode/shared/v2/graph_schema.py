@@ -85,6 +85,8 @@ class RelationType(str, Enum):
     REFERENCES = "references"            # A 中提到了 B
     IMPLIES = "implies"                 # A 隐含了 B（弱关联）
     PARALLEL = "parallel"               # A 与 B 并列发生
+    PLANS = "plans"                     # A 规划 B（章纲规划场景）——规划意图而非结构归属
+    PLANNED_BY = "planned_by"           # A 被 B 规划（PLANS 的反向）
     PARTICIPATES_IN = "participates_in" # A 参与 B（角色参与场景）
     LOCATED_AT = "located_at"           # A 位于 B（场景/角色所在地点）
     ALLIED_WITH = "allied_with"         # A 与 B 同盟（角色/势力之间）
@@ -108,6 +110,8 @@ class RelationType(str, Enum):
             "references": "referenced_by",
             "implies": "implied_from",
             "parallel": "parallel",
+            "plans": "planned_by",
+            "planned_by": "plans",
             "located_at": "location_of",
             "allied_with": "allied_with",
             "contains": "belongs_to",

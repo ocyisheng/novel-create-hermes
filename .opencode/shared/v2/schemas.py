@@ -34,15 +34,7 @@ SCENE_SCHEMA = {
     "时间": {"type": str, "required": False},
     "一句话概要": {"type": str, "required": True},
     "出场角色": {"type": list, "required": False},
-    "核心冲突": {"type": str, "required": False},
     "关联情节线": {"type": list, "required": False},
-    "字数": {"type": int, "required": False},
-    "叙事密度": {
-        "type": str,
-        "required": False,
-        "options": ["舒缓", "标准", "密集"],
-        "description": "本场景预期的叙事密度，影响写作时的节奏控制和字数分配",
-    },
 }
 
 CHARACTER_ARC_SCHEMA = {
@@ -86,10 +78,8 @@ NOTE_SCHEMA = {
 STRUCTURE_SCHEMA = {
     "子类型": {"type": str, "required": True, "options": ["总纲","部大纲","篇大纲","卷大纲","章纲"]},
     "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
-    "节奏设计": {"type": str, "required": False, "description": "节奏走向（总纲→全书变奏点；卷大纲→卷内节奏；章纲→场景间递进关系）"},
     "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
-    "场景规划摘要": {"type": str, "required": False, "description": "章纲专用：场景规划意图草稿（非结构列表；写时允许增减；CONTAINS边表达真实归属）"},
-    "章节弧线": {"type": str, "required": False, "description": "章纲专用：本章情绪曲线"},
+    "场景规划摘要": {"type": str, "required": False, "description": "章纲专用：场景意图草稿，写作中可任意偏离"},
     "备注": {"type": str, "required": False},
 }
 
@@ -101,7 +91,6 @@ NARRATIVE_VOICE_SCHEMA = {
     "视角切换规则": {"type": str, "required": False},
     "信息分配策略": {"type": str, "required": False, "options": ["常规","抵抗","挑衅"]},
     "笔记传统启用": {"type": bool, "required": False},
-    "约定禁止": {"type": list, "required": False},
 }
 
 CHUNK_SCHEMA = {

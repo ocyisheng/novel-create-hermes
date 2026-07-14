@@ -98,19 +98,19 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
-  --content '{"子类型":"章纲","结构模式":"...","节奏设计":"...","本章功能":"...","场景规划摘要":"预计N个场景","章节弧线":"..."}'
+  --content '{"子类型":"章纲","结构模式":"...","本章功能":"...","场景规划摘要":"预计N个场景"}'
 ```
 
-**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。每个 SCENE 必须填 `叙事密度`（对照 `scene.md` 密度预算表选择合适密度）。
+**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
 
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
   --name "第N章_场景名" --actor novel-v2-crafter \
-  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...],"叙事密度":"标准"}'
+  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}'
 novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
 ```
 
-**第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，通过每个 SCENE 的 `子类型` + `叙事密度` 对照 `scene.md` 密度预算表，累加每个 SCENE 的密度档位上界，得到预期总字数。
+**第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，通过每个 SCENE 的 `子类型` 对照 `scene.md` 密度预算表（默认使用「标准」密度档位），累加上界得到预期总字数。
 对照章纲字数带（参考数据 → 章纲字数带）：快速章2000-3000 / 标准章3000-5000 / 长章5000-8000。如果累计超长章上限（8000），则按 SCENE 边界拆分为两章再写——不要在写之前明知会超预算还硬写成一个文件。
 
 **关键约束**：
@@ -172,14 +172,7 @@ novel-tool --operation project.update_progress --project <PROJECT> --volumeOutli
 
 ### 叙事密度指引
 
-每个场景的 content 中设置 `叙事密度` 字段，用于指导写作时的字数分配和节奏控制。具体字数范围见 `references/scene.md` §叙事密度指引。
-
-- **叙事密度** — 可选值：舒缓 / 标准 / 密集
-  - **舒缓**：适合氛围铺垫、大场面描写、心理刻画。允许较长的环境描写和内心独白，不必急于推进。
-  - **标准**：正常叙事节奏，对话和叙述均衡。大多数场景使用此密度。
-  - **密集**：适合冲突高潮、紧张对峙、快节奏推进。尽量精简描写，以行动和对话为主，场景转换可以更快。
-
-写作时不必被这些数字束缚，但可以将其作为判断节奏是否合适的参考信号。
+写作时参照 `references/scene.md` §叙事密度指引了解各子类型在不同密度下的建议字数范围。密度是写作指引而非数据约束——写时自然把握，无需在 content 中预设。
 
 ## 五、HARD CONSTRAINTS
 

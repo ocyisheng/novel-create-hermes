@@ -558,17 +558,14 @@ class WorkspaceBuilder:
                     })
         
         elif focus.type == UnitType.STRUCTURE:
-            # 结构设计焦点：通过 CONTAINS 边递归聚合子结构 + 关联内容
-            # 阶段 1：收集当前结构节点 + 所有后代结构节点
+            # 结构设计焦点：CONTAINS 递归聚合子结构 + PLANS 查找计划场景
+            # 阶段 1：收集当前结构节点 + 所有后代结构节点（CONTAINS 边，层级关系）
             structure_ids = {focus.id}
             descendants = self.store.find_descendants(focus.id, max_depth=10)
             structure_ids.update(descendants)
             
-            # 阶段 2：在每个结构节点上查找关联的 SCENE/CHUNK
-            seen_scene_ids: Set[str] = set()
-            seen_chunk_ids: Set[str] = set()
+            # 阶段 2：子结构单元添加到 structures 列表
             for sid in structure_ids:
-                # 子结构单元也添加到 structures 列表
                 if sid != focus.id:
                     child = self.store.get_unit(sid)
                     if child and child.type == UnitType.STRUCTURE:
@@ -577,17 +574,34 @@ class WorkspaceBuilder:
                             "unit_name": child.unit_name,
                             "tags": child.tags,
                         })
-                # 查找指向此结构节点的 SCENE/CHUNK（BELONGS_TO / REFERENCES 入边）
+            
+            # 阶段 3：通过 PLANS 边查找章纲计划的所有 SCENE（规划层）
+            seen_scene_ids: Set[str] = set()
+            seen_chunk_ids: Set[str] = set()
+            for sid in structure_ids:
+                # 章纲通过 PLANS 边声明计划包含的场景（规划层）
+                for rel in self.store.get_relations(sid, relation_type=RelationType.PLANS, direction="outgoing"):
+                    scene = self.store.get_unit(rel.target_id)
+                    if scene and scene.type == UnitType.SCENE and scene.id not in seen_scene_ids:
+                        seen_scene_ids.add(scene.id)
+                        ws.scenes.append({
+                            "unit_id": scene.id,
+                            "unit_name": scene.unit_name,
+                            "chapter": get_unit_chapter(scene),
+                        })
+                # 同时查找 BELONGS_TO/REFERENCES 入边（兼容旧数据，逐步迁移到 PLANS）
                 for rel in self.store.get_relations(sid, direction="incoming"):
                     source = self.store.get_unit(rel.source_id)
-                    if source and source.type == UnitType.SCENE and source.id not in seen_scene_ids:
+                    if not source:
+                        continue
+                    if source.type == UnitType.SCENE and source.id not in seen_scene_ids:
                         seen_scene_ids.add(source.id)
                         ws.scenes.append({
                             "unit_id": source.id,
                             "unit_name": source.unit_name,
                             "chapter": get_unit_chapter(source),
                         })
-                    elif source and source.type == UnitType.CHUNK and source.id not in seen_chunk_ids:
+                    elif source.type == UnitType.CHUNK and source.id not in seen_chunk_ids:
                         seen_chunk_ids.add(source.id)
                         ws.chunks.append({
                             "unit_id": source.id,
@@ -702,14 +716,17 @@ class WorkspaceBuilder:
                 ws.focus_unit.id, relation_type=RelationType.CONTAINS, direction="outgoing"
             ) if ws.focus_unit else []
             if children:
-                # 聚合节点应包含子结构单元
+                # 聚合节点应包含子结构单元（CONTAINS 边）
                 if not ws.structures:
                     gaps.append("聚合节点但没有加载到子结构单元")
                 # 聚合节点是否还关联场景/正文是可选的
             else:
-                # 叶子节点（章纲）应关联场景或正文
-                if not ws.scenes and not ws.chunks:
-                    gaps.append("章纲未关联到场景或正文")
+                # 叶子节点（章纲）应通过 PLANS 边关联计划场景
+                plans = self.store.get_relations(
+                    ws.focus_unit.id, relation_type=RelationType.PLANS, direction="outgoing"
+                ) if ws.focus_unit else []
+                if not plans and not ws.scenes and not ws.chunks:
+                    gaps.append("章纲未通过 PLANS 边关联任何计划场景")
         
         elif ws.focus_type == "narrative_voice":
             # 叙述腔调应该有关联场景

@@ -49,9 +49,6 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 正文 → 场景：正文属于场景
     (UnitType.CHUNK, UnitType.SCENE, RelationType.BELONGS_TO,
      "source_to_target", 0.5),
-    # 正文 → 结构：正文属于章纲
-    (UnitType.CHUNK, UnitType.STRUCTURE, RelationType.BELONGS_TO,
-     "source_to_target", 0.4),
     # 正文 → 角色：正文涉及角色
     (UnitType.CHUNK, UnitType.CHARACTER_ARC, RelationType.REFERENCES,
      "source_to_target", 0.3),
@@ -90,9 +87,9 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 结构 → 情节线：结构设计了情节线
     (UnitType.STRUCTURE, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS,
      "source_to_target", 0.5),
-    # 结构 → 场景：结构安排了场景节奏
-    (UnitType.STRUCTURE, UnitType.SCENE, RelationType.REFERENCES,
-     "source_to_target", 0.3),
+    # 结构 → 场景：章纲规划场景（规划意图，非结构归属）
+    (UnitType.STRUCTURE, UnitType.SCENE, RelationType.PLANS,
+     "source_to_target", 0.7),
     # 腔调 → 场景：腔调策略适用于场景
     (UnitType.NARRATIVE_VOICE, UnitType.SCENE, RelationType.REFERENCES,
      "source_to_target", 0.4),

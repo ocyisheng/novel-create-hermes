@@ -101,94 +101,55 @@ novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
   --content '{"子类型":"章纲","结构模式":"...","节奏设计":"...","本章功能":"...","场景规划摘要":"预计N个场景","章节弧线":"..."}'
 ```
 
-**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
+**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。每个 SCENE 必须填 `叙事密度` 和 `建议字数`（对照 `scene.md` 密度预算表）。`建议字数` 取密度档位的上界。
 
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
   --name "第N章_场景名" --actor novel-v2-crafter \
-  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...],"叙事密度":"标准","建议字数":...}'
+  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...],"叙事密度":"标准","建议字数":3500}'
 novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type contains
 ```
 
+**第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，累加建议字数。
+对照章纲字数带（参考数据 → 章纲字数带）：快速章2000-3000 / 标准章3000-5000 / 长章5000-8000。如果累计超长章上限（8000），则按 SCENE 边界拆分为两章再写——不要在写之前明知会超预算还硬写成一个文件。
+
 **关键约束**：
 - CONTAINS 边的创建顺序 = 场景的叙事顺序
-- 写作中新发现需要增减场景：直接创建/删除 SCENE 单元 + 调整 CONTAINS 边，章纲不需要修改
-- 每个 SCENE 必须填 `叙事密度` 和 `建议字数`，供后续 CHUNK 写作的密度预算检查使用
+- `建议字数` 取密度档位**上界**，确保预留缓冲
+- 写作中新发现需要增减场景：直接创建/删除 SCENE 单元 + 调整 CONTAINS 边
 
 ### 章节正文写入
 
-一章对应一个 CHUNK，写入一个文件。CHUNK 存元数据（章节号、章节名、字数、正文路径），正文写入 TXT 文件。
+一章对应一个 CHUNK，一个文件。如果上一步预分章了，每个子章各自一个 CHUNK。
 
 ```
-1. # 创建一个 CHUNK 代表整章
+1. # 创建一个 CHUNK 代表该章（或子章）
 novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
      --name "第3章" --actor novel-v2-crafter \
      --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
 
-2. # 关联到该章的所有 SCENE（通过章纲的 CONTAINS 边找到所有属于该章的 SCENE）
+2. # 关联到该章的所有 SCENE
 novel-tool --operation graph.add_relation --project {PROJECT} \
      --source {CHUNK_ID} --target {SCENE1_ID} --type belongs_to
-novel-tool --operation graph.add_relation --project {PROJECT} \
-     --source {CHUNK_ID} --target {SCENE2_ID} --type belongs_to
-# ... 每个 SCENE 一条 BELONGS_TO 边
+# ... 每个 SCENE 一条
 
-3. 基于所有 SCENE 的上下文，写出整章完整正文。用 write 工具写入 chapters/第3章_v1.txt
+3. 基于该组 SCENE 的上下文，写出正文。用 write 工具写入 TXT 文件。
 
 4. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
-     --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":5200}'
+     --content '{"章节号":3,"章节名":"...","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":实际字数}'
 
 5. novel-tool --operation graph.flush --project {PROJECT}
 ```
 
-正文路径默认：`chapters/第{章节号}章_{子类型}.txt`。
 修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
 
-### 正文分章（写作后拆分）
+### 正文分章（写后补救）
 
-一章对应一个 CHUNK，一个 CHUNK 对应多个 SCENE。分章判断基于**累计总量**而非单个场景。
+写前预检查已处理绝大多数情况。写后分章仅用于**LLM 实际产出显著超出预期字数**的罕见情况。
 
-**判断流程**：
+判断：CHUNK 实际字数 > 该组 SCENE 建议字数累计 × 1.5。
 
-```
-1. 通过章纲的 CONTAINS 边获取该章所有 SCENE 的 content，获取每个场景的：
-   - 子类型（开篇/推进/冲突/转折/展示/过渡/收束）
-   - 叙事密度（舒缓/标准/密集）
-   - 建议字数
-
-2. 计算预期总字数 = 所有 SCENE 建议字数的上界累加。
-   对照密度预算表（见 references/scene.md §叙事密度指引）：
-   - CHUNK 实际字数 > 预期总字数 × 1.5 → 需要分章
-   - 累积场景数 ≥ 6 个 → 需要分章
-
-3. 找拆分点（在 SCENE 之间，不允许在 SCENE 内部切）：
-   A) [首选] 叙事功能已完结的场景边界 — 收束/过渡场景之后
-   B) [次选] 自然叙事分界 — 时间跳转 / POV 切换
-   C) [兜底] 按字数比例估算中点场景
-
-4. 操作：
-   # 更新原 CHUNK 为前半段
-   novel-tool --operation graph.update_unit --project {PROJECT} --id {原CHUNK_ID} \
-     --content '{"章节号":N, "章节名":"上半段主题", "字数":前半段字数, ...}'
-   # 原 CHUNK 的 BELONGS_TO 边指向前半段的 SCENE
-
-   # 创建新章纲 — 后半段是独立章节
-   novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
-     --name "章纲_第{N+1}章_..." --actor novel-v2-crafter \
-     --content '{"子类型":"章纲", ...}'
-
-   # 后半段 SCENE 的 CONTAINS 边从原章纲移到新章纲
-   # （删除旧 CONTAINS，添加新 CONTAINS）
-
-   # 创建新 CHUNK
-   novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
-     --name "第{N+1}章" --actor novel-v2-crafter \
-     --content '{"章节号":{N+1}, ...}'
-   # 新 CHUNK BELONGS_TO 后半段的 SCENE
-
-   # 重编号后续所有章节（N+1 → N+2, ...）
-```
-
-注意：拆分点是 SCENE 边界，不是任意文本位置。这确保了每个 SCENE 保持完整，新的章节也有自己的章纲。
+拆分时在 SCENE 边界切——后半段 SCENE 创建新章纲、新 CHUNK，重编号后续章节。流程同步骤三。
 
 ### 写后自动推进写作进度
 

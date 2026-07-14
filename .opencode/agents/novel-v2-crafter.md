@@ -48,6 +48,16 @@ REF_FILE="{FOCUS TYPE}"
 cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 ```
 
+### 去 AI 味模式（HUMANIZE=true）
+
+当 prompt 中 `HUMANIZE: true` 时，额外加载 humanizer 指南：
+
+```bash
+cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
+```
+
+**关键约束**：humanizer 规则在 V2 上下文中工作。当前 SCENE 的叙事功能（冲突/展示/过渡）、角色状态、密度级别、活跃风格——这些可能使某些"AI 痕迹"成为正确的文体选择。遇到疑似 AI 模式时，先对照 workspace 上下文判断：这是 AI 的惰性表达，还是场景需求驱动的手法？
+
 **注意分工：**
 - **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
 - **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。

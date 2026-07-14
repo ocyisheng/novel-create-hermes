@@ -98,7 +98,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
-  --content '{"子类型":"章纲","结构模式":"...","本章功能":"...","场景规划摘要":"预计N个场景"}'
+  --content '{"子类型":"章纲","结构模式":"...","本章功能":"..."}'
 ```
 
 **第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。

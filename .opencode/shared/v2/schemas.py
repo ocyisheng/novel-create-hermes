@@ -79,7 +79,6 @@ STRUCTURE_SCHEMA = {
     "子类型": {"type": str, "required": True, "options": ["总纲","部大纲","篇大纲","卷大纲","章纲"]},
     "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
     "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
-    "场景规划摘要": {"type": str, "required": False, "description": "章纲专用：场景意图草稿，写作中可任意偏离"},
     "备注": {"type": str, "required": False},
 }
 

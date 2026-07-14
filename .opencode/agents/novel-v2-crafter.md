@@ -117,21 +117,22 @@ novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID
 
 ### 章节正文写入
 
-CHUNK 只存元数据（章节号、章节名、字数、正文路径），正文写入 TXT 文件。
-
-`--name` 保持 `"第N章"` 作为单元标识，章节名存于 `content.章节名`。
+一章对应一个 CHUNK，写入一个文件。CHUNK 存元数据（章节号、章节名、字数、正文路径），正文写入 TXT 文件。
 
 ```
-1. novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
+1. # 创建一个 CHUNK 代表整章
+novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
      --name "第3章" --actor novel-v2-crafter \
      --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
 
-2. # 关联到所属场景（如果有关联的 SCENE 单元）
-   # 通过 --chapter 参数，或通过 graph.find_unit 找到对应 SCENE 的 ID
-   novel-tool --operation graph.add_relation --project {PROJECT} \
-     --source {CHUNK_ID} --target {SCENE_ID} --type belongs_to
+2. # 关联到该章的所有 SCENE（通过章纲的 CONTAINS 边找到所有属于该章的 SCENE）
+novel-tool --operation graph.add_relation --project {PROJECT} \
+     --source {CHUNK_ID} --target {SCENE1_ID} --type belongs_to
+novel-tool --operation graph.add_relation --project {PROJECT} \
+     --source {CHUNK_ID} --target {SCENE2_ID} --type belongs_to
+# ... 每个 SCENE 一条 BELONGS_TO 边
 
-3. 用 write 工具将正文写入 chapters/第3章_v1.txt（UTF-8 纯文本）
+3. 基于所有 SCENE 的上下文，写出整章完整正文。用 write 工具写入 chapters/第3章_v1.txt
 
 4. novel-tool --operation graph.update_unit --project {PROJECT} --id {CHUNK_ID} \
      --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":5200}'
@@ -139,7 +140,7 @@ CHUNK 只存元数据（章节号、章节名、字数、正文路径），正�
 5. novel-tool --operation graph.flush --project {PROJECT}
 ```
 
-正文路径为空时默认：`chapters/第{章节号}章_{子类型}.txt`。
+正文路径默认：`chapters/第{章节号}章_{子类型}.txt`。
 修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
 
 ### 正文分章（写作后拆分）

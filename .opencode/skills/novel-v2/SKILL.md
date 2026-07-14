@@ -152,9 +152,9 @@ novel-tool --operation graph.export_docs --project {PROJECT}
 novel-tool --operation graph.export_chunks --project {PROJECT}
 ```
 
-### 5. 数据格式标准
+### 5. content 字段参考
 
-创建叙事单元时，content 字段遵循标准格式（详见 `references/数据格式标准.md`）：
+创建叙事单元时，content 字段遵循标准格式（详见 `references/content字段参考.md`）：
 
 **角色 (CHARACTER_ARC)**：
 ```json

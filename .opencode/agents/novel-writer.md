@@ -243,6 +243,28 @@ TASK: {用户请求的具体描述}"
 )
 ```
 
+### 写后状态回写
+
+crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型**更新 session 状态：
+
+| 写操作类型 | 设置 phase | 设置 cycle_type |
+|-----------|-----------|----------------|
+| 首次正文写作（v1） | `expansion` | `expansion` |
+| 精修润色（v2/v3） | `refinement` | `refinement` |
+| 校对质检 | `proofing` | `proofing` |
+| 规划/分纲 | `planning` | `planning` |
+| 角色/世界观设定 | 不变 | 不变 |
+
+调用方式：
+```bash
+novel-tool --operation session.set_cycle --project {PROJECT} --cycle_type {类型}
+novel-tool --operation session.set_phase --project {PROJECT} --phase {阶段}
+```
+
+只更新有变化的字段，避免覆盖已经累积的状态。
+
+---
+
 **知识库参考注入规则（编排层直接注入）**：
 编排层（你）在调度创作任务前，直接读取知识库内容并注入到 crafter 的 prompt 中：
 

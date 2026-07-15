@@ -53,7 +53,7 @@
 
 **评估方法**：
 1. 提取 NOTE 中关于角色性格的偏好描述
-2. 用 `graph.search --keyword "林昭" --unitType CHUNK` 获取相关正文
+2. 用 `graph.search --keyword "林昭" --unit_type CHUNK` 获取相关正文
 3. 对比语气、行为模式是否符合性格设定
 4. 标记偏差段落
 
@@ -67,7 +67,7 @@
 
 **评估方法**：
 1. 提取用户对世界观规则的具体要求（如"灵气有限""有反噬风险"）
-2. 用 `graph.search --keyword "灵气" --unitType CHUNK` 检查章节中的规则执行
+2. 用 `graph.search --keyword "灵气" --unit_type CHUNK` 检查章节中的规则执行
 3. 标记规则违反的场景
 
 ---

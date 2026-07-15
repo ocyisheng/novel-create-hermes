@@ -85,7 +85,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 |------|---------|
 | 按 ID 或名称查单元详情 | `novel-tool --operation graph.get_unit --project <PROJECT> --id <ID>` / `--name <名称>` |
 | 关键词搜索 | `novel-tool --operation graph.search --project <PROJECT> --keyword <关键词> [--limit N]` |
-| 按类型列举单元 | `novel-tool --operation graph.list_units --project <PROJECT> --unitType <类型> [--limit N]` |
+| 按类型列举单元 | `novel-tool --operation graph.list_units --project <PROJECT> --unit_type <类型> [--limit N]` |
 | 查关联关系 | `novel-tool --operation graph.get_neighbors --project <PROJECT> --id <ID>` |
 | 项目统计 | `novel-tool --operation graph.stats --project <PROJECT>` |
 | 一致性检查 | `novel-tool --operation graph.check --project <PROJECT>` |
@@ -98,7 +98,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 
 关键操作速览（详细参数见 SKILL.md）：
 - **创建叙事单元** → `novel-tool --operation graph.create_unit --project <PROJECT> --type SCENE --content '{"name":"单元名"}' --actor v2-crafter`
-- **建立关系** → `novel-tool --operation graph.add_edge --project <PROJECT> --source <ID> --target <ID> --type member_of --actor v2-crafter`
+- **建立关系** → `novel-tool --operation graph.add_relation --project <PROJECT> --source <ID> --target <ID> --type member_of --actor v2-crafter`
 - **写入正文** → 先创建 CHUNK 单元，再关联到场景
 - **持久化** → `novel-tool --operation graph.flush --project <PROJECT>`
 
@@ -170,12 +170,12 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
 ```bash
 # 先读取当前 config，确定当前章节号
 # 然后推进到下一章
-novel-tool --operation project.update_progress --project <PROJECT> --currentChapter <N+1>
+novel-tool --operation project.update_progress --project <PROJECT> --current_chapter <N+1>
 ```
 
 如果写了分卷的大纲/分纲，同时更新卷大纲状态：
 ```bash
-novel-tool --operation project.update_progress --project <PROJECT> --volumeOutlineStatus "第1卷已完成, 第2卷进行中"
+novel-tool --operation project.update_progress --project <PROJECT> --volume_outline_status "第1卷已完成, 第2卷进行中"
 ```
 
 **注意：**

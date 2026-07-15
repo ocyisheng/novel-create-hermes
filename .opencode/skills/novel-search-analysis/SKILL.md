@@ -155,7 +155,7 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
    deviation.stats → full_scan_version
 
 ② 获取自该版本以来的变更单元
-   graph.get_modified_units --since_version <full_scan_version>
+   novel-tool --operation graph.get_modified_units --project <PROJECT> --since_version <full_scan_version>
    → 返回 version > full_scan_version 的非 ARCHIVED 单元
 
 ③ 只对变更单元运行 align + cross-ref + gap（增量分析）
@@ -165,7 +165,7 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
    - 创建新的单元（而不是只修改内容）
 
 ④ 合并新偏差并更新扫描版本
-   deviation.merge --findings [...] --full_scan_version <最大unit.version>
+   novel-tool --operation deviation.merge --project <PROJECT> --findings '[...]' --full_scan_version <最大unit.version>
 ```
 
 ---

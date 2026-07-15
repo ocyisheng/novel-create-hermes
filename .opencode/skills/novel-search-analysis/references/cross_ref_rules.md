@@ -25,7 +25,7 @@ novel-tool --operation graph.check --project <PROJECT>
 
 # 获取原始数据供 LLM 分析
 novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"            # 实体搜索
-novel-tool --operation graph.search --project <PROJECT> --keyword "灵气" --unitType CHUNK  # 关键词搜索
+novel-tool --operation graph.search --project <PROJECT> --keyword "灵气" --unit_type CHUNK  # 关键词搜索
 novel-tool --operation graph.stats --project <PROJECT>                              # 统计
 ```
 
@@ -48,7 +48,7 @@ novel-tool --operation graph.stats --project <PROJECT>                          
 **获取数据**：
 ```
 novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --unitType CHUNK
+novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --unit_type CHUNK
 ```
 
 **LLM 分析步骤**：
@@ -84,8 +84,8 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --uni
 
 **获取数据**：
 ```
-novel-tool --operation graph.search --project <PROJECT> --keyword "时间线" --unitType NOTE
-novel-tool --operation graph.search --project <PROJECT> --unitType CHUNK --limit 100
+novel-tool --operation graph.search --project <PROJECT> --keyword "时间线" --unit_type NOTE
+novel-tool --operation graph.search --project <PROJECT> --unit_type CHUNK --limit 100
 ```
 
 **LLM 分析**：比对时间线记录中的事件顺序 vs 按章节排序的正文内容。
@@ -106,7 +106,7 @@ novel-tool --operation graph.search --project <PROJECT> --unitType CHUNK --limit
 
 **获取数据**：
 ```
-novel-tool --operation graph.list_units --project <PROJECT> --unitType PLOT_THREAD
+novel-tool --operation graph.list_units --project <PROJECT> --unit_type PLOT_THREAD
 novel-tool --operation graph.stats --project <PROJECT>
 ```
 

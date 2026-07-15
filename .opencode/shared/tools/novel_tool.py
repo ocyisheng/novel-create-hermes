@@ -147,7 +147,7 @@ def _handle_graph(op: str, params: dict) -> str:
         keyword = params.get("keyword", "")
         pattern = params.get("pattern", "")
         name = params.get("name", "")
-        scope_raw = params.get("scope") or params.get("unitType") or ""
+        scope_raw = params.get("scope") or params.get("unit_type") or params.get("unitType") or ""
         regex = params.get("regex", False)
         case_sensitive = params.get("case_sensitive", False)
         limit = params.get("limit", 20)
@@ -221,7 +221,7 @@ def _handle_graph(op: str, params: dict) -> str:
         if not uid:
             return _err("get_neighbors 需要 id")
         from graph_schema import RelationType
-        rt = params.get("relType") or params.get("rel_type") or ""
+        rt = params.get("rel_type") or params.get("relType") or ""
         rel_type = RelationType[rt.upper()] if rt else None
         limit = params.get("limit", 0)
         neighbors = store.get_neighbors(uid, relation_type=rel_type, max_depth=1)
@@ -381,7 +381,7 @@ def _handle_graph(op: str, params: dict) -> str:
     if op == "graph.get_relations":
         from graph_schema import RelationType
         uid = params.get("id", "")
-        rel_type_name = params.get("type", "") or params.get("relType", "") or ""
+        rel_type_name = params.get("type", "") or params.get("rel_type", "") or params.get("relType", "") or ""
         direction = params.get("direction", "both")
         rel_type = RelationType[rel_type_name.upper()] if rel_type_name else None
         relations = store.get_relations(unit_id=uid or None, relation_type=rel_type, direction=direction)
@@ -401,7 +401,7 @@ def _handle_graph(op: str, params: dict) -> str:
         rid = params.get("id", "")
         source = params.get("source", "")
         target = params.get("target", "")
-        rtype_name = params.get("type", "") or params.get("relType", "") or ""
+        rtype_name = params.get("type", "") or params.get("rel_type", "") or params.get("relType", "") or ""
         actor = params.get("actor", "novel-tool")
 
         if rid:
@@ -686,7 +686,9 @@ def _handle_project(op: str, params: dict) -> str:
         return _ok({"path": proj_path, "v2": is_v2})
 
     if op == "project.import":
-        source = params.get("source", "").strip()
+        source = params.get("source_path") or params.get("source") or ""
+        if isinstance(source, str):
+            source = source.strip()
         if not os.path.exists(source):
             return _err(f"源路径不存在: {source}")
         if os.path.exists(proj_path):
@@ -715,6 +717,7 @@ def _handle_project(op: str, params: dict) -> str:
                 result["stats"] = None
         phase = params.get("phase")
         if phase:
+            config["写作阶段"] = phase
             with open(cfg_path, "w", encoding="utf-8") as f:
                 yaml.dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
             result["phase_updated"] = phase
@@ -724,9 +727,11 @@ def _handle_project(op: str, params: dict) -> str:
         if not os.path.isdir(proj_path):
             return _err(f"项目不存在: {name}")
         import yaml
+        from datetime import datetime, timezone
         cfg_path = os.path.join(proj_path, "config.yaml")
         with open(cfg_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
+        config["最后编辑"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
         with open(cfg_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
         return _ok({"ok": True})
@@ -786,9 +791,9 @@ def _handle_project(op: str, params: dict) -> str:
             config = yaml.safe_load(f) or {}
         progress = config.setdefault("写作进度", {})
         changed = []
-        for key, pkey in [("currentVolume", "当前卷"), ("currentChapter", "当前章"),
-                          ("volumeOutlineStatus", "卷大纲状态"), ("volumeOutlineDone", "卷大纲完成数")]:
-            val = params.get(key)
+        for key, fallback, pkey in [("current_volume", "currentVolume", "当前卷"), ("current_chapter", "currentChapter", "当前章"),
+                                    ("volume_outline_status", "volumeOutlineStatus", "卷大纲状态"), ("volume_outline_done", "volumeOutlineDone", "卷大纲完成数")]:
+            val = params.get(key) if key in params else params.get(fallback)
             if val is not None:
                 progress[pkey] = val
                 changed.append(f"{pkey}={val}")

@@ -83,15 +83,15 @@ novel-tool --operation graph.get_unit --project {PROJECT} --id {单元ID}
 
 # 查询单元的关联关系（1-hop 邻居，可按关系类型过滤）
 novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID}
-novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --relType contains
-novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --relType member_of
+novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --rel_type contains
+novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --rel_type member_of
 
 # 列出所有可用关系类型
 novel-tool --operation graph.list_relation_types
 
 # 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN / NARRATIVE_VOICE，支持--limit）
-novel-tool --operation graph.list_units --project {PROJECT} --unitType SCENE
-novel-tool --operation graph.list_units --project {PROJECT} --unitType WORLD_RULE --limit 10
+novel-tool --operation graph.list_units --project {PROJECT} --unit_type SCENE
+novel-tool --operation graph.list_units --project {PROJECT} --unit_type WORLD_RULE --limit 10
 
 # 项目统计
 novel-tool --operation graph.stats --project {PROJECT}
@@ -161,7 +161,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **角色 (CHARACTER_ARC)**：
 ```json
-{"角色类型": "主角", "性格": {"核心特质": "..."}, "角色弧线": {"起始状态": "...", "最终状态": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "关键事件": [{"事件": "...", "时间": "..."}]}
+{"子类型": "主角/重要配角/配角/反派/龙套", "性格": {"核心特质": "..."}, "角色弧线": {"起始状态": "...", "最终状态": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "关键事件": [{"事件": "...", "时间": "..."}]}
 ```
 
 **场景 (SCENE)**：
@@ -188,22 +188,22 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 
 **总纲 (OUTLINE)**：
 ```json
-{"子类型": "总纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "七面观照": {...}, "本体论核心": "..."}
+{"模式选择": "沙漏/长链/螺旋/环状/多线交织", "本体论": "故事的本质是什么？为什么这个故事只能以这种方式存在？", "美学承诺": "向读者承诺的美学体验——爽快/沉思/悬疑/悲壮……", "七面观照": {"叙事起点": "...", "叙事终点": "...", "核心冲突": "...", "主题表达": "..."}, "备注": ""}
 ```
 
 **部篇大纲 (ARC_PLAN)**：
 ```json
-{"子类型": "部大纲/篇大纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "部弧线": "...", "核心主题": "..."}
+{"命名规范": "部/篇", "序列": 1, "核心主题": "部/篇的核心主题", "覆盖范围": "覆盖哪些卷，如'第1-3卷'", "起点状态": "本部的起始状态", "终点状态": "本部的终点状态", "宏观情绪曲线": [], "跨卷伏笔计划": [], "备注": ""}
 ```
 
 **卷大纲 (VOLUME_PLAN)**：
 ```json
-{"子类型": "卷大纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "卷核心冲突": "...", "起始状态": "...", "终点状态": "..."}
+{"卷号": 1, "卷名称": "卷名称", "核心冲突": "本卷的核心矛盾（一句话）", "起始状态": "卷起始时的叙事状态", "终点状态": "卷结束时的叙事状态", "情绪基调": "压抑/紧张/明快/悲壮/悬疑/热血/沉稳/诙谐", "节奏类型配比": {}, "字数目标": 0, "伏笔清单": [], "备注": ""}
 ```
 
 **章纲 (CHAPTER_PLAN)**：
 ```json
-{"子类型": "章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "本章功能": "...", "备注": "..."}
+{"章节号": 1, "章节名": "", "本章功能": "开篇/推进/冲突/转折/展示/过渡/收束", "场景序列": [{"场景名": "场景1", "定位": "...", "字数预计": 0}], "情绪弧线": [], "信息释放计划": [], "字数分配": {}, "承接说明": "如何衔接上一章", "备注": ""}
 ```
 
 ---

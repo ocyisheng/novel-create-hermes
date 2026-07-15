@@ -39,7 +39,11 @@ class Workspace:
     world_rules: List[Dict[str, Any]] = field(default_factory=list)
     scenes: List[Dict[str, Any]] = field(default_factory=list)
     chunks: List[Dict[str, Any]] = field(default_factory=list)
-    structures: List[Dict[str, Any]] = field(default_factory=list)
+    structures: List[Dict[str, Any]] = field(default_factory=list)  # 废弃，保留向后兼容
+    outlines: List[Dict[str, Any]] = field(default_factory=list)
+    arc_plans: List[Dict[str, Any]] = field(default_factory=list)
+    volume_plans: List[Dict[str, Any]] = field(default_factory=list)
+    chapter_plans: List[Dict[str, Any]] = field(default_factory=list)
     narrative_voices: List[Dict[str, Any]] = field(default_factory=list)
     thematic_motifs: List[Dict[str, Any]] = field(default_factory=list)
     notes: List[Dict[str, Any]] = field(default_factory=list)
@@ -65,15 +69,19 @@ class Workspace:
     # 完整性评分
     completeness_score: float = 1.0
     missing_gaps: List[str] = field(default_factory=list)
+
+    # 字段 Schema 信息（注入到 prompt，指导 LLM 按格式写入 content JSON）
+    schema_info: List[str] = field(default_factory=list)
     
     def to_prompt_block(self, preheat_level: str = "warm") -> str:
         """
-        将工作空间渲染为三段式 prompt 块。
+        将工作空间渲染为 prompt 块。
         
         段1：当前焦点（场景级信息）
         段2：你需要知道（上下文 + 目标 + 角色状态）
         段3：写作指引
         段4：关联信息（按预热级别）
+        段5：输出要求（焦点类型的 content JSON Schema）
         """
         lines = []
         lines.append("### 当前焦点")
@@ -205,6 +213,12 @@ class Workspace:
             lines.append("### 弱信号")
             for sig in self.weak_signals:
                 lines.append(f"- {sig.get('description', '')}")
+            lines.append("")
+        
+        # 输出要求（焦点类型的 content JSON 格式约束，LLM 写入时的字段规范）
+        if self.schema_info:
+            lines.append("### 输出要求")
+            lines.extend(self.schema_info)
             lines.append("")
         
         return "\n".join(lines)
@@ -375,6 +389,10 @@ class WorkspaceBuilder:
         # 7. 完整性评估
         self._assess_completeness(ws)
         
+        # 8. 加载焦点类型的 content 字段 Schema（注入 prompt 指导 LLM 写 JSON）
+        from schemas import schema_info as _schema_info
+        ws.schema_info = _schema_info(focus.type)
+        
         return ws
     
     def _load_neighbors(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
@@ -426,8 +444,32 @@ class WorkspaceBuilder:
                         "unit_id": neighbor.id,
                         "unit_name": neighbor.unit_name,
                     })
-                elif neighbor.type == UnitType.STRUCTURE:
+                elif neighbor.type in (UnitType.STRUCTURE,):
                     ws.structures.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
+                    })
+                elif neighbor.type == UnitType.OUTLINE:
+                    ws.outlines.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
+                    })
+                elif neighbor.type == UnitType.ARC_PLAN:
+                    ws.arc_plans.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
+                    })
+                elif neighbor.type == UnitType.VOLUME_PLAN:
+                    ws.volume_plans.append({
+                        "unit_id": neighbor.id,
+                        "unit_name": neighbor.unit_name,
+                        "tags": neighbor.tags,
+                    })
+                elif neighbor.type == UnitType.CHAPTER_PLAN:
+                    ws.chapter_plans.append({
                         "unit_id": neighbor.id,
                         "unit_name": neighbor.unit_name,
                         "tags": neighbor.tags,
@@ -557,29 +599,38 @@ class WorkspaceBuilder:
                         "chapter": get_unit_chapter(source),
                     })
         
-        elif focus.type == UnitType.STRUCTURE:
-            # 结构设计焦点：CONTAINS 递归聚合子结构 + PLANS 查找计划场景
-            # 阶段 1：收集当前结构节点 + 所有后代结构节点（CONTAINS 边，层级关系）
+        elif focus.type in (
+            UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN, UnitType.CHAPTER_PLAN,
+        ):
+            # 结构类焦点（总纲/部篇大纲/卷大纲/章纲）共享逻辑：
+            # CONTAINS 递归聚合子结构 + PLANS 查找计划场景
+            STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                               UnitType.CHAPTER_PLAN}
+            
+            # 阶段 1：收集当前节点 + 所有后代节点（CONTAINS 边，层级关系）
             structure_ids = {focus.id}
             descendants = self.store.find_descendants(focus.id, max_depth=10)
             structure_ids.update(descendants)
             
-            # 阶段 2：子结构单元添加到 structures 列表
+            # 阶段 2：子结构单元按实际类型路由到对应列表
             for sid in structure_ids:
                 if sid != focus.id:
                     child = self.store.get_unit(sid)
-                    if child and child.type == UnitType.STRUCTURE:
-                        ws.structures.append({
-                            "unit_id": child.id,
-                            "unit_name": child.unit_name,
-                            "tags": child.tags,
-                        })
+                    if child and child.type in STRUCTURE_TYPES:
+                        _target_list = {
+                            UnitType.OUTLINE: ws.outlines,
+                            UnitType.ARC_PLAN: ws.arc_plans,
+                            UnitType.VOLUME_PLAN: ws.volume_plans,
+                            UnitType.CHAPTER_PLAN: ws.chapter_plans,
+                        }
+                        entry = {"unit_id": child.id, "unit_name": child.unit_name, "tags": child.tags}
+                        target = _target_list.get(child.type, ws.structures)
+                        target.append(entry)
             
             # 阶段 3：通过 PLANS 边查找章纲计划的所有 SCENE（规划层）
             seen_scene_ids: Set[str] = set()
             seen_chunk_ids: Set[str] = set()
             for sid in structure_ids:
-                # 章纲通过 PLANS 边声明计划包含的场景（规划层）
                 for rel in self.store.get_relations(sid, relation_type=RelationType.PLANS, direction="outgoing"):
                     scene = self.store.get_unit(rel.target_id)
                     if scene and scene.type == UnitType.SCENE and scene.id not in seen_scene_ids:
@@ -654,7 +705,7 @@ class WorkspaceBuilder:
                 and u.structure_path[-1] == anchor_last
                 and u.id != focus.id
             ]
-        elif focus.type == UnitType.STRUCTURE:
+        elif focus.type in (UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN, UnitType.CHAPTER_PLAN):
             # CONTAINS 兄弟查找：找共享同一父级 CONTAINS 边的兄弟
             parents = self.store.get_relations(focus.id, relation_type=RelationType.CONTAINS, direction="incoming")
             if parents:
@@ -710,23 +761,29 @@ class WorkspaceBuilder:
             if not ws.scenes:
                 gaps.append("没有关联到使用该设定的场景")
         
-        elif ws.focus_type == "structure":
-            # 区分聚合节点（篇大纲/卷大纲）和叶子节点（章纲）
+        elif ws.focus_type in ("outline", "arc_plan", "volume_plan"):
+            # 聚合节点（总纲/部篇大纲/卷大纲）：应包含子结构单元（CONTAINS 边）
             children = self.store.get_relations(
                 ws.focus_unit.id, relation_type=RelationType.CONTAINS, direction="outgoing"
             ) if ws.focus_unit else []
             if children:
-                # 聚合节点应包含子结构单元（CONTAINS 边）
-                if not ws.structures:
-                    gaps.append("聚合节点但没有加载到子结构单元")
-                # 聚合节点是否还关联场景/正文是可选的
-            else:
-                # 叶子节点（章纲）应通过 PLANS 边关联计划场景
-                plans = self.store.get_relations(
-                    ws.focus_unit.id, relation_type=RelationType.PLANS, direction="outgoing"
-                ) if ws.focus_unit else []
-                if not plans and not ws.scenes and not ws.chunks:
-                    gaps.append("章纲未通过 PLANS 边关联任何计划场景")
+                # 按类型检查正确的子列表
+                _check_field = {
+                    "outline": ws.outlines,
+                    "arc_plan": ws.arc_plans,
+                    "volume_plan": ws.volume_plans,
+                }
+                if not _check_field.get(ws.focus_type, []):
+                    gaps.append(f"{ws.focus_type} 聚合节点但没有加载到子结构单元")
+            # 聚合节点是否还关联场景/正文是可选的
+
+        elif ws.focus_type == "chapter_plan":
+            # 叶子节点（章纲）：应通过 PLANS 边关联计划场景
+            plans = self.store.get_relations(
+                ws.focus_unit.id, relation_type=RelationType.PLANS, direction="outgoing"
+            ) if ws.focus_unit else []
+            if not plans and not ws.scenes and not ws.chunks:
+                gaps.append("章纲未通过 PLANS 边关联任何计划场景")
         
         elif ws.focus_type == "narrative_voice":
             # 叙述腔调应该有关联场景

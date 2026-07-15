@@ -61,7 +61,7 @@ class LegacyFileAdapter:
         ("characters/", UnitType.CHARACTER_ARC),
         ("worldbuilding/", UnitType.WORLD_RULE),
         ("outline/情节线/", UnitType.PLOT_THREAD),
-        ("outline/分纲/", UnitType.STRUCTURE),
+        ("outline/分纲/", UnitType.CHAPTER_PLAN),
         ("ideation/", UnitType.NOTE),
         ("quality/", UnitType.NOTE),
         ("chapters/", UnitType.CHUNK),
@@ -325,7 +325,7 @@ class LegacyFileAdapter:
                     name = data["索引信息"].get("名称", f.stem)
                     vol = data["索引信息"].get("所属分卷", 1)
                     self.store.create_unit(
-                        type=UnitType.STRUCTURE,
+                        type=UnitType.CHAPTER_PLAN,
                         unit_name=name,
                         content=json.dumps(data, ensure_ascii=False),
                         chapter_number=ch,

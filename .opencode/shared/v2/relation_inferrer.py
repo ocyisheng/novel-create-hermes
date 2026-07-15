@@ -83,13 +83,15 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 角色 → 世界观（势力）：角色属于势力
     (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.MEMBER_OF,
      "source_to_target", 0.5),
-    # ── STRUCTURE / NARRATIVE_VOICE 推断规则 ──────────────────────────
-    # 结构 → 情节线：结构设计了情节线
-    (UnitType.STRUCTURE, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS,
-     "source_to_target", 0.5),
-    # 结构 → 场景：章纲规划场景（规划意图，非结构归属）
-    (UnitType.STRUCTURE, UnitType.SCENE, RelationType.PLANS,
-     "source_to_target", 0.7),
+    # ── OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN 推断规则 ─────
+    (UnitType.OUTLINE, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
+    (UnitType.ARC_PLAN, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
+    (UnitType.VOLUME_PLAN, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
+    (UnitType.CHAPTER_PLAN, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
+    (UnitType.OUTLINE, UnitType.SCENE, RelationType.PLANS, "source_to_target", 0.7),
+    (UnitType.ARC_PLAN, UnitType.SCENE, RelationType.PLANS, "source_to_target", 0.7),
+    (UnitType.VOLUME_PLAN, UnitType.SCENE, RelationType.PLANS, "source_to_target", 0.7),
+    (UnitType.CHAPTER_PLAN, UnitType.SCENE, RelationType.PLANS, "source_to_target", 0.7),
     # 腔调 → 场景：腔调策略适用于场景
     (UnitType.NARRATIVE_VOICE, UnitType.SCENE, RelationType.REFERENCES,
      "source_to_target", 0.4),
@@ -156,8 +158,8 @@ class RelationInferrer:
         # 3. 如果新建的是角色，反向扫描已有内容
         if unit.type == UnitType.CHARACTER_ARC:
             count += self._infer_reverse_scan(unit)
-        # 4. 如果新建的是结构单元，推断层级关系（CONTAINS 边）
-        if unit.type == UnitType.STRUCTURE:
+        # 4. 如果新建的是结构类单元，推断层级关系（CONTAINS 边）
+        if unit.type in (UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN, UnitType.CHAPTER_PLAN):
             count += self._infer_structure_hierarchy(unit)
         return count
 
@@ -309,7 +311,9 @@ class RelationInferrer:
             for other in self.store._units.values():
                 if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                     continue
-                if other.type != UnitType.STRUCTURE:
+                _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                                    UnitType.CHAPTER_PLAN}
+                if other.type not in _STRUCTURE_TYPES:
                     continue
                 if other.structure_path is not None and len(other.structure_path) == len(parent_path) \
                         and other.structure_path == parent_path:
@@ -328,7 +332,7 @@ class RelationInferrer:
             for other in self.store._units.values():
                 if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                     continue
-                if other.type != UnitType.STRUCTURE:
+                if other.type not in _STRUCTURE_TYPES:
                     continue
                 # 匹配"XX卷"或"XX卷大纲"
                 if '卷' in other.unit_name:

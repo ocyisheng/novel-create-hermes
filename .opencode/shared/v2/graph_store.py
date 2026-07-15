@@ -787,7 +787,9 @@ class GraphStore:
                 break
             visited.add(parent.id)
             # 尝试从父节点提取路径片段
-            if parent.type == UnitType.STRUCTURE:
+            _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                                UnitType.CHAPTER_PLAN}
+            if parent.type in _STRUCTURE_TYPES:
                 # 优先使用 extra 中的"层级序号"（若有）
                 extra = parent.extra or {}
                 seq = extra.get("sequence", None)
@@ -806,8 +808,8 @@ class GraphStore:
             if ch:
                 path.append(ch)
             else:
-                # 若当前节点自身也是结构单元（如卷/篇大纲），用其名称
-                if unit.type == UnitType.STRUCTURE:
+                # 若当前节点自身也是结构单元（如总纲/大纲），用其名称
+                if unit.type in _STRUCTURE_TYPES:
                     path.append(unit.unit_name)
         return path if path else [0]
     

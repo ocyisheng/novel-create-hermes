@@ -687,7 +687,7 @@ def main():
         "characters": UnitType.CHARACTER_ARC,
         "worldbuilding": UnitType.WORLD_RULE,
         "plot_threads": UnitType.PLOT_THREAD,
-        "outlines": UnitType.STRUCTURE,
+        "outlines": UnitType.CHAPTER_PLAN,   # V1 分纲文件映射为章纲
         "volumes": UnitType.NOTE,
         "synopsis": UnitType.NOTE,
         "narrative_strategy": UnitType.NARRATIVE_VOICE,

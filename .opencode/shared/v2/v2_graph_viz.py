@@ -42,6 +42,10 @@ UNIT_TYPE_LABELS = {
     UnitType.THEMATIC_MOTIF: "主题意象",
     UnitType.NOTE: "笔记",
     UnitType.CHUNK: "正文",
+    UnitType.OUTLINE: "总纲",
+    UnitType.ARC_PLAN: "部篇大纲",
+    UnitType.VOLUME_PLAN: "卷大纲",
+    UnitType.CHAPTER_PLAN: "章纲",
 }
 
 UNIT_TYPE_COLORS = {
@@ -52,6 +56,10 @@ UNIT_TYPE_COLORS = {
     UnitType.THEMATIC_MOTIF: {"bg": "#B4A7D6", "border": "#8E7CC3", "text": "#fff"},
     UnitType.NOTE:           {"bg": "#D6D6D6", "border": "#A0A0A0", "text": "#000"},
     UnitType.CHUNK:          {"bg": "#CD853F", "border": "#8B6914", "text": "#fff"},
+    UnitType.OUTLINE:        {"bg": "#4472C4", "border": "#2E5090", "text": "#fff"},
+    UnitType.ARC_PLAN:       {"bg": "#5B9BD5", "border": "#3A72B0", "text": "#fff"},
+    UnitType.VOLUME_PLAN:    {"bg": "#7FCDBB", "border": "#4EA08A", "text": "#000"},
+    UnitType.CHAPTER_PLAN:   {"bg": "#A8D08D", "border": "#70AD47", "text": "#000"},
 }
 
 UNIT_TYPE_SIZES = {
@@ -62,6 +70,10 @@ UNIT_TYPE_SIZES = {
     UnitType.THEMATIC_MOTIF: 20,
     UnitType.NOTE:          14,
     UnitType.CHUNK:         16,
+    UnitType.OUTLINE:       30,
+    UnitType.ARC_PLAN:      26,
+    UnitType.VOLUME_PLAN:   24,
+    UnitType.CHAPTER_PLAN:  20,
 }
 
 RELATION_LABELS = {

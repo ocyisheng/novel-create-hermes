@@ -88,6 +88,21 @@ def _unit_to_dict(u) -> dict:
 #  Graph 操作
 # ──────────────────────────────────────────────
 
+def _validate_content_schema(unit_type, content: str) -> list:
+    """校验 content JSON 是否符合该类型的字段 Schema，返回错误列表。"""
+    if not content or not content.startswith("{"):
+        return []
+    try:
+        from schemas import validate_content
+        import json
+        content_dict = json.loads(content)
+        if not isinstance(content_dict, dict):
+            return []
+        return validate_content(unit_type, content_dict)
+    except Exception:
+        return []
+
+
 def _handle_graph(op: str, params: dict) -> str:
     project = _resolve_project(params.get("project", ""))
 
@@ -278,7 +293,8 @@ def _handle_graph(op: str, params: dict) -> str:
         if inferrer and hasattr(inferrer, "infer_on_create"):
             created = inferrer.infer_on_create(u)
         store.flush()
-        return _ok({"id": u.id, "relations_created": created})
+        schema_errors = _validate_content_schema(ut, content)
+        return _ok({"id": u.id, "relations_created": created, "schema_errors": schema_errors})
 
     if op == "graph.update_unit":
         from graph_schema import UnitStatus
@@ -304,7 +320,8 @@ def _handle_graph(op: str, params: dict) -> str:
         u = store.update_unit(unit_id=uid, content=content, unit_name=unit_name, tags=tags, status=status, actor=actor)
         if u:
             store.flush()
-            return _ok({"id": u.id, "name": u.unit_name, "version": u.version, "tags": list(u.tags)})
+            schema_errors = _validate_content_schema(u.type, content)
+            return _ok({"id": u.id, "name": u.unit_name, "version": u.version, "tags": list(u.tags), "schema_errors": schema_errors})
         return _err("更新失败：叙事单元不存在")
 
     if op == "graph.archive_unit":

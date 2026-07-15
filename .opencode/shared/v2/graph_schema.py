@@ -25,7 +25,11 @@ class UnitType(str, Enum):
     WORLD_RULE = "world_rule"           # 世界观规则：世界运行的核心法则
     NOTE = "note"                       # 创作笔记：作者/Agent 的备忘和灵感
     CHUNK = "chunk"                     # 正文片段：已写成的文字块
-    STRUCTURE = "structure"             # 结构设计：全书整体结构、模式节奏、七面观照
+    OUTLINE = "outline"                 # 总纲：全书级结构设计（本体论、七面观照、模式选择）
+    ARC_PLAN = "arc_plan"               # 部大纲：跨卷级规划（覆盖部/篇两种命名约定）
+    VOLUME_PLAN = "volume_plan"         # 卷大纲：卷级规划（冲突、情绪、起止状态）
+    CHAPTER_PLAN = "chapter_plan"       # 章纲：章节级规划（场景序列、节奏、信息分布）
+    STRUCTURE = "structure"             # [已废弃] 保留向后兼容，新代码勿用
     NARRATIVE_VOICE = "narrative_voice" # 叙述腔调：腔调谱系、叙事视角、笔法约定
 
     @classmethod
@@ -44,7 +48,7 @@ class UnitType(str, Enum):
             "political_system": UnitType.WORLD_RULE,
             "social_hierarchy": UnitType.WORLD_RULE,
             "plot_thread": UnitType.PLOT_THREAD,
-            "chapter": UnitType.STRUCTURE,  # V1 分纲→V2 章纲（STRUCTURE 子类型=章纲）
+            "chapter": UnitType.CHAPTER_PLAN,  # V1 分纲→V2 章纲
         }
         return mapping.get(entity_type, UnitType.NOTE)
 
@@ -343,7 +347,11 @@ def create_unit_id(unit_type: Optional[UnitType] = None) -> str:
         UnitType.WORLD_RULE: "wr",
         UnitType.NOTE: "nt",
         UnitType.CHUNK: "ck",
-        UnitType.STRUCTURE: "st",
+        UnitType.OUTLINE: "ol",
+        UnitType.ARC_PLAN: "ap",
+        UnitType.VOLUME_PLAN: "vp",
+        UnitType.CHAPTER_PLAN: "cp",
+        UnitType.STRUCTURE: "st",           # 废弃，保留向后兼容
         UnitType.NARRATIVE_VOICE: "nv",
     }
     prefix = prefix_map.get(unit_type, "xx") if unit_type else "xx"

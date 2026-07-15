@@ -75,10 +75,59 @@ NOTE_SCHEMA = {
     # 自由文本，结构不限
 }
 
-STRUCTURE_SCHEMA = {
-    "子类型": {"type": str, "required": True, "options": ["总纲","部大纲","篇大纲","卷大纲","章纲"]},
-    "结构模式": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"]},
-    "本章功能": {"type": str, "required": False, "description": "章纲专用：本章在全书的叙事定位"},
+OUTLINE_SCHEMA = {
+    "模式选择": {"type": str, "required": True, "options": ["沙漏","长链","螺旋","环状","多线交织"],
+                 "description": "全书层面的叙事模式"},
+    "本体论": {"type": str, "required": True,
+               "description": "故事的本质是什么？为什么这个故事只能以这种方式存在？"},
+    "美学承诺": {"type": str, "required": True,
+                "description": "向读者承诺的美学体验——爽快/沉思/悬疑/悲壮……"},
+    "七面观照": {"type": dict, "required": True,
+                "description": "对故事七个侧面的自我审视"},
+    "备注": {"type": str, "required": False},
+}
+
+ARC_PLAN_SCHEMA = {
+    "命名规范": {"type": str, "required": True, "options": ["部", "篇"]},
+    "序列": {"type": int, "required": True, "description": "第几部/第几篇"},
+    "核心主题": {"type": str, "required": True},
+    "覆盖范围": {"type": str, "required": True, "description": "覆盖哪些卷，如'第1-3卷'"},
+    "起点状态": {"type": str, "required": True},
+    "终点状态": {"type": str, "required": True},
+    "宏观情绪曲线": {"type": list, "required": False,
+                     "description": "贯穿各卷的情绪走向"},
+    "跨卷伏笔计划": {"type": list, "required": False},
+    "备注": {"type": str, "required": False},
+}
+
+VOLUME_PLAN_SCHEMA = {
+    "卷号": {"type": int, "required": True},
+    "卷名称": {"type": str, "required": True},
+    "核心冲突": {"type": str, "required": True, "description": "本卷的核心矛盾（一句话）"},
+    "起始状态": {"type": str, "required": True},
+    "终点状态": {"type": str, "required": True},
+    "情绪基调": {"type": str, "required": True,
+                "options": ["压抑","紧张","明快","悲壮","悬疑","热血","沉稳","诙谐"]},
+    "节奏类型配比": {"type": dict, "required": False},
+    "字数目标": {"type": int, "required": False},
+    "伏笔清单": {"type": list, "required": False},
+    "备注": {"type": str, "required": False},
+}
+
+CHAPTER_PLAN_SCHEMA = {
+    "章节号": {"type": int, "required": True},
+    "章节名": {"type": str, "required": False},
+    "本章功能": {"type": str, "required": True,
+                "options": ["开篇","推进","冲突","转折","展示","过渡","收束"],
+                "description": "本章在全书的叙事定位"},
+    "场景序列": {"type": list, "required": True,
+                "description": "场景有序列表，每个场景包含定位和意图"},
+    "情绪弧线": {"type": list, "required": False,
+                "description": "本章情绪起伏的有序描述"},
+    "信息释放计划": {"type": list, "required": False,
+                    "description": "本章需要释放给读者的信息片段"},
+    "字数分配": {"type": dict, "required": False},
+    "承接说明": {"type": str, "required": False, "description": "如何衔接上一章"},
     "备注": {"type": str, "required": False},
 }
 
@@ -119,7 +168,10 @@ SCHEMA_REGISTRY: Dict[UnitType, dict] = {
     UnitType.WORLD_RULE: WORLD_RULE_SCHEMA,
     UnitType.NOTE: NOTE_SCHEMA,
     UnitType.CHUNK: CHUNK_SCHEMA,
-    UnitType.STRUCTURE: STRUCTURE_SCHEMA,
+    UnitType.OUTLINE: OUTLINE_SCHEMA,
+    UnitType.ARC_PLAN: ARC_PLAN_SCHEMA,
+    UnitType.VOLUME_PLAN: VOLUME_PLAN_SCHEMA,
+    UnitType.CHAPTER_PLAN: CHAPTER_PLAN_SCHEMA,
     UnitType.NARRATIVE_VOICE: NARRATIVE_VOICE_SCHEMA,
     UnitType.THEMATIC_MOTIF: THEMATIC_MOTIF_SCHEMA,
 }
@@ -169,11 +221,17 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
         required=True,
         options=["开篇","推进","冲突","转折","展示","过渡","收束"],
     ),
-    UnitType.STRUCTURE: SubtypeConfig(
-        field="子类型",
+    UnitType.OUTLINE: SubtypeConfig(
+        field="模式选择",
         required=True,
-        options=["总纲","部大纲","篇大纲","卷大纲","章纲"],
+        options=["沙漏","长链","螺旋","环状","多线交织"],
     ),
+    UnitType.ARC_PLAN: SubtypeConfig(
+        field="命名规范",
+        required=True,
+        options=["部", "篇"],
+    ),
+    # VOLUME_PLAN 和 CHAPTER_PLAN 不需要子类型——粒度本身已是分类
     UnitType.CHARACTER_ARC: SubtypeConfig(
         field="子类型",
         required=True,

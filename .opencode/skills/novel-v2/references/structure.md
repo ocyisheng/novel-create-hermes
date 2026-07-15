@@ -1,12 +1,13 @@
-# structure — 整体结构与美学组织
+# structure — 整体结构与美学组织（OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN）
 
 ## 定位
 
-整体结构设计（STRUCTURE）焦点类型的方法论文档。全书结构、卷规划、章纲设计。
+整体结构设计的方法论文档，覆盖从总纲（OUTLINE）到部篇大纲（ARC_PLAN）、卷大纲（VOLUME_PLAN）、章纲（CHAPTER_PLAN）四个层级。按焦点类型的 SUBTYPE 区分具体方法论。
 
 ## 何时加载
 
-- FOCUS TYPE=structure 时自动加载，根据 SUBTYPE 选择对应的方法论
+- FOCUS TYPE=outline 或 arc_plan 或 volume_plan 或 chapter_plan 时自动加载
+- 根据 SUBTYPE（总纲/部大纲/篇大纲/卷大纲/章纲）选择对应的方法论章节
 
 ## 结构由脚本保障
 

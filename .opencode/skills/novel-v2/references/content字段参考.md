@@ -269,9 +269,16 @@ CHUNK 是章节正文的**元数据单元**，不包含实际文本。正文写�
 
 ---
 
-## 八、结构设计（STRUCTURE）
+## 八、结构设计（OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN）
 
 ### 标准 schema
+
+所有结构类类型共享同一 content 结构，由 `子类型` 字段区分层次：
+
+- `outline`（总纲）— 全书结构：七面观照 + 模式节奏
+- `arc_plan`（部大纲/篇大纲）— 部/篇级弧线 + 跨卷节奏  
+- `volume_plan`（卷大纲）— 卷级冲突 + 起始/终点状态
+- `chapter_plan`（章纲）— 章节规划 + 场景序列
 
 ```json
 {
@@ -354,7 +361,7 @@ CHUNK 是章节正文的**元数据单元**，不包含实际文本。正文写�
 │   └── ↳ 纪年事件 → WORLD_RULE + 子类型=纪年事件
 ├── 笔记         → NOTE
 ├── 正文         → CHUNK
-├── 结构设计     → STRUCTURE
+├── 结构设计     → OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN
 ├── 叙述腔调     → NARRATIVE_VOICE
 └── 主体意象     → THEMATIC_MOTIF
 ```

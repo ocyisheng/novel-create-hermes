@@ -31,7 +31,10 @@ tags: ["novel", "v2", "graph"]
 | `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
 | `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
 | `chunk` | `references/chunk.md` | v1/v2/v3 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
-| `structure` | `references/structure.md` | 总纲/部大纲/篇大纲/卷大纲/章纲 | 按结构层次选用方法论：总纲→七面观照；卷大纲→卷弧线；章纲→场景规划 |
+| `outline` | `references/structure.md` | 总纲 | 七面观照+模式节奏+本体论 |
+| `arc_plan` | `references/structure.md` | 部大纲/篇大纲 | 部篇弧线+跨卷节奏+层级过渡 |
+| `volume_plan` | `references/structure.md` | 卷大纲 | 卷弧线+节奏密度+过渡 |
+| `chapter_plan` | `references/structure.md` | 章纲 | 章纲→场景规划+字数分配+密度预算 |
 | `narrative_voice` | `references/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
 
@@ -56,7 +59,7 @@ tags: ["novel", "v2", "graph"]
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | structure | narrative_voice | thematic_motif
+FOCUS TYPE: scene | character_arc | plot_thread | world_rule | note | chunk | outline | arc_plan | volume_plan | chapter_plan | structure(废弃兼容) | narrative_voice | thematic_motif
 SUBTYPE: {章节类型}  # 各类型对应的子类型值
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
@@ -86,7 +89,7 @@ novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} -
 # 列出所有可用关系类型
 novel-tool --operation graph.list_relation_types
 
-# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / STRUCTURE / NARRATIVE_VOICE，支持--limit）
+# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN / NARRATIVE_VOICE，支持--limit）
 novel-tool --operation graph.list_units --project {PROJECT} --unitType SCENE
 novel-tool --operation graph.list_units --project {PROJECT} --unitType WORLD_RULE --limit 10
 
@@ -183,9 +186,24 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 {"子类型": "灵感 | 笔记", "内容": "..."}
 ```
 
-**结构设计 (STRUCTURE)**：
+**总纲 (OUTLINE)**：
 ```json
-{"子类型": "总纲/部大纲/篇大纲/卷大纲/章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", ...}
+{"子类型": "总纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "七面观照": {...}, "本体论核心": "..."}
+```
+
+**部篇大纲 (ARC_PLAN)**：
+```json
+{"子类型": "部大纲/篇大纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "部弧线": "...", "核心主题": "..."}
+```
+
+**卷大纲 (VOLUME_PLAN)**：
+```json
+{"子类型": "卷大纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "卷核心冲突": "...", "起始状态": "...", "终点状态": "..."}
+```
+
+**章纲 (CHAPTER_PLAN)**：
+```json
+{"子类型": "章纲", "结构模式": "沙漏/长链/螺旋/环状/多线交织", "本章功能": "...", "备注": "..."}
 ```
 
 ---

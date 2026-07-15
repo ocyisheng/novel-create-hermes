@@ -104,7 +104,7 @@ Grill 调度规则：
 |----------|---------|---------------|---------------|------|
 | 章纲/分纲（规划整章骨架） | chapter_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
 | 设计场域（规划单个叙事切片） | scene | session推荐/warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | session.info preheat | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修/润色/去AI味→preheat=hot, 子类型递增, 走 crafter |
+| 写第N章正文（写出实际文字） | chunk | session.info preheat | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修→preheat=hot, 子类型递增。意象/闲笔单元是写后对表工具，编排层不在 task prompt 中逐条注入其内容 |
 | 创建/编辑角色 | character_arc | session推荐/warm | ✅ 模糊时推荐 | |
 | 世界观设定 | world_rule | session推荐/warm | ✅ 模糊时推荐 | |
 | 情节/伏笔设计 | plot_thread | session推荐/warm | ✅ 模糊时推荐 | |

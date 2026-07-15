@@ -31,6 +31,8 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 `novel-tool --operation session.build_workspace --project <PROJECT> --id <FOCUS_ID> --level <PREHEAT_LEVEL>`
 
+工作空间中的 thematic_motif 和 note 条目（意象系统、闲笔计划等）仅列出名称，不包含内容。它们是设计阶段的产物——写完本章后如有需要再单独查阅，不要在写作中途逐条对照。
+
 写作中如需更详细的知识库内容，使用 `novel-tool` tool 按需查询：
 `novel-tool --operation knowledge.read --project <PROJECT> --slug fanren-xiuxian --topic 掌天瓶`
 支持多关键词 OR 查询：`novel-tool --operation knowledge.read --project <PROJECT> --slug fanren-xiuxian --topic 鬼道|阴冥`

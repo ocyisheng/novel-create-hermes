@@ -47,14 +47,18 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   ├─ grill 后 → 按 §3.3 判断是否需要 ideation 生成方案
   │   └─ 用户确认方向 → 按 §3.3 后续路由
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
+  │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
+  │   │   `novel-tool --operation session.info --project {PROJECT}`
+  │   │   - 有活跃会话 → 用 session.info 的 preheat/cycle_type
+  │   │   - 无活跃会话 → preheat 用路由表默认值
   │   ├─ 用户请求明确（包含具体名称/方向）?
-  │   │   └─ 走 V2 创作路由（§V2 路由），跳过 grill 直接调度 crafter
+  │   │   └─ 走 V2 创作路由（§V2 路由），跳过 grill 直接调度 crafter（注入 session info）
   │   └─ 用户请求模糊（抽象意图无细节）?
   │       ├─ 焦点类型为 chunk?
-  │       │   └─ chunk 跳过 grill，直接调度 crafter
+  │       │   └─ chunk 跳过 grill，直接调度 crafter（注入 session info）
   │       └─ 非 chunk?
   │           ├─ skill("novel-grill", user_message="{FOCUS TYPE}:{FOCUS NAME}") → 收敛需求
-  │           └─ 用户确认后 → 走 V2 创作路由（§V2 路由）调度 crafter
+  │           └─ 用户确认后 → 走 V2 创作路由（§V2 路由）调度 crafter（注入 session info）
   ├─ 迁移操作（用户要求迁移项目到 V2）?
   │   └─ 执行迁移 + 报告
   └─ 不匹配? → 询问用户意图
@@ -90,28 +94,28 @@ Grill 调度规则：
 ### 3.2 焦点路由表
 
 三层链路：**章纲规划 → 场景设计 → 正文执行**。章纲通过 PLANS 边声明计划场景（规划层），正文（CHUNK）通过 BELONGS_TO 边关联执行场景（执行层）。规划与执行解耦——增减场景只操作 BELONGS_TO，章纲的 PLANS 边保持规划原样。
-- 章纲（STRUCTURE）规划整章骨架：场域序列、节奏、字数分配
+- 章纲（CHAPTER_PLAN）规划整章骨架：场域序列、节奏、字数分配
 - 场景（SCENE）设计单个场域：时间×地点×POV 叙事切片
 - 正文（CHUNK）写出实际文字：关联到所属场景
 
 创作操作按用户意图映射到焦点类型：
 
-| 用户意图 | 焦点类型 | 预热级别 | 推荐前置 grill | 备注 |
-|----------|---------|---------|---------------|------|
-| 章纲/分纲（规划整章骨架） | structure | warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
-| 设计场域（规划单个叙事切片） | scene | warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | 查 session.info | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修/润色/去AI味→preheat=hot, 子类型递增, 走 crafter |
-| 创建/编辑角色 | character_arc | warm | ✅ 模糊时推荐 | |
-| 世界观设定 | world_rule | warm | ✅ 模糊时推荐 | |
-| 情节/伏笔设计 | plot_thread | warm | ✅ 模糊时推荐 | |
-| 总纲 | structure | warm | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
-| 部大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=部大纲，设计部弧线/跨卷节奏 |
-| 篇大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=篇大纲，设计篇弧线/跨卷节奏 |
-| 卷大纲 | structure | warm | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
-| 叙述腔调设计 | narrative_voice | warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
-| 主题意象设计 | thematic_motif | warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
-| 编辑修改 | 根据目标类型推断 | warm | ✅ 仅模糊修改请求 | |
-| 记录灵感 | note | cold | ❌ | |
+| 用户意图 | 焦点类型 | 预热级别(默认) | 推荐前置 grill | 备注 |
+|----------|---------|---------------|---------------|------|
+| 章纲/分纲（规划整章骨架） | chapter_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
+| 设计场域（规划单个叙事切片） | scene | session推荐/warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
+| 写第N章正文（写出实际文字） | chunk | session.info preheat | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修/润色/去AI味→preheat=hot, 子类型递增, 走 crafter |
+| 创建/编辑角色 | character_arc | session推荐/warm | ✅ 模糊时推荐 | |
+| 世界观设定 | world_rule | session推荐/warm | ✅ 模糊时推荐 | |
+| 情节/伏笔设计 | plot_thread | session推荐/warm | ✅ 模糊时推荐 | |
+| 总纲 | outline | session推荐/warm | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
+| 部大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=部大纲，设计部弧线/跨卷节奏 |
+| 篇大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=篇大纲，设计篇弧线/跨卷节奏 |
+| 卷大纲 | volume_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
+| 叙述腔调设计 | narrative_voice | session推荐/warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
+| 主题意象设计 | thematic_motif | session推荐/warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
+| 编辑修改 | 根据目标类型推断 | session推荐/warm | ✅ 仅模糊修改请求 | |
+| 记录灵感 | note | session推荐/cold | ❌ | |
 | 导出 | — | — | ❌ | |
 | 可视化/关系图/时间线 | — | — | ❌ | 参考 novel-v2 skill §6 |
 
@@ -202,7 +206,9 @@ PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {用户确认的操作类型}
 FOCUS ID: —
 FOCUS NAME: {目标名称}
-PREHEAT LEVEL: warm
+PREHEAT LEVEL: {session推荐 | warm}
+CYCLE TYPE: {session cycle_type | 空}
+SESSION ID: {session_id | 空}
 TASK: {用户确认的创作请求}
 
 ### 创作需求（来自 grill）
@@ -228,7 +234,9 @@ FOCUS TYPE: {焦点类型}
 SUBTYPE: {子类型值}  # 总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | v1/v2/v3
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
-PREHEAT LEVEL: {cold|warm|hot}
+PREHEAT LEVEL: {session推荐值 | 路由表默认值}
+CYCLE TYPE: {session cycle_type | 空}  # 活跃会话的循环类型，供 crafter 调整写作策略
+SESSION ID: {session_id | 空}
 HUMANIZE: {true|false}  # 去AI味时设 true，其余 false
 
 TASK: {用户请求的具体描述}"

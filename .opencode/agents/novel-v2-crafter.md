@@ -14,11 +14,13 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 ```
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | structure | narrative_voice | thematic_motif}
+FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | note | chunk | outline | arc_plan | volume_plan | chapter_plan | structure(废弃兼容) | narrative_voice | thematic_motif}
 SUBTYPE: {子类型值}  # 可选，如总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
+CYCLE TYPE: {ideation | expansion | refinement | proofing | planning}  # 选填，编排层传入的循环类型
+SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 ```
 
 ### 第一步：初始化创作会话
@@ -58,6 +60,17 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 
 **关键约束**：humanizer 规则在 V2 上下文中工作。当前 SCENE 的叙事功能（冲突/展示/过渡）、角色状态、密度级别、活跃风格——这些可能使某些"AI 痕迹"成为正确的文体选择。遇到疑似 AI 模式时，先对照 workspace 上下文判断：这是 AI 的惰性表达，还是场景需求驱动的手法？
 
+### 循环类型适配（CYCLE TYPE）
+
+当编排层传入 `CYCLE TYPE` 时，调整写作策略以匹配当前创作循环：
+- **expansion**（扩展写作）：正常产出正文，密度适中，重点在推进叙事
+- **refinement**（精修润色）：短篇幅高密度产出，侧重语言打磨与节奏调整（与 HUMANIZE=true 搭配）
+- **proofing**（校对质检）：对照 SCENE 内容核验 CHUNK 的准确性，而非生成新内容
+- **ideation**（发散构思）：产出多个可选方向/方案，不做确定性写作
+- **planning**（规划组织）：产出结构级信息（场景序列、字数分配），不写感官细节
+
+无需特殊处理时忽略此字段即可。
+
 **注意分工：**
 - **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
 - **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。
@@ -96,7 +109,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 **第一步：创建章纲**。只写结构级信息——节奏走向、场景数量、情绪弧线。不写感官细节、角色动作、对话。
 
 ```
-novel-tool --operation graph.create_unit --project {PROJECT} --type STRUCTURE \
+novel-tool --operation graph.create_unit --project {PROJECT} --type CHAPTER_PLAN \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
   --content '{"子类型":"章纲","结构模式":"...","本章功能":"..."}'
 ```

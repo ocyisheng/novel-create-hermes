@@ -235,6 +235,12 @@ class NarrativeUnit:
             data["created_at"] = datetime.fromisoformat(data["created_at"])
         if isinstance(data.get("updated_at"), str):
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        # 保证 content 永远是 JSON 字符串（兼容存量 dict 数据）
+        if isinstance(data.get("content"), dict):
+            data["content"] = json.dumps(data["content"], ensure_ascii=False)
+        # 保证 unit_name 不为 None
+        if data.get("unit_name") is None:
+            data["unit_name"] = ""
         # 移除已废弃的旧字段（存量 JSONL 中可能还有），structure_path 保留
         for old_key in ("belongs_to_chapter", "belongs_to_volume"):
             data.pop(old_key, None)

@@ -203,8 +203,13 @@ class SearchEngine:
                 continue
 
             score = 0.0
-            name = unit.unit_name if case_sensitive else unit.unit_name.lower()
-            content = unit.content if case_sensitive else unit.content.lower()
+            # 防御性：content/unit_name 可能是 None 或 dict，统一转 str
+            name_raw = unit.unit_name
+            content_raw = unit.content
+            name_str = name_raw if isinstance(name_raw, str) else (json.dumps(name_raw, ensure_ascii=False) if name_raw else "")
+            content_str = content_raw if isinstance(content_raw, str) else (json.dumps(content_raw, ensure_ascii=False) if content_raw else "")
+            name = name_str if case_sensitive else name_str.lower()
+            content = content_str if case_sensitive else content_str.lower()
             tags_str = " ".join(unit.tags) if case_sensitive else " ".join(unit.tags).lower()
 
             if kw in name:
@@ -239,7 +244,11 @@ class SearchEngine:
             if scope and unit.type not in scope:
                 continue
 
-            if compiled.search(unit.content) or compiled.search(unit.unit_name):
+            search_content_raw = unit.content
+            search_name_raw = unit.unit_name
+            search_content = search_content_raw if isinstance(search_content_raw, str) else (json.dumps(search_content_raw, ensure_ascii=False) if search_content_raw else "")
+            search_name = search_name_raw if isinstance(search_name_raw, str) else (json.dumps(search_name_raw, ensure_ascii=False) if search_name_raw else "")
+            if compiled.search(search_content) or compiled.search(search_name):
                 results.append(self._make_result(unit, score=1.0))
 
         return results

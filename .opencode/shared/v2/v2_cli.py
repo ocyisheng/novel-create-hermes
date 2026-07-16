@@ -175,7 +175,8 @@ def cmd_create_unit(args, store):
         try:
             content = json.dumps(repair_loads(content), ensure_ascii=False)
         except Exception:
-            pass
+            if isinstance(content, dict):
+                content = json.dumps(content, ensure_ascii=False)
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
     u = store.create_unit(
         type=UnitType[args.type.upper()],
@@ -210,7 +211,8 @@ def cmd_update_unit(args, store):
         try:
             content = json.dumps(repair_loads(content), ensure_ascii=False)
         except Exception:
-            pass
+            if isinstance(content, dict):
+                content = json.dumps(content, ensure_ascii=False)
 
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
 

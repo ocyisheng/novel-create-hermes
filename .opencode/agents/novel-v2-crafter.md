@@ -49,6 +49,7 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ```bash
 REF_FILE="{FOCUS TYPE}"
+case "$REF_FILE" in outline|arc_plan|volume_plan|chapter_plan) REF_FILE="structure";; esac
 cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
 ```
 

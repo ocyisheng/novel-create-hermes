@@ -11,13 +11,10 @@ function run(args: Record<string, unknown>, worktree: string): string {
     args.project = path.join(worktree, "novels", args.project)
   }
   try {
-    // Windows cmd.exe 不识别单引号，需用双引号并转义内部双引号
-    const isWin = process.platform === "win32"
     const json = JSON.stringify(args)
-    const quoted = isWin
-      ? `"${json.replace(/"/g, '\\"')}"`
-      : `'${json}'`
-    return execSync(`${script} ${quoted}`, {
+    // 通过 stdin 传递 JSON 以避免 Windows cmd.exe 引号转义导致的 JSON 损坏
+    return execSync(`${script}`, {
+      input: json,
       encoding: "utf-8",
       shell: true,
     }).toString().trim()

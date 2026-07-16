@@ -137,10 +137,10 @@ def _handle_graph(op: str, params: dict) -> str:
         name = params.get("name", "")
         if not name:
             return _err("find_unit 需要 name")
-        from graph_store import GraphStore as _GS
-        store2 = _get_store(project)
-        u = store2.get_unit_by_name(name)
-        return _ok({"id": u.id if u else None})
+        u = store.get_unit_by_name(name)
+        if not u:
+            return _ok({"id": None, "found": False, "message": f"未找到名称为「{name}」的叙事单元"})
+        return _ok({"id": u.id, "found": True})
 
     if op == "graph.search":
         from graph_schema import UnitType
@@ -187,7 +187,7 @@ def _handle_graph(op: str, params: dict) -> str:
 
     if op == "graph.list_units":
         from graph_schema import UnitType
-        t = params.get("type", "")
+        t = params.get("unit_type") or params.get("type") or ""
         ut = UnitType[t.upper()] if t and t.upper() != "ALL" else None
         limit = params.get("limit", 0)
         units = store.find_units(type=ut)
@@ -275,7 +275,8 @@ def _handle_graph(op: str, params: dict) -> str:
             try:
                 content = json.dumps(repair_loads(content), ensure_ascii=False)
             except Exception:
-                pass
+                if isinstance(content, dict):
+                    content = json.dumps(content, ensure_ascii=False)
         tags = [t.strip() for t in params.get("tags", "").split(",") if t.strip()] if params.get("tags") else None
         chapter = params.get("chapter") or None
         volume = params.get("volume") or None
@@ -310,7 +311,8 @@ def _handle_graph(op: str, params: dict) -> str:
             try:
                 content = json.dumps(repair_loads(content), ensure_ascii=False)
             except Exception:
-                pass
+                if isinstance(content, dict):
+                    content = json.dumps(content, ensure_ascii=False)
         unit_name = params.get("name")
         tags_raw = params.get("tags")
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
@@ -1212,18 +1214,19 @@ def handle_request(request: dict) -> str:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(_err("需要 JSON 参数"))
-        sys.exit(1)
-
-    raw = sys.argv[1]
-
-    # Windows shell 兼容：去除首尾多余引号/空格
-    # PowerShell/CMD 传递带空格的参数时，外层引号会残留
-    while raw and raw[0] in ('"', "'", " ", "\t"):
-        raw = raw[1:]
-    while raw and raw[-1] in ('"', "'", " ", "\t"):
-        raw = raw[:-1]
+    raw = ""
+    if len(sys.argv) >= 2:
+        raw = sys.argv[1]
+        # Windows shell 兼容：去除首尾多余引号/空格
+        # PowerShell/CMD 传递带空格的参数时，外层引号会残留
+        while raw and raw[0] in ('"', "'", " ", "\t"):
+            raw = raw[1:]
+        while raw and raw[-1] in ('"', "'", " ", "\t"):
+            raw = raw[:-1]
+    else:
+        # 从 stdin 读取（novel-tool.ts 通过 stdin 传入 JSON 避免 Windows 转义问题）
+        import sys
+        raw = sys.stdin.read().strip()
 
     request = None
     err_msg = None

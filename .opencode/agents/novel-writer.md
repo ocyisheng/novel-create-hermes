@@ -263,6 +263,17 @@ novel-tool --operation session.set_phase --project {PROJECT} --phase {阶段}
 
 只更新有变化的字段，避免覆盖已经累积的状态。
 
+### 写后偏差检核
+
+crafter 完成后，编排层应检查是否存在 pending 的偏差记录。正文写作时 WorkspaceBuilder 可能已检出场景 content 中引用的实体在 graph 中不存在（标记为 `stub_pending`），需要通过偏差检核确认它们是否已被处理。
+
+```bash
+novel-tool --operation deviation.pending --project {PROJECT}
+```
+
+- **有 pending 偏差** → 自动触发一次 crafter（同 session，focus 不变）处理存根：判断哪些必须创建、哪些可跳过，执行内联存根创建（参考 crafter §三缺失单元内联存根判断准则）
+- **无 pending 偏差** → 跳过
+
 ---
 
 **知识库参考注入规则（编排层直接注入）**：

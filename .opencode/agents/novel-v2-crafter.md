@@ -95,6 +95,44 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 | 按名称查 ID | `novel-tool --operation graph.find_unit --project <PROJECT> --name <名称>` |
 | 查询知识库参考 | `novel-tool --operation knowledge.read --project <PROJECT> --slug <slug> --topic <主题>` |
 
+### 缺失单元内联存根
+
+工作空间预热后，`workspace.missing_gaps` 中可能包含 "场景 content 引用的实体在 graph 中不存在" 的检核消息。这是因为正文写作前，WorkspaceBuilder 自动对比了场景的 `出场角色`/`地点`/`关联情节线` 与 graph 中已有的单元。
+
+这些消息是 **Detect（机械检核）** 的输出，接下来需要你进行 **Judge（LLM 判断）**——决定哪些确实需要创建存根，哪些可以跳过。
+
+**判断准则：**
+
+| 实体引用场景 | 必须存根 | 跳过 |
+|---|---|---|
+| POV 角色 | 场景的 POV 角色不在 graph 中 | — |
+| 概要显式提及 | `一句话概要` 或 `核心冲突` 中指名道姓 | 仅泛指（"一群路人"） |
+| 冲突核心参与者 | 冲突描述中明确提及该名字 | 背景铺垫（"传说中..."） |
+| 首次出场配角 | 有具体动作/对话的功能性配角 | 群像/无名角色 |
+| 地点 | 场景在特定地点展开且地点不在 graph 中 | 过渡性地名（"穿过几条街"） |
+| 关联情节线 | scene 的 `关联情节线` 字段中有但 graph 无对应 PLOT_THREAD | — |
+
+**判断后，对"必须存根"的实体执行内联创建：**
+
+```
+1. # 创建最小存根（只写 type+name，不写 content）
+novel-tool --operation graph.create_unit --project {PROJECT} --type CHARACTER_ARC \
+  --name "角色名" --actor novel-v2-crafter --chapter {当前章}
+
+2. # 建立与当前场景的关系
+novel-tool --operation graph.add_relation --project {PROJECT} \
+  --source {场景ID} --target {新建单元ID} --type member_of --actor novel-v2-crafter
+
+3. # 标记偏差：存根待补充
+novel-tool --operation deviation.merge --project {PROJECT} \
+  --findings '[{"type":"stub_pending","unit_id":"{新建单元ID}","unit_name":"角色名","context":"场景写作中自动创建的最小存根，需后续补充完整内容"}]'
+
+4. # 持久化
+novel-tool --operation graph.flush --project {PROJECT}
+```
+
+同理适用于 WORLD_RULE（地点）和 PLOT_THREAD（情节线）的存根创建。
+
 ## 四、创作操作
 
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。

@@ -100,7 +100,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
 
 关键操作速览（详细参数见 SKILL.md）：
-- **创建叙事单元** → `novel-tool --operation graph.create_unit --project <PROJECT> --type SCENE --content '{"name":"单元名"}' --actor v2-crafter`
+- **创建叙事单元** → `novel-tool --operation graph.create_unit --project <PROJECT> --type SCENE --chapter <章节号> --content '{"name":"单元名"}' --actor v2-crafter`
 - **建立关系** → `novel-tool --operation graph.add_relation --project <PROJECT> --source <ID> --target <ID> --type member_of --actor v2-crafter`
 - **写入正文** → 先创建 CHUNK 单元，再关联到场景
 - **持久化** → `novel-tool --operation graph.flush --project <PROJECT>`
@@ -114,7 +114,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type CHAPTER_PLAN \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
-  --content '{"子类型":"章纲","结构模式":"...","本章功能":"..."}'
+  --chapter {N} --content '{"子类型":"章纲","结构模式":"...","本章功能":"..."}'
 ```
 
 **第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
@@ -122,7 +122,7 @@ novel-tool --operation graph.create_unit --project {PROJECT} --type CHAPTER_PLAN
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type SCENE \
   --name "第N章_场景名" --actor novel-v2-crafter \
-  --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}'
+  --chapter {N} --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}'
 novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --type plans
 ```
 
@@ -141,7 +141,7 @@ novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID
 1. # 创建一个 CHUNK 代表该章（或子章）
 novel-tool --operation graph.create_unit --project {PROJECT} --type CHUNK \
      --name "第3章" --actor novel-v2-crafter \
-     --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
+     --chapter 3 --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
 
 2. # 关联到该章的所有 SCENE
 novel-tool --operation graph.add_relation --project {PROJECT} \

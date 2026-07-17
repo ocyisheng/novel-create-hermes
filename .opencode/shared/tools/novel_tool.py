@@ -8,7 +8,7 @@ novel_tool.py — V2 小说创作统一工具句柄
 用法: python novel_tool.py '<json-string>'
 """
 
-import sys, os, json
+import sys, os, json, re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -284,6 +284,21 @@ def _handle_graph(op: str, params: dict) -> str:
         actor = params.get("actor", "novel-tool")
         if chapter:
             chapter = int(chapter)
+        # 自动推断 chapter_number（若未显式提供）
+        if not chapter:
+            # 优先从 content JSON 的 "章节号" 字段提取（CHUNK 类单元的标准做法）
+            if content and content.startswith("{"):
+                try:
+                    content_dict = json.loads(content)
+                    if isinstance(content_dict, dict) and "章节号" in content_dict:
+                        chapter = int(content_dict["章节号"])
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    pass
+            # 回退到从名称 "第N章" 模式提取
+            if not chapter and unit_name:
+                m = re.search(r'第(\d+)章', unit_name)
+                if m:
+                    chapter = int(m.group(1))
         u = store.create_unit(
             type=ut, unit_name=unit_name, content=content, tags=tags,
             chapter_number=chapter,
@@ -446,6 +461,7 @@ def _handle_graph(op: str, params: dict) -> str:
         return _ok({"files": list(written)})
 
     if op == "graph.export_chunks":
+        import json
         from graph_schema import UnitType
         from collections import defaultdict
         chunks = store.find_units(type=UnitType.CHUNK)

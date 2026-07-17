@@ -184,7 +184,6 @@ class NarrativeUnit:
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     # 层级归属（CONTAINS 边是唯一真相源，以下字段为缓存/快捷字段）
-    belongs_to_project: Optional[str] = None
     # 精确章节号（CONTAINS 边关系下的真实章节标号）
     chapter_number: Optional[int] = None
     # 通用结构路径，CONTAINS 边的缓存
@@ -218,7 +217,6 @@ class NarrativeUnit:
         result["tags"] = self.tags
         result["created_at"] = self.created_at.isoformat()
         result["updated_at"] = self.updated_at.isoformat()
-        result["belongs_to_project"] = self.belongs_to_project
         result["chapter_number"] = self.chapter_number
         result["version"] = self.version
         result["extra"] = self.extra
@@ -242,7 +240,7 @@ class NarrativeUnit:
         if data.get("unit_name") is None:
             data["unit_name"] = ""
         # 移除已废弃的旧字段（存量 JSONL 中可能还有），structure_path 保留
-        for old_key in ("belongs_to_chapter", "belongs_to_volume"):
+        for old_key in ("belongs_to_project", "belongs_to_chapter", "belongs_to_volume"):
             data.pop(old_key, None)
         return cls(**data)
 

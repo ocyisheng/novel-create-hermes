@@ -516,6 +516,8 @@ class WorkspaceBuilder:
                                 "unit_id": unit.id,
                                 "unit_name": unit.unit_name,
                             })
+            # 检核场景 content 中引用的实体是否缺失
+            self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.CHARACTER_ARC:
             # 正在设计角色：找涉及该角色的场景 + 关联情节线
@@ -532,6 +534,8 @@ class WorkspaceBuilder:
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
                     })
+            # 检核场景 content 中引用的其他实体是否缺失
+            self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.PLOT_THREAD:
             # 正在设计情节线：找通过场景关联的角色
@@ -587,6 +591,8 @@ class WorkspaceBuilder:
                                 "unit_id": neighbor.id,
                                 "unit_name": neighbor.unit_name,
                             })
+            # 检核场景 content 中引用的实体是否缺失
+            self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.WORLD_RULE:
             # 世界观焦点：找引用了该规则的场景
@@ -875,6 +881,73 @@ class WorkspaceBuilder:
         except (json.JSONDecodeError, ValueError):
             return {}
     
+    def _detect_missing_references(self, ws: Workspace, config: Dict[str, Any]):
+        """
+        遍历已加载的场景和焦点场景，检核 content 中引用的实体是否在 graph 中存在。
+        将精确的缺失引用消息添加到 ws.missing_gaps，供 LLM 判断重要性。
+        """
+        # 构建已有实体名索引
+        existing_chars = {e["unit_name"] for e in ws.character_arcs}
+        existing_worlds = {e["unit_name"] for e in ws.world_rules}
+        existing_plots = {e["unit_name"] for e in ws.plot_threads}
+
+        # 收集所有需要检核的场景：已加载的场景 + 焦点本身（如果它是 SCENE）
+        scene_ids_to_check = set()
+        for se in ws.scenes:
+            sid = se.get("unit_id", "")
+            if sid:
+                scene_ids_to_check.add(sid)
+        if ws.focus_unit and ws.focus_unit.type == UnitType.SCENE:
+            scene_ids_to_check.add(ws.focus_unit.id)
+
+        for sid in scene_ids_to_check:
+            scene = self.store.get_unit(sid)
+            if not scene:
+                continue
+            content = self._parse_json_content(scene)
+            if not content:
+                continue
+
+            scene_name = scene.unit_name or "?"
+            scene_type = content.get("子类型", "")
+            scene_pov = content.get("POV角色", "")
+            scene_summary = content.get("一句话概要", "")
+            ctx_parts = []
+            if scene_type:
+                ctx_parts.append(scene_type)
+            if scene_pov:
+                ctx_parts.append(f"POV:{scene_pov}")
+            ctx_str = "，".join(ctx_parts)
+
+            # 检核出场角色
+            for char_ref in (content.get("出场角色") or []):
+                name = ""
+                if isinstance(char_ref, str):
+                    name = char_ref
+                elif isinstance(char_ref, dict):
+                    name = char_ref.get("角色名", "")
+                if name and name not in existing_chars:
+                    gap = f"场景「{scene_name}」（{ctx_str}）中角色「{name}」出场但 graph 无对应 CHARACTER_ARC 单元"
+                    if scene_summary:
+                        gap += f"。场景概要：{scene_summary}"
+                    if gap not in ws.missing_gaps:
+                        ws.missing_gaps.append(gap)
+
+            # 检核地点
+            loc = content.get("地点", "")
+            if loc and loc not in existing_worlds:
+                gap = f"场景「{scene_name}」（{ctx_str}）中地点「{loc}」未找到对应 WORLD_RULE 单元"
+                if gap not in ws.missing_gaps:
+                    ws.missing_gaps.append(gap)
+
+            # 检核关联情节线
+            for plot_ref in (content.get("关联情节线") or []):
+                pname = plot_ref if isinstance(plot_ref, str) else ""
+                if pname and pname not in existing_plots:
+                    gap = f"场景「{scene_name}」（{ctx_str}）引用了情节线「{pname}」但 graph 无对应 PLOT_THREAD 单元"
+                    if gap not in ws.missing_gaps:
+                        ws.missing_gaps.append(gap)
+
     def _extract_scene_context(self, ws: Workspace, scene_unit: NarrativeUnit):
         """从 SCENE 单元提取场景上下文到工作空间（供 SCENE/CHUNK 焦点共用）"""
         content = self._parse_json_content(scene_unit)

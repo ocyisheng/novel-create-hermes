@@ -113,7 +113,7 @@ class LegacyFileAdapter:
         if self.mode != AdapterMode.LEGACY_FALLBACK:
             for unit in units:
                 existing = self.store.get_unit_by_name(unit.unit_name)
-                if existing:
+                if existing and existing.status != UnitStatus.ARCHIVED:
                     self.store.update_unit(
                         existing.id,
                         content=unit.content,
@@ -123,6 +123,7 @@ class LegacyFileAdapter:
                         actor=actor,
                     )
                 else:
+                    # existing 为 archived 时视为不存在，创建新单元而非覆盖归档数据
                     self.store.create_unit(
                         type=unit.type,
                         unit_name=unit.unit_name,
@@ -184,8 +185,8 @@ class LegacyFileAdapter:
         # Step 1: 检测重复（同一章节+同一版本标签的 CHUNK）
         unit_name = f"第{chapter_number}章_{version_label}"
         existing = self.store.get_unit_by_name(unit_name)
-        if existing and existing.type == UnitType.CHUNK:
-            # 已有同名 CHUNK：更新元数据，不创建新单元
+        if existing and existing.type == UnitType.CHUNK and existing.status != UnitStatus.ARCHIVED:
+            # 已有同名活跃 CHUNK：更新元数据，不创建新单元
             content_meta = json.dumps({
                 "章节号": chapter_number,
                 "正文路径": file_path,

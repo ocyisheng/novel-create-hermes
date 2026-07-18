@@ -395,6 +395,11 @@ class WorkspaceBuilder:
         
         return ws
     
+    @staticmethod
+    def _is_active(unit: Optional[NarrativeUnit]) -> bool:
+        """检查单元是否非归档状态"""
+        return unit is not None and unit.status != UnitStatus.ARCHIVED
+
     def _load_neighbors(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
         """加载邻居叙事单元摘要"""
         neighbors = self.store.get_neighbors(focus.id, max_depth=config["neighbor_depth"])
@@ -402,7 +407,7 @@ class WorkspaceBuilder:
         
         for nid in degree_1:
             neighbor = self.store.get_unit(nid)
-            if neighbor and neighbor.status != UnitStatus.ARCHIVED:
+            if neighbor:  # get_neighbors 已排除归档单元
                 # 找到关系和类型
                 rels = self.store.get_relations(focus.id, direction="outgoing")
                 rel_types = [r.relation_type.value for r in rels if r.target_id == nid]
@@ -520,16 +525,16 @@ class WorkspaceBuilder:
             self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.CHARACTER_ARC:
-            # 正在设计角色：找涉及该角色的场景 + 关联情节线
+            # 正在设计角色：找涉及该角色的场景 + 关联情节线（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="incoming"):
                 source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
+                if self._is_active(source) and source.type == UnitType.SCENE:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
                         "chapter": get_unit_chapter(source),
                     })
-                elif source and source.type == UnitType.PLOT_THREAD:
+                elif self._is_active(source) and source.type == UnitType.PLOT_THREAD:
                     ws.plot_threads.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
@@ -538,10 +543,10 @@ class WorkspaceBuilder:
             self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.PLOT_THREAD:
-            # 正在设计情节线：找通过场景关联的角色
+            # 正在设计情节线：找通过场景关联的角色（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="incoming"):
                 source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
+                if self._is_active(source) and source.type == UnitType.SCENE:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
@@ -549,12 +554,14 @@ class WorkspaceBuilder:
                     })
         
         elif focus.type == UnitType.CHUNK:
-            # 正在写正文：通过 BELONGS_TO 找所属场景，再由场景加载角色和情节线
+            # 正在写正文：通过 BELONGS_TO 找所属场景，再由场景加载角色和情节线（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="outgoing"):
                 if rel.relation_type != RelationType.BELONGS_TO:
                     continue
                 scene = self.store.get_unit(rel.target_id)
                 if not scene or scene.type != UnitType.SCENE:
+                    continue
+                if scene.status == UnitStatus.ARCHIVED:
                     continue
                 
                 # 记录场景（去重）
@@ -577,14 +584,14 @@ class WorkspaceBuilder:
                     )
                     if not neighbor or neighbor.id == focus.id:
                         continue
-                    if neighbor.type == UnitType.CHARACTER_ARC:
+                    if self._is_active(neighbor) and neighbor.type == UnitType.CHARACTER_ARC:
                         if neighbor.id not in seen_chars and len(ws.character_arcs) < config["character_limit"]:
                             seen_chars.add(neighbor.id)
                             ws.character_arcs.append({
                                 "unit_id": neighbor.id,
                                 "unit_name": neighbor.unit_name,
                             })
-                    elif neighbor.type == UnitType.PLOT_THREAD:
+                    elif self._is_active(neighbor) and neighbor.type == UnitType.PLOT_THREAD:
                         if neighbor.id not in seen_plots and len(ws.plot_threads) < config["plot_limit"]:
                             seen_plots.add(neighbor.id)
                             ws.plot_threads.append({
@@ -595,10 +602,10 @@ class WorkspaceBuilder:
             self._detect_missing_references(ws, config)
         
         elif focus.type == UnitType.WORLD_RULE:
-            # 世界观焦点：找引用了该规则的场景
+            # 世界观焦点：找引用了该规则的场景（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="incoming"):
                 source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
+                if self._is_active(source) and source.type == UnitType.SCENE:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
@@ -613,10 +620,13 @@ class WorkspaceBuilder:
             STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
                                UnitType.CHAPTER_PLAN}
             
-            # 阶段 1：收集当前节点 + 所有后代节点（CONTAINS 边，层级关系）
+            # 阶段 1：收集当前节点 + 所有后代节点（CONTAINS 边，层级关系，跳过已归档）
             structure_ids = {focus.id}
             descendants = self.store.find_descendants(focus.id, max_depth=10)
-            structure_ids.update(descendants)
+            structure_ids.update(
+                sid for sid in descendants
+                if self._is_active(self.store.get_unit(sid))
+            )
             
             # 阶段 2：子结构单元按实际类型路由到对应列表
             for sid in structure_ids:
@@ -633,13 +643,13 @@ class WorkspaceBuilder:
                         target = _target_list.get(child.type, ws.structures)
                         target.append(entry)
             
-            # 阶段 3：通过 PLANS 边查找章纲计划的所有 SCENE（规划层）
+            # 阶段 3：通过 PLANS 边查找章纲计划的所有 SCENE（规划层，跳过已归档）
             seen_scene_ids: Set[str] = set()
             seen_chunk_ids: Set[str] = set()
             for sid in structure_ids:
                 for rel in self.store.get_relations(sid, relation_type=RelationType.PLANS, direction="outgoing"):
                     scene = self.store.get_unit(rel.target_id)
-                    if scene and scene.type == UnitType.SCENE and scene.id not in seen_scene_ids:
+                    if self._is_active(scene) and scene.type == UnitType.SCENE and scene.id not in seen_scene_ids:
                         seen_scene_ids.add(scene.id)
                         ws.scenes.append({
                             "unit_id": scene.id,
@@ -651,14 +661,14 @@ class WorkspaceBuilder:
                     source = self.store.get_unit(rel.source_id)
                     if not source:
                         continue
-                    if source.type == UnitType.SCENE and source.id not in seen_scene_ids:
+                    if self._is_active(source) and source.type == UnitType.SCENE and source.id not in seen_scene_ids:
                         seen_scene_ids.add(source.id)
                         ws.scenes.append({
                             "unit_id": source.id,
                             "unit_name": source.unit_name,
                             "chapter": get_unit_chapter(source),
                         })
-                    elif source.type == UnitType.CHUNK and source.id not in seen_chunk_ids:
+                    elif self._is_active(source) and source.type == UnitType.CHUNK and source.id not in seen_chunk_ids:
                         seen_chunk_ids.add(source.id)
                         ws.chunks.append({
                             "unit_id": source.id,
@@ -666,10 +676,10 @@ class WorkspaceBuilder:
                         })
         
         elif focus.type == UnitType.NARRATIVE_VOICE:
-            # 叙述腔调焦点：找使用该腔调的场景
+            # 叙述腔调焦点：找使用该腔调的场景（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="incoming"):
                 source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
+                if self._is_active(source) and source.type == UnitType.SCENE:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
@@ -677,16 +687,16 @@ class WorkspaceBuilder:
                     })
         
         elif focus.type == UnitType.THEMATIC_MOTIF:
-            # 主体意象焦点：找关联的场景和角色
+            # 主体意象焦点：找关联的场景和角色（跳过已归档）
             for rel in self.store.get_relations(focus.id, direction="incoming"):
                 source = self.store.get_unit(rel.source_id)
-                if source and source.type == UnitType.SCENE:
+                if self._is_active(source) and source.type == UnitType.SCENE:
                     ws.scenes.append({
                         "unit_id": source.id,
                         "unit_name": source.unit_name,
                         "chapter": get_unit_chapter(source),
                     })
-                elif source and source.type == UnitType.CHARACTER_ARC:
+                elif self._is_active(source) and source.type == UnitType.CHARACTER_ARC:
                     if len(ws.character_arcs) < config["character_limit"]:
                         ws.character_arcs.append({
                             "unit_id": source.id,

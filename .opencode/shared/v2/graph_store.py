@@ -451,13 +451,18 @@ class GraphStore:
     ) -> List[NarrativeUnit]:
         """
         按条件查询叙事单元。chapter 参数只匹配 chapter_number。
+
+        默认排除已归档(archived)单元。如果需显式查询归档单元，传入 status=UnitStatus.ARCHIVED。
         """
         results = []
         for unit in self._units.values():
             if type and unit.type != type:
                 continue
-            if status and unit.status != status:
-                continue
+            if status is not None:
+                if unit.status != status:
+                    continue
+            elif unit.status == UnitStatus.ARCHIVED:
+                continue  # 默认排除归档单元
             if tags and not all(t in unit.tags for t in tags):
                 continue
             if chapter is not None and unit.chapter_number != chapter:
@@ -852,26 +857,36 @@ class GraphStore:
         """
         result: Dict[int, Set[str]] = {1: set(), 2: set()}
         visited: Set[str] = {unit_id}
-        
+
+        def _is_active(uid: str) -> bool:
+            u = self._units.get(uid)
+            return u is not None and u.status != UnitStatus.ARCHIVED
+
         # 1 度邻居
         for rel in self.get_relations(unit_id):
             if relation_type and rel.relation_type != relation_type:
                 continue
             if rel.source_id == unit_id and rel.target_id not in visited:
-                result[1].add(rel.target_id)
                 visited.add(rel.target_id)
+                if _is_active(rel.target_id):
+                    result[1].add(rel.target_id)
             if rel.target_id == unit_id and rel.source_id not in visited:
-                result[1].add(rel.source_id)
                 visited.add(rel.source_id)
-        
+                if _is_active(rel.source_id):
+                    result[1].add(rel.source_id)
+
         # 2 度邻居
         if max_depth >= 2:
             for neighbor_id in result[1]:
                 for rel in self.get_relations(neighbor_id):
                     if rel.source_id == neighbor_id and rel.target_id not in visited:
-                        result[2].add(rel.target_id)
+                        visited.add(rel.target_id)
+                        if _is_active(rel.target_id):
+                            result[2].add(rel.target_id)
                     if rel.target_id == neighbor_id and rel.source_id not in visited:
-                        result[2].add(rel.source_id)
+                        visited.add(rel.source_id)
+                        if _is_active(rel.source_id):
+                            result[2].add(rel.source_id)
         
         return result
     
@@ -881,8 +896,12 @@ class GraphStore:
         to_id: str,
         max_depth: int = 5,
     ) -> Optional[List[str]]:
-        """BFS 查找两个叙事单元之间的路径（返回节点 ID 链）"""
+        """BFS 查找两个叙事单元之间的路径（返回节点 ID 链，跳过已归档单元）"""
         if from_id not in self._units or to_id not in self._units:
+            return None
+        
+        target = self._units[to_id]
+        if target.status == UnitStatus.ARCHIVED:
             return None
         
         queue = [(from_id, [from_id])]
@@ -899,7 +918,9 @@ class GraphStore:
                     return path + [next_id]
                 if next_id not in visited:
                     visited.add(next_id)
-                    queue.append((next_id, path + [next_id]))
+                    next_unit = self._units.get(next_id)
+                    if next_unit and next_unit.status != UnitStatus.ARCHIVED:
+                        queue.append((next_id, path + [next_id]))
         
         return None
     
@@ -1061,9 +1082,11 @@ class GraphStore:
         edges_created = 0
         skipped = 0
         
-        # 第一步：收集所有有 structure_path 的单元
+        # 第一步：收集所有有 structure_path 的活跃单元（跳过已归档）
         path_units: List[Tuple[str, List[Any]]] = []
         for unit in self._units.values():
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
             if unit.structure_path and len(unit.structure_path) > 0:
                 path_units.append((unit.id, unit.structure_path))
                 found += 1
@@ -1114,12 +1137,15 @@ class GraphStore:
     # ── 统计信息 ────────────────────────────────────────────────────────
     
     def stats(self) -> Dict[str, Any]:
-        """graph 统计信息"""
+        """graph 统计信息（活跃 vs 归档分开统计）"""
         type_counts = defaultdict(int)
         status_counts = defaultdict(int)
+        active_type_counts = defaultdict(int)
         for unit in self._units.values():
             type_counts[unit.type.value] += 1
             status_counts[unit.status.value] += 1
+            if unit.status != UnitStatus.ARCHIVED:
+                active_type_counts[unit.type.value] += 1
         
         return {
             "total_units": len(self._units),
@@ -1127,6 +1153,7 @@ class GraphStore:
             "total_events": len(self._events),
             "by_type": dict(type_counts),
             "by_status": dict(status_counts),
+            "active_by_type": dict(active_type_counts),
             "snapshot_count": len(list(self.snapshots_dir.glob("*.json"))),
         }
     

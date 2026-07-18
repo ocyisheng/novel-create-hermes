@@ -270,11 +270,11 @@ class SearchEngine:
         main = self._make_result(unit, score=5.0)
         results = [main]
 
-        # 1 度邻居
+        # 1 度邻居（get_neighbors 已排除归档单元）
         neighbors = self.store.get_neighbors(unit.id, max_depth=1).get(1, set())
         for nid in neighbors:
             n = self.store.get_unit(nid)
-            if n and n.status != UnitStatus.ARCHIVED:
+            if n:
                 if scope and n.type not in scope:
                     continue
                 results.append(self._make_result(n, score=3.0))
@@ -317,6 +317,8 @@ class SearchEngine:
                 continue
             if src.type != UnitType.CHARACTER_ARC or tgt.type != UnitType.CHARACTER_ARC:
                 continue
+            if src.status == UnitStatus.ARCHIVED or tgt.status == UnitStatus.ARCHIVED:
+                continue  # 已归档角色的关系不对称是预期行为
 
             # 检查反向关系是否存在
             has_inverse = False

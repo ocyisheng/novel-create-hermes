@@ -254,7 +254,7 @@ class V2GraphLoader:
                     "node_id": source.id,
                 })
 
-            if source and source.type == UnitType.CHUNK:
+            if source and source.type == UnitType.CHUNK and source.status != UnitStatus.ARCHIVED:
                 events.append({
                     "sort_key": get_unit_chapter(source),
                     "time_label": get_unit_chapter_label(source),
@@ -266,7 +266,7 @@ class V2GraphLoader:
         # 关联的情节线
         for rel in self.store.get_relations(unit_id, direction="outgoing"):
             target = self.store.get_unit(rel.target_id)
-            if target and target.type == UnitType.PLOT_THREAD:
+            if target and target.type == UnitType.PLOT_THREAD and target.status != UnitStatus.ARCHIVED:
                 events.append({
                     "sort_key": -1,
                     "time_label": "情节线",

@@ -152,26 +152,23 @@ class ProjectionEngine:
         # 1. 总纲投影
         written.append(self.project_to_file(ProjectionView.OUTLINE))
         
-        # 2. 角色投影
+        # 2. 角色投影（find_units 已默认排除归档单元）
         for unit in self.store.find_units(type=UnitType.CHARACTER_ARC):
-            if unit.status != UnitStatus.ARCHIVED:
-                written.append(
-                    self.project_to_file(ProjectionView.CHARACTER, {"unit_id": unit.id})
-                )
+            written.append(
+                self.project_to_file(ProjectionView.CHARACTER, {"unit_id": unit.id})
+            )
         
         # 3. 世界观投影
         for unit in self.store.find_units(type=UnitType.WORLD_RULE):
-            if unit.status != UnitStatus.ARCHIVED:
-                written.append(
-                    self.project_to_file(ProjectionView.WORLDBUILDING, {"unit_id": unit.id})
-                )
+            written.append(
+                self.project_to_file(ProjectionView.WORLDBUILDING, {"unit_id": unit.id})
+            )
         
         # 4. 情节线投影
         for unit in self.store.find_units(type=UnitType.PLOT_THREAD):
-            if unit.status != UnitStatus.ARCHIVED:
-                written.append(
-                    self.project_to_file(ProjectionView.PLOT, {"unit_id": unit.id})
-                )
+            written.append(
+                self.project_to_file(ProjectionView.PLOT, {"unit_id": unit.id})
+            )
         
         # 5. 时间线投影
         written.append(self.project_to_file(ProjectionView.TIMELINE))

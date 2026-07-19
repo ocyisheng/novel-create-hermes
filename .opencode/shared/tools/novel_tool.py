@@ -84,6 +84,111 @@ def _unit_to_dict(u) -> dict:
     }
 
 
+def _derive_progress(project_path: str) -> dict:
+    """从 graph 实时推算写作进度，不依赖 config.yaml 的手写值。
+
+    所有数据来自 graph 中的叙事单元和 CONTAINS 边关系。
+    遵循 V2 架构：graph 是唯一真相源。
+    """
+    from graph_schema import UnitType, UnitStatus, get_unit_chapter
+    store = _get_store(project_path)
+    result = {}
+
+    # ── 当前章：active CHUNK 中最大的 chapter_number ──
+    chunks = store.find_units(type=UnitType.CHUNK)
+    chunk_chapters = sorted(set(
+        get_unit_chapter(c) for c in chunks if get_unit_chapter(c) > 0
+    ))
+    result["current_chapter"] = max(chunk_chapters) if chunk_chapters else 0
+    result["written_chapters"] = len(chunk_chapters)
+
+    # ── 卷进度：遍历 VOLUME_PLAN，通过 CONTAINS 边找其下 CHAPTER_PLAN ──
+    volumes = store.find_units(type=UnitType.VOLUME_PLAN)
+    all_cp = store.find_units(type=UnitType.CHAPTER_PLAN)
+    volume_progress = []
+
+    for vol in sorted(volumes, key=lambda v: _vol_num(v)):
+        vn = _vol_num(vol)
+        vname = _vol_name(vol)
+
+        # 通过 CONTAINS 边找该卷下所有后代，与 all_cp 取交集
+        descendant_ids = set(store.find_descendants(vol.id, max_depth=3))
+        vol_cps = [cp for cp in all_cp if cp.id in descendant_ids]
+
+        total = len(vol_cps)
+        mature = sum(1 for cp in vol_cps if cp.status == UnitStatus.MATURE)
+        ch_nums = sorted(set(
+            get_unit_chapter(cp) for cp in vol_cps if get_unit_chapter(cp) > 0
+        ))
+        ch_range = (
+            f"{ch_nums[0]}-{ch_nums[-1]}"
+            if len(ch_nums) >= 2
+            else (str(ch_nums[0]) if ch_nums else "")
+        )
+
+        if total > 0 and mature == total:
+            status = "completed"
+        elif mature > 0:
+            status = "in_progress"
+        else:
+            status = "pending"
+
+        volume_progress.append({
+            "volume": vn,
+            "name": vname,
+            "chapter_range": ch_range,
+            "total_chapter_plans": total,
+            "mature_chapter_plans": mature,
+            "status": status,
+        })
+
+    result["volume_progress"] = volume_progress
+
+    # ── 当前卷：当前章落在哪个卷的范围内 ──
+    cur_vol = 0
+    for vp in volume_progress:
+        if vp["chapter_range"]:
+            parts = vp["chapter_range"].split("-")
+            try:
+                lo, hi = int(parts[0]), int(parts[-1])
+                if lo <= result["current_chapter"] <= hi:
+                    cur_vol = vp["volume"]
+                    break
+            except (ValueError, IndexError):
+                pass
+    if cur_vol == 0 and volume_progress:
+        cur_vol = volume_progress[-1]["volume"]
+    result["current_volume"] = cur_vol
+
+    result["total_chunks"] = len(chunks)
+    result["total_chapter_plans"] = len(all_cp)
+    return result
+
+
+def _vol_num(unit) -> int:
+    """从 VOLUME_PLAN 的 content JSON 提取卷号"""
+    try:
+        import json
+        if unit.content and unit.content.startswith("{"):
+            c = json.loads(unit.content)
+            return int(c.get("卷号", 0))
+    except (json.JSONDecodeError, ValueError, TypeError, AttributeError):
+        pass
+    return 0
+
+
+def _vol_name(unit) -> str:
+    """从 VOLUME_PLAN 的 content JSON 提取卷名称"""
+    try:
+        import json
+        if unit.content and unit.content.startswith("{"):
+            c = json.loads(unit.content)
+            return str(c.get("卷名称", ""))
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        pass
+    return ""
+
+
 # ──────────────────────────────────────────────
 #  Graph 操作
 # ──────────────────────────────────────────────
@@ -673,12 +778,6 @@ def _handle_project(op: str, params: dict) -> str:
             "当前状态": "起步",
             "预期结构": "待定",
             "创建时间": now,
-            "写作进度": {
-                "当前卷": 0,
-                "当前章": 0,
-                "卷大纲状态": "",
-                "卷大纲完成数": 0,
-            },
             "创作目标": {"目标字数": 200000, "目标章节数": 40, "每日目标": 2000},
             "上下文预热": {
                 "cold": {"角色上限": 3, "情节线上限": 1, "世界观上限": 1},
@@ -731,8 +830,10 @@ def _handle_project(op: str, params: dict) -> str:
             try:
                 st = _get_store(proj_path)
                 result["stats"] = st.stats()
+                result["derived_progress"] = _derive_progress(proj_path)
             except Exception:
                 result["stats"] = None
+                result["derived_progress"] = None
         phase = params.get("phase")
         if phase:
             config["写作阶段"] = phase
@@ -799,27 +900,6 @@ def _handle_project(op: str, params: dict) -> str:
         import shutil
         shutil.rmtree(proj_path, ignore_errors=True)
         return _ok({"deleted": True})
-
-    if op == "project.update_progress":
-        if not os.path.isdir(proj_path):
-            return _err(f"项目不存在: {name}")
-        import yaml
-        cfg_path = os.path.join(proj_path, "config.yaml")
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-        progress = config.setdefault("写作进度", {})
-        changed = []
-        for key, fallback, pkey in [("current_volume", "currentVolume", "当前卷"), ("current_chapter", "currentChapter", "当前章"),
-                                    ("volume_outline_status", "volumeOutlineStatus", "卷大纲状态"), ("volume_outline_done", "volumeOutlineDone", "卷大纲完成数")]:
-            val = params.get(key) if key in params else params.get(fallback)
-            if val is not None:
-                progress[pkey] = val
-                changed.append(f"{pkey}={val}")
-        if changed:
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                yaml.dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
-            return _ok({"updated": changed})
-        return _ok({"updated": [], "info": "未指定任何进度字段"})
 
     return _err(f"未知 project 操作: {op}")
 

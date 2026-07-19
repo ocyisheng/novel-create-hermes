@@ -47,7 +47,6 @@ export default tool({
         // project
         "project.new", "project.import", "project.status",
         "project.resume", "project.switch", "project.delete",
-        "project.update_progress",
         // env
         "env.check", "env.fix", "env.force",
         // knowledge

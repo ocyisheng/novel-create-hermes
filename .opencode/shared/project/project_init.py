@@ -371,39 +371,6 @@ def cmd_resume(args):
     print(f"✅ 项目「{name}」已刷新，可以继续创作")
 
 
-# ── 子命令：更新写作进度 ──────────────────────────────────────────────────
-
-def cmd_update_progress(args):
-    """更新项目的写作进度字段"""
-    name = args.name.strip()
-    if not project_exists(name):
-        print(f"❌ 项目不存在: {name}")
-        sys.exit(1)
-
-    config = load_config(name)
-    progress = config.setdefault("写作进度", {})
-    changed = []
-
-    if args.current_volume is not None:
-        progress["当前卷"] = args.current_volume
-        changed.append(f"当前卷={args.current_volume}")
-    if args.current_chapter is not None:
-        progress["当前章"] = args.current_chapter
-        changed.append(f"当前章={args.current_chapter}")
-    if args.outline_status is not None:
-        progress["卷大纲状态"] = args.outline_status
-        changed.append(f"卷大纲状态={args.outline_status}")
-    if args.outline_done is not None:
-        progress["卷大纲完成数"] = args.outline_done
-        changed.append(f"卷大纲完成数={args.outline_done}")
-
-    if changed:
-        save_config(name, config)
-        print(f"✅ 写作进度已更新: {' | '.join(changed)}")
-    else:
-        print("⚠️ 未指定任何进度字段（--current-volume, --current-chapter, --outline-status, --outline-done）")
-
-
 # ── 子命令：切换项目 ──────────────────────────────────────────────────────
 
 def cmd_switch(args):
@@ -526,14 +493,6 @@ def main():
     p.add_argument("name", help="项目名称")
     p.add_argument("--force", action="store_true", help="跳过确认")
 
-    # update-progress
-    p = sub.add_parser("update-progress", help="更新写作进度")
-    p.add_argument("name", help="项目名称")
-    p.add_argument("--current-volume", type=int, default=None, help="当前卷号")
-    p.add_argument("--current-chapter", type=int, default=None, help="当前章节号")
-    p.add_argument("--outline-status", default=None, help="卷大纲状态描述")
-    p.add_argument("--outline-done", type=int, default=None, help="已完成大纲的卷数")
-
     args = parser.parse_args()
 
     if not args.command:
@@ -547,7 +506,6 @@ def main():
         "resume": cmd_resume,
         "switch": cmd_switch,
         "delete": cmd_delete,
-        "update-progress": cmd_update_progress,
     }
 
     dispatch[args.command](args)

@@ -36,7 +36,7 @@ export default tool({
         // graph writes
         "graph.create_unit", "graph.update_unit", "graph.add_relation",
         "graph.flush", "graph.fix_asymmetry", "graph.get_relations", "graph.remove_relation", "graph.batch_infer",
-        "graph.archive_unit",
+        "graph.archive_unit", "graph.purge_archived",
         // graph hierarchy queries
         "graph.find_descendants", "graph.find_ancestors",
         "graph.rebuild_structure_path", "graph.migrate_structure_to_edges",

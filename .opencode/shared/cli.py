@@ -448,6 +448,11 @@ def _build_v2_parser(sub):
     sp = v2_sub.add_parser("migrate-structure", help="将结构路径字段迁移为 CONTAINS 边")
     sp.add_argument("--path", required=True)
 
+    sp = v2_sub.add_parser("purge-archived", help="物理删除所有已归档(archived)的叙事单元及其关联边")
+    sp.add_argument("--path", required=True)
+    sp.add_argument("--ids", default="", help="逗号分隔的单元 ID 列表；为空则删除全部 archived 单元")
+    sp.add_argument("--actor", default="script")
+
     return p
 
 
@@ -464,7 +469,7 @@ def _run_v2(args):
         handle_export_chunks, handle_viz, handle_find_descendants,
         handle_find_ancestors, handle_rebuild_structure_path,
         handle_migrate_structure_to_edges, handle_session_start,
-        handle_session_build_workspace,
+        handle_session_build_workspace, handle_purge_archived,
     )
 
     def _err_exit(result, msg="操作失败"):
@@ -824,6 +829,17 @@ def _run_v2(args):
         if result.get("details"):
             for d in result["details"][:10]:
                 print(f"  • {d}")
+
+    elif cmd == "purge-archived":
+        result = handle_purge_archived(
+            project_root=args.path, ids=args.ids, actor=args.actor,
+        )
+        _err_exit(result)
+        print(f"✅ {result['message']}")
+        if result.get("unit_ids"):
+            print(f"  已删除单元 ({result['purged']} 个):")
+            for uid in result["unit_ids"]:
+                print(f"    • {uid}")
 
     else:
         print(f"未知 v2 命令: {cmd}")

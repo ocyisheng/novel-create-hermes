@@ -20,6 +20,7 @@ from .handlers_graph import (
     handle_create_unit,
     handle_update_unit,
     handle_archive_unit,
+    handle_purge_archived,
     handle_add_relation,
     handle_flush,
     handle_fix_asymmetry,
@@ -129,6 +130,10 @@ OPERATION_REGISTRY = {
     "graph.archive_unit": {
         "handler": handle_archive_unit,
         "params": {"project_root": {"required": True}, "id": {"required": True}, "actor": {}},
+    },
+    "graph.purge_archived": {
+        "handler": handle_purge_archived,
+        "params": {"project_root": {"required": True}, "ids": {}, "actor": {}},
     },
     "graph.add_relation": {
         "handler": handle_add_relation,

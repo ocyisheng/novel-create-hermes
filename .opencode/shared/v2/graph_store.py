@@ -558,6 +558,85 @@ class GraphStore:
         self._dirty_nodes = True
         return True
     
+    def purge_archived(self, ids: Optional[List[str]] = None, actor: str = "script") -> dict:
+        """
+        物理删除已归档的叙事单元及其关联边。
+        
+        Args:
+            ids: 要删除的单元 ID 列表。为 None 时删除所有 archived 单元。
+            actor: 操作者标识
+        
+        Returns:
+            {"purged_units": int, "removed_relations": int, "unit_ids": List[str]}
+        """
+        # 确定待删除的单元 ID
+        if ids is not None:
+            target_ids = [
+                uid for uid in ids
+                if uid in self._units and self._units[uid].status == UnitStatus.ARCHIVED
+            ]
+        else:
+            target_ids = [
+                uid for uid, u in self._units.items()
+                if u.status == UnitStatus.ARCHIVED
+            ]
+        
+        if not target_ids:
+            return {"purged_units": 0, "removed_relations": 0, "unit_ids": []}
+        
+        target_set = set(target_ids)
+        
+        # 收集涉及这些单元的所有关系 ID
+        relation_ids_to_remove: Set[str] = set()
+        for uid in target_ids:
+            for rel_id in self._outgoing_edges.get(uid, []):
+                relation_ids_to_remove.add(rel_id)
+            for rel_id in self._incoming_edges.get(uid, []):
+                relation_ids_to_remove.add(rel_id)
+        
+        # 删除关系
+        for rel_id in relation_ids_to_remove:
+            rel = self._relations.pop(rel_id, None)
+            if rel:
+                # 从出边索引移除
+                if rel.source_id in self._outgoing_edges:
+                    self._outgoing_edges[rel.source_id] = [
+                        r for r in self._outgoing_edges[rel.source_id] if r != rel_id
+                    ]
+                # 从入边索引移除
+                if rel.target_id in self._incoming_edges:
+                    self._incoming_edges[rel.target_id] = [
+                        r for r in self._incoming_edges[rel.target_id] if r != rel_id
+                    ]
+        
+        # 删除单元
+        for uid in target_ids:
+            unit = self._units.pop(uid, None)
+            if unit and unit.unit_name in self._unit_by_name:
+                del self._unit_by_name[unit.unit_name]
+        
+        # 记录事件
+        self._record_event(
+            EventType.UNIT_ARCHIVED,
+            actor=actor,
+            target_type="unit",
+            target_ids=target_ids,
+            payload={
+                "action": "purge_archived",
+                "purged_units": len(target_ids),
+                "removed_relations": len(relation_ids_to_remove),
+            },
+        )
+        
+        self._dirty_nodes = True
+        self._dirty_edges = True
+        
+        return {
+            "purged_units": len(target_ids),
+            "removed_relations": len(relation_ids_to_remove),
+            "unit_ids": target_ids,
+        }
+    
     def list_units(self, type: Optional[UnitType] = None) -> List[NarrativeUnit]:
         """列出所有未被归档的叙事单元"""
         return [

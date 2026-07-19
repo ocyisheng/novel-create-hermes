@@ -522,6 +522,29 @@ def handle_archive_unit(project_root: str, id: str, actor: str = "novel-tool") -
     return {"error": "归档失败：叙事单元不存在"}
 
 
+def handle_purge_archived(project_root: str, ids: str = "", actor: str = "novel-tool") -> dict:
+    """
+    物理删除已归档的叙事单元及其关联边。
+    
+    Args:
+        ids: 逗号分隔的单元 ID 列表。为空时删除所有 archived 单元。
+    """
+    store = _get_store(project_root)
+    id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
+    result = store.purge_archived(ids=id_list, actor=actor)
+    store.flush()
+    count = result["purged_units"]
+    rel_count = result["removed_relations"]
+    if count == 0:
+        return {"purged": 0, "removed_relations": 0, "message": "没有已归档的叙事单元需要删除"}
+    return {
+        "purged": count,
+        "removed_relations": rel_count,
+        "unit_ids": result["unit_ids"],
+        "message": f"已物理删除 {count} 个归档单元，移除 {rel_count} 条关联关系",
+    }
+
+
 def handle_add_relation(
     project_root: str,
     source: str,

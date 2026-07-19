@@ -204,25 +204,15 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
 
 拆分时在 SCENE 边界切——后半段 SCENE 创建新章纲、新 CHUNK，重编号后续章节。流程同步骤三。
 
-### 写后自动推进写作进度
+### 进度自动派生
 
-**每完成一章正文写作后，必须更新项目的写作进度：**
+**写作进度不再手动维护。** `project.status` 会在每次调用时从 graph 实时计算进度：
 
-```bash
-# 先读取当前 config，确定当前章节号
-# 然后推进到下一章
-novel-tool --operation project.update_progress --project <PROJECT> --current_chapter <N+1>
-```
+- `当前章` = 所有 active CHUNK 中最大的章号
+- `当前卷` = 当前章所在卷（通过 VOLUME_PLAN 的 chapter_range 推算）
+- `卷进度` = 逐卷统计 CHAPTER_PLAN 的成熟度（mature 数量 / 总数）
 
-如果写了分卷的大纲/分纲，同时更新卷大纲状态：
-```bash
-novel-tool --operation project.update_progress --project <PROJECT> --volume_outline_status "第1卷已完成, 第2卷进行中"
-```
-
-**注意：**
-- 只更新 `当前卷`/`当前章`/`卷大纲状态`/`卷大纲完成数` 四个字段，不要动其他配置
-- 如果一次写了多章（如 5-8 章合写），把 `当前章` 直接推进到最后一章编号
-- 非章节写作操作（角色创建、世界观设定、质检等）不需要更新进度
+不需要写后调用任何进度更新命令。graph 里写了多少 CHUNK，进度就是多少。
 
 ### 叙事密度指引
 
@@ -235,5 +225,5 @@ novel-tool --operation project.update_progress --project <PROJECT> --volume_outl
 3. **写后 flush** — `novel-tool --operation graph.flush --project <PROJECT>`，每次任务完成前必须执行
 4. **标记 actor** — 所有操作传 `--actor novel-v2-crafter`
 5. **不要编辑 graph/ 下的 JSONL 文件** — 通过 novel-tool（底层用 GraphStore API 保障 schema 校验和事件溯源）
-6. **章后更新进度** — 完成章节正文写作后必须调用 `project.update_progress` 推进 `当前章`；非章节操作（角色/世界观/质检）不需要
+6. **进度自动派生** — 写作进度不再手动维护，`project.status` 会从 graph 实时推算。完成章节写作后只需 `graph.flush` 确保持久化，无需调用任何进度更新命令
 7. **写作后分章** — 先写完整内容，写完再判断是否拆分。当场景字数超出密度预算或场景功能已完结时，按「正文分章」流程执行拆分

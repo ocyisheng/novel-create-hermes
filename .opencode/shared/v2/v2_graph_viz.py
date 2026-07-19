@@ -5,16 +5,14 @@ v2_graph_viz.py — V2 叙事单元网络可视化
 不依赖旧 YAML 格式。
 
 用法:
-    python .opencode/shared/v2_graph_viz.py --project-root novels/项目名 [--output 关系图.html] [--open]
-    python .opencode/shared/v2_graph_viz.py --project-root novels/项目名 --character "韩致" [--output 韩致关系图.html] [--open]
-    python .opencode/shared/v2_graph_viz.py --project-root novels/项目名 --timeline "韩致" [--output 韩致时间线.html] [--open]
-    python .opencode/shared/v2_graph_viz.py --project-root novels/项目名 --list-units
+    python .opencode/shared/cli.py viz --project-root novels/项目名 [选项]
+
+CLI 入口已移至 cli.py。本模块为纯函数库，由 cli.py 和 novel_tool.py 调用。
 """
 
 import sys
 import os
 import json
-import argparse
 import webbrowser
 from pathlib import Path
 from typing import Optional
@@ -1033,35 +1031,31 @@ class VizIncrementalEngine:
         }
 
 
-# ── CLI ────────────────────────────────────────────────────────────
+# ── 核心可视化函数（无 argparse 依赖）────────────────────────────
 
-def main():
-    parser = argparse.ArgumentParser(description="V2 叙事单元网络可视化")
-    parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
-    parser.add_argument("--output", "-o", default="", help="输出 HTML 路径")
-    parser.add_argument("--open", action="store_true", help="生成后自动在浏览器打开")
+def generate_viz(
+    project_root: str,
+    output: str = "",
+    character: str = "",
+    timeline: str = "",
+    list_units: bool = False,
+    open_browser: bool = False,
+    incremental: bool = False,
+    force: bool = False,
+):
+    """V2 可视化生成函数。
 
-    # 模式选择
-    parser.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network")
-    parser.add_argument("--timeline", "-t", default="", help="角色名称/ID：生成时间线")
-    parser.add_argument("--list-units", action="store_true", help="列出所有叙事单元")
-
-    # 增量模式
-    parser.add_argument("--incremental", action="store_true",
-                        help="增量模式：只重新生成有变化的页面（基于 unit.version）")
-    parser.add_argument("--force", action="store_true",
-                        help="强制全量重建（忽略 --incremental）")
-
-    args = parser.parse_args()
-
-    project_root = Path(args.project_root).resolve()
-    if not project_root.is_dir():
-        print(f"错误: 项目目录不存在: {project_root}")
+    供 novel_tool.py 等程序化调用，不依赖 argparse。
+    也作为 CLI main() 的后端。
+    """
+    proj = Path(project_root).resolve()
+    if not proj.is_dir():
+        print(f"错误: 项目目录不存在: {proj}")
         sys.exit(1)
 
     # 读项目名
-    project_name = project_root.name
-    config_path = project_root / "config.yaml"
+    project_name = proj.name
+    config_path = proj / "config.yaml"
     if config_path.exists():
         try:
             import yaml
@@ -1072,10 +1066,10 @@ def main():
             pass
 
     # 加载 V2 数据
-    loader = V2GraphLoader(str(project_root))
+    loader = V2GraphLoader(str(proj))
 
     # 列出单元
-    if args.list_units:
+    if list_units:
         rows = loader.list_units()
         if not rows:
             print("(无叙事单元)")
@@ -1087,27 +1081,26 @@ def main():
         return
 
     # 确定输出路径（默认放到项目下的 graph/viz/ 目录）
-    viz_dir = project_root / "graph" / "viz"
-    if args.output:
-        output_path = str(Path(args.output).resolve())
-        # 当指定了 --output, 用输出文件的父目录作为 detail 目录
+    viz_dir = proj / "graph" / "viz"
+    if output:
+        output_path = str(Path(output).resolve())
         viz_dir = Path(output_path).parent
     else:
         viz_dir.mkdir(parents=True, exist_ok=True)
-        if args.timeline:
-            output_path = str(viz_dir / f"{args.timeline}_时间线.html")
-        elif args.character:
-            output_path = str(viz_dir / f"{args.character}_关系图.html")
+        if timeline:
+            output_path = str(viz_dir / f"{timeline}_时间线.html")
+        elif character:
+            output_path = str(viz_dir / f"{character}_关系图.html")
         else:
             output_path = str(viz_dir / "全项目关系图.html")
 
     gen = V2HTMLGenerator(project_name)
 
     # 时间线模式
-    if args.timeline:
-        unit_id = loader.find_unit_id(args.timeline)
+    if timeline:
+        unit_id = loader.find_unit_id(timeline)
         if not unit_id:
-            print(f"错误: 未找到角色/单元: {args.timeline}")
+            print(f"错误: 未找到角色/单元: {timeline}")
             sys.exit(1)
         data = loader.build_timeline(unit_id)
         if not data:
@@ -1117,20 +1110,20 @@ def main():
         print(f"✅ 时间线已生成: {output_path}")
         print(f"   实体: {data['entity']['name']}")
         print(f"   事件: {len(data['events'])} 个")
-        if args.open:
+        if open_browser:
             webbrowser.open(output_path)
         return
 
     # 角色 Ego Network 模式
-    if args.character:
-        unit_id = loader.find_unit_id(args.character)
+    if character:
+        unit_id = loader.find_unit_id(character)
         if not unit_id:
-            print(f"错误: 未找到角色: {args.character}")
+            print(f"错误: 未找到角色: {character}")
             sys.exit(1)
         data = loader.build_character_network(unit_id)
         center_name = data.get("center_id", "")
         u = loader.store.get_unit(center_name) if center_name else None
-        cname = u.unit_name if u else args.character
+        cname = u.unit_name if u else character
         graph_filename = os.path.basename(output_path)
         gen.generate_graph(data, output_path)
 
@@ -1141,12 +1134,12 @@ def main():
         print(f"✅ 角色关系图已生成: {output_path}")
         print(f"   角色: {cname}")
         print(f"   节点: {len(data['nodes'])} 个, 关系: {len(data['edges'])} 条")
-        if args.open:
+        if open_browser:
             webbrowser.open(output_path)
         return
 
     # 默认：全项目图谱
-    use_incremental = args.incremental and not args.force
+    use_incremental = incremental and not force
     detail_dir = viz_dir / "detail"
 
     if use_incremental:
@@ -1157,7 +1150,7 @@ def main():
 
         if not graph_needs_rebuild and not changed_ids and not archived_ids:
             print(f"ℹ️  V2 关系图无变更, 跳过生成 (使用 --force 强制全量)")
-            if args.open:
+            if open_browser:
                 webbrowser.open(output_path)
             return
 
@@ -1193,7 +1186,6 @@ def main():
         elif archived_ids:
             print(f"   详情页: 仅清理, 无变更节点需重新生成")
         else:
-            # 只有关系变更（边增减），节点内容未变 → 主图已重建，详情页不需要重做
             print(f"   详情页: 关系变更不影响详情页, 跳过")
 
         # 保存增量状态
@@ -1218,9 +1210,8 @@ def main():
         stats = loader.store.stats()
         print(f"   V2 graph: {stats['total_units']} 叙事单元, {stats['total_relations']} 关系")
 
-    if args.open:
+    if open_browser:
         webbrowser.open(output_path)
 
 
-if __name__ == "__main__":
-    main()
+

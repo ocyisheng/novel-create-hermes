@@ -29,13 +29,21 @@ novel-create-hermes/              ← 工具项目根目录
 │   │   └── novel-search-analysis.md ← 深度诊断引擎
 │   ├── skills/                    ← 9 个项目技能（novel-v2 / project-manager / env-setup / search-analysis / novel-grill / novel-ideation / book-knowledge / book-to-knowledge / humanizer-zh-enhanced）
 │   ├── shared/
+│   │   ├── handlers/               ← 纯业务逻辑函数库
+│   │   │   ├── __init__.py             ← OPERATION_REGISTRY + run_operation()
+│   │   │   ├── handlers_graph.py       ← graph CRUD、搜索、导出、层级查询
+│   │   │   ├── handlers_project.py     ← 项目管理
+│   │   │   ├── handlers_env.py         ← 环境检测/修复
+│   │   │   ├── handlers_session.py     ← 会话管理
+│   │   │   ├── handlers_deviation.py   ← 偏差管理
+│   │   │   └── handlers_knowledge.py   ← 知识库查询
 │   │   ├── tools/
-│   │   │   └── novel_tool.py       ← novel-tool Python 实现（参数读取 + 操作路由）
+│   │   │   └── novel_tool.py       ← novel-tool 薄 JSON 适配层（参数映射 → handlers）
+│   │   ├── cli.py                  ← 统一 CLI 入口（argparse + 输出格式化，调用 handlers）
 │   │   └── v2/                     ← V2 引擎核心代码
 │   │       ├── graph_store.py          ← 叙事单元 CRUD + 事件溯源
 │   │       ├── search_engine.py        ← 搜索/一致性检查引擎
 │   │       ├── deviation_manager.py    ← 偏差状态持久化管理
-│   │       ├── v2_cli.py               ← CLI 入口（search/check/report/viz/stats/list-units）
 │   │       ├── v2_graph_viz.py         ← 关系图/时间线可视化
 │   │       ├── projection_engine.py    ← graph → 文件系统投影
 │   │       ├── migrate.py              ← V1 → V2 迁移

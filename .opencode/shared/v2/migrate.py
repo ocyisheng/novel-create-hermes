@@ -2,12 +2,10 @@
 V2 迁移工具：将现有项目文件导入到叙事单元网络（graph）。
 
 用法:
-    python .opencode/shared/v2/migrate.py --project-root NOVELS_ROOT/项目名
-    python .opencode/shared/v2/migrate.py --project-root NOVELS_ROOT/项目名 --verify
-    python .opencode/shared/v2/migrate.py --project-root NOVELS_ROOT/项目名 --dry-run
-    python .opencode/shared/v2/migrate.py --list-projects
-    python .opencode/shared/v2/migrate.py --project-root NOVELS_ROOT/项目名 --report
-    
+    python .opencode/shared/cli.py migrate --project-root NOVELS_ROOT/项目名 [选项]
+
+CLI 入口已移至 cli.py。本模块为纯函数库，由 cli.py 和 novel_tool.py 调用。
+
 支持的文件类型（完整清单）：
   - characters/*.yaml      → CHARACTER_ARC
   - worldbuilding/*.yaml   → WORLD_RULE
@@ -31,7 +29,6 @@ import sys
 import os
 import json
 import yaml
-import argparse
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -572,12 +569,11 @@ def generate_report(scanner: ProjectScanner, import_result: Dict[str, Any],
     return "\n".join(lines)
 
 
-# ── 主 CLI ────────────────────────────────────────────────────────────────
+# ── 程序化迁移入口（无 argparse 依赖）─────────────────────────────────
 
 def find_projects(base_dir: str) -> List[str]:
     """在 NOVELS_ROOT 下发现项目"""
     root = Path(base_dir)
-    # 查找所有包含 config.yaml 的目录
     projects = []
     for subdir in root.iterdir():
         if subdir.is_dir() and (subdir / "config.yaml").exists():
@@ -585,109 +581,72 @@ def find_projects(base_dir: str) -> List[str]:
     return sorted(projects)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="V2 迁移工具：将项目导入到叙事单元网络")
-    parser.add_argument("--project-root", help="项目根目录绝对路径")
-    parser.add_argument("--dry-run", action="store_true", help="只扫描不写入")
-    parser.add_argument("--verify", action="store_true", help="迁移后执行验证")
-    parser.add_argument("--report", action="store_true", help="生成迁移报告")
-    parser.add_argument("--list-projects", action="store_true", help="列出可迁移的项目")
-    parser.add_argument("--novels-root", default="",
-                        help="NOVELS_ROOT 路径（用于 --list-projects）")
-    parser.add_argument("--normalize", action="store_true",
-                        help="统一 graph/nodes.jsonl 中子类型字段名与值（旧→新）")
-    
-    args = parser.parse_args()
-    
-    if args.list_projects:
-        base = args.novels_root or os.path.join(os.getcwd(), "novels")
-        projects = find_projects(base)
-        if projects:
-            print(f"发现 {len(projects)} 个项目:")
-            for p in projects:
-                print(f"  {os.path.join(base, p)}")
-        else:
-            print(f"在 {base} 下未找到项目（没有 config.yaml 的目录）")
-        return
-    
-    if args.normalize:
-        if not args.project_root:
-            print("错误: --normalize 需要 --project-root")
-            sys.exit(1)
-        stats = normalize_subtype_fields(args.project_root, dry_run=args.dry_run)
-        print(f"扫描节点: {stats.get('nodes_scanned', 0)}")
-        print(f"修复节点: {stats.get('nodes_fixed', 0)}")
-        if "by_type" in stats:
-            for t, n in sorted(stats["by_type"].items()):
-                print(f"  {t}: {n}")
-        if "error" in stats:
-            print(f"❌ {stats['error']}")
-        elif stats.get("nodes_fixed", 0) == 0:
-            print("✅ 无需迁移")
-        elif not args.dry_run:
-            print("✅ 迁移完成（备份: nodes.jsonl.bak）")
-        return
+def run_migration(
+    project_root: str,
+    dry_run: bool = False,
+    verify: bool = False,
+    report: bool = False,
+) -> dict:
+    """执行 V1→V2 迁移。
 
-    if not args.project_root:
-        parser.print_help()
-        print("\n错误: 需要 --project-root 或 --list-projects")
-        sys.exit(1)
-    
-    project_root = Path(args.project_root)
-    if not project_root.exists():
-        print(f"错误: 项目路径不存在: {project_root}")
-        sys.exit(1)
-    
+    可供 novel_tool.py 等程序化调用，不依赖 argparse。
+
+    Returns:
+        迁移统计字典，包含 created/skipped/errors/total_units/total_relations 等。
+    """
+    pr = Path(project_root)
+    if not pr.exists():
+        return {"error": f"项目路径不存在: {project_root}"}
+
     print(f"V2 迁移工具")
-    print(f"项目: {project_root}")
-    print(f"模式: {'Dry Run' if args.dry_run else '执行'}")
+    print(f"项目: {pr}")
+    print(f"模式: {'Dry Run' if dry_run else '执行'}")
     print()
-    
+
     # Step 1: 扫描
     print("📁 扫描项目文件...")
-    scanner = ProjectScanner(str(project_root))
-    files = scanner.scan()
+    scanner = ProjectScanner(str(pr))
+    scanner.scan()
     summary = scanner.summary()
     total = sum(summary.values())
     print(f"  发现 {total} 个文件")
     for cat, count in sorted(summary.items()):
         print(f"    {cat}: {count}")
     print()
-    
+
     if total == 0:
         print("没有可迁移的文件。项目可能已经迁移过了。")
-        # 检查是否已有 graph 目录
-        graph_dir = project_root / "graph"
+        result = {"skipped": True}
+        graph_dir = pr / "graph"
         if graph_dir.exists():
-            store = GraphStoreImpl(str(project_root))
+            store = GraphStoreImpl(str(pr))
             store.initialize()
             stats = store.stats()
             print(f"\ngraph 目录已存在:")
             print(f"  叙事单元: {stats['total_units']}")
             print(f"  关系: {stats['total_relations']}")
             print(f"  事件: {stats['total_events']}")
-        return
-    
-    if args.dry_run:
+            result.update(stats)
+        return result
+
+    if dry_run:
         print("Dry Run 模式 - 不执行导入")
-        print("使用 --project-root 指定真实项目路径来执行迁移")
-        return
-    
+        return {"dry_run": True, "total_files": total}
+
     # Step 2: 初始化 graph 存储
     print("🗄️  初始化 graph 存储...")
-    store = GraphStoreImpl(str(project_root))
+    store = GraphStoreImpl(str(pr))
     store.initialize()
-    
+
     # Step 3: 导入
     print("📥 导入文件到 graph...")
     importer = ImportEngine(store)
-    
-    # 文件类型 → UnitType 映射
+
     type_map = {
         "characters": UnitType.CHARACTER_ARC,
         "worldbuilding": UnitType.WORLD_RULE,
         "plot_threads": UnitType.PLOT_THREAD,
-        "outlines": UnitType.CHAPTER_PLAN,   # V1 分纲文件映射为章纲
+        "outlines": UnitType.CHAPTER_PLAN,
         "volumes": UnitType.NOTE,
         "synopsis": UnitType.NOTE,
         "narrative_strategy": UnitType.NARRATIVE_VOICE,
@@ -699,8 +658,7 @@ def main():
         "quality": UnitType.NOTE,
         "styles": UnitType.NOTE,
     }
-    
-    # 特殊标签
+
     tag_map = {
         "foreshadowing": ["伏笔"],
         "ideation": ["创意"],
@@ -712,13 +670,11 @@ def main():
         "narrative_strategy": ["叙事策略"],
         "timeline": ["时间线"],
     }
-    
+
     for category, unit_type in type_map.items():
         tags = tag_map.get(category, [])
         for fpath in scanner.files.get(category, []):
-            # 尝试提取章节号
             chapter = None
-            volume = None
             if category == "outlines":
                 stem = fpath.stem
                 if "第" in stem and "章" in stem:
@@ -727,19 +683,10 @@ def main():
                         chapter = int(ch_str)
                     except ValueError:
                         pass
-                # 提取卷号
-                parts = fpath.parts
-                for p in parts:
-                    if "卷" in p:
-                        try:
-                            volume = int(p.replace("卷", ""))
-                        except ValueError:
-                            pass
-            
-            importer.import_file(fpath, unit_type, 
+            importer.import_file(fpath, unit_type,
                                 extra_tags=tags,
                                 chapter_number=chapter)
-    
+
     importer_report = importer.report()
     print(f"  创建: {importer_report['created']}")
     print(f"  跳过: {importer_report['skipped']}")
@@ -748,7 +695,7 @@ def main():
         for err in importer_report['error_details']:
             print(f"    {err}")
     print()
-    
+
     # Step 4: 构建关系
     print("🔗 建立关系...")
     rel_builder = RelationBuilder(store)
@@ -756,46 +703,59 @@ def main():
     rel_report = rel_builder.report()
     print(f"  新增关系: {rel_report['relations_added']}")
     print()
-    
+
     # Step 5: 创建快照
     print("📸 创建迁移快照...")
     snapshot = store.create_snapshot({"reason": "migration", "files_imported": total})
     print(f"  快照: {snapshot.snapshot_id}")
     store.flush()
     print()
-    
+
+    # 收集结果
+    result = {
+        "created": importer_report.get("created", 0),
+        "skipped": importer_report.get("skipped", 0),
+        "errors": importer_report.get("error_count", 0),
+        "relations_added": rel_report.get("relations_added", 0),
+    }
+
     # Step 6: 验证
-    if args.verify:
+    if verify:
         print("✅ 验证迁移完整性...")
         verifier = MigrationVerifier(store, scanner)
         verify_result = verifier.verify()
         for check in verify_result["checks"]:
             mark = "✅" if check["status"] == "pass" else "⚠️" if check["status"] == "warning" else "❌"
             print(f"  {mark} {check['name']}: {check['detail']}")
+        result["verify"] = verify_result
         print()
-    
+
     # Step 7: 报告
-    if args.report:
+    if report:
         print("📄 生成迁移报告...")
         verifier = MigrationVerifier(store, scanner)
         verify_result = verifier.verify()
-        report = generate_report(scanner, importer_report, rel_report, verify_result)
-        
-        report_path = project_root / "graph" / "migration_report.md"
-        report_path.write_text(report, encoding="utf-8")
+        report_text = generate_report(scanner, importer_report, rel_report, verify_result)
+        report_path = pr / "graph" / "migration_report.md"
+        report_path.write_text(report_text, encoding="utf-8")
         print(f"  报告已写入: {report_path}")
         print()
-        print(report)
+        print(report_text)
     else:
-        # 简易统计
         stats = store.stats()
         print(f"📊 Graph 统计:")
         print(f"  叙事单元: {stats['total_units']}")
         print(f"  关系: {stats['total_relations']}")
         print(f"  事件: {stats['total_events']}")
+        result.update(stats)
         print()
-    
+
     print("✅ 迁移完成")
+    result["status"] = "completed"
+    return result
+
+
+
 
 
 # ── V2 数据规范化：子类型字段统一 ────────────────────────────────────────
@@ -957,5 +917,4 @@ def _map_old_value(
     return old_val
 
 
-if __name__ == "__main__":
-    main()
+

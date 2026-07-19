@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-project_init.py — 项目管理中心
+project_init.py — 项目管理（兼容桥接层）
 
 管理小说项目的创建、导入、状态查看、续写、切换和删除。
 
-用法:
-    python .opencode/shared/project_init.py new "项目名" "类型" [--volumes N] [--acts N] [--structure 名称]
-    python .opencode/shared/project_init.py import "源路径" "项目名" [--volumes N]
-    python .opencode/shared/project_init.py status "项目名" [--phase 阶段]
-    python .opencode/shared/project_init.py resume "项目名"
-    python .opencode/shared/project_init.py switch "项目名" [--dry-run] [--skip-sync] [--no-verify]
-    python .opencode/shared/project_init.py delete "项目名" [--force]
+业务逻辑已迁移至 handlers/handlers_project.py。
+cli.py 直接调用 handlers，不再经过本模块。
+run_project_command() 保留作为向后兼容接口，内部委托给 handlers。
 
 依赖: Python 3.8+, PyYAML
 """
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 import shutil
@@ -162,8 +157,8 @@ def cmd_new(args):
     print(f"   章节: {'+'.join(str(d) for d in chapter_dist)} = {sum(chapter_dist)} 章")
     print()
     print(f"   下一步：运行 V2 迁移即可开始创作")
-    print(f"   python .opencode/shared/v2/migrate.py --project-root \"{proj_dir}\" --verify --report")
-    print(f"   python .opencode/shared/v2_cli.py batch-infer --path \"{proj_dir}\"")
+    print(f"   python .opencode/shared/cli.py migrate --project-root \"{proj_dir}\" --verify --report")
+    print(f"   python .opencode/shared/cli.py v2 batch-infer --path \"{proj_dir}\"")
 
 
 def _cmd_new_v2(args):
@@ -293,9 +288,9 @@ def cmd_import(args):
     if not has_graph:
         print()
         print(f"💡 建议执行 V2 迁移以获得完整功能：")
-        print(f"   python .opencode/shared/v2/migrate.py "
+        print(f"   python .opencode/shared/cli.py migrate "
               f"--project-root \"{proj_dir}\" --verify --report")
-        print(f"   python .opencode/shared/v2_cli.py batch-infer "
+        print(f"   python .opencode/shared/cli.py v2 batch-infer "
               f"--path \"{proj_dir}\"")
 
 
@@ -451,54 +446,19 @@ def cmd_delete(args):
     print(f"✅ 项目「{name}」已删除")
 
 
-# ── 主入口 ────────────────────────────────────────────────────────────────
+# ── 程序化调度入口（无 argparse 依赖）─────────────────────────────────
 
-def main():
-    parser = argparse.ArgumentParser(description="novel-create-hermes 项目管理")
-    sub = parser.add_subparsers(dest="command")
+def run_project_command(command: str, **kwargs):
+    """运行项目管理命令。
 
-    # new
-    p = sub.add_parser("new", help="新建小说项目")
-    p.add_argument("name", help="项目名称")
-    p.add_argument("genre", help="项目类型（玄幻/仙侠/都市/悬疑/科幻...）")
-    p.add_argument("--volumes", type=int, default=3, help="卷数（默认 3）")
-    p.add_argument("--acts", type=int, default=3, help="幕数（默认 3）")
-    p.add_argument("--structure", default="三幕", help="结构类型名称（默认 三幕）")
-    p.add_argument("--v2", action="store_true", help="创建 V2 原生项目（不建旧 YAML 目录）")
+    供 novel_tool.py 等程序化调用，不依赖 argparse。
 
-    # import
-    p = sub.add_parser("import", help="导入已有小说")
-    p.add_argument("source", help="源路径")
-    p.add_argument("name", help="项目名称")
-    p.add_argument("--volumes", type=int, default=3, help="卷数（默认 3）")
-
-    # status
-    p = sub.add_parser("status", help="查看项目状态")
-    p.add_argument("name", help="项目名称")
-    p.add_argument("--phase", default="", help="更新阶段标识")
-
-    # resume
-    p = sub.add_parser("resume", help="续写项目")
-    p.add_argument("name", help="项目名称")
-
-    # switch
-    p = sub.add_parser("switch", help="切换项目")
-    p.add_argument("name", help="目标项目名称")
-    p.add_argument("--dry-run", action="store_true", help="仅预览，不修改")
-    p.add_argument("--skip-sync", action="store_true", help="跳过索引同步")
-    p.add_argument("--no-verify", action="store_true", help="跳过验证")
-
-    # delete
-    p = sub.add_parser("delete", help="删除项目")
-    p.add_argument("name", help="项目名称")
-    p.add_argument("--force", action="store_true", help="跳过确认")
-
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        return
-
+    Args:
+        command: 子命令名 (new/import/status/resume/switch/delete)
+        **kwargs: 对应命令的参数（与 argparse 参数名一致）
+    """
+    from types import SimpleNamespace
+    args = SimpleNamespace(**kwargs)
     dispatch = {
         "new": cmd_new,
         "import": cmd_import,
@@ -507,9 +467,11 @@ def main():
         "switch": cmd_switch,
         "delete": cmd_delete,
     }
+    fn = dispatch.get(command)
+    if fn:
+        fn(args)
+    else:
+        print(f"错误: 未知命令 {command}")
 
-    dispatch[args.command](args)
 
 
-if __name__ == "__main__":
-    main()

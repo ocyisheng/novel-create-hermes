@@ -1,27 +1,22 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-setup.py — novel-env-setup 环境验证与修复脚本
+env_setup.py — 环境验证与修复
 
 支持多小说项目共享 .venv。
 .venv 自动发现顺序：CWD → CWD父目录 → 向上回溯 → 工具根目录。
-也可用 --root 显式指定小说项目根目录。
+也可用 --root 显式指定工具根目录。
 
-⚠️  前提：系统必须已安装 Python 3.8+。
-    Python 未安装时无法运行此脚本，必须由 Agent 用系统命令检测，
-    并通过 setup_env.bat / setup_env.sh 创建虚拟环境。
-
-本脚本职责（在 Python 可用后）：
+本模块职责（作为纯函数库，由 cli.py 和 novel_tool.py 调用）：
 1. 验证 .venv 是否存在且可用
 2. 验证核心依赖是否已安装
 3. 自动修复缺失依赖
 4. 输出环境状态报告
 
 用法:
-    python setup.py                    # 验证环境状态
-    python setup.py --fix              # 自动修复缺失依赖
-    python setup.py --force            # 强制重建 .venv
-    python setup.py --root novels/     # 指定小说项目根目录
+    python .opencode/shared/cli.py env [--fix] [--force] [--root <路径>]
+
+CLI 入口已移至 cli.py。
 """
 
 import os
@@ -236,32 +231,30 @@ def print_status() -> int:
 
 
 # ===========================================================================
-# CLI 入口
+# 程序化入口（无 argparse 依赖）
 # ===========================================================================
 
-def main():
-    import argparse
+def run_env_setup(
+    fix: bool = False,
+    force: bool = False,
+    root: str = "",
+) -> int:
+    """运行环境验证与修复。
 
-    parser = argparse.ArgumentParser(
-        description="novel-create-hermes 环境验证与修复",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例:
-  python setup.py                     # 检查环境状态
-  python setup.py --fix               # 自动修复缺失依赖
-  python setup.py --force             # 强制重建 .venv
-  python setup.py --root novels/      # 指定小说项目根目录
-        """
-    )
-    parser.add_argument("--fix", action="store_true", help="自动修复缺失依赖")
-    parser.add_argument("--force", action="store_true", help="强制重建 .venv")
-    parser.add_argument("--root", type=str, help="工具根目录（novel-create-hermes/，.venv 所在位置）")
-    args = parser.parse_args()
+    供 novel_tool.py 等程序化调用，不依赖 argparse。
 
-    # 如果传入了 --root，覆盖 .venv 路径
-    if args.root:
-        global VENV_DIR
-        root_path = Path(args.root).resolve()
+    Args:
+        fix: 自动修复缺失依赖
+        force: 强制重建 .venv
+        root: 工具根目录（覆盖 .venv 路径）
+
+    Returns:
+        0 = 就绪, 1 = 未就绪
+    """
+    global VENV_DIR
+
+    if root:
+        root_path = Path(root).resolve()
         VENV_DIR = root_path / ".venv"
         print(f"📂 使用指定根目录: {root_path}")
 
@@ -269,7 +262,6 @@ def main():
     print("novel-create-hermes 环境验证")
     print("=" * 50)
 
-    # 1. 检查 Python 版本
     version_ok, version_str = check_python_version()
     if not version_ok:
         print(f"\n❌ Python 版本 {version_str} 不满足要求（需要 >= 3.8）")
@@ -278,18 +270,15 @@ def main():
 
     print(f"✅ Python {version_str}")
 
-    # 2. 强制模式：重建环境
-    if args.force:
+    if force:
         if force_recreate_venv():
             print("\n✅ 环境已重建")
             return print_status()
         return 1
 
-    # 3. 检查环境状态
     exit_code = print_status()
 
-    # 4. 如果未就绪且传入了 --fix，尝试修复
-    if exit_code != 0 and args.fix:
+    if exit_code != 0 and fix:
         if check_venv_exists():
             venv_python = get_venv_python()
             if fix_dependencies(venv_python):
@@ -305,5 +294,4 @@ def main():
     return exit_code
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+

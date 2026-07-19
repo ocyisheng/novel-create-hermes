@@ -98,7 +98,7 @@ Grill 后可选 `novel-ideation` 生成方案再路由到 crafter。
 旧项目可通过迁移工具导入到 V2：
 
 ```bash
-python .opencode/shared/v2/migrate.py --project-root NOVELS_ROOT/项目名 --verify --report
+python .opencode/shared/cli.py migrate --project-root NOVELS_ROOT/项目名 --verify --report
 ```
 
 迁移后原有文件不变，新增 `graph/` 目录作为真相源。

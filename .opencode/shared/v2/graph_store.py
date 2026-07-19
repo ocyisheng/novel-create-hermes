@@ -782,6 +782,8 @@ class GraphStore:
         path: List[Any] = []
         visited: Set[str] = {unit_id}
         current = unit_id
+        _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                            UnitType.CHAPTER_PLAN}
         while True:
             # 找当前节点的 CONTAINS 入边（即"谁包含我"）
             parents = self.get_relations(current, relation_type=RelationType.CONTAINS, direction="incoming")
@@ -792,8 +794,6 @@ class GraphStore:
                 break
             visited.add(parent.id)
             # 尝试从父节点提取路径片段
-            _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
-                                UnitType.CHAPTER_PLAN}
             if parent.type in _STRUCTURE_TYPES:
                 # 优先使用 extra 中的"层级序号"（若有）
                 extra = parent.extra or {}

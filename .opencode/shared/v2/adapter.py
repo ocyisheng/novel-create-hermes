@@ -409,6 +409,10 @@ class LegacyFileAdapter:
                     chapter = idx["章节号"]
                 if "所属分卷" in idx:
                     volume = idx["所属分卷"]
+                # 将嵌套的旧子类型提升到 content 顶层，供 normalize_subtype_fields 统一处理
+                legacy_subtype = idx.get("实体子类型", "")
+                if legacy_subtype and "子类型" not in data:
+                    data["子类型"] = legacy_subtype
             
             content = json.dumps(data, ensure_ascii=False)
         

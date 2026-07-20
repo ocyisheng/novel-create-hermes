@@ -417,30 +417,40 @@ class SessionManager:
 
     def recommend_preheat_level(self) -> str:
         """
-        根据当前用户状态，推荐数据预热级别。
+        根据当前用户状态和焦点类型，推荐数据预热级别。
         
         返回 "cold" | "warm" | "hot"
+        
+        优先级规则（由编排层 novel-writer.md 定义）：
+        1. 有活跃会话 → 使用本方法的返回值
+        2. 无活跃会话 → 使用路由表默认值
         """
         if not self.active_session:
             return "cold"
 
-        # 修订循环 → 需要更多上下文
+        focus_type = self.active_session.focus.type if self.active_session.focus else None
+
+        # NOTE 类型：最小上下文，无需预热
+        if focus_type == UnitType.NOTE:
+            return "cold"
+
+        # 修订循环（多轮迭代）→ 需要全量上下文
         if self.user_state.current_cycle > 1:
             return "hot"
 
-        # 低精力 → 少加载数据
+        # 低精力 → 少加载数据，减轻认知负担
         if self.user_state.energy_level == EnergyLevel.LOW:
             return "cold"
 
-        # 高精力 + 首次写作 → 适当加载
-        if self.active_session.cycle_type == CycleType.EXPANSION:
-            return "warm"
-
-        # 精修 → 全量加载
-        if self.active_session.cycle_type == CycleType.REFINEMENT:
-            return "hot"
-
-        return "warm"
+        # 按 cycle_type 调整预热级别
+        cycle_map = {
+            CycleType.EXPANSION: "warm",
+            CycleType.REFINEMENT: "hot",
+            CycleType.PROOFING: "warm",
+            CycleType.PLANNING: "warm",
+            CycleType.IDEATION: "cold",
+        }
+        return cycle_map.get(self.active_session.cycle_type, "warm")
 
     # ── 钩子系统 ─────────────────────────────────────────────────────────
 

@@ -152,7 +152,7 @@ novel-tool --operation graph.flush --project {PROJECT}
 ```
 novel-tool --operation graph.create_unit --project {PROJECT} --type CHAPTER_PLAN \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
-  --chapter {N} --content '{"子类型":"章纲","结构模式":"...","本章功能":"..."}'
+  --chapter {N} --content '{"章节号":N,"章节名":"...","本章功能":"开篇","场景序列":[{"场景名":"场景1","定位":"...","字数预计":0}],...}'
 ```
 
 **第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。

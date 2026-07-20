@@ -36,7 +36,7 @@ ideation 的输出通过 task 响应文本传递，不写入 graph，由编排�
 
 **输入**：
 - `### 创作需求`（来自 grill）
-- FOCUS TYPE / FOCUS ID / FOCUS NAME + 焦点单元 1 度邻居
+- FOCUS TYPE（scene/character_arc/plot_thread/world_rule/narrative_voice/thematic_motif/structure）/ FOCUS ID / FOCUS NAME + 焦点单元 1 度邻居
 - 可选：`### 知识库参考`（编排层注入，用于 with_knowledge 场景）
 
 **方法**：

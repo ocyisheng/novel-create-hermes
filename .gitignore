@@ -45,7 +45,7 @@ knowledge/
 oh-my-openagent/
 # ----- 测试和覆盖率 -----
 .pytest_cache
-tests/
+# tests/ 已统一到 shared/tests/ 并纳入版本控制
 .coverage
 pyproject.toml
 .opencode/skills/novel-grill/result-card.html

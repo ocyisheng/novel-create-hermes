@@ -26,7 +26,7 @@ Grill **不做持久化存储**。确认的需求清单通过编排层直接传�
 |-----------|------|
 | `CURRENT PROJECT` | 小说项目名称 |
 | `PROJECT PATH` | 项目绝对路径 |
-| `FOCUS TYPE` | 8 个聚焦类型之一：scene / character_arc / plot_thread / world_rule / note / structure / narrative_voice / thematic_motif |
+| `FOCUS TYPE` | 8 个聚焦类型之一：scene / character_arc / plot_thread / world_rule / note / narrative_voice / thematic_motif / structure（结构类统称，编排层将 outline/arc_plan/volume_plan/chapter_plan 归一化后传入） |
 | `FOCUS NAME` | 目标叙事单元名称（可选，为空表示新建） |
 
 Grill 在追问过程中自行通过 novel-tool 查询需要的 graph 数据：

@@ -102,7 +102,6 @@ def handle_session_info(project_root: str) -> dict:
     s = mgr.active_session
     iteration_count = 0
     exist_chunks = []
-    preheat = "warm"
 
     if s.focus and s.focus.type and hasattr(s.focus.unit_id, '__str__'):
         try:
@@ -140,8 +139,6 @@ def handle_session_info(project_root: str) -> dict:
                         if n and n.type == UnitType.CHUNK:
                             chunk_ids.add(nid)
                 iteration_count = len(chunk_ids)
-                if iteration_count > 0:
-                    preheat = "hot"
         except Exception:
             pass
 
@@ -153,7 +150,7 @@ def handle_session_info(project_root: str) -> dict:
         "session_phase": s.phase.value if hasattr(s.phase, 'value') else str(s.phase) if hasattr(s, 'phase') and s.phase else None,
         "iteration_count": iteration_count,
         "exist_chunks": exist_chunks,
-        "preheat": preheat,
+        "preheat": mgr.recommend_preheat_level(),
     }
 
 

@@ -27,7 +27,7 @@ if V2_DIR not in sys.path:
 
 from graph_schema import UnitType, RelationType, UnitStatus
 from graph_store import GraphStore
-from render_utils import render_content, summarize_content
+
 
 
 # ── V2 类型 → 可视化映射 ──────────────────────────────────────────
@@ -349,13 +349,9 @@ class V2GraphLoader:
             border_width = 2
 
         extra = {}
-        pre_rendered_html = ""
         try:
             if u.content and u.content.startswith("{"):
                 extra = json.loads(u.content)
-                if isinstance(extra, dict):
-                    rendered = render_content(extra)
-                    pre_rendered_html = "".join(r["html"] for r in rendered if r["html"])
             elif u.content:
                 extra["_preview"] = u.content[:100]
         except json.JSONDecodeError:
@@ -389,7 +385,6 @@ class V2GraphLoader:
             "chapter": get_unit_chapter(u),
             "chapter_label": get_unit_chapter_label(u),
             "extra": extra,
-            "pre_rendered_html": pre_rendered_html,
             "is_center": is_center,
             "hop": hop,
         }
@@ -487,6 +482,7 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
     {filter_options}
   </select></label>
   <label>搜索: <input id="searchBox" type="text" placeholder="名称..." style="width:160px"></label>
+  <button id="btnFreeze" onclick="togglePhysics()" style="padding:4px 12px;border-radius:4px;border:1px solid #3a3a5a;background:#16213e;color:#e0e0e0;font-size:13px;cursor:pointer">🧊 冻结布局</button>
   <span class="stats">{node_count} 个节点 · {edge_count} 条关系</span>
 </div>
 
@@ -547,29 +543,82 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
       }}))
   );
 
+  const isLargeGraph = Object.keys(nodeData).length > 200;
+
+  // ── 自适应物理引擎 ──
+  const physicsConfig = isLargeGraph ? {{
+    solver: 'barnesHut',
+    barnesHut: {{
+      gravitationalConstant: -3000,
+      centralGravity: 0.3,
+      springLength: 95,
+      springConstant: 0.04,
+      damping: 0.5,
+      avoidOverlap: 0.1,
+    }},
+    stabilization: {{ iterations: 50, updateInterval: 25 }},
+  }} : {{
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {{
+      gravitationalConstant: -60,
+      centralGravity: 0.01,
+      springLength: 150,
+      springConstant: 0.03,
+      damping: 0.5,
+    }},
+    stabilization: {{ iterations: 30, updateInterval: 10 }},
+  }};
+
   // 配置
   const options = {{
     layout: {{ improvedLayout: false, hierarchical: false }},
-    physics: {{
-      solver: 'forceAtlas2Based',
-      forceAtlas2Based: {{
-        gravitationalConstant: -60,
-        centralGravity: 0.01,
-        springLength: 150,
-        springConstant: 0.03,
-        damping: 0.5,
-      }},
-      stabilization: {{ iterations: 30, updateInterval: 10 }},
-    }},
+    physics: physicsConfig,
     interaction: {{
       dragNodes: true, dragView: true, zoomView: true,
       hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true,
     }},
-    edges: {{ smooth: {{ type: 'continuous' }} }},
+    edges: {{ smooth: isLargeGraph ? false : {{ type: 'continuous' }} }},
   }};
 
   const container = document.getElementById('network');
   const network = new vis.Network(container, {{ nodes, edges }}, options);
+
+  // ── 大图自动聚类 ──
+  if (isLargeGraph) {{
+    (function tryCluster() {{
+      var threshold = Math.max(30, Math.floor(Object.keys(nodeData).length / 15));
+      try {{
+        // vis-network v9+
+        if (typeof network.clustering === 'object' && network.clustering.clusterOutliers) {{
+          network.clustering.clusterOutliers({{ clusterThreshold: threshold }});
+          return;
+        }}
+        // vis-network v8-
+        if (typeof network.clusteringOutliers === 'function') {{
+          network.clusteringOutliers({{ clusterThreshold: threshold }});
+          return;
+        }}
+        // 手动聚类：按连接数合并
+        var degree = {{}};
+        edgeData.forEach(function(e) {{ degree[e.from] = (degree[e.from]||0)+1; degree[e.to] = (degree[e.to]||0)+1; }});
+        var clusterNodes = Object.keys(degree).filter(function(id) {{ return degree[id] <= 2; }});
+        if (clusterNodes.length > threshold) {{
+          network.cluster({{ joinCondition: function(n) {{ return clusterNodes.indexOf(n.id) >= 0; }}, clusterNode: {{ shape: 'dot', size: 10, color: 'rgba(100,100,100,0.3)' }} }});
+        }}
+      }} catch(e) {{ /* clustering unavailable */ }}
+    }})();
+  }}
+
+  // ── 物理引擎开关 ──
+  var physicsEnabled = true;
+  function togglePhysics() {{
+    physicsEnabled = !physicsEnabled;
+    network.setOptions({{ physics: {{ enabled: physicsEnabled }} }});
+    document.getElementById('btnFreeze').textContent = physicsEnabled ? '🧊 冻结布局' : '▶️ 解冻布局';
+    if (!physicsEnabled) {{
+      network.setOptions({{ physics: {{ stabilization: false }} }});
+    }}
+  }}
 
   // Tooltip
   const tooltip = document.getElementById('tooltip');
@@ -626,7 +675,92 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
   typeFilter.addEventListener('change', applyFilter);
   searchBox.addEventListener('input', applyFilter);
 
-  // 点击详情面板（使用 render_utils 预渲染的 HTML）
+  // ── 浏览器端字段渲染（替代 Python render_utils，按需渲染） ──
+  function _escapeHtml(s) {{
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }}
+
+  function _inferRenderMode(key, value) {{
+    // 字段名特殊规则
+    var sm = {{'描述':'textblock','冲突核心':'textblock','终局设计':'textblock','核心特质':'tagcloud','关键事件':'timeline','角色弧线':'group','等级划分':'timeline','出场角色':'tagcloud','关联情节线':'tagcloud','主要成员':'tagcloud','角色参与':'tagcloud','涉及角色':'tagcloud','类型':'tag','章节号':'tag','字数':'tag','正文路径':'tag','章节类型':'tag','子类型':'tag','模式选择':'tag','命名规范':'tag','本章功能':'tag','二级类型':'tag'}};
+    if (sm[key]) return sm[key];
+
+    if (value === null || value === undefined || value === '') return 'skip';
+    if (typeof value === 'string') return value.length >= 50 ? 'textblock' : 'tag';
+    if (typeof value === 'boolean' || typeof value === 'number') return 'tag';
+    if (Array.isArray(value)) {{
+      if (value.length === 0) return 'tagcloud';
+      if (typeof value[0] === 'string') return 'tagcloud';
+      if (typeof value[0] === 'object' && value[0] !== null) {{
+        if (value[0]['事件'] || value[0]['event']) return 'timeline';
+        if (value[0]['目标'] || value[0]['target']) return 'relationlist';
+      }}
+      return 'tagcloud';
+    }}
+    if (typeof value === 'object') return 'group';
+    return 'tag';
+  }}
+
+  function _renderField(key, value) {{
+    var mode = _inferRenderMode(key, value);
+    if (mode === 'skip') return '';
+    if (mode === 'tag') {{
+      return '<div class="field-item"><span class="label">' + _escapeHtml(key) + '</span><span class="value">' + _escapeHtml(String(value)) + '</span></div>';
+    }}
+    if (mode === 'textblock') {{
+      return '<div class="section"><h3>' + _escapeHtml(key) + '</h3><div class="desc-text">' + _escapeHtml(String(value).slice(0,600)) + '</div></div>';
+    }}
+    if (mode === 'tagcloud') {{
+      var items = Array.isArray(value) ? value : String(value).split(/[,，、\\s]+/);
+      var tags = items.filter(function(t) {{ return t; }}).map(function(t) {{ return '<span class="tag">' + _escapeHtml(String(t)) + '</span>'; }}).join(' ');
+      return '<div class="section"><h3>' + _escapeHtml(key) + '</h3><div class="tagcloud">' + tags + '</div></div>';
+    }}
+    if (mode === 'timeline') {{
+      var items = Array.isArray(value) ? value.slice(0,15) : [];
+      var parts = items.map(function(item) {{
+        if (typeof item === 'object' && item !== null) {{
+          var evt = item['事件'] || item['event'] || String(item);
+          var t = item['时间'] || item['time'] || '';
+          var ts = t ? '<span class="tl-time">' + _escapeHtml(t) + '</span> ' : '';
+          return '<div class="tl-item">' + ts + '<span class="tl-event">' + _escapeHtml(String(evt).slice(0,100)) + '</span></div>';
+        }}
+        return '<div class="tl-item"><span class="tl-event">' + _escapeHtml(String(item).slice(0,100)) + '</span></div>';
+      }}).join('');
+      return '<div class="section"><h3>' + _escapeHtml(key) + '</h3><div class="timeline">' + parts + '</div></div>';
+    }}
+    if (mode === 'relationlist') {{
+      var items = Array.isArray(value) ? value.slice(0,20) : [];
+      var parts = items.map(function(item) {{
+        if (typeof item === 'object' && item !== null) {{
+          var target = item['目标'] || item['target'] || '';
+          var rel = item['关系'] || item['relation'] || '';
+          return '<div class="rel-item"><span class="rel-target">' + _escapeHtml(target) + '</span> <span class="rel-type">(' + _escapeHtml(rel) + ')</span></div>';
+        }}
+        return '<div class="rel-item">' + _escapeHtml(String(item).slice(0,50)) + '</div>';
+      }}).join('');
+      return '<div class="section"><h3>' + _escapeHtml(key) + '</h3>' + parts + '</div>';
+    }}
+    if (mode === 'group') {{
+      if (typeof value === 'object' && value !== null) {{
+        var children = Object.keys(value).map(function(k) {{ return _renderField(k, value[k]); }}).join('');
+        return '<div class="section"><h3>' + _escapeHtml(key) + '</h3><div class="group">' + children + '</div></div>';
+      }}
+      return _renderField(key, value);
+    }}
+    return '';
+  }}
+
+  function _renderExtraContent(extra) {{
+    var skipKeys = ['subtype_label','subtype_color','_preview','_display'];
+    var html = '';
+    Object.keys(extra).forEach(function(k) {{
+      if (skipKeys.indexOf(k) >= 0 || k.startsWith('_')) return;
+      html += _renderField(k, extra[k]);
+    }});
+    return html;
+  }}
+
+  // 点击详情面板（浏览器端按需渲染）
   function openDetail(nodeId) {{
     const info = nodeData[nodeId];
     if (!info) return;
@@ -649,9 +783,9 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
 
     let html = '';
 
-    // ── 使用 Python render_utils 预渲染的 HTML ──
-    if (info.pre_rendered_html) {{
-      html += info.pre_rendered_html;
+    // ── 浏览器端渲染 extra 字段（按需，不预嵌 HTML） ──
+    if (info.extra) {{
+      html += _renderExtraContent(info.extra);
     }}
 
     // ── 标签（公共） ──
@@ -695,6 +829,9 @@ HTML_GRAPH_TEMPLATE = r"""<!DOCTYPE html>
   }});
 
   setTimeout(function() {{ network.fit({{ animation: false }}); }}, 300);
+
+  // 暴露到全局供 onclick 调用
+  window.togglePhysics = togglePhysics;
 }})();
 
 function closeDetail() {{

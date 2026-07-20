@@ -13,7 +13,7 @@ description: "创意方案生成器。在 grill 收敛需求后，基于约束�
 CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 CREATIVE MODE: {divergent | focused}
-FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | structure | narrative_voice | thematic_motif}
+FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | narrative_voice | thematic_motif | structure（由编排层从 outline/arc_plan/volume_plan/chapter_plan 归一化）}
 FOCUS NAME: {目标名称}
 ```
 

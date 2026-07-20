@@ -103,7 +103,7 @@ export default tool({
     scope: tool.schema.string().optional().describe("搜索范围（逗号分隔的类型）"),
     regex: tool.schema.boolean().optional().describe("启用正则搜索"),
     case_sensitive: tool.schema.boolean().optional().describe("区分大小写"),
-    cycle_type: tool.schema.string().optional().describe("会话循环类型 (expansion/refinement/proofing/planning)"),
+    cycle_type: tool.schema.string().optional().describe("会话循环类型 (ideation/expansion/refinement/proofing/planning)"),
     phase: tool.schema.string().optional().describe("会话阶段 (ideation/planning/expansion/refinement/proofing)"),
     incremental: tool.schema.boolean().optional().describe("增量生成"),
     verify: tool.schema.boolean().optional().describe("迁移时验证"),

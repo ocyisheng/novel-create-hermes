@@ -49,8 +49,9 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
   │   │   `novel-tool --operation session.info --project {PROJECT}`
-  │   │   - 有活跃会话 → 用 session.info 的 preheat/cycle_type
-  │   │   - 无活跃会话 → preheat 用路由表默认值
+  │   │   ├─ 有活跃会话 → preheat 来自 SessionManager.recommend_preheat_level()
+  │   │   │    （综合判断 cycle_type / 焦点类型 / 精力水平 / 循环次数）
+  │   │   └─ 无活跃会话 → preheat 用路由表默认值
   │   ├─ 用户请求明确（包含具体名称/方向）?
   │   │   └─ 走 V2 创作路由（§V2 路由），跳过 grill 直接调度 crafter（注入 session info）
   │   └─ 用户请求模糊（抽象意图无细节）?
@@ -89,9 +90,39 @@ Grill 调度规则：
    - 实体级属性（性格、背景、定位等）→ 注入 TASK，crafter 写入 unit content
    - 任务级指令（节奏、侧重、排除项）→ 注入 TASK，一次性消费
    - 项目级偏好（罕见）→ 注入 TASK，编排层自行判断后续是否需要重复注入
-   - **不要写入 deviation_state.yaml**——grill 不做持久化，结论直接传入 crafter
+    - **不要写入 deviation_state.yaml**——grill 不做持久化，结论直接传入 crafter
+
+#### Grill 焦点类型归一化
+
+Grill 只接受 8 种焦点类型（scene / character_arc / plot_thread / world_rule / note / structure / narrative_voice / thematic_motif）。编排层在调用 grill 前，必须将路由表中的焦点类型映射为 grill 可识别的类型：
+
+| 路由表焦点类型 | Grill 接收类型 | 对应决策树 |
+|---------------|---------------|-----------|
+| `scene` | `scene` | D1-scene.md |
+| `character_arc` | `character_arc` | D2-character_arc.md |
+| `plot_thread` | `plot_thread` | D3-plot_thread.md |
+| `world_rule` | `world_rule` | D4-world_rule.md |
+| `note` | `note` | D5-note.md |
+| `outline` / `arc_plan` / `volume_plan` / `chapter_plan` | `structure` | D6-structure.md |
+| `narrative_voice` | `narrative_voice` | D7-narrative_voice.md |
+| `thematic_motif` | `thematic_motif` | D8-thematic_motif.md |
+| `chunk` | ❌ 不经过 grill | — |
+
+实现方式：调用 `skill("novel-grill", ...)` 前，先执行类型归一化：
+```
+GRILL_FOCUS_MAP = {
+    "outline": "structure",
+    "arc_plan": "structure",
+    "volume_plan": "structure",
+    "chapter_plan": "structure",
+}
+grill_focus_type = GRILL_FOCUS_MAP.get(original_focus_type, original_focus_type)
+skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
+```
 
 ### 3.2 焦点路由表
+
+可用的 cycle_type：`ideation`（发散构思）、`expansion`（扩展写作）、`refinement`（精修润色）、`proofing`（校对质检）、`planning`（规划组织）。session 预热推荐值综合 cycle_type + 焦点类型计算。`ideation` 走 ideation subagent（§3.3），不直接走 V2 路由。
 
 三层链路：**章纲规划 → 场景设计 → 正文执行**。章纲通过 PLANS 边声明计划场景（规划层），正文（CHUNK）通过 BELONGS_TO 边关联执行场景（执行层）。规划与执行解耦——增减场景只操作 BELONGS_TO，章纲的 PLANS 边保持规划原样。
 - 章纲（CHAPTER_PLAN）规划整章骨架：场域序列、节奏、字数分配
@@ -102,16 +133,16 @@ Grill 调度规则：
 
 | 用户意图 | 焦点类型 | 预热级别(默认) | 推荐前置 grill | 备注 |
 |----------|---------|---------------|---------------|------|
-| 章纲/分纲（规划整章骨架） | chapter_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=章纲，定场景序列/节奏密度/字数分配 |
+| 章纲/分纲（规划整章骨架） | chapter_plan | session推荐/warm | ✅ 模糊时推荐 | 本章功能=开篇/推进/冲突/转折/展示/过渡/收束，定场景序列/节奏密度/字数分配 |
 | 设计场域（规划单个叙事切片） | scene | session推荐/warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
 | 写第N章正文（写出实际文字） | chunk | session.info preheat | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修→preheat=hot, 子类型递增。意象/闲笔单元是写后对表工具，编排层不在 task prompt 中逐条注入其内容 |
 | 创建/编辑角色 | character_arc | session推荐/warm | ✅ 模糊时推荐 | |
 | 世界观设定 | world_rule | session推荐/warm | ✅ 模糊时推荐 | |
 | 情节/伏笔设计 | plot_thread | session推荐/warm | ✅ 模糊时推荐 | |
-| 总纲 | outline | session推荐/warm | ✅ 模糊时推荐 | 子类型=总纲，按七面观照/模式节奏生成全书结构 |
-| 部大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=部大纲，设计部弧线/跨卷节奏 |
-| 篇大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=篇大纲，设计篇弧线/跨卷节奏 |
-| 卷大纲 | volume_plan | session推荐/warm | ✅ 模糊时推荐 | 子类型=卷大纲，设计卷弧线/节奏密度/过渡 |
+| 总纲 | outline | session推荐/warm | ✅ 模糊时推荐 | 模式选择=沙漏/长链/螺旋/环状/多线交织，七面观照生成全书结构 |
+| 部大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 命名规范=部，设计部弧线/跨卷节奏 |
+| 篇大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 命名规范=篇，设计篇弧线/跨卷节奏 |
+| 卷大纲 | volume_plan | session推荐/warm | ✅ 模糊时推荐 | 卷号=分类，设计卷弧线/节奏密度/过渡 |
 | 叙述腔调设计 | narrative_voice | session推荐/warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
 | 主题意象设计 | thematic_motif | session推荐/warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
 | 编辑修改 | 根据目标类型推断 | session推荐/warm | ✅ 仅模糊修改请求 | |
@@ -231,7 +262,7 @@ Task(
   prompt="CURRENT PROJECT: {项目名}
 PROJECT PATH: {NOVELS_ROOT/项目名}
 FOCUS TYPE: {焦点类型}
-SUBTYPE: {子类型值}  # 总纲/卷大纲/章纲 | 开篇/推进/冲突/转折/展示/过渡/收束 | v1/v2/v3
+SUBTYPE: {子类型值}  # SCENE:开篇/推进/冲突/转折/展示/过渡/收束 | CHUNK:v1/v2/v3 | 结构类用路由表 focus type 区分
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
 PREHEAT LEVEL: {session推荐值 | 路由表默认值}
@@ -245,20 +276,20 @@ TASK: {用户请求的具体描述}"
 
 ### 写后状态回写
 
-crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型**更新 session 状态：
+crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型**更新 session 的 cycle_type：
 
-| 写操作类型 | 设置 phase | 设置 cycle_type |
-|-----------|-----------|----------------|
-| 首次正文写作（v1） | `expansion` | `expansion` |
-| 精修润色（v2/v3） | `refinement` | `refinement` |
-| 校对质检 | `proofing` | `proofing` |
-| 规划/分纲 | `planning` | `planning` |
-| 角色/世界观设定 | 不变 | 不变 |
+| 写操作类型 | 设置 cycle_type |
+|-----------|----------------|
+| 发散构思（ideation 方案生成） | `ideation` |
+| 首次正文写作（v1） | `expansion` |
+| 精修润色（v2/v3） | `refinement` |
+| 校对质检 | `proofing` |
+| 规划/分纲（章纲/卷纲/总纲） | `planning` |
+| 角色/世界观设定 | 不变 |
 
 调用方式：
 ```bash
 novel-tool --operation session.set_cycle --project {PROJECT} --cycle_type {类型}
-novel-tool --operation session.set_phase --project {PROJECT} --phase {阶段}
 ```
 
 只更新有变化的字段，避免覆盖已经累积的状态。

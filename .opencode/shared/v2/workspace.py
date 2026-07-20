@@ -182,18 +182,13 @@ class Workspace:
                 for ck in self.chunks[:5]:
                     lines.append(f"- {ck.get('unit_name', '?')}")
                 lines.append("")
-            if self.structures:
-                lines.append(f"### 结构设计 ({len(self.structures)})")
-                for st in self.structures[:3]:
-                    lines.append(f"- {st.get('unit_name', '?')}")
-                lines.append("")
             if self.narrative_voices:
                 lines.append(f"### 叙述腔调 ({len(self.narrative_voices)})")
                 for nv in self.narrative_voices[:3]:
                     lines.append(f"- {nv.get('unit_name', '?')}")
                 lines.append("")
             if self.thematic_motifs:
-                lines.append(f"### 主体意象 ({len(self.thematic_motifs)})")
+                lines.append(f"### 主题意象 ({len(self.thematic_motifs)})")
                 for tm in self.thematic_motifs[:3]:
                     lines.append(f"- {tm.get('unit_name', '?')}")
                 lines.append("")

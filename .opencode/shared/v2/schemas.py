@@ -231,7 +231,7 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
         required=True,
         options=["部", "篇"],
     ),
-    # VOLUME_PLAN 和 CHAPTER_PLAN 不需要子类型——粒度本身已是分类
+    # VOLUME_PLAN 不需要子类型——卷号本身就是分类
     UnitType.CHARACTER_ARC: SubtypeConfig(
         field="子类型",
         required=True,
@@ -246,6 +246,11 @@ SUBTYPE_REGISTRY: Dict[UnitType, SubtypeConfig] = {
         field="子类型",
         required=True,
         options=["v1","v2","v3"],
+    ),
+    UnitType.CHAPTER_PLAN: SubtypeConfig(
+        field="本章功能",
+        required=True,
+        options=["开篇", "推进", "冲突", "转折", "展示", "过渡", "收束"],
     ),
     UnitType.THEMATIC_MOTIF: SubtypeConfig(
         field="子类型",

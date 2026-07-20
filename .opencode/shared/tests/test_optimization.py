@@ -15,7 +15,7 @@ import os
 import traceback
 
 # 确保可导入 v2 模块（父目录）
-V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "v2"))
 if V2_DIR not in sys.path:
     sys.path.insert(0, V2_DIR)
 
@@ -86,7 +86,6 @@ if __name__ == "__main__":
     check("SPECIAL_RENDER_MAP \u5305\u542b \u63cf\u8ff0", "\u63cf\u8ff0" in SPECIAL_RENDER_MAP)
     check("SPECIAL_RENDER_MAP \u5305\u542b \u6838\u5fc3\u7279\u8d28", "\u6838\u5fc3\u7279\u8d28" in SPECIAL_RENDER_MAP)
     check("SPECIAL_RENDER_MAP \u5305\u542b \u5173\u952e\u4e8b\u4ef6", "\u5173\u952e\u4e8b\u4ef6" in SPECIAL_RENDER_MAP)
-    check("SPECIAL_RENDER_MAP \u5305\u542b \u5f20\u529b\u66f2\u7ebf", "\u5f20\u529b\u66f2\u7ebf" in SPECIAL_RENDER_MAP)
     check("SPECIAL_RENDER_MAP \u5305\u542b \u89d2\u8272\u5f27\u7ebf", "\u89d2\u8272\u5f27\u7ebf" in SPECIAL_RENDER_MAP)
     check("ENTITY_REF_FIELDS \u5305\u542b \u51fa\u573a\u89d2\u8272", "\u51fa\u573a\u89d2\u8272" in ENTITY_REF_FIELDS)
     check("ENTITY_REF_FIELDS \u5305\u542b \u5173\u8054\u60c5\u8282\u7ebf", "\u5173\u8054\u60c5\u8282\u7ebf" in ENTITY_REF_FIELDS)
@@ -119,9 +118,6 @@ if __name__ == "__main__":
          infer_render_mode("\u6838\u5fc3\u7279\u8d28", "\u575a\u97e7,\u679c\u65ad") == "tagcloud")
     check("\u63cf\u8ff0 \u5373\u4f7f\u4f20\u77ed\u6587\u672c\u4e5f\u5f3a\u5236 textblock",
          infer_render_mode("\u63cf\u8ff0", "\u77ed\u63cf\u8ff0") == "textblock")
-    check("\u5f20\u529b\u66f2\u7ebf \u5f3a\u5236 chart",
-         infer_render_mode("\u5f20\u529b\u66f2\u7ebf", {"\u5f00\u573a": 3}) == "chart")
-
     # 2.4 render_field 输出结构
     result = render_field("\u4fee\u4e3a", "\u5316\u795e\u671f")
     check("render_field \u8fd4\u56de\u5305\u542b key/mode/html/text",
@@ -322,24 +318,17 @@ if __name__ == "__main__":
 
     # 3.11 SCENE 渲染
     scene = {
-        "\u7ae0\u8282\u7c7b\u578b": "\u63a8\u8fdb",
-        "\u7ed3\u6784\u89c4\u5212": {
-            "\u5f00\u7bc7": {"\u65b9\u5f0f": "\u52a8\u4f5c\u5f00\u573a"},
-            "\u53d1\u5c55": {"\u6838\u5fc3\u51b2\u7a81": "\u6797\u6e0a\u7ec3\u5251\u88ab\u963b"},
-            "\u8f6c\u6298": {"\u4e8b\u4ef6": "\u82cf\u957f\u8001\u51fa\u73b0"},
-            "\u6536\u5c3e": {"\u7ed3\u679c": "\u6797\u6e0a\u91cd\u65b0\u632f\u4f5c"},
-        },
+        "\u5b50\u7c7b\u578b": "\u63a8\u8fdb",
+        "POV\u89d2\u8272": "\u6797\u6e0a",
+        "\u5730\u70b9": "\u843d\u4e91\u5b97\u540e\u5c71\u7ec3\u5251\u576a",
+        "\u65f6\u95f4": "\u5348\u540e",
+        "\u4e00\u53e5\u8bdd\u6982\u8981": "\u6797\u6e0a\u7ec3\u5251\u88ab\u963b",
         "\u51fa\u573a\u89d2\u8272": ["\u6797\u6e0a", "\u82cf\u957f\u8001"],
-        "\u5173\u8054\u60c5\u8282\u7ebf": ["\u4e3b\u7ebf\xb7\u5251\u9053\u4e4b\u4e89"],
-        "\u5f20\u529b\u66f2\u7ebf": {"\u5f00\u573a": 3, "\u7ae0\u8282\u9ad8\u6f6e": 7, "\u7ed3\u5c3e": 5},
+        "\u5173\u8054\u60c5\u8282\u7ebf": ["\u4e3b\u7ebf\u00b7\u5251\u9053\u4e4b\u4e89"],
     }
     rs = render_content(scene)
     check("SCENE: \u51fa\u573a\u89d2\u8272 \u2192 tagcloud",
          any(r["key"] == "\u51fa\u573a\u89d2\u8272" and r["mode"] == "tagcloud" for r in rs))
-    check("SCENE: \u5f20\u529b\u66f2\u7ebf \u2192 chart",
-         any(r["key"] == "\u5f20\u529b\u66f2\u7ebf" and r["mode"] == "chart" for r in rs))
-    check("SCENE: \u7ed3\u6784\u89c4\u5212 \u2192 group",
-         any(r["key"] == "\u7ed3\u6784\u89c4\u5212" and r["mode"] == "group" for r in rs))
 
     # 3.12 WORLD_RULE 渲染
     world = {
@@ -398,18 +387,18 @@ if __name__ == "__main__":
     # 4.2 SCENE 验证
     valid_scene = {
         "\u5b50\u7c7b\u578b": "\u63a8\u8fdb",
-        "\u7ed3\u6784\u89c4\u5212": {
-            "\u5f00\u7bc7": {"\u65b9\u5f0f": "\u52a8\u4f5c\u5f00\u573a", "\u4e0a\u7ae0\u8854\u63a5": "a"},
-            "\u53d1\u5c55": {"\u6838\u5fc3\u51b2\u7a81": "b", "\u63a8\u8fdb": "c"},
-            "\u8f6c\u6298": {"\u4e8b\u4ef6": "d"},
-            "\u6536\u5c3e": {"\u7ed3\u679c": "e", "\u4e0b\u7ae0\u94fa\u57ab": "f"},
-        },
+        "POV\u89d2\u8272": "\u6797\u6e0a",
+        "\u5730\u70b9": "\u843d\u4e91\u5b97\u540e\u5c71\u7ec3\u5251\u576a",
+        "\u65f6\u95f4": "\u5348\u540e",
+        "\u4e00\u53e5\u8bdd\u6982\u8981": "\u6797\u6e0a\u7ec3\u5251\u88ab\u963b",
+        "\u51fa\u573a\u89d2\u8272": ["\u6797\u6e0a", "\u82cf\u957f\u8001"],
+        "\u5173\u8054\u60c5\u8282\u7ebf": ["\u4e3b\u7ebf\u00b7\u5251\u9053\u4e4b\u4e89"],
     }
     check("SCENE \u6709\u6548\u6570\u636e\u901a\u8fc7\u9a8c\u8bc1",
          len(validate_content(UnitType.SCENE, valid_scene)) == 0)
 
-    check("SCENE \u7f3a\u5b50\u7c7b\u578b \u2192 \u62a5\u9519",
-         len(validate_content(UnitType.SCENE, {"\u7ed3\u6784\u89c4\u5212": valid_scene["\u7ed3\u6784\u89c4\u5212"]})) > 0)
+    check("SCENE \u7f3aPOV\u89d2\u8272 \u2192 \u62a5\u9519",
+         len(validate_content(UnitType.SCENE, {"\u5b50\u7c7b\u578b": "\u63a8\u8fdb", "\u5730\u70b9": "x", "\u4e00\u53e5\u8bdd\u6982\u8981": "x"})) > 0)
 
     # 4.3 PLOT_THREAD 验证
     valid_plot = {"\u5b50\u7c7b\u578b": "\u4e3b\u7ebf", "\u51b2\u7a81\u6838\u5fc3": "\u7075\u6c14\u6c61\u67d3"}
@@ -422,7 +411,7 @@ if __name__ == "__main__":
          len(validate_content(UnitType.WORLD_RULE, valid_world)) == 0)
 
     # 4.5 CHUNK 验证
-    valid_chunk = {"\u7ae0\u8282\u53f7": 3, "\u6b63\u6587": "\u6797\u6e0a\u63e1\u7d27\u4e86\u5251\u67c4"}
+    valid_chunk = {"\u5b50\u7c7b\u578b": "v1", "\u7ae0\u8282\u53f7": 3, "\u6b63\u6587": "\u6797\u6e0a\u63e1\u7d27\u4e86\u5251\u67c4"}
     check("CHUNK \u6709\u6548\u6570\u636e\u901a\u8fc7\u9a8c\u8bc1",
          len(validate_content(UnitType.CHUNK, valid_chunk)) == 0)
     check("CHUNK \u7f3a\u7ae0\u8282\u53f7 \u2192 \u62a5\u9519",

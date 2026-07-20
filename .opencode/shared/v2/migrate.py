@@ -825,6 +825,12 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
     world_info = SUBTYPE_REGISTRY.get(UnitType.WORLD_RULE)
     WORLD_VALUE_MAP = dict(world_info.value_labels) if world_info else {}
 
+    # CHAPTER_PLAN 旧值→新字段+值映射（LLM 曾按旧 prompt 写 "子类型:章纲"）
+    CP_FIX_MAP = {
+        "章纲": "开篇",  # 无明确功能时默认开篇
+        "卷纲": "开篇",
+    }
+
     stats: Dict[str, int] = {"nodes_scanned": 0, "nodes_fixed": 0}
     stats_by_type: Dict[str, int] = {}
 
@@ -870,6 +876,18 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
                     content[new_field] = val
                 changed = True
                 break  # 每个节点只处理一个旧字段
+
+        # CHAPTER_PLAN 纠偏：LLM 曾按旧 prompt 写入 "子类型":"章纲"（schema 中该字段名为"本章功能"）
+        if unit_type in ("chapter_plan", UnitType.CHAPTER_PLAN.value):
+            if "子类型" in content and "本章功能" not in content:
+                wrong_val = content.pop("子类型")
+                fixed_val = CP_FIX_MAP.get(wrong_val, "开篇")
+                content["本章功能"] = fixed_val
+                changed = True
+            elif "子类型" in content and "本章功能" in content:
+                # 两个字段都有：删除多余的 "子类型"
+                content.pop("子类型")
+                changed = True
 
         if changed:
             stats["nodes_fixed"] += 1

@@ -34,13 +34,26 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 用户输入
   ├─ 环境待初始化? → skill("novel-env-setup")
   ├─ 项目操作（新建/导入/查看状态/续写/切换/删除）? → skill("novel-project-manager")
-  ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")
+  ├─ 知识库操作（参考/查书/导入书籍）? → skill("book-knowledge") / skill("book-to-knowledge")【多步骤→见 §5.2 Todo 追踪规则】
+  ├─ 网络研究（"查一下 xxx"/"参考真实的 xxx"）?
+  │   ├─ 简单事实查询（"五行相生顺序"/"寻秦记出版年份"）?
+  │   │   └─ 直接调 web_search → 提取关键信息回复用户，不走 V2 路由
+  │   └─ 深度研究（"参考明朝官制设计宗门"用于创作）?
+  │       ├─ 优先查知识库 — `knowledge.search` 匹配书名/标签
+  │       │   ├─ 命中 → 注入 crafter prompt 的 `### 知识库参考` 段落
+  │       │   └─ 未命中 → 调 web_search 获取原始资料
+  │       ├─ 编排层将搜索结果整理为摘要（限 500 字）
+  │       └─ 注入 crafter prompt 的 `### 网络参考` 段落
   ├─ 搜索分析?
   │   ├─ 简单数据检索（"找找天道宗在哪出现过"）? → novel-tool graph.search（直接调 tool）
-  │   └─ 深度诊断（分析/核验/对齐/整体检测）? → task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], prompt="ANALYSIS MODE: 见下文")
+  │   ├─ align/cross-ref/gap → task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], prompt="ANALYSIS MODE: 见 §5.1 搜索分析调度模板")【同步，几秒内返回】
+  │   └─ full-diagnose（综合诊断） → task(subagent_type="novel-search-analysis", load_skills=["novel-search-analysis"], run_in_background=true, prompt="ANALYSIS MODE: full-diagnose 见 §5.1 搜索分析调度模板")【后台运行，完成后通知用户】
   ├─ 扩展/润色/精修/去AI味?
   │   └─ 查 session.info → cycle_type=refinement → PREHEAT=hot 走 V2 创作路由（HUMANIZE=true 注入 crafter prompt）
-  ├─ 可视化（关系图/时间线/图谱）? → 参考 novel-v2 skill 的操作指南 §6 可视化章节
+  ├─ 可视化（关系图/时间线/图谱）?
+  │   ├─ 通知用户 "正在生成可视化..."
+  │   ├─ 参考 novel-v2 skill 的操作指南 §6 可视化章节，task(run_in_background=true) 生成 viz
+  │   └─ 返回 "可视化正在生成，完成后通知你查看 graph/viz/ 目录"
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   ├─ 先走 grill（按 §3.1 模糊判断规则）
@@ -61,7 +74,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │           ├─ skill("novel-grill", user_message="{FOCUS TYPE}:{FOCUS NAME}") → 收敛需求
   │           └─ 用户确认后 → 走 V2 创作路由（§V2 路由）调度 crafter（注入 session info）
   ├─ 迁移操作（用户要求迁移项目到 V2）?
-  │   └─ 执行迁移 + 报告
+  │   └─ 执行迁移 + 报告【多步骤→见 §5.2 Todo 追踪规则】
   └─ 不匹配? → 询问用户意图
 ```
 
@@ -305,6 +318,41 @@ novel-tool --operation deviation.pending --project {PROJECT}
 - **有 pending 偏差** → 自动触发一次 crafter（同 session，focus 不变）处理存根：判断哪些必须创建、哪些可跳过，执行内联存根创建（参考 crafter §三缺失单元内联存根判断准则）
 - **无 pending 偏差** → 跳过
 
+### 5.1 搜索分析调度模板
+
+编排层调度深度诊断时，按以下模板构建 prompt：
+
+```markdown
+Task(
+  subagent_type="novel-search-analysis",
+  load_skills=["novel-search-analysis"],
+  prompt="CURRENT PROJECT: {项目名}
+PROJECT PATH: {NOVELS_ROOT/项目名}
+ANALYSIS MODE: {align | cross-ref | gap | full-diagnose}
+FOCUS TYPE: {scene | character_arc | ...}  # 非 full-diagnose 时必填
+FOCUS NAME: {目标名称}
+CONTINUATION: {可选，上一轮 session_id}
+
+用户请求：{用户的原始描述}
+"
+)
+```
+
+| 分析模式 | 适用场景 | 注入的额外上下文 |
+|---------|---------|----------------|
+| `align`（意图对齐） | "检查主角是不是 OOC" | FOCUS TYPE + FOCUS NAME |
+| `cross-ref`（交叉引用） | "查一下这个设定在其他章有没有矛盾" | FOCUS TYPE + FOCUS NAME |
+| `gap`（缺口分析） | "看看还缺什么设定没写" | FOCUS TYPE + FOCUS NAME（可选） |
+| `full-diagnose`（综合诊断） | "整体检查一下" | 无需焦点类型 |
+
+#### CONTINUATION 串联
+
+`CONTINUATION` 只在编排层延续分析时使用：
+
+- **首次调度** → 不传 `CONTINUATION`，子 Agent 启动新 session
+- **同一用户对结果追问**（"具体看看第 3 条偏差"） → 将上一轮 task 返回的 session_id 作为 `task_id` 传入，同时在 prompt 中注入 `CONTINUATION: {session_id}`
+- **新独立请求** → 不传（新 session）
+
 ---
 
 **知识库参考注入规则（编排层直接注入）**：
@@ -331,6 +379,78 @@ TASK: 参考凡人修仙传的力量体系，为龙渊设计境界划分
 - 用户说"按照凡人修仙的节奏和星辰变的境界来写" → 分别读取两个知识库，合并注入
 - 用户说"写第3章"（无参考） → 不注入知识库段落
 - 用户说"帮我查一下凡人修仙传的力量体系"（纯查询，不走 V2 创作路由）
+
+### 网络研究注入规则
+
+编排层在网络研究时，遵循以下优先级：
+
+1. 用户请求包含知识库书名（"参考凡人修仙传"） → `knowledge.read` 优先
+2. 用户请求含真实世界参考（"参考明朝官制设计宗门"、"查一下五行相生顺序"） → `web_search`
+3. 命中知识库的 `### 知识库参考` 注入；未命中的 `web_search` 结果整理为 `### 网络参考` 段落注入
+
+```
+注入示例：
+```markdown
+TASK: 参考明朝官制设计宗门结构
+
+### 网络参考（from web_search）
+{编排层整理的搜索结果摘要，限 500 字}
+```
+```
+
+注意：`web_search` 仅用于获取创作参考素材，不作为事实依据写入 graph。纯查询请求不走 V2 路由，直接回复。
+
+### 5.2 Todo 追踪规则
+
+编排层对以下多步骤操作，在调度前注册 todowrite 清单：
+
+| 操作 | 步骤数 | 注册时机 | 完成标记时机 |
+|------|--------|---------|------------|
+| `book-to-knowledge` 书籍导入 | 6-10 步 | 调度 `skill("book-to-knowledge")` 前 | 每步完成后立即标记 |
+| V1→V2 迁移 | 4-6 步 | 开始迁移前 | 每步完成后立即标记 |
+| 多章写作（"写第3-5章"） | N 章 | 并行 task() 调度后 | 每章 task 返回后 |
+
+模板：
+
+```markdown
+# 示例：书籍导入
+todowrite([
+  {content: "[book-to-knowledge] 检查环境依赖", status: "in_progress", priority: "high"},
+  {content: "[book-to-knowledge] 复制源文件到 workdir", status: "pending", priority: "high"},
+  ...
+])
+```
+
+规则：
+1. 步骤粒度控制在"可完成但也可以被打断"的大小
+2. 每步完成后立即 `todowrite(...)` 更新为 `completed`
+3. 全部完成后将所有步骤标记为 `completed`
+4. 简单操作（单步、纯查询、无风险）不注册 todo
+
+### 5.3 并行执行模板
+
+以下场景使用 `run_in_background=true` 并行处理：
+
+| 场景 | 并行策略 | 等待方式 | 注意 |
+|------|---------|---------|------|
+| 多章写作（"写第3-5章"） | 每章一个 background task | 所有 task 完成后汇总 | 同一项目的串行写由 GraphStore 文件锁自然排队 |
+| full-diagnose + viz 同时 | 两个 background task | 分别通知用户 | 互不依赖 |
+| 写后检查（偏差检核 + 知识库交叉引用） | 两个 background task | 合并结果报告 | 偏差检核完成后自动触发 crafter |
+
+调度模板：
+
+```markdown
+# 多章并行示例
+- 解析为 N 个独立创作任务
+- 批量启动:
+  task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"], run_in_background=true, prompt="...第3章...") → bg_1
+  task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"], run_in_background=true, prompt="...第4章...") → bg_2
+  task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"], run_in_background=true, prompt="...第5章...") → bg_3
+- 回复用户: "第3-5章已开始并行创作，完成后我会汇总结果通知你"
+- 所有 background task 完成后 → 汇总各章结果
+```
+
+限制：有顺序依赖的场景（如第4章依赖第3章的角色出场）不能并行；同一卷内推荐串行，不同卷可并行。
 
 ### 焦点 ID 查找
 

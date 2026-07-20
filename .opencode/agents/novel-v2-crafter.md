@@ -45,21 +45,18 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ### 焦点类型加载
 
-根据 `FOCUS TYPE` 加载对应的创作方法论参考。所有类型读取完整文件：
+根据 `FOCUS TYPE` 加载对应的创作方法论参考。使用 `read` 工具读取完整文件：
 
-```bash
-REF_FILE="{FOCUS TYPE}"
-case "$REF_FILE" in outline|arc_plan|volume_plan|chapter_plan) REF_FILE="structure";; esac
-cat ".opencode/skills/novel-v2/references/${REF_FILE}.md"
-```
+- 场景/角色/情节/世界观/笔记/正文/叙述腔调/主题意象
+  → `.opencode/skills/novel-v2/references/{FOCUS TYPE}.md`
+- 总纲/部大纲/卷大纲/章纲（outline/arc_plan/volume_plan/chapter_plan）
+  → `.opencode/skills/novel-v2/references/structure.md`
 
 ### 去 AI 味模式（HUMANIZE=true）
 
 当 prompt 中 `HUMANIZE: true` 时，额外加载 humanizer 指南：
 
-```bash
-cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
-```
+→ `.opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md`
 
 **关键约束**：humanizer 规则在 V2 上下文中工作。当前 SCENE 的叙事功能（冲突/展示/过渡）、角色状态、密度级别、活跃风格——这些可能使某些"AI 痕迹"成为正确的文体选择。遇到疑似 AI 模式时，先对照 workspace 上下文判断：这是 AI 的惰性表达，还是场景需求驱动的手法？
 

@@ -117,7 +117,7 @@ novel-tool --operation graph.viz --project {PROJECT} [--character {角色名} --
 
 ```
 # 创建叙事单元
-novel-tool --operation graph.create_unit --project {PROJECT} --unit-type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
 
 # 更新叙事单元（内容 / 名称 / 标签）
 novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --content "{新内容JSON}"
@@ -125,15 +125,15 @@ novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --n
 
 # ── 建立关系（关系走 edge，content 只存可读名称） ──
 # 场景 → 情节线：场景实现了哪条情节线
-novel-tool --operation graph.add_relation --project {PROJECT} --source {场景ID} --target {情节线ID} --rel-type implements
+novel-tool --operation graph.add_relation --project {PROJECT} --source {场景ID} --target {情节线ID} --rel_type implements
 # 章纲 → 场景：章纲规划哪些场景（规划意图，非结构归属）
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --rel-type plans
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --rel_type plans
 # 角色 → 场景：角色参与哪些场景
-novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target {场景ID} --rel-type participates_in
+novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target {场景ID} --rel_type participates_in
 # 成员/位置/同盟（--bidirectional 自动补反向）
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel-type member_of
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel-type located_at
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel-type allied_with --bidirectional
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type member_of
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type located_at
+novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type allied_with --bidirectional
 
 # 补齐反向边
 novel-tool --operation graph.fix_asymmetry --project {PROJECT}
@@ -143,7 +143,7 @@ novel-tool --operation graph.batch_infer --project {PROJECT}
 
 # ── 删除关系 ──
 novel-tool --operation graph.remove_relation --project {PROJECT} --id {关系ID}
-novel-tool --operation graph.remove_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel-type implements
+novel-tool --operation graph.remove_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type implements
 
 # ── 归档单元（软删除，单元移出活跃状态但保留数据） ──
 novel-tool --operation graph.archive_unit --project {PROJECT} --id {单元ID}
@@ -153,7 +153,7 @@ novel-tool --operation graph.archive_unit --project {PROJECT} --id {单元ID}
 
 ```
 # 启动创作会话
-novel-tool --operation session.start --project {PROJECT} --focus-type SCENE --id {单元ID}
+novel-tool --operation session.start --project {PROJECT} --focus_type SCENE --id {单元ID}
 
 # 构建工作空间上下文
 novel-tool --operation session.build_workspace --project {PROJECT} --id {焦点单元ID} --level warm

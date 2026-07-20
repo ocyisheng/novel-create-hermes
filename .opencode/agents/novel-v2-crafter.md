@@ -25,7 +25,7 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ### 第一步：初始化创作会话
 
-`novel-tool --operation session.start --project <PROJECT> --focus-type <FOCUS_TYPE> --id <FOCUS_ID>`
+`novel-tool --operation session.start --project <PROJECT> --focus_type <FOCUS_TYPE> --id <FOCUS_ID>`
 
 ### 第二步：获取工作空间上下文
 
@@ -113,12 +113,12 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ```
 1. # 创建最小存根（只写 type+name，不写 content）
-novel-tool --operation graph.create_unit --project {PROJECT} --unit-type CHARACTER_ARC \
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type CHARACTER_ARC \
   --name "角色名" --actor novel-v2-crafter --chapter {当前章}
 
 2. # 建立与当前场景的关系
 novel-tool --operation graph.add_relation --project {PROJECT} \
-  --source {场景ID} --target {新建单元ID} --rel-type member_of --actor novel-v2-crafter
+  --source {场景ID} --target {新建单元ID} --rel_type member_of --actor novel-v2-crafter
 
 3. # 标记偏差：存根待补充
 novel-tool --operation deviation.merge --project {PROJECT} \
@@ -135,8 +135,8 @@ novel-tool --operation graph.flush --project {PROJECT}
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
 
 关键操作速览（详细参数见 SKILL.md）：
-- **创建叙事单元** → `novel-tool --operation graph.create_unit --project <PROJECT> --unit-type SCENE --chapter <章节号> --content '{"name":"单元名"}' --actor v2-crafter`
-- **建立关系** → `novel-tool --operation graph.add_relation --project <PROJECT> --source <ID> --target <ID> --rel-type member_of --actor v2-crafter`
+- **创建叙事单元** → `novel-tool --operation graph.create_unit --project <PROJECT> --unit_type SCENE --chapter <章节号> --content '{"name":"单元名"}' --actor v2-crafter`
+- **建立关系** → `novel-tool --operation graph.add_relation --project <PROJECT> --source <ID> --target <ID> --rel_type member_of --actor v2-crafter`
 - **写入正文** → 先创建 CHUNK 单元，再关联到场景
 - **持久化** → `novel-tool --operation graph.flush --project <PROJECT>`
 
@@ -147,7 +147,7 @@ novel-tool --operation graph.flush --project {PROJECT}
 **第一步：创建章纲**。只写结构级信息——节奏走向、场景数量、情绪弧线。不写感官细节、角色动作、对话。
 
 ```
-novel-tool --operation graph.create_unit --project {PROJECT} --unit-type CHAPTER_PLAN \
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type CHAPTER_PLAN \
   --name "章纲_第N章_章节名" --actor novel-v2-crafter \
   --chapter {N} --content '{"章节号":N,"章节名":"...","本章功能":"开篇","场景序列":[{"场景名":"场景1","定位":"...","字数预计":0}],...}'
 ```
@@ -155,10 +155,10 @@ novel-tool --operation graph.create_unit --project {PROJECT} --unit-type CHAPTER
 **第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
 
 ```
-novel-tool --operation graph.create_unit --project {PROJECT} --unit-type SCENE \
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type SCENE \
   --name "第N章_场景名" --actor novel-v2-crafter \
   --chapter {N} --content '{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}'
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --rel-type plans
+novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --rel_type plans
 ```
 
 **第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，通过每个 SCENE 的 `子类型` 对照 `scene.md` 密度预算表（默认使用「标准」密度档位），累加上界得到预期总字数。
@@ -174,13 +174,13 @@ novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID
 
 ```
 1. # 创建一个 CHUNK 代表该章（或子章）
-novel-tool --operation graph.create_unit --project {PROJECT} --unit-type CHUNK \
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type CHUNK \
      --name "第3章" --actor novel-v2-crafter \
      --chapter 3 --content '{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}'
 
 2. # 关联到该章的所有 SCENE
 novel-tool --operation graph.add_relation --project {PROJECT} \
-     --source {CHUNK_ID} --target {SCENE1_ID} --rel-type belongs_to
+     --source {CHUNK_ID} --target {SCENE1_ID} --rel_type belongs_to
 # ... 每个 SCENE 一条
 
 3. 基于该组 SCENE 的上下文，写出正文。用 write 工具写入 TXT 文件。

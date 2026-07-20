@@ -109,8 +109,6 @@ _PARAM_ALIASES = {
     "graph.search": {"scope": ["scope", "unit_type", "unitType"]},
     # graph.get_neighbors: rel_type/relType
     "graph.get_neighbors": {"rel_type": ["rel_type", "relType"]},
-    # graph.get_relations: type/rel_type/relType
-    "graph.get_relations": {"rel_type": ["type", "rel_type", "relType"]},
     # graph.remove_relation: type/rel_type/relType → canonical "type"
     "graph.remove_relation": {"type": ["type", "rel_type", "relType"]},
     # graph.get_relations: type/rel_type/relType → canonical "type"
@@ -121,6 +119,8 @@ _PARAM_ALIASES = {
     "graph.update_unit": {"content": ["content", "data"]},
     # graph.create_unit: data 是 content 的别名
     "graph.create_unit": {"content": ["content", "data"]},
+    # graph.list_units: agent 提示词统一用 unit_type，handler 要求 type
+    "graph.list_units": {"type": ["type", "unit_type", "unitType"]},
     # project.new: v2 默认为 True
     "project.new": {"v2_default": True},
     # project.import: novel_tool 传 source，handler 需要 source_path

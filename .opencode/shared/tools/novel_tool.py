@@ -61,7 +61,8 @@ def _resolve_project(project: str) -> str:
 # novel_tool.py 参数 → handler 规范参数名的映射表
 _PARAM_MAP = {
     # 通用
-    "id": "id", "name": "name", "type": "type",
+    "id": "id", "name": "name",
+    "unit_type": "unit_type", "rel_type": "rel_type", "focus_type": "focus_type",
     "content": "content", "file": "file_path",
     "tags": "tags", "chapter": "chapter",
     "actor": "actor", "limit": "limit",
@@ -109,18 +110,20 @@ _PARAM_ALIASES = {
     "graph.search": {"scope": ["scope", "unit_type", "unitType"]},
     # graph.get_neighbors: rel_type/relType
     "graph.get_neighbors": {"rel_type": ["rel_type", "relType"]},
-    # graph.remove_relation: type/rel_type/relType → canonical "type"
-    "graph.remove_relation": {"type": ["type", "rel_type", "relType"]},
-    # graph.get_relations: type/rel_type/relType → canonical "type"
-    "graph.get_relations": {"type": ["type", "rel_type", "relType"]},
-    # graph.add_relation: novel_tool 传 rel_type/relType，handler 要求 type
-    "graph.add_relation": {"type": ["rel_type", "relType", "type"]},
+    # graph.add_relation: old type/rel_type → canonical rel_type
+    "graph.add_relation": {"rel_type": ["rel_type", "relType", "type"]},
+    # graph.get_relations: old type → canonical rel_type
+    "graph.get_relations": {"rel_type": ["type", "rel_type"]},
+    # graph.remove_relation: old type → canonical rel_type
+    "graph.remove_relation": {"rel_type": ["type", "rel_type"]},
+    # graph.list_units: old type → canonical unit_type
+    "graph.list_units": {"unit_type": ["type", "unit_type", "unitType"]},
+    # graph.create_unit: old type → unit_type; data 是 content 的别名
+    "graph.create_unit": {"unit_type": ["type", "unit_type"], "content": ["content", "data"]},
+    # session.start: type → focus_type
+    "session.start": {"focus_type": ["type", "focus_type"]},
     # graph.update_unit: data 是 content 的别名
     "graph.update_unit": {"content": ["content", "data"]},
-    # graph.create_unit: data 是 content 的别名
-    "graph.create_unit": {"content": ["content", "data"]},
-    # graph.list_units: agent 提示词统一用 unit_type，handler 要求 type
-    "graph.list_units": {"type": ["type", "unit_type", "unitType"]},
     # project.new: v2 默认为 True
     "project.new": {"v2_default": True},
     # project.import: novel_tool 传 source，handler 需要 source_path

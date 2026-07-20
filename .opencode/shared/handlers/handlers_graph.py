@@ -315,10 +315,10 @@ def handle_search(
     }
 
 
-def handle_list_units(project_root: str, type: str = "", limit: int = 0) -> dict:
+def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0) -> dict:
     """列出叙事单元。"""
     from graph_schema import UnitType
-    ut = UnitType[type.upper()] if type and type.upper() != "ALL" else None
+    ut = UnitType[unit_type.upper()] if unit_type and unit_type.upper() != "ALL" else None
     store = _get_store(project_root)
     units = store.find_units(type=ut)
     if limit and limit > 0:
@@ -415,7 +415,7 @@ def handle_recent_events(project_root: str, limit: int = 10) -> dict:
 
 def handle_create_unit(
     project_root: str,
-    type: str,
+    unit_type: str,
     name: str,
     content: Optional[str] = None,
     file_path: Optional[str] = None,
@@ -428,7 +428,7 @@ def handle_create_unit(
     from graph_schema import UnitType
     from relation_inferrer import RelationInferrer
 
-    ut = UnitType[type.upper()]
+    ut = UnitType[unit_type.upper()]
 
     # 内容读取优先级：file_path > content
     if file_path:
@@ -549,13 +549,13 @@ def handle_add_relation(
     project_root: str,
     source: str,
     target: str,
-    type: str,
+    rel_type: str,
     bidirectional: bool = False,
     actor: str = "novel-tool",
 ) -> dict:
     """建立关系。"""
     from graph_schema import RelationType
-    rtype = RelationType[type.upper()]
+    rtype = RelationType[rel_type.upper()]
     store = _get_store(project_root)
     rel = store.add_relation(source, target, rtype, actor=actor)
     if not rel:
@@ -607,15 +607,13 @@ def handle_fix_asymmetry(project_root: str) -> dict:
 def handle_get_relations(
     project_root: str,
     id: str = "",
-    type: str = "",
     rel_type: str = "",
     direction: str = "both",
 ) -> dict:
     """获取关系列表。"""
     from graph_schema import RelationType
     store = _get_store(project_root)
-    rt_name = type or rel_type
-    rt = RelationType[rt_name.upper()] if rt_name else None
+    rt = RelationType[rel_type.upper()] if rel_type else None
     relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction)
     return {
         "relations": [
@@ -635,7 +633,7 @@ def handle_remove_relation(
     id: str = "",
     source: str = "",
     target: str = "",
-    type: str = "",
+    rel_type: str = "",
     actor: str = "novel-tool",
 ) -> dict:
     """删除关系。"""
@@ -645,8 +643,8 @@ def handle_remove_relation(
     if id:
         ok = store.remove_relation(id, actor=actor)
         removed_id = id
-    elif source and target and type:
-        rtype = RelationType[type.upper()]
+    elif source and target and rel_type:
+        rtype = RelationType[rel_type.upper()]
         found = None
         for r in store.get_relations():
             if r.source_id == source and r.target_id == target and r.relation_type == rtype:

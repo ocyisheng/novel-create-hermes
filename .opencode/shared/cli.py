@@ -313,7 +313,7 @@ def _build_v2_parser(sub):
 
     sp = v2_sub.add_parser("start-session", help="启动/恢复创作会话")
     sp.add_argument("--path", required=True)
-    sp.add_argument("--type", required=True)
+    sp.add_argument("--focus-type", required=True)
     sp.add_argument("--id", required=True)
 
     sp = v2_sub.add_parser("find-unit", help="按名称查找叙事单元ID")
@@ -322,7 +322,7 @@ def _build_v2_parser(sub):
 
     sp = v2_sub.add_parser("create-unit", help="创建新叙事单元")
     sp.add_argument("--path", required=True)
-    sp.add_argument("--type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
+    sp.add_argument("--unit-type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
     sp.add_argument("--name", required=True)
     sp.add_argument("--content", default="", help="内容（JSON 字符串，与 --file 二选一）")
     sp.add_argument("--data", default="", help="同 --content（别名）")
@@ -356,7 +356,7 @@ def _build_v2_parser(sub):
     sp.add_argument("--path", required=True)
     sp.add_argument("--source", required=True)
     sp.add_argument("--target", required=True)
-    sp.add_argument("--type", required=True, help="关系类型（participates_in/implements/references 等）")
+    sp.add_argument("--rel-type", required=True, help="关系类型（participates_in/implements/references 等）")
     sp.add_argument("--actor", default="script")
     sp.add_argument("--bidirectional", action="store_true", help="同时添加反向关系")
 
@@ -379,7 +379,7 @@ def _build_v2_parser(sub):
 
     sp = v2_sub.add_parser("list-units", help="列出叙事单元")
     sp.add_argument("--path", required=True)
-    sp.add_argument("--type", default="", help="UnitType 名称（SCENE/CHARACTER_ARC 等）")
+    sp.add_argument("--unit-type", default="", help="UnitType 名称（SCENE/CHARACTER_ARC 等）")
     sp.add_argument("--limit", default="0", help="返回条数上限（0=全部）")
 
     sp = v2_sub.add_parser("recent-events", help="最近事件")
@@ -479,8 +479,13 @@ def _run_v2(args):
 
     cmd = args.v2_command
 
+    # Phase 2 fallback: 未在手动 if/elif 中注册的操作尝试自动 dispatch
+    from cli_gen import dispatch_registry_command
+    if cmd and dispatch_registry_command(args):
+        return
+
     if cmd == "start-session":
-        result = handle_session_start(project_root=args.path, type=args.type, id=args.id)
+        result = handle_session_start(project_root=args.path, focus_type=args.focus_type, id=args.id)
         _err_exit(result)
         print(f"SESSION={result['session_id']}")
 
@@ -491,7 +496,7 @@ def _run_v2(args):
 
     elif cmd == "create-unit":
         result = handle_create_unit(
-            project_root=args.path, type=args.type, name=args.name,
+            project_root=args.path, unit_type=args.unit_type, name=args.name,
             content=args.content or args.data or None,
             file_path=args.file or None,
             tags=args.tags or None,
@@ -557,7 +562,7 @@ def _run_v2(args):
     elif cmd == "add-relation":
         result = handle_add_relation(
             project_root=args.path, source=args.source,
-            target=args.target, type=args.type,
+            target=args.target, rel_type=args.rel_type,
             bidirectional=args.bidirectional, actor=args.actor,
         )
         _err_exit(result)
@@ -606,7 +611,7 @@ def _run_v2(args):
     elif cmd == "list-units":
         from graph_schema import UnitType
         result = handle_list_units(
-            project_root=args.path, type=args.type,
+            project_root=args.path, unit_type=args.unit_type,
             limit=int(args.limit) if args.limit and int(args.limit) > 0 else 0,
         )
         _err_exit(result)

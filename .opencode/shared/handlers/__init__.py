@@ -96,7 +96,7 @@ OPERATION_REGISTRY = {
     },
     "graph.list_units": {
         "handler": handle_list_units,
-        "params": {"project_root": {"required": True}, "type": {}, "limit": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {}, "limit": {}},
     },
     "graph.stats": {
         "handler": handle_stats,
@@ -121,7 +121,7 @@ OPERATION_REGISTRY = {
     # graph writes
     "graph.create_unit": {
         "handler": handle_create_unit,
-        "params": {"project_root": {"required": True}, "type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "actor": {}},
     },
     "graph.update_unit": {
         "handler": handle_update_unit,
@@ -137,7 +137,7 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "type": {"required": True}, "bidirectional": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "actor": {}},
     },
     "graph.flush": {
         "handler": handle_flush,
@@ -149,11 +149,11 @@ OPERATION_REGISTRY = {
     },
     "graph.get_relations": {
         "handler": handle_get_relations,
-        "params": {"project_root": {"required": True}, "id": {}, "type": {}, "rel_type": {}, "direction": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}},
     },
     "graph.remove_relation": {
         "handler": handle_remove_relation,
-        "params": {"project_root": {"required": True}, "id": {}, "source": {}, "target": {}, "type": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "source": {}, "target": {}, "rel_type": {}, "actor": {}},
     },
     "graph.batch_infer": {
         "handler": handle_batch_infer,
@@ -233,7 +233,7 @@ OPERATION_REGISTRY = {
     # session
     "session.start": {
         "handler": handle_session_start,
-        "params": {"project_root": {"required": True}, "type": {"required": True}, "id": {"required": True}},
+        "params": {"project_root": {"required": True}, "focus_type": {"required": True}, "id": {"required": True}},
     },
     "session.build_workspace": {
         "handler": handle_session_build_workspace,

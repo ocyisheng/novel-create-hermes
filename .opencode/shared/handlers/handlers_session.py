@@ -41,7 +41,7 @@ def _validate_project(project_root: str) -> bool:
     return bool(project_root) and os.path.isfile(os.path.join(project_root, "config.yaml"))
 
 
-def handle_session_start(project_root: str, type: str, id: str) -> dict:
+def handle_session_start(project_root: str, focus_type: str, id: str) -> dict:
     """启动/恢复创作会话。"""
     from graph_schema import UnitType
     from session import SessionManager
@@ -56,7 +56,7 @@ def handle_session_start(project_root: str, type: str, id: str) -> dict:
     if mgr.active_session:
         s = mgr.resume_session()
     else:
-        ft = UnitType[type.upper()]
+        ft = UnitType[focus_type.upper()]
         s = mgr.start_session(focus_type=ft, focus_unit_id=id)
 
     mgr.save_user_state()

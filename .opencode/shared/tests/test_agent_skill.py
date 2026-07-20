@@ -20,10 +20,10 @@ def check(name, condition, detail=""):
     global PASS, FAIL
     if condition:
         PASS += 1
-        print(f"  \u2705 {name}")
+        print(f"  ✅ {name}")
     else:
         FAIL += 1
-        print(f"  \u274c {name}  {detail}")
+        print(f"  ❌ {name}  {detail}")
 
 
 def extract_json_blocks(filepath, label):
@@ -45,7 +45,7 @@ def extract_json_blocks(filepath, label):
     for i, block in enumerate(blocks):
         if '"_display"' in block:
             has_display += 1
-            print(f"    \u26a0\ufe0f  {label}: 第{i+1}个JSON块仍含 _display")
+            print(f"    ⚠️  {label}: 第{i+1}个JSON块仍含 _display")
     msg = f"{label}: {len(blocks)} 个JSON块, {len(blocks)-has_display} 无 _display"
     check(msg, has_display == 0, f"{has_display} 个含 _display")
 

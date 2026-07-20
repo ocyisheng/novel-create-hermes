@@ -214,6 +214,12 @@ novel-tool --operation deviation.merge --project <PROJECT> --findings '[{"dimens
 # 查看当前待处理偏差
 novel-tool --operation deviation.pending --project <PROJECT>
 
+# 查看全部偏差记录（含已解决/保留）
+novel-tool --operation deviation.list --project <PROJECT>
+
+# 删除偏差条目（清理误报/撤销）
+novel-tool --operation deviation.delete --project <PROJECT> --id <偏差ID>
+
 # 标记为已解决
 novel-tool --operation deviation.resolve --project <PROJECT> --id <偏差ID>
 

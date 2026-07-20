@@ -82,7 +82,7 @@ cat ".opencode/skills/humanizer-zh-enhanced/references/humanizer-guide.md"
 
 写作过程中如果发现缺少信息，使用 `novel-tool` tool 直接查询。
 
-支持的查询类型：
+所有 `novel-tool` 操作命令及参数详见 `novel-v2` skill 操作指南（§1-§5），包括 graph 读取、写入、会话管理、导出迁移等完整列表。此处只列出最常用的查询操作：
 
 | 用途 | 调用方式 |
 |------|---------|

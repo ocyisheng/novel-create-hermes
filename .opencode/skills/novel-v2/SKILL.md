@@ -98,6 +98,19 @@ novel-tool --operation graph.stats --project {PROJECT}
 
 # 最近事件
 novel-tool --operation graph.recent_events --project {PROJECT}
+
+# 查询单元间的具体关系（比 get_neighbors 更精确——按类型和方向过滤）
+novel-tool --operation graph.get_relations --project {PROJECT} --id {单元ID}
+novel-tool --operation graph.get_relations --project {PROJECT} --id {单元ID} --rel_type contains --direction outgoing
+
+# 层级结构遍历：子单元
+novel-tool --operation graph.find_descendants --project {PROJECT} --id {单元ID} [--max_depth 5]
+
+# 层级结构遍历：父单元
+novel-tool --operation graph.find_ancestors --project {PROJECT} --id {单元ID}
+
+# 可视化：关系图/角色网络/时间线（输出 HTML 到 graph/viz/）
+novel-tool --operation graph.viz --project {PROJECT} [--character {角色名} --timeline {角色名}]
 ```
 
 ### 2. 写入 graph 数据
@@ -127,6 +140,13 @@ novel-tool --operation graph.fix_asymmetry --project {PROJECT}
 
 # 批量推断关系（新项目迁移后必做）
 novel-tool --operation graph.batch_infer --project {PROJECT}
+
+# ── 删除关系 ──
+novel-tool --operation graph.remove_relation --project {PROJECT} --id {关系ID}
+novel-tool --operation graph.remove_relation --project {PROJECT} --source {源ID} --target {目标ID} --type implements
+
+# ── 归档单元（软删除，单元移出活跃状态但保留数据） ──
+novel-tool --operation graph.archive_unit --project {PROJECT} --id {单元ID}
 ```
 
 ### 3. 会话管理

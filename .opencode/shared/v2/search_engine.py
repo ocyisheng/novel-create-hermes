@@ -21,11 +21,12 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set, Any, Tuple
 from collections import defaultdict
 
 from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType, get_unit_chapter
 from graph_store import GraphStore
+from time_utils import get_story_ordinal
 
 
 # ── 数据类 ──────────────────────────────────────────────────────────────────
@@ -77,6 +78,20 @@ class SearchEngine:
     
     接收一个已初始化的 GraphStore 实例（store.initialize() 已调用）。
     """
+
+    # ── 一致性检查规则注册表 ─────────────────────────────────────────────
+    # 格式: (rule_id: str, severity: str, method_name: str)
+    # 新增规则只需在列表中追加，无需修改 check_consistency() 方法体。
+    _CHECKERS: List[Tuple[str, str, str]] = [
+        ("R1", "error",   "_check_archived_characters_in_scenes"),
+        ("R2", "warning", "_check_asymmetric_relations"),
+        ("R3", "info",    "_check_orphan_units"),
+        ("R4", "warning", "_check_archived_with_active_relations"),
+        ("R5", "warning", "_check_chunk_missing_file"),
+        ("R6", "info",    "_check_chunk_no_chapter"),
+        ("R7", "warning", "_check_location_changes"),          # 位置变化标记 → LLM 判断瞬移
+        ("R9", "error",   "_check_precedes_ordinal_conflicts"), # PRECEDES vs ordinal 纯结构冲突
+    ]
 
     def __init__(self, store: GraphStore):
         self.store = store
@@ -160,28 +175,21 @@ class SearchEngine:
         """
         运行一致性检查，返回检查结果列表。
         
+        遍历 _CHECKERS 注册表调用所有已注册规则。
         输出的是供 LLM 分析的原始数据——LLM 需要判断
         "这是矛盾还是有意设计"。
+        
+        新增规则：在类级 _CHECKERS 列表中追加即可，无需修改此方法。
         """
         results: List[CheckResult] = []
         
-        # 规则 1: 已故角色仍在出场
-        results.extend(self._check_archived_characters_in_scenes())
-        
-        # 规则 2: 角色关系不对称
-        results.extend(self._check_asymmetric_relations())
-        
-        # 规则 3: 孤立单元（无任何关系）
-        results.append(self._check_orphan_units())
-        
-        # 规则 4: 已归档但仍有 outgoing 关系的单元
-        results.extend(self._check_archived_with_active_relations())
-        
-        # 规则 5: CHUNK 正文文件丢失
-        results.extend(self._check_chunk_missing_file())
-        
-        # 规则 6: CHUNK 缺少 belongs_to_chapter
-        results.append(self._check_chunk_no_chapter())
+        for rule_id, severity, method_name in self._CHECKERS:
+            method = getattr(self, method_name)
+            r = method()
+            if isinstance(r, list):
+                results.extend(r)
+            else:
+                results.append(r)
         
         return results
 
@@ -472,6 +480,127 @@ class SearchEngine:
             units_involved=[],
             detail=detail,
         )
+
+    # ── R7：位置变化检测 ──────────────────────────────────────────────────
+
+    def _check_location_changes(self) -> List[CheckResult]:
+        """
+        检测同一角色在相邻时间切片中的地点变化（机械标记，不下结论）。
+
+        对于每个角色：
+        1. 按 ordinal 排序该角色所有出场场景
+        2. 相邻场景如果地点名称不同 + ordinal 差较小 → 标记
+        3. 不做"瞬移"判断，留给 LLM
+        """
+        import json as _json
+
+        results: List[CheckResult] = []
+
+        # 建立场景基础信息索引
+        scene_info: dict = {}  # scene_id → (location, ordinal, chapter, name)
+        for unit in self.store._units.values():
+            if unit.type != UnitType.SCENE or unit.status == UnitStatus.ARCHIVED:
+                continue
+            content = unit.content
+            if isinstance(content, str):
+                try:
+                    content = _json.loads(content)
+                except (_json.JSONDecodeError, ValueError):
+                    content = {}
+            loc = content.get("地点", "") if isinstance(content, dict) else ""
+            ordinal = get_story_ordinal(unit)
+            ch = get_unit_chapter(unit) or 0
+            scene_info[unit.id] = (loc, ordinal, ch, unit.unit_name or "?")
+
+        # 建立角色→场景映射（通过 PARTICIPATES_IN 边）
+        char_scenes: dict = {}
+        for rel_id, rel in self.store._relations.items():
+            if rel.relation_type != RelationType.PARTICIPATES_IN:
+                continue
+            if rel.target_id in scene_info:
+                loc, ordinal, ch, sname = scene_info[rel.target_id]
+                char_scenes.setdefault(rel.source_id, []).append(
+                    (rel.target_id, loc, ordinal, ch, sname)
+                )
+
+        # 逐角色检查位置变化
+        for char_id, scenes in char_scenes.items():
+            char_unit = self.store.get_unit(char_id)
+            if not char_unit or char_unit.type != UnitType.CHARACTER_ARC:
+                continue
+            char_name = char_unit.unit_name or char_id
+
+            # 按 ordinal 排序
+            scenes_sorted = sorted(scenes, key=lambda s: (
+                0 if s[2] is not None else 1,
+                s[2] if s[2] is not None else 0,
+                s[3],
+                s[4],
+            ))
+
+            for i in range(len(scenes_sorted) - 1):
+                sid_a, loc_a, ord_a, ch_a, sname_a = scenes_sorted[i]
+                sid_b, loc_b, ord_b, ch_b, sname_b = scenes_sorted[i + 1]
+
+                if loc_a == loc_b or not loc_a or not loc_b:
+                    continue
+
+                # 计算间隔
+                if ord_a is not None and ord_b is not None:
+                    gap = ord_b - ord_a
+                elif ch_a > 0 and ch_b > 0:
+                    gap = (ch_b - ch_a) * 10000
+                else:
+                    gap = 99999
+
+                if gap < 5000:
+                    results.append(CheckResult(
+                        rule_name="位置变化",
+                        rule_id="R7",
+                        severity="warning",
+                        description=f"角色「{char_name}」位置变化: {loc_a} → {loc_b}",
+                        units_involved=[sid_a, sid_b, char_id],
+                        detail=f"场景「{sname_a}」（ch{ch_a}, ord={ord_a}）→ "
+                              f"场景「{sname_b}」（ch{ch_b}, ord={ord_b}），间隔 {gap:.1f}",
+                    ))
+
+        return results
+
+    # ── R9：PRECEDES/ordinal 冲突 ────────────────────────────────────────
+
+    def _check_precedes_ordinal_conflicts(self) -> List[CheckResult]:
+        """
+        检测 PRECEDES 边方向与故事时间序数排序的不一致。
+        纯结构检查：A PRECEDES B 但 ordinal(A) >= ordinal(B)。
+        """
+        results: List[CheckResult] = []
+
+        for rel_id, rel in self.store._relations.items():
+            if rel.relation_type != RelationType.PRECEDES:
+                continue
+
+            src = self.store.get_unit(rel.source_id)
+            tgt = self.store.get_unit(rel.target_id)
+            if not src or not tgt:
+                continue
+
+            ord_src = get_story_ordinal(src)
+            ord_tgt = get_story_ordinal(tgt)
+            if ord_src is None or ord_tgt is None:
+                continue
+
+            if ord_src >= ord_tgt:
+                results.append(CheckResult(
+                    rule_name="事件顺序冲突",
+                    rule_id="R9",
+                    severity="error",
+                    description=f"PRECEDES 边方向与序数不一致: {src.unit_name} → {tgt.unit_name}",
+                    units_involved=[rel.source_id, rel.target_id],
+                    detail=f"{src.unit_name}(ord={ord_src}) PRECEDES {tgt.unit_name}(ord={ord_tgt})，"
+                           f"但序数 {ord_src} >= {ord_tgt}",
+                ))
+
+        return results
 
     # ── 工具方法 ─────────────────────────────────────────────────────────
 

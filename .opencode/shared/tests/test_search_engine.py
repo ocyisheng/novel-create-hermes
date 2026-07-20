@@ -18,6 +18,7 @@ import pytest
 
 from graph_schema import UnitType, UnitStatus, RelationType
 from search_engine import SearchEngine, SearchResult, SearchResultSet, CheckResult
+from time_utils import set_story_time
 
 
 # ── 辅助函数 ────────────────────────────────────────────────────────────────
@@ -378,6 +379,223 @@ class TestConsistencyCheck:
         results2 = engine2.check_consistency()
         rule4 = [r for r in results2 if r.rule_id == "R4"]
         assert len(rule4) >= 1
+
+
+# ── R7 / R9 一致性检查 ────────────────────────────────────────────────────────
+
+
+class TestRule7LocationChanges:
+    def test_no_location_change_when_same_location(self, store):
+        """同一位置不应触发 R7"""
+        _populate_test_data(store)
+        hero, *_ = _populate_test_data(store)
+        # 创建两个同位置场景
+        s1 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景A",
+            content='{"地点":"天道宗后山","时间":"清晨"}',
+            chapter_number=1, actor="test",
+        )
+        s2 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景B",
+            content='{"地点":"天道宗后山","时间":"正午"}',
+            chapter_number=1, actor="test",
+        )
+        set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
+        set_story_time(s2, "正午", ordinal=1050.5, precision="exact")
+        store.add_relation(hero.id, s1.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.add_relation(hero.id, s2.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r7 = [r for r in results if r.rule_id == "R7" and "林昭" in r.description]
+        assert len(r7) == 0, f"同地点不应触发R7"
+
+    def test_location_change_detected(self, store):
+        """地点变化且 ordinal 接近 → 触发 R7"""
+        hero, *_ = _populate_test_data(store)
+        s1 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景A",
+            content='{"地点":"天道宗","时间":"清晨"}',
+            chapter_number=1, actor="test",
+        )
+        s2 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景B",
+            content='{"地点":"魔界","时间":"正午"}',
+            chapter_number=1, actor="test",
+        )
+        set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
+        set_story_time(s2, "正午", ordinal=1050.5, precision="exact")
+        store.add_relation(hero.id, s1.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.add_relation(hero.id, s2.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r7 = [r for r in results if r.rule_id == "R7" and "林昭" in r.description]
+        assert len(r7) >= 1
+        assert "天道宗" in r7[0].description
+        assert "魔界" in r7[0].description
+
+    def test_location_change_ignored_with_large_gap(self, store):
+        """ordinal 差距大（>=5000）不应触发 R7"""
+        hero, *_ = _populate_test_data(store)
+        s1 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景A",
+            content='{"地点":"天道宗","时间":"清晨"}',
+            chapter_number=1, actor="test",
+        )
+        s2 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景B",
+            content='{"地点":"魔界","时间":"清晨"}',
+            chapter_number=5, actor="test",
+        )
+        set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
+        set_story_time(s2, "清晨", ordinal=50001.5, precision="exact")  # 5章差距
+        store.add_relation(hero.id, s1.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.add_relation(hero.id, s2.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r7 = [r for r in results if r.rule_id == "R7" and "林昭" in r.description]
+        assert len(r7) == 0, f"ordinal 差距大不应触发 R7"
+
+    def test_r7_returns_checkresult_format(self, store):
+        """R7 结果格式应为标准 CheckResult"""
+        hero, *_ = _populate_test_data(store)
+        s1 = store.create_unit(
+            type=UnitType.SCENE, unit_name="A",
+            content='{"地点":"X","时间":"t"}',
+            chapter_number=1, actor="test",
+        )
+        s2 = store.create_unit(
+            type=UnitType.SCENE, unit_name="B",
+            content='{"地点":"Y","时间":"t"}',
+            chapter_number=1, actor="test",
+        )
+        set_story_time(s1, "t", ordinal=101.5, precision="exact")
+        set_story_time(s2, "t", ordinal=102.5, precision="exact")
+        store.add_relation(hero.id, s1.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.add_relation(hero.id, s2.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r7 = [r for r in results if r.rule_id == "R7" and "林昭" in r.description]
+        if r7:
+            cr = r7[0]
+            assert cr.rule_id == "R7"
+            assert cr.severity == "warning"
+            assert len(cr.units_involved) >= 2
+
+
+class TestRule9PrecedesOrdinal:
+    def test_precedes_ordinal_consistent(self, store):
+        """A PRECEDES B 且 ordinal(A) < ordinal(B) → 不应触发"""
+        _populate_test_data(store)
+        a = store.create_unit(
+            type=UnitType.SCENE, unit_name="事件A",
+            content='{"地点":"天"}', chapter_number=1, actor="test",
+        )
+        b = store.create_unit(
+            type=UnitType.SCENE, unit_name="事件B",
+            content='{"地点":"地"}', chapter_number=2, actor="test",
+        )
+        set_story_time(a, "A", ordinal=1001.5, precision="exact")
+        set_story_time(b, "B", ordinal=2001.5, precision="exact")
+        store.add_relation(a.id, b.id, RelationType.PRECEDES, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r9 = [r for r in results if r.rule_id == "R9"]
+        assert len(r9) == 0
+
+    def test_precedes_ordinal_conflict(self, store):
+        """A PRECEDES B 但 ordinal(A) >= ordinal(B) → 触发 R9"""
+        _populate_test_data(store)
+        a = store.create_unit(
+            type=UnitType.SCENE, unit_name="事件A",
+            content='{"地点":"天"}', chapter_number=1, actor="test",
+        )
+        b = store.create_unit(
+            type=UnitType.SCENE, unit_name="事件B",
+            content='{"地点":"地"}', chapter_number=1, actor="test",
+        )
+        set_story_time(a, "A", ordinal=2001.5, precision="exact")  # higher!
+        set_story_time(b, "B", ordinal=1001.5, precision="exact")
+        store.add_relation(a.id, b.id, RelationType.PRECEDES, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r9 = [r for r in results if r.rule_id == "R9"]
+        assert len(r9) >= 1
+        assert r9[0].severity == "error"
+        assert "事件A" in r9[0].description
+        assert "事件B" in r9[0].description
+
+    def test_precedes_without_ordinals_skipped(self, store):
+        """PRECEDES 边存在但双方无序数 → 跳过"""
+        _populate_test_data(store)
+        a = store.create_unit(
+            type=UnitType.SCENE, unit_name="A",
+            content='{"地点":"天"}', chapter_number=1, actor="test",
+        )
+        b = store.create_unit(
+            type=UnitType.SCENE, unit_name="B",
+            content='{"地点":"地"}', chapter_number=1, actor="test",
+        )
+        store.add_relation(a.id, b.id, RelationType.PRECEDES, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r9 = [r for r in results if r.rule_id == "R9"]
+        assert len(r9) == 0
+
+    def test_no_precedes_edges(self, store):
+        """没有 PRECEDES 边 → R9 不应报错"""
+        _populate_test_data(store)
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r9 = [r for r in results if r.rule_id == "R9"]
+        assert len(r9) == 0
+
+
+# ── 规则注册表 ────────────────────────────────────────────────────────────────
+
+
+class TestCheckerRegistry:
+    def test_all_expected_rules_registered(self):
+        """验证 _CHECKERS 注册表包含所有预期规则"""
+        from search_engine import SearchEngine
+        rule_ids = {rid for rid, _, _ in SearchEngine._CHECKERS}
+        expected = {"R1", "R2", "R3", "R4", "R5", "R6", "R7", "R9"}
+        missing = expected - rule_ids
+        assert not missing, f"Missing rules: {missing}"
+        unexpected = rule_ids - expected
+        # 允许未来新增
+        if unexpected:
+            assert False, f"Unexpected rules not in test expectation: {unexpected}"
+
+    def test_rule_ids_in_check_consistency(self, store):
+        """check_consistency() 返回的 rule_id 都在注册表中"""
+        _populate_test_data(store)
+        from search_engine import SearchEngine
+        engine = SearchEngine(store)
+        registered = {rid for rid, _, _ in SearchEngine._CHECKERS}
+        results = engine.check_consistency()
+        for r in results:
+            assert r.rule_id in registered, (
+                f"Rule {r.rule_id} not in _CHECKERS registry"
+            )
+
+    def test_registry_not_empty(self):
+        """_CHECKERS 注册表不为空"""
+        from search_engine import SearchEngine
+        assert len(SearchEngine._CHECKERS) >= 6
 
 
 # ── 边界值与工具方法 ───────────────────────────────────────────────────────

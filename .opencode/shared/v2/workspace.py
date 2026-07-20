@@ -21,6 +21,27 @@ GraphStore = GraphStoreImpl  # type alias for type annotations
 
 
 @dataclass
+class StoryTimeInfo:
+    """故事时间信息（从 NarrativeUnit.extra["time"] 提取）"""
+    raw: str = ""                              # 原始自由文本
+    ordinal: Optional[float] = None            # 可排序序数，由 CharacterTimelineLedger 赋值
+    precision: str = "vague"                   # exact|same|day|month|year|era|relative|vague
+
+
+@dataclass
+class CharacterStateEntry:
+    """角色在某场景中的出场状态"""
+    name: str = ""
+    status: str = ""
+    description: str = ""
+    scene_id: str = ""                         # 来源场景单元 ID
+    scene_name: str = ""                       # 场景名称
+    scene_order: int = 0                       # 场景在章内顺序（0-based）
+    story_ordinal: Optional[float] = None      # 故事时间序数
+    prev_state: Optional[Dict[str, str]] = None  # 上一章结束时状态（Ledger 注入）
+
+
+@dataclass
 class Workspace:
     """
     工作空间——当前焦点所需的上下文数据快照。
@@ -56,10 +77,10 @@ class Workspace:
     next_unit: Optional[Dict[str, Any]] = None
     
     # 场景级信息（写章节时的上下文）
-    story_time: str = ""                    # 故事内时间
-    location: str = ""                      # 地点
-    scene_function: str = ""                # 本场景叙事目标
-    character_states: List[Dict[str, str]] = field(default_factory=list)  # [{name, status, description}]
+    story_time: Optional[StoryTimeInfo] = None  # 故事内时间（取代原 str 拼接）
+    location: str = ""                           # 地点（多场景用；分隔）
+    scene_function: str = ""                     # 本场景叙事目标
+    character_states: List[CharacterStateEntry] = field(default_factory=list)  # 有序角色状态
     writing_guides: List[str] = field(default_factory=list)  # 写作指引
     
     # 活跃风格（V2：从 config.yaml 读取后注入）
@@ -91,13 +112,14 @@ class Workspace:
             lines.append(f"你正在写场景：{self.focus_unit.unit_name}")
             ch = get_unit_chapter(self.focus_unit) or "?"
             lines.append(f"归属：第{ch}章")
-            if self.story_time:
-                lines.append(f"时间：{self.story_time}")
+            if self.story_time and self.story_time.raw:
+                lines.append(f"时间：{self.story_time.raw}")
             if self.location:
                 lines.append(f"地点：{self.location}")
             if self.character_states:
                 roles = "，".join(
-                    f"{s.get('name','?')}（{s.get('status','?')}）" for s in self.character_states[:5]
+                    f"{s.name}（{s.status}）" if s.status else s.name
+                    for s in self.character_states[:5]
                 )
                 lines.append(f"出场角色：{roles}")
         else:
@@ -119,8 +141,8 @@ class Workspace:
                         lines.append(f"  - {s.get('unit_name', '?')}")
                 elif self.location:
                     lines.append(f"地点：{self.location}")
-                    if self.story_time:
-                        lines.append(f"时间：{self.story_time}")
+                    if self.story_time and self.story_time.raw:
+                        lines.append(f"时间：{self.story_time.raw}")
         lines.append("")
         
         # 段2：你需要知道
@@ -128,10 +150,20 @@ class Workspace:
         idx = 1
         if self.scene_function:
             lines.append(f"{idx}. 【核心】{self.scene_function}"); idx += 1
+        
+        # 角色上一章状态（有 prev_state 的角色先展示）
+        prev_states = [cs for cs in self.character_states if cs.prev_state]
+        if prev_states:
+            lines.append(f"{idx}. 【角色上一章状态】"); idx += 1
+            seen_prev = set()
+            for cs in prev_states:
+                if cs.name not in seen_prev:
+                    seen_prev.add(cs.name)
+                    lines.append(f"   - {cs.name}：{cs.prev_state}")
+        
         for cs in self.character_states:
-            desc = cs.get("description", "")
-            if desc:
-                lines.append(f"{idx}. 【角色】{cs.get('name','?')}：{desc}"); idx += 1
+            if cs.description:
+                lines.append(f"{idx}. 【角色】{cs.name}：{cs.description}"); idx += 1
         if self.missing_gaps:
             for gap in self.missing_gaps:
                 lines.append(f"{idx}. ⚠️ {gap}"); idx += 1
@@ -550,6 +582,8 @@ class WorkspaceBuilder:
         
         elif focus.type == UnitType.CHUNK:
             # 正在写正文：通过 BELONGS_TO 找所属场景，再由场景加载角色和情节线（跳过已归档）
+            # 先收集所有场景，按故事时间排序后再处理
+            belonging_scenes: List[NarrativeUnit] = []
             for rel in self.store.get_relations(focus.id, direction="outgoing"):
                 if rel.relation_type != RelationType.BELONGS_TO:
                     continue
@@ -558,7 +592,21 @@ class WorkspaceBuilder:
                     continue
                 if scene.status == UnitStatus.ARCHIVED:
                     continue
-                
+                belonging_scenes.append(scene)
+            
+            # 按故事时间序数排序（无 ordinals 的放后面，按章节号兜底）
+            def _scene_sort_key(sc):
+                extra = sc.extra or {}
+                ti = extra.get("time", {}) if isinstance(extra, dict) else {}
+                ord_val = ti.get("ordinal") if isinstance(ti, dict) else None
+                if ord_val is not None:
+                    return (0, float(ord_val), "")
+                ch = get_unit_chapter(sc) or 0
+                return (1, ch * 10000, sc.unit_name or "")
+            
+            belonging_scenes.sort(key=_scene_sort_key)
+            
+            for scene_order, scene in enumerate(belonging_scenes):
                 # 记录场景（去重）
                 if not any(e["unit_id"] == scene.id for e in ws.scenes):
                     ws.scenes.append({
@@ -568,7 +616,7 @@ class WorkspaceBuilder:
                     })
                 
                 # 从场景 content 提取时间/地点/核心冲突/角色状态/写作指引
-                self._extract_scene_context(ws, scene)
+                self._extract_scene_context(ws, scene, scene_order=scene_order)
                 
                 # 通过场景加载关联角色和情节线（1-hop from scene）
                 seen_chars = {e["unit_id"] for e in ws.character_arcs}
@@ -953,16 +1001,30 @@ class WorkspaceBuilder:
                     if gap not in ws.missing_gaps:
                         ws.missing_gaps.append(gap)
 
-    def _extract_scene_context(self, ws: Workspace, scene_unit: NarrativeUnit):
-        """从 SCENE 单元提取场景上下文到工作空间（供 SCENE/CHUNK 焦点共用）"""
+    def _extract_scene_context(self, ws: Workspace, scene_unit: NarrativeUnit, scene_order: int = 0):
+        """从 SCENE 单元提取场景上下文到工作空间（供 SCENE/CHUNK 焦点共用）
+
+        Args:
+            scene_order: 场景在章内的顺序（0-based），写入 CharacterStateEntry 用于时间线排序
+        """
         content = self._parse_json_content(scene_unit)
         if not content:
             return
         
+        # 同步 content["时间"] → extra.time（弥补 crafter 只写 content 不写 extra 的断层）
+        self._sync_time_to_extra(scene_unit, content)
+        
         # 提取场景信息（多次调用时累加，避免最后一条覆盖前面）
         t = content.get("时间", "")
         if t:
-            ws.story_time = f"{ws.story_time}；{t}" if ws.story_time else t
+            raw = f"{ws.story_time.raw}；{t}" if ws.story_time else t
+            existing_ordinal = ws.story_time.ordinal if ws.story_time else None
+            existing_precision = ws.story_time.precision if ws.story_time else "vague"
+            ws.story_time = StoryTimeInfo(raw=raw, ordinal=existing_ordinal, precision=existing_precision)
+        else:
+            if not ws.story_time:
+                ws.story_time = StoryTimeInfo()
+        
         loc = content.get("地点", "")
         if loc:
             ws.location = f"{ws.location}；{loc}" if ws.location else loc
@@ -972,18 +1034,38 @@ class WorkspaceBuilder:
         if func:
             ws.scene_function = f"{ws.scene_function}；{func}" if ws.scene_function else func
         
-        # 角色状态
+        # 提取 extra.time 中的序数
+        extra = scene_unit.extra or {}
+        time_info = extra.get("time", {})
+        if isinstance(time_info, dict):
+            story_ordinal = time_info.get("ordinal")
+            precision = time_info.get("precision", "vague")
+            if story_ordinal is not None and (ws.story_time.ordinal is None 
+                or precision == "same"):
+                ws.story_time.ordinal = story_ordinal
+                ws.story_time.precision = precision
+        
+        # 角色状态（构建 CharacterStateEntry 对象）
         characters = content.get("出场角色", [])
         if isinstance(characters, list):
             for c in characters:
                 if isinstance(c, dict):
-                    ws.character_states.append({
-                        "name": c.get("角色名", ""),
-                        "status": c.get("状态", ""),
-                        "description": c.get("场景作用", ""),
-                    })
+                    ws.character_states.append(CharacterStateEntry(
+                        name=c.get("角色名", ""),
+                        status=c.get("状态", ""),
+                        description=c.get("场景作用", ""),
+                        scene_id=scene_unit.id,
+                        scene_name=scene_unit.unit_name or "",
+                        scene_order=scene_order,
+                        story_ordinal=ws.story_time.ordinal,
+                    ))
                 elif isinstance(c, str):
-                    ws.character_states.append({"name": c, "status": "", "description": ""})
+                    ws.character_states.append(CharacterStateEntry(
+                        name=c, scene_id=scene_unit.id,
+                        scene_name=scene_unit.unit_name or "",
+                        scene_order=scene_order,
+                        story_ordinal=ws.story_time.ordinal,
+                    ))
         
         # 写作指引
         scene_type = content.get("子类型", "")
@@ -992,9 +1074,29 @@ class WorkspaceBuilder:
         summary = content.get("一句话概要", "")
         if summary:
             ws.writing_guides.append(f"场景概要：{summary}")
+
+    @staticmethod
+    def _sync_time_to_extra(scene_unit: NarrativeUnit, content: dict):
+        """
+        单次同步 content["时间"] → extra["time"]。
+        仅在 extra["time"] 为空且 content["时间"] 非空时写入。
+        extra["time"].ordinal 不清空——Ledger 的自动序数可能已写入。
+        """
+        if not content.get("时间"):
+            return
+        extra = scene_unit.extra or {}
+        if extra.get("time") is not None:
+            return  # 已同步，跳过
+        from time_utils import STORY_TIME_KEY
+        if STORY_TIME_KEY not in extra:
+            extra[STORY_TIME_KEY] = {
+                "label": content["时间"],
+                "ordinal": content.get("时间序数"),
+                "precision": "vague",
+            }
     
     def _enrich_scene_context(self, ws: Workspace, focus: NarrativeUnit):
         """提取场景级上下文信息（SCENE 焦点专用）"""
         if not focus or focus.type != UnitType.SCENE:
             return
-        self._extract_scene_context(ws, focus)
+        self._extract_scene_context(ws, focus, scene_order=0)

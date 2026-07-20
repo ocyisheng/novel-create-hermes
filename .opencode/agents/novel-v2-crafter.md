@@ -130,6 +130,27 @@ novel-tool --operation graph.flush --project {PROJECT}
 
 同理适用于 WORLD_RULE（地点）和 PLOT_THREAD（情节线）的存根创建。
 
+### 时间管理
+
+创建任意叙事单元（SCENE、CHARACTER_ARC、PLOT_THREAD、NOTE、WORLD_RULE 等）时，根据上下文推断其故事时间并写入 `content["时间"]` 字段。
+
+**规则**：
+- SCENE：必填 `时间`（从章纲/前场景推断，如"第三日清晨"、"同一日正午"）
+- CHARACTER_ARC：创建时可选填 `时间`（如"少年时期"），后续更新
+- PLOT_THREAD：`关键事件` 的每个条目应包含 `时间` 字段
+- 时间精度不足时使用自然语言（"数日后"、"很久以后"），不强制序数
+
+**序数赋权**：序数（`extra.time.ordinal`）由系统 `CharacterTimelineLedger` 自动计算，不应在创建时手动赋值。仅闪回/插叙/平行时间线场景需手动设定。
+
+**写入方式**：在 `--content` JSON 中包含 `时间` 字段：
+```
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type SCENE \
+  --name "第3章_后山修炼" --content '{"子类型":"推进","POV角色":"林昭","地点":"黄枫谷后山","时间":"第三日清晨","一句话概要":"..."}' \
+  --actor novel-v2-crafter
+```
+
+写 CHUNK 前，阅读 workspace 中的角色上一章状态，确保正文与角色时间线连贯。
+
 ## 四、创作操作
 
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。

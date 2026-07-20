@@ -10,12 +10,14 @@
 | R2: 角色关系不对称 | warning | SearchEngine.check_consistency() 自动 |
 | R3: 孤立单元 | info | SearchEngine.check_consistency() 自动 |
 | R4: 归档单元仍有活跃关系 | warning | SearchEngine.check_consistency() 自动 |
-| R5: 能力边界一致性 | warning | SearchEngine 自动 + 供 LLM 角色一致性判断 |
-| R6: 时间线一致性 | warning | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
-| R7: 情节线完成度 | info | SearchEngine 自动 + 供 LLM 情节逻辑判断 |
+| A5: 能力边界一致性（含修为变化） | warning | 纯 LLM 语义分析 |
+| A6: 时间线一致性 | warning | 纯 LLM 语义分析 |
+| A7: 情节线完成度 | info | 纯 LLM 语义分析 |
 
-> 规则 1-4 已由 `SearchEngine.check_consistency()` 实现，通过 `graph.check` 调用。
-> 规则 5-7 需要 LLM 做语义分析，SearchEngine 只提供原始数据。
+> 规则 1-4（R1-R4）为 SearchEngine 机械检查，通过 `graph.check` 调用。
+> 规则 A5-A7 为 LLM 语义分析，SearchEngine 不做机械检查。
+> A5 扩展：`出场角色[].状态` 中的修为/能力变化（跨越境界、离线升级判断）作为 A5 的子案例。
+> 新增机械规则 R7（位置变化标记）、R9（事件顺序冲突）为 SearchEngine 新增规则，编号 R7-R9 独立于 A5-A7。
 
 novel-tool 速查：
 
@@ -35,7 +37,7 @@ novel-tool --operation graph.stats --project <PROJECT>                          
 
 ---
 
-## 规则 5：能力边界一致性（需 LLM 分析）
+## 规则 A5：能力边界一致性（需 LLM 分析）
 
 **严重级别**：warning
 
@@ -72,7 +74,7 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --uni
 
 ---
 
-## 规则 6：时间线一致性（需 LLM 分析）
+## 规则 A6：时间线一致性（需 LLM 分析）
 
 **严重级别**：warning
 
@@ -94,7 +96,7 @@ novel-tool --operation graph.search --project <PROJECT> --unit_type CHUNK --limi
 
 ---
 
-## 规则 7：情节线完成度（需 LLM 分析）
+## 规则 A7：情节线完成度（需 LLM 分析）
 
 **严重级别**：info
 

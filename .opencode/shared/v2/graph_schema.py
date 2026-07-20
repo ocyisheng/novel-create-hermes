@@ -170,6 +170,14 @@ class NarrativeUnit:
     
     取代现有架构中分散的 YAML 实体文件。
     一个叙事单元对应创作者思维中的一个"东西"——一个场景、一条弧线、一个设定。
+    
+    extra.time 约定（通用故事时间表示）：
+        extra["time"] = {
+            "label": str,            # 人类可读时间表达（如"第三日清晨"）
+            "ordinal": float | None, # 可排序序数，由 CharacterTimelineLedger 自动赋值
+            "precision": str,        # exact|same|day|month|year|era|relative|vague
+        }
+    暂存 extra 而非一等字段：Ledger 预计算排序视图，引擎层不依赖 extra 做索引。
     """
     id: str                               # UUID，全局唯一
     type: UnitType                        # 单元类型

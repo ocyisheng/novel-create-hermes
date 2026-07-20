@@ -33,7 +33,15 @@ SCENE_SCHEMA = {
     "地点": {"type": str, "required": True},
     "时间": {"type": str, "required": False},
     "一句话概要": {"type": str, "required": True},
-    "出场角色": {"type": list, "required": False},
+    "出场角色": {
+        "type": list, "required": False,
+        "item_fields": {
+            "角色名": {"type": str, "required": True},
+            "状态": {"type": str, "required": False},
+            "场景作用": {"type": str, "required": False},
+            "本章结局状态": {"type": dict, "required": False},
+        }
+    },
     "关联情节线": {"type": list, "required": False},
 }
 

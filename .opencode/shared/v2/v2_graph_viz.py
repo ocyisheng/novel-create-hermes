@@ -233,10 +233,12 @@ class V2GraphLoader:
         return {"nodes": nodes, "edges": edges, "center_id": center.id}
 
     def build_timeline(self, unit_id: str) -> dict | None:
-        """构建角色的时间线（按章节排序的场景 + 关联笔记）"""
+        """构建角色的时间线（按故事时间序数排序的场景 + 关联笔记）"""
         center = self.store.get_unit(unit_id)
         if not center:
             return None
+
+        from time_utils import get_story_ordinal, get_story_label
 
         events = []
 
@@ -244,12 +246,25 @@ class V2GraphLoader:
         for rel in self.store.get_relations(unit_id, direction="incoming"):
             source = self.store.get_unit(rel.source_id)
             if source and source.type == UnitType.SCENE and source.status != UnitStatus.ARCHIVED:
+                import json as _json
+                content = source.content
+                if isinstance(content, str):
+                    try:
+                        content = _json.loads(content)
+                    except (json.JSONDecodeError, ValueError):
+                        content = {}
+                loc = content.get("地点", "") if isinstance(content, dict) else ""
+                story_ord = get_story_ordinal(source)
+                ch = get_unit_chapter(source)
                 events.append({
-                    "sort_key": get_unit_chapter(source),
+                    "sort_key": ch or 0,
+                    "story_ordinal": story_ord,
                     "time_label": get_unit_chapter_label(source),
+                    "story_time_label": get_story_label(source),
                     "event": source.unit_name,
                     "source_type": "chapter",
                     "node_id": source.id,
+                    "location": loc,
                 })
 
             if source and source.type == UnitType.CHUNK and source.status != UnitStatus.ARCHIVED:
@@ -319,7 +334,11 @@ class V2GraphLoader:
                 except (json.JSONDecodeError, AttributeError, KeyError):
                     pass
 
-        events.sort(key=lambda e: (e["sort_key"], e["event"]))
+        events.sort(key=lambda e: (
+            0 if e.get("story_ordinal") is not None else 1,
+            e.get("story_ordinal") or e["sort_key"],
+            e["event"],
+        ))
 
         return {
             "entity": {
@@ -890,6 +909,10 @@ TIMELINE_HTML_TEMPLATE = r"""<!DOCTYPE html>
   }}
   .tl-item .tl-card:hover {{ border-color: #4a4a7a; }}
   .tl-card .tl-event {{ font-size: 14px; color: #e0e0e0; line-height: 1.6; }}
+  .tl-card .tl-location {{ font-size: 12px; color: #8BB9E0; margin-top: 4px; }}
+  .tl-card .tl-location::before {{ content: '📍 '; }}
+  .tl-card .tl-story-time {{ font-size: 11px; color: #B4A7D6; margin-top: 2px; }}
+  .tl-card .tl-story-time::before {{ content: '🕐 '; }}
 </style>
 </head>
 <body>
@@ -999,10 +1022,16 @@ class V2HTMLGenerator:
             for item in events:
                 css_class = f"type-{item['source_type']}"
                 time_html = f'<div class="tl-time">{item["time_label"]}</div>'
+                card_parts = [f'<div class="tl-event">{item["event"]}</div>']
+                if item.get("location"):
+                    card_parts.append(f'<div class="tl-location">{item["location"]}</div>')
+                if item.get("story_time_label"):
+                    card_parts.append(f'<div class="tl-story-time">{item["story_time_label"]}</div>')
+                card_html = f'<div class="tl-card">{"".join(card_parts)}</div>'
                 parts.append(
                     f'<div class="tl-item {css_class}">'
                     f'{time_html}'
-                    f'<div class="tl-card"><div class="tl-event">{item["event"]}</div></div>'
+                    f'{card_html}'
                     f'</div>'
                 )
             timeline_body = '<div class="tl">' + "\n".join(parts) + "</div>"

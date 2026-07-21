@@ -13,6 +13,21 @@ import io
 from pathlib import Path
 from typing import Any, Optional
 
+# _GET_STORE 注入钩子（守护进程模式使用）
+# 由 novel_tool.py --daemon 通过 set_store_provider() 注入缓存版 _get_store。
+# 非 daemon 模式下保持 None，_get_store 行为不变。
+_GET_STORE_IMPL = None
+
+
+def set_store_provider(provider):
+    """供守护进程注入缓存版 _get_store。
+    
+    Args:
+        provider: 一个可调用对象，签名同 _get_store(project_root: str) -> GraphStore
+    """
+    global _GET_STORE_IMPL
+    _GET_STORE_IMPL = provider
+
 
 # ── 内部工具函数 ──────────────────────────────────────────────────────────
 
@@ -28,6 +43,8 @@ _syspath_insert(_V2_DIR)
 
 
 def _get_store(project_root: str):
+    if _GET_STORE_IMPL is not None:
+        return _GET_STORE_IMPL(project_root)
     if not project_root:
         raise ValueError("项目路径为空")
     resolved = _resolve_project(project_root)

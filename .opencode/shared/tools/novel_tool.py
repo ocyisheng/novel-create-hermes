@@ -11,11 +11,52 @@ novel_tool.py — V2 小说创作统一工具句柄（薄 JSON 适配层）。
 import sys
 import os
 import json
+import time
+import signal
+from datetime import datetime, timezone
+from typing import Dict, Optional
 
 # 确保 shared/ 在 sys.path 中
 _SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _SHARED_DIR not in sys.path:
     sys.path.insert(0, _SHARED_DIR)
+
+
+# ── 守护进程日志 ─────────────────────────────────────────────────────
+
+class _DaemonLogger:
+    """守护进程结构化日志，写入 graph/daemon.log。"""
+    
+    def __init__(self):
+        self._log_file = None
+    
+    def open(self, graph_dir: str):
+        log_path = os.path.join(graph_dir, "daemon.log")
+        try:
+            self._log_file = open(log_path, "a", encoding="utf-8")
+        except OSError:
+            self._log_file = None
+    
+    def log(self, event: str, **fields):
+        if not self._log_file:
+            return
+        entry = {"ts": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
+        try:
+            self._log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            self._log_file.flush()
+        except Exception:
+            pass
+    
+    def close(self):
+        if self._log_file:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+            self._log_file = None
+
+
+_DAEMON_LOG = _DaemonLogger()
 
 
 # ── JSON 响应工具 ───────────────────────────────────────────────────────
@@ -192,9 +233,182 @@ def handle_request(request: dict) -> str:
         return _err(f"{e}\n{traceback.format_exc()}")
 
 
+# ── 守护进程模式 ───────────────────────────────────────────────────────
+
+# GraphStore 进程内缓存（LRU 池）
+_STORES: Dict[str, 'GraphStore'] = {}
+_LRU_ORDER: list[str] = []
+_MAX_STORES = int(os.environ.get("NOVEL_DAEMON_MAX_STORES", "5"))
+
+
+def _get_store_cached(project_root: str):
+    """带 LRU 淘汰的 GraphStore 缓存。替换 _get_store 的默认行为。"""
+    if project_root in _STORES:
+        # 移到 LRU 末尾（最近使用）
+        _LRU_ORDER.remove(project_root)
+        _LRU_ORDER.append(project_root)
+        return _STORES[project_root]
+    
+    from graph_store import GraphStore
+    store = GraphStore(project_root)
+    store.initialize()
+    
+    # LRU 淘汰
+    while len(_STORES) >= _MAX_STORES:
+        evict_key = _LRU_ORDER.pop(0)
+        evicted = _STORES.pop(evict_key)
+        try:
+            if evicted._dirty_nodes or evicted._dirty_edges or evicted._dirty_events:
+                evicted.flush()
+        except Exception as exc:
+            print(f"[daemon] LRU evict flush failed: {exc}", file=sys.stderr)
+    
+    _STORES[project_root] = store
+    _LRU_ORDER.append(project_root)
+    _DAEMON_LOG.log("store_cache_miss", project=project_root, pool_size=len(_STORES))
+    return store
+
+
+def _daemon_handle_request(request: dict) -> str:
+    """守护进程版的 handle_request：复用 _build_canonical_params 和 run_operation，
+       但由 _get_store_cached 提供 GraphStore 缓存。"""
+    try:
+        # Lazy open daemon log when project becomes known
+        project = request.get("project", "")
+        if project and not _DAEMON_LOG._log_file:
+            resolved = _resolve_project(project)
+            graph_dir = os.path.join(resolved, "graph")
+            if os.path.isdir(graph_dir):
+                _DAEMON_LOG.open(graph_dir)
+        
+        op = request.get("operation", "")
+        if not op:
+            return _err("缺少 operation 字段")
+        
+        canonical = _build_canonical_params(op, request)
+        
+        from handlers import run_operation
+        result = run_operation(op, **canonical)
+        
+        if "error" in result:
+            return _err(result["error"])
+        return _ok(result)
+    
+    except Exception as e:
+        import traceback
+        return _err(f"{e}\n{traceback.format_exc()}")
+
+
+def _daemon_main():
+    """守护进程主循环。由 novel_tool.py --daemon 调用。"""
+    # 预加载 handlers（触发 sys.path.insert + 模块编译）
+    import handlers  # noqa: F401
+    
+    # 注入缓存版 _get_store
+    from handlers.handlers_graph import set_store_provider
+    set_store_provider(_get_store_cached)
+    
+    # 忽略 SIGINT（让父进程管理生命周期）
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    
+    # 空闲超时
+    idle_timeout = int(os.environ.get("NOVEL_DAEMON_IDLE_TIMEOUT", "300"))
+    last_request_time = time.time()
+    total_requests = 0
+    request_id = 0
+    
+    # 打开 daemon.log（写到项目无关的临时目录；首次真实请求时会切换）
+    _DAEMON_LOG.log("daemon_start", pid=os.getpid(), stores=0)
+    
+    # 握手信号
+    sys.stdout.write(json.dumps({
+        "ready": True,
+        "pid": os.getpid(),
+        "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
+        "max_stores": _MAX_STORES,
+    }, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+    
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            # 检查空闲超时
+            if time.time() - last_request_time > idle_timeout:
+                break
+            continue
+        
+        last_request_time = time.time()
+        total_requests += 1
+        request_id += 1
+        req_id = f"req_{request_id:04d}"
+        
+        # 解析 JSON
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError as e:
+            sys.stdout.write(
+                json.dumps({"success": False, "error": f"JSON parse error: {e}"},
+                           ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+            continue
+        
+        # 注入 _req_id（若有则透传，无则自动生成）
+        client_req_id = request.pop("_req_id", req_id)
+        
+        # ── 特殊操作 ──
+        if request.get("operation") == "shutdown":
+            _DAEMON_LOG.log("daemon_shutdown", uptime_s=int(time.time() - last_request_time + 1),
+                            total_requests=total_requests, peak_pool_size=len(_STORES))
+            break
+        
+        if request.get("operation") == "__ping__":
+            sys.stdout.write(
+                json.dumps({"_req_id": client_req_id, "success": True, "data": {"pong": True}},
+                           ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+            continue
+        
+        # ── 普通请求 ──
+        t0 = time.time()
+        result_str = _daemon_handle_request(request)
+        elapsed = (time.time() - t0) * 1000
+        
+        # 在响应中注入 _req_id
+        try:
+            result_obj = json.loads(result_str)
+            result_obj["_req_id"] = client_req_id
+            result_str = json.dumps(result_obj, ensure_ascii=False)
+        except Exception:
+            pass
+        
+        sys.stdout.write(result_str + "\n")
+        sys.stdout.flush()
+        
+        # 日志
+        _DAEMON_LOG.log("request_end", req_id=client_req_id,
+                        operation=request.get("operation", "?"),
+                        project=request.get("project", ""),
+                        duration_ms=round(elapsed, 1))
+    
+    # 清理：flush 所有 store
+    for path, store in _STORES.items():
+        try:
+            store.flush()
+        except Exception:
+            pass
+    _STORES.clear()
+    _LRU_ORDER.clear()
+    _DAEMON_LOG.close()
+
+
 # ── CLI 入口（被 novel-tool.ts 调用） ─────────────────────────────────────
 
 if __name__ == "__main__":
+    # 守护进程模式
+    if "--daemon" in sys.argv:
+        _daemon_main()
+        sys.exit(0)
+    
     raw = ""
     if len(sys.argv) >= 2:
         raw = sys.argv[1]

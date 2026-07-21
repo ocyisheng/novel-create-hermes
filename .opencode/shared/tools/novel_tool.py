@@ -213,24 +213,87 @@ def handle_request(request: dict) -> str:
     """统一请求处理入口。
 
     将 request dict 适配为规范化参数，交给 handlers 模块处理。
+    自动记录遥测数据到 graph/telemetry.ndjson。
     """
+    import time as _time
+    _start = _time.time()
+    op = request.get("operation", "")
+    project = request.get("project", "")
+    canonical = {}
+    proj_root = ""
+    
     try:
-        op = request.get("operation", "")
         if not op:
             return _err("缺少 operation 字段")
 
         canonical = _build_canonical_params(op, request)
+        proj_root = canonical.get("project_root", "") or _resolve_project(project)
 
         from handlers import run_operation
         result = run_operation(op, **canonical)
 
+        duration_ms = (_time.time() - _start) * 1000
+        
         if "error" in result:
+            _record_failure(proj_root, op, canonical, duration_ms, result["error"])
             return _err(result["error"])
+        
+        _record_success(proj_root, op, canonical, duration_ms, result)
         return _ok(result)
 
     except Exception as e:
-        import traceback
-        return _err(f"{e}\n{traceback.format_exc()}")
+        duration_ms = (_time.time() - _start) * 1000
+        stack = traceback.format_exc()
+        _record_failure(proj_root, op, canonical, duration_ms, f"{e}\n{stack}")
+        return _err(f"{e}\n{stack}")
+
+
+def _record_success(proj_root: str, op: str, canonical: dict, duration_ms: float, result: dict):
+    """记录成功的工具调用到遥测。"""
+    if not proj_root:
+        return
+    try:
+        from telemetry import get_recorder
+        recorder = get_recorder(proj_root)
+        result_str = json.dumps(result, ensure_ascii=False, default=str)
+        unit_count = 0
+        relation_count = 0
+        for key in ("unit", "units", "nodes", "node"):
+            val = result.get(key)
+            if isinstance(val, list):
+                unit_count += len(val)
+            elif isinstance(val, dict):
+                unit_count += 1
+        for key in ("relation", "relations", "edges"):
+            val = result.get(key)
+            if isinstance(val, list):
+                relation_count += len(val)
+            elif isinstance(val, dict):
+                relation_count += 1
+        recorder.record(
+            operation=op, params=canonical, success=True,
+            duration_ms=duration_ms, result_size=len(result_str),
+            unit_count=unit_count, relation_count=relation_count,
+        )
+    except Exception:
+        pass
+
+
+def _record_failure(proj_root: str, op: str, canonical: dict, duration_ms: float, error_str: str):
+    """记录失败的工具调用到遥测。"""
+    if not proj_root:
+        return
+    try:
+        from telemetry import get_recorder, classify_error
+        recorder = get_recorder(proj_root)
+        error_summary = error_str.split("\n")[0] if "\n" in error_str else error_str[:300]
+        recorder.record_error(
+            operation=op, params=canonical,
+            error_type=classify_error(error_summary, error_str),
+            error_msg=error_summary, duration_ms=duration_ms,
+        )
+    except Exception:
+        pass
 
 
 # ── 守护进程模式 ───────────────────────────────────────────────────────

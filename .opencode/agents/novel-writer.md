@@ -73,7 +73,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │       └─ 非 chunk?
   │           ├─ skill("novel-grill", user_message="{FOCUS TYPE}:{FOCUS NAME}") → 收敛需求
   │           └─ 用户确认后 → 走 V2 创作路由（§V2 路由）调度 crafter（注入 session info）
-  ├─ 迁移操作（用户要求迁移项目到 V2）?
+    ├─ 迁移操作（用户要求迁移项目到 V2）?
   │   └─ 执行迁移 + 报告【多步骤→见 §5.2 Todo 追踪规则】
   └─ 不匹配? → 询问用户意图
 ```
@@ -487,7 +487,8 @@ skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 
 也可直接走 tool：`novel-tool --operation project.new --name "项目名" --genre "类型" --v2`
 
-## 七、状态维护
+
+## 八、状态维护
 
 V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush 自动维护）。
 
@@ -495,7 +496,7 @@ V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush �
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 八、故障恢复
+## 九、故障恢复
 
 | 场景 | 行为 |
 |------|------|

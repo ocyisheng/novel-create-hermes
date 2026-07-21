@@ -851,6 +851,40 @@ def _run_v2(args):
         sys.exit(1)
 
 
+# ── analyze ────────────────────────────────────────────────────────
+
+def _build_analyze_parser(sub):
+    p = sub.add_parser("analyze", help="使用数据分析与优化建议")
+    p.add_argument("--project-root", "-p", required=True, help="项目根目录")
+    p.add_argument("--mode", choices=["quick", "full"], default="full",
+                    help="分析模式: quick=仅统计, full=含详细分析")
+    p.add_argument("--json", action="store_true", help="输出 JSON 格式")
+    p.add_argument("--output", "-o", default="", help="输出到文件")
+    return p
+
+
+def _run_analyze(args):
+    from v2.usage_analyzer import collect_usage_data, format_report
+    import json
+
+    report = collect_usage_data(args.project_root)
+    if "error" in report:
+        print(f"❌ {report['error']}")
+        sys.exit(1)
+
+    if args.json:
+        output = json.dumps(report, ensure_ascii=False, indent=2, default=str)
+    else:
+        output = format_report(report, verbose=(args.mode == "full"))
+
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(output)
+        print(f"✅ 报告已写入: {args.output}")
+    else:
+        print(output)
+
+
 # ── 主入口 ─────────────────────────────────────────────────────────
 
 def main():
@@ -866,6 +900,7 @@ def main():
     _build_project_parser(sub)
     _build_env_parser(sub)
     _build_v2_parser(sub)
+    _build_analyze_parser(sub)
 
     args = parser.parse_args()
 
@@ -879,6 +914,7 @@ def main():
         "project": _run_project,
         "env": _run_env,
         "v2": _run_v2,
+        "analyze": _run_analyze,
     }
 
     dispatch[args.domain](args)

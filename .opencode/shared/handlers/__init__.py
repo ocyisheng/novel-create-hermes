@@ -75,6 +75,17 @@ from .handlers_knowledge import (
     handle_knowledge_list_books,
 )
 
+from .handlers_analyze import (
+    handle_analyze_usage,
+    handle_analyze_telemetry,
+)
+
+from .handlers_summary import (
+    handle_save_summary,
+    handle_list_summaries,
+    handle_read_summary,
+)
+
 
 OPERATION_REGISTRY = {
     # graph reads
@@ -288,6 +299,29 @@ OPERATION_REGISTRY = {
     "knowledge.list_books": {
         "handler": handle_knowledge_list_books,
         "params": {},
+    },
+    # analyze
+    "analyze.usage": {
+        "handler": handle_analyze_usage,
+        "params": {"project_root": {"required": True}, "mode": {}, "json_output": {}},
+    },
+    "analyze.telemetry": {
+        "handler": handle_analyze_telemetry,
+        "params": {"project_root": {"required": True}},
+    },
+    # summary
+    "summary.save": {
+        "handler": handle_save_summary,
+        "params": {"project_root": {"required": True}, "content": {"required": True},
+                    "session_id": {}, "focus_type": {}, "focus_name": {}, "tags": {}},
+    },
+    "summary.list": {
+        "handler": handle_list_summaries,
+        "params": {"project_root": {"required": True}, "limit": {}, "tag": {}},
+    },
+    "summary.read": {
+        "handler": handle_read_summary,
+        "params": {"project_root": {"required": True}, "file": {"required": True}},
     },
 }
 

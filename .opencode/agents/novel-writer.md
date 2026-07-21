@@ -487,8 +487,7 @@ skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 
 也可直接走 tool：`novel-tool --operation project.new --name "项目名" --genre "类型" --v2`
 
-
-## 八、状态维护
+## 七、状态维护
 
 V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush 自动维护）。
 
@@ -496,7 +495,7 @@ V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush �
 - **时间快照**：更新 `novel-context.md` 最后活动时间
 - **已知问题**：写入 `novel-issues.md`
 
-## 九、故障恢复
+## 八、故障恢复
 
 | 场景 | 行为 |
 |------|------|
@@ -504,3 +503,4 @@ V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush �
 | 迁移后文件与 graph 不一致 | `novel-tool --operation graph.export_docs` 重新导出 |
 | 子 Agent 返回不完整 | `Task(task_id="ses_...", prompt="fix: ...")` 继续会话 |
 | 用户要求回退 | 事件溯源找到变更事件，create_snapshot 后 restore 到之前的状态 |
+

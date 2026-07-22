@@ -22,7 +22,7 @@ from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 工具根目录
-_TOOL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_TOOL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _ENGINE_DIR = os.path.join(_TOOL_ROOT, ".engine")
 _NOVELS_DIR = os.path.join(_TOOL_ROOT, "novels")
 
@@ -119,23 +119,9 @@ def migrate_summaries(projects: list[tuple[str, str]], dry_run: bool = False) ->
         for fname in summary_files:
             old_file = os.path.join(old_log_dir, fname)
             content = Path(old_file).read_text(encoding="utf-8")
-            
-            # 提取时间戳（从文件名或内容）
-            ts_str = fname[:19] if len(fname) >= 19 else datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-            try:
-                ts = datetime.strptime(ts_str, "%Y-%m-%d_%H%M%S")
-            except ValueError:
-                ts = datetime.now(timezone.utc)
-            
-            month = ts.strftime("%Y-%m")
-            new_fname = f"{proj_name}_{ts.strftime('%Y-%m-%d_%H%M%S')}.summary.md"
-            
-            if dry_run:
-                print(f"  🔍 {proj_name}: 将迁移 {fname} → {month}/{new_fname}")
-                stats["summary_files"] += 1
-                continue
-            
-            # 确保 front matter 中有 project 字段
+
+            # 解析 front matter 获取原始时间戳和元数据
+            fm = {}
             if content.startswith("---"):
                 parts = content.split("---", 2)
                 if len(parts) >= 3:
@@ -143,12 +129,39 @@ def migrate_summaries(projects: list[tuple[str, str]], dry_run: bool = False) ->
                         fm = json.loads(parts[1])
                     except json.JSONDecodeError:
                         fm = {}
-                    fm["project"] = proj_name
-                    content = f"---\n{json.dumps(fm, ensure_ascii=False)}\n---\n{parts[2].strip()}\n"
-            elif not content.startswith("---"):
-                # 没有 front matter，添加
-                fm = {"type": "session_summary", "project": proj_name, "created": ts.isoformat()}
+
+            # 提取时间戳：优先 front matter.created，其次文件名
+            fm_ts = fm.get("created", "")
+            if fm_ts:
+                try:
+                    ts = datetime.fromisoformat(fm_ts.replace("Z", "+00:00"))
+                except (ValueError, Exception):
+                    ts = datetime.now(timezone.utc)
+            else:
+                # 从文件名解析：YYYY-MM-DD_HHmmss.summary.md
+                ts_str = fname.replace(".summary.md", "")
+                try:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d_%H%M%S")
+                except ValueError:
+                    ts = datetime.now(timezone.utc)
+
+            month = ts.strftime("%Y-%m")
+            new_fname = f"{proj_name}_{ts.strftime('%Y-%m-%d_%H%M%S')}.summary.md"
+
+            if dry_run:
+                print(f"  🔍 {proj_name}: 将迁移 {fname} → {month}/{new_fname}")
+                stats["summary_files"] += 1
+                continue
+
+            # 确保 front matter 中有 project 字段
+            fm["project"] = proj_name
+            if not content.startswith("---"):
+                fm["type"] = "session_summary"
+                fm["created"] = ts.isoformat()
                 content = f"---\n{json.dumps(fm, ensure_ascii=False)}\n---\n\n{content.strip()}\n"
+            else:
+                parts = content.split("---", 2)
+                content = f"---\n{json.dumps(fm, ensure_ascii=False)}\n---\n{parts[2].strip() if len(parts) >= 3 else ''}\n"
             
             month_dir = os.path.join(_ENGINE_DIR, "summaries", month)
             os.makedirs(month_dir, exist_ok=True)

@@ -76,6 +76,11 @@ WORLD_RULE_SCHEMA = {
     "子类型": {"type": str, "required": True, "options": ["世界观总览","规则","力量体系","势力","地点","历史","文化","经济体系","政治体系","社会阶层","纪年事件"]},
     "二级类型": {"type": str, "required": False, "description": "子类型的细化分类"},
     "描述": {"type": str, "required": False, "description": "核心描述，自由文本"},
+    # 以下字段主要供 纪年事件 子类型使用：
+    # - 位置：事件发生的地理位置（方便校验时间线一致性）
+    # - 所属卷：事件发生的卷号（方便校验与分卷大纲的一致性）
+    "位置": {"type": str, "required": False, "description": "事件发生的地理位置（纪年事件推荐填写）"},
+    "所属卷": {"type": int, "required": False, "description": "事件发生的卷号（纪年事件推荐填写）"},
 }
 
 NOTE_SCHEMA = {

@@ -605,8 +605,12 @@ class SearchEngine:
     # ── 工具方法 ─────────────────────────────────────────────────────────
 
     def _make_result(self, unit: NarrativeUnit, score: float) -> SearchResult:
-        """从 NarrativeUnit 构建 SearchResult"""
-        preview = unit.content[:200].replace("\n", " ") if unit.content else ""
+        """从 NarrativeUnit 构建 SearchResult
+        
+        预览长度从 200→500 字符，减少"搜索后再 get_unit"的额外调用。
+        完整内容仍通过 graph.get_unit 获取。
+        """
+        preview = unit.content[:500].replace("\n", " ") if unit.content else ""
         return SearchResult(
             unit_id=unit.id,
             unit_name=unit.unit_name,

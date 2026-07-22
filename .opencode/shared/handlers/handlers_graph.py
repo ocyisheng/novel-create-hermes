@@ -90,9 +90,12 @@ def _repair_content(content: str) -> str:
     """解析并修复 JSON 内容字符串，返回规范化的 JSON 字符串。"""
     if not content:
         return content
-    from json_repair import loads as repair_loads
     try:
+        from json_repair import loads as repair_loads
         content = json.dumps(repair_loads(content), ensure_ascii=False)
+    except ModuleNotFoundError:
+        # json_repair 未安装时不做修复
+        pass
     except Exception:
         if isinstance(content, dict):
             content = json.dumps(content, ensure_ascii=False)
@@ -441,7 +444,11 @@ def handle_create_unit(
     actor: str = "script",
     parent_id: Optional[str] = None,
 ) -> dict:
-    """创建叙事单元。"""
+    """创建叙事单元。
+
+    Schema 校验：必填字段缺失时 graph_store.create_unit 会抛出 ValueError，
+    此处自动捕获并返回友好错误信息（而非 500）。
+    """
     from graph_schema import UnitType
     from relation_inferrer import RelationInferrer
 
@@ -461,11 +468,18 @@ def handle_create_unit(
         chapter = _auto_detect_chapter(content or "", name)
 
     store = _get_store(project_root)
-    u = store.create_unit(
-        type=ut, unit_name=name, content=content,
-        tags=tags_list, chapter_number=chapter,
-        parent_id=parent_id, actor=actor,
-    )
+    try:
+        u = store.create_unit(
+            type=ut, unit_name=name, content=content,
+            tags=tags_list, chapter_number=chapter,
+            parent_id=parent_id, actor=actor,
+        )
+    except ValueError as e:
+        return {
+            "error": f"创建叙事单元失败: {e}",
+            "hint": f"请检查 content JSON 是否包含 {ut.value} 类型的所有必填字段。"
+                    f"使用 novel-tool --operation graph.schema_info --unit_type {unit_type} 查看字段要求。",
+        }
 
     inferrer = RelationInferrer(store)
     created = inferrer.infer_on_create(u)
@@ -475,6 +489,8 @@ def handle_create_unit(
 
     return {
         "id": u.id,
+        "name": u.unit_name,
+        "type": ut.value,
         "relations_created": created,
         "schema_errors": schema_errors,
     }
@@ -505,6 +521,12 @@ def handle_update_unit(
     status_obj = UnitStatus[status.upper()] if status else None
 
     store = _get_store(project_root)
+
+    # 预读取旧单元，判断内容是否有实际变更
+    old_unit = store.get_unit(id)
+    old_content = old_unit.content if old_unit else None
+    content_changed = (content is not None and content != old_content)
+
     u = store.update_unit(
         unit_id=id, content=content,
         unit_name=name if name else None,
@@ -513,11 +535,14 @@ def handle_update_unit(
     if not u:
         return {"error": "更新失败：叙事单元不存在"}
 
-    inferrer = RelationInferrer(store)
-    created = inferrer.infer_on_create(u)
+    # 仅在内容实际变更时才运行关系推断（避免 O(n) 全量扫描）
+    created = 0
+    if content_changed:
+        inferrer = RelationInferrer(store)
+        created = inferrer.infer_on_create(u)
     store.flush()
 
-    schema_errors = _validate_content_schema(u.type, content)
+    schema_errors = _validate_content_schema(u.type, content) if content else []
 
     return {
         "id": u.id,
@@ -837,3 +862,15 @@ def handle_migrate_structure_to_edges(project_root: str, actor: str = "novel-too
     store = _get_store(project_root)
     result = store.migrate_structure_path_to_edges(actor=actor)
     return result
+
+
+def handle_schema_info(unit_type: str) -> dict:
+    """返回指定叙事单元类型的 content JSON 字段要求（供 LLM/CLI 参考）。"""
+    from graph_schema import UnitType
+    from schemas import schema_info
+    try:
+        ut = UnitType[unit_type.upper()]
+    except KeyError:
+        return {"error": f"未知单元类型: {unit_type}", "available_types": [t.name for t in UnitType]}
+    lines = schema_info(ut)
+    return {"unit_type": unit_type, "fields": lines}

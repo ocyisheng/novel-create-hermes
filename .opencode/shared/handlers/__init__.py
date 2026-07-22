@@ -35,6 +35,7 @@ from .handlers_graph import (
     handle_find_ancestors,
     handle_rebuild_structure_path,
     handle_migrate_structure_to_edges,
+    handle_schema_info,
 )
 
 from .handlers_project import (
@@ -202,6 +203,10 @@ OPERATION_REGISTRY = {
     "graph.migrate_structure_to_edges": {
         "handler": handle_migrate_structure_to_edges,
         "params": {"project_root": {"required": True}, "actor": {}},
+    },
+    "graph.schema_info": {
+        "handler": handle_schema_info,
+        "params": {"unit_type": {"required": True}},
     },
     # project
     "project.new": {

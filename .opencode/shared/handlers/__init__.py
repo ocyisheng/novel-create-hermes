@@ -303,11 +303,11 @@ OPERATION_REGISTRY = {
     # analyze
     "analyze.usage": {
         "handler": handle_analyze_usage,
-        "params": {"project_root": {"required": True}, "mode": {}, "json_output": {}},
+        "params": {"project_root": {"required": True}, "mode": {}, "json_output": {}, "project": {}},
     },
     "analyze.telemetry": {
         "handler": handle_analyze_telemetry,
-        "params": {"project_root": {"required": True}},
+        "params": {"project_root": {}, "project": {}},
     },
     # summary
     "summary.save": {

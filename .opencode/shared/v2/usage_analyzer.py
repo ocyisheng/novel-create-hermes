@@ -39,10 +39,202 @@ def _resolve_project(project: str) -> str:
     return os.path.abspath(project)
 
 
-def collect_usage_data(project_root: str) -> dict:
+def _resolve_engine_root() -> str:
+    """解析 .engine/ 目录路径。"""
+    current = Path(__file__).resolve().parent  # v2/
+    shared = current.parent                      # shared/
+    opencode = shared.parent                     # .opencode/
+    tool_root = opencode.parent                  # novel-create-hermes/
+    return str(tool_root / ".engine")
+
+
+def _collect_subagent_traces(project: str = "") -> dict:
+    """
+    读取 .engine/subagents/{month}.ndjson，聚合子 agent 调度数据。
+    """
+    engine_root = _resolve_engine_root()
+    traces_dir = os.path.join(engine_root, "subagents")
+    if not os.path.isdir(traces_dir):
+        return {"total_traces": 0, "note": "无子 agent 调度数据"}
+    
+    traces = []
+    for fname in sorted(os.listdir(traces_dir)):
+        if fname.endswith(".ndjson"):
+            fpath = os.path.join(traces_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            entry = json.loads(line)
+                            if not project or entry.get("project") == project:
+                                traces.append(entry)
+            except (json.JSONDecodeError, Exception):
+                pass
+    
+    if not traces:
+        return {"total_traces": 0, "note": "无子 agent 调度数据"}
+    
+    # 按 subagent 类型统计
+    subagent_counts = Counter(t.get("subagent", "unknown") for t in traces)
+    
+    # 按结果统计
+    result_counts = Counter(t.get("result", "unknown") for t in traces)
+    
+    # 按 focus_type × subagent 交叉
+    focus_subagent = defaultdict(Counter)
+    for t in traces:
+        focus_subagent[t.get("focus_type", "unknown")][t.get("subagent", "unknown")] += 1
+    
+    # 按 preheat_level × subagent 交叉
+    preheat_subagent = defaultdict(Counter)
+    for t in traces:
+        preheat_subagent[t.get("preheat_level", "unknown")][t.get("subagent", "unknown")] += 1
+    
+    # 失败统计
+    failures = [t for t in traces if t.get("result") == "failed"]
+    failure_by_subagent = Counter(t.get("subagent", "unknown") for t in failures)
+    failure_by_focus = Counter(t.get("focus_type", "unknown") for t in failures)
+    
+    # 按 session 分组（检测同一 session 内连续失败）
+    session_failures = defaultdict(list)
+    for t in failures:
+        sid = t.get("session_id", "")
+        if sid:
+            session_failures[sid].append(t)
+    consecutive_failure_sessions = [
+        {"session_id": sid, "failure_count": len(fts)}
+        for sid, fts in session_failures.items() if len(fts) >= 2
+    ]
+    
+    return {
+        "total_traces": len(traces),
+        "success_count": result_counts.get("success", 0),
+        "partial_count": result_counts.get("partial", 0),
+        "failed_count": result_counts.get("failed", 0),
+        "by_subagent": dict(subagent_counts),
+        "by_focus_type": {ft: dict(sc) for ft, sc in focus_subagent.items()},
+        "by_preheat_level": {pl: dict(sc) for pl, sc in preheat_subagent.items()},
+        "failure_by_subagent": dict(failure_by_subagent),
+        "failure_by_focus": dict(failure_by_focus),
+        "consecutive_failure_sessions": consecutive_failure_sessions[:10],
+    }
+
+
+def _collect_summary_clues(project: str = "") -> dict:
+    """
+    读取 .engine/summaries/**/*.summary.md，提取优化线索。
+    """
+    import re
+    import yaml
+    
+    engine_root = _resolve_engine_root()
+    summaries_dir = os.path.join(engine_root, "summaries")
+    if not os.path.isdir(summaries_dir):
+        return {"total_clues": 0, "note": "无会话总结数据"}
+    
+    clues = []
+    total_summaries = 0
+    
+    for root, dirs, files in os.walk(summaries_dir):
+        for fname in files:
+            if not fname.endswith(".summary.md"):
+                continue
+            total_summaries += 1
+            fpath = os.path.join(root, fname)
+            try:
+                content = Path(fpath).read_text(encoding="utf-8")
+            except Exception:
+                continue
+            
+            # 解析 front matter 获取 project
+            proj_name = ""
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    try:
+                        fm = yaml.safe_load(parts[1]) or {}
+                    except Exception:
+                        try:
+                            fm = json.loads(parts[1])
+                        except Exception:
+                            fm = {}
+                    proj_name = fm.get("project", "")
+            
+            if project and proj_name and proj_name != project:
+                continue
+            
+            # 提取 ### 优化线索 段落
+            clue_match = re.search(r'### 优化线索.*?\n((?:- \[.*?\n)*)', content, re.DOTALL)
+            if not clue_match:
+                continue
+            
+            for line in clue_match.group(1).strip().split("\n"):
+                line = line.strip()
+                m = re.match(r'- \[(\w+)\]\[(\w+)\]\s+(.+?)：(.+?)（证据：(.+?)）', line)
+                if m:
+                    clues.append({
+                        "type": m.group(1),
+                        "severity": m.group(2),
+                        "component": m.group(3).strip(),
+                        "description": m.group(4).strip(),
+                        "evidence": m.group(5).strip(),
+                        "project": proj_name,
+                        "source_file": fname,
+                    })
+    
+    if not clues:
+        return {"total_clues": 0, "total_summaries": total_summaries, "note": "无优化线索"}
+    
+    # 按类型 + 组件聚类
+    cluster_key = lambda c: f"{c['type']}|{c['component']}"
+    clusters = defaultdict(list)
+    for c in clues:
+        clusters[cluster_key(c)].append(c)
+    
+    # 严重程度自动升级
+    severity_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+    clustered = []
+    for key, items in clusters.items():
+        max_sev = max(items, key=lambda c: severity_order.get(c["severity"], 0))
+        count = len(items)
+        if count >= 3:
+            effective_sev = "critical"
+        elif count >= 2:
+            effective_sev = "high"
+        else:
+            effective_sev = max_sev["severity"]
+        
+        clustered.append({
+            "type": max_sev["type"],
+            "component": max_sev["component"],
+            "description": max_sev["description"],
+            "occurrence_count": count,
+            "original_severity": max_sev["severity"],
+            "effective_severity": effective_sev,
+            "projects": list(set(c["project"] for c in items if c["project"])),
+        })
+    
+    clustered.sort(key=lambda c: severity_order.get(c["effective_severity"], 0), reverse=True)
+    
+    return {
+        "total_summaries": total_summaries,
+        "total_clues": len(clues),
+        "by_type": dict(Counter(c["type"] for c in clues)),
+        "by_component": dict(Counter(c["component"] for c in clues)),
+        "by_project": dict(Counter(c["project"] for c in clues if c["project"])),
+        "clusters": clustered,
+    }
+
+
+def collect_usage_data(project_root: str, telemetry_project: str = "") -> dict:
     """
     收集项目所有使用数据，输出结构化报告。
     纯只读，不修改任何文件。
+    
+    Args:
+        project_root: 项目路径（用于读取 graph/ 数据）
+        telemetry_project: 遥测数据按项目名过滤（可选，不传则分析所有项目）
     """
     project = _resolve_project(project_root)
     if not project or not os.path.isdir(os.path.join(project, "graph")):
@@ -205,7 +397,15 @@ def collect_usage_data(project_root: str) -> dict:
         ],
     }
 
-    # ── 5. 优化建议摘要 ──
+    # ── 6. 子 agent 调度分析 ──
+    subagent_data = _collect_subagent_traces(telemetry_project or os.path.basename(project))
+    report["sections"]["subagent_traces"] = subagent_data
+
+    # ── 7. 会话总结线索 ──
+    summary_clues = _collect_summary_clues(telemetry_project or os.path.basename(project))
+    report["sections"]["summary_clues"] = summary_clues
+
+    # ── 8. 优化建议摘要 ──
     suggestions = []
 
     # 基于偏差数据的建议
@@ -307,6 +507,33 @@ def format_report(report: dict, verbose: bool = False) -> str:
         lines.append(f"  最近活动日期:")
         for date, count in list(ev.get("daily_activity", {}).items())[:10]:
             lines.append(f"    {date}: {count} 次操作")
+
+    # 子 agent 调度
+    st = report["sections"].get("subagent_traces", {})
+    if st.get("total_traces", 0) > 0:
+        lines.append(f"\n🤖 子 Agent 调度")
+        lines.append(f"  总调度次数: {st.get('total_traces', 0)}")
+        lines.append(f"  成功: {st.get('success_count', 0)} / 部分: {st.get('partial_count', 0)} / 失败: {st.get('failed_count', 0)}")
+        if st.get("by_subagent"):
+            lines.append(f"  按类型: {st['by_subagent']}")
+        if st.get("failure_by_subagent"):
+            lines.append(f"  失败按类型: {st['failure_by_subagent']}")
+        if st.get("consecutive_failure_sessions"):
+            lines.append(f"  连续失败 session:")
+            for s in st["consecutive_failure_sessions"][:3]:
+                lines.append(f"    {s['session_id']}: {s['failure_count']} 次")
+
+    # 会话总结线索
+    sc = report["sections"].get("summary_clues", {})
+    if sc.get("total_clues", 0) > 0:
+        lines.append(f"\n📝 优化线索（来自 {sc.get('total_summaries', 0)} 份会话总结）")
+        lines.append(f"  线索总数: {sc.get('total_clues', 0)}")
+        if sc.get("by_type"):
+            lines.append(f"  按类型: {sc['by_type']}")
+        if sc.get("clusters"):
+            lines.append(f"  聚类 (按严重程度):")
+            for c in sc["clusters"][:5]:
+                lines.append(f"    [{c['effective_severity']}] [{c['type']}] {c['component']}: {c['description'][:60]} (×{c['occurrence_count']})")
 
     # 优化建议
     suggestions = report["sections"].get("suggestions", [])

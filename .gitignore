@@ -17,7 +17,7 @@ Thumbs.db
 *.bak
 *.swp
 *.swo
-
+.codegraph
 # ----- OpenCode -----
 .opencode/node_modules/
 .opencode/package.json
@@ -44,6 +44,7 @@ scripts/build-release.py
 .omo/notepads/novel-issues.md
 .omo/notepads/novel-learnings.md
 .omo/notepads/projects/
+.engine
 docs/
 novels/
 knowledge/

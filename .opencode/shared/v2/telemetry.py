@@ -1,10 +1,13 @@
 """
 telemetry.py — 工具调用遥测记录模块。
 
-自动记录每次 novel-tool 调用的元数据到 graph/telemetry.ndjson。
+自动记录每次 novel-tool 调用的元数据到 .engine/telemetry/{YYYY-MM}.ndjson。
 
 记录的字段：
-- operation: 操作名
+- ts: 时间戳
+- project: 所属小说项目名（跨项目聚合用）
+- caller: 调用者标识（orchestrator | crafter | ideation | search-analysis | unknown）
+- op: 操作名
 - params: 参数（不含大 content）
 - success: 是否成功
 - error_type: 错误类型（如 schema_error、param_missing、runtime_error）
@@ -15,6 +18,10 @@ telemetry.py — 工具调用遥测记录模块。
 - relation_count: 影响/返回的关系数
 
 自动去重合并同类错误，避免日志爆炸。
+
+存储架构：
+- .engine/telemetry/{YYYY-MM}.ndjson  — 按月分片，跨项目统一存储
+- 旧数据（{project}/graph/telemetry.ndjson）仍可读取，作为回退
 """
 
 from __future__ import annotations
@@ -29,20 +36,38 @@ from typing import Dict, List, Optional, Any
 from collections import Counter, defaultdict
 
 
+def _resolve_engine_root() -> str:
+    """解析 .engine/ 目录路径（工具根目录下）。"""
+    # 从当前文件向上查找工具根目录
+    # telemetry.py 在 shared/v2/ 下，工具根目录在 ../../../ 
+    current = Path(__file__).resolve().parent  # v2/
+    shared = current.parent                      # shared/
+    opencode = shared.parent                     # .opencode/
+    tool_root = opencode.parent                  # novel-create-hermes/
+    engine_root = tool_root / ".engine"
+    engine_root.mkdir(parents=True, exist_ok=True)
+    return str(engine_root)
+
+
 class TelemetryRecorder:
     """
-    工具调用遥测记录器。
+    工具调用遥测记录器（全局单例）。
     
-    每次调用记录一条 NDJSON 行到 graph/telemetry.ndjson。
-    按 project 分文件存储。
+    每次调用记录一条 NDJSON 行到 .engine/telemetry/{YYYY-MM}.ndjson。
+    跨项目统一存储，每条记录自带 project 字段。
     """
     
-    def __init__(self, project_root: str):
-        self.project_root = Path(project_root)
-        self.graph_dir = self.project_root / "graph"
-        self.log_path = self.graph_dir / "telemetry.ndjson"
+    def __init__(self):
+        self._engine_root = _resolve_engine_root()
+        self._log_dir = os.path.join(self._engine_root, "telemetry")
         self._buffer: List[dict] = []
         self._flush_threshold = 10  # 每 10 条刷一次盘
+    
+    def _log_path(self) -> str:
+        """当前月份的分片文件路径。"""
+        month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+        os.makedirs(self._log_dir, exist_ok=True)
+        return os.path.join(self._log_dir, f"{month_key}.ndjson")
     
     def record(
         self,
@@ -50,6 +75,8 @@ class TelemetryRecorder:
         params: dict,
         success: bool,
         duration_ms: float,
+        project: str = "",
+        caller: str = "unknown",
         error_info: Optional[dict] = None,
         result_size: int = 0,
         unit_count: int = 0,
@@ -58,6 +85,8 @@ class TelemetryRecorder:
         """记录一次工具调用。"""
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(),
+            "project": project,
+            "caller": caller,
             "op": operation,
             "success": success,
             "duration_ms": round(duration_ms, 1),
@@ -92,6 +121,8 @@ class TelemetryRecorder:
         error_type: str,
         error_msg: str,
         duration_ms: float,
+        project: str = "",
+        caller: str = "unknown",
     ):
         """记录一次失败的工具调用。"""
         self.record(
@@ -99,6 +130,8 @@ class TelemetryRecorder:
             params=params,
             success=False,
             duration_ms=duration_ms,
+            project=project,
+            caller=caller,
             error_info={
                 "type": error_type,
                 "detail": error_msg[:300],
@@ -110,8 +143,8 @@ class TelemetryRecorder:
         if not self._buffer:
             return
         try:
-            self.graph_dir.mkdir(parents=True, exist_ok=True)
-            with open(self.log_path, "a", encoding="utf-8") as f:
+            log_path = self._log_path()
+            with open(log_path, "a", encoding="utf-8") as f:
                 for entry in self._buffer:
                     f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
             self._buffer.clear()
@@ -123,23 +156,25 @@ class TelemetryRecorder:
         self.flush()
 
 
-# ── 全局实例 ──────────────────────────────────────────────────────────────
+# ── 全局单例 ──────────────────────────────────────────────────────────────
 
-_recorders: Dict[str, TelemetryRecorder] = {}
+_recorder: Optional[TelemetryRecorder] = None
 
 
-def get_recorder(project_root: str) -> TelemetryRecorder:
-    """获取或创建项目的遥测记录器实例。"""
-    if project_root not in _recorders:
-        _recorders[project_root] = TelemetryRecorder(project_root)
-    return _recorders[project_root]
+def get_recorder() -> TelemetryRecorder:
+    """获取全局遥测记录器单例。"""
+    global _recorder
+    if _recorder is None:
+        _recorder = TelemetryRecorder()
+    return _recorder
 
 
 def close_all():
-    """关闭所有记录器。"""
-    for r in _recorders.values():
-        r.close()
-    _recorders.clear()
+    """关闭记录器。"""
+    global _recorder
+    if _recorder:
+        _recorder.close()
+        _recorder = None
 
 
 # ── 错误分类 ─────────────────────────────────────────────────────────────
@@ -163,22 +198,78 @@ def classify_error(error_msg: str, stack_trace: str = "") -> str:
 
 # ── 分析函数 ─────────────────────────────────────────────────────────────
 
-def analyze_telemetry(project_root: str) -> dict:
+def _read_engine_telemetry(project: str = "") -> list[dict]:
     """
-    分析遥测数据，输出结构化的故障模式和优化建议。
+    读取 .engine/telemetry/ 下所有遥测数据。
     
-    读取 graph/telemetry.ndjson，聚合分析。
+    Args:
+        project: 可选，按项目名过滤
+    
+    Returns:
+        遥测条目列表
+    """
+    engine_root = _resolve_engine_root()
+    telemetry_dir = os.path.join(engine_root, "telemetry")
+    
+    entries = []
+    if os.path.isdir(telemetry_dir):
+        for fname in sorted(os.listdir(telemetry_dir)):
+            if fname.endswith(".ndjson"):
+                fpath = os.path.join(telemetry_dir, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                entry = json.loads(line)
+                                if not project or entry.get("project") == project:
+                                    entries.append(entry)
+                            except json.JSONDecodeError:
+                                pass
+    return entries
+
+
+def _read_project_telemetry(project_root: str) -> list[dict]:
+    """
+    回退：读取旧项目路径下的遥测数据（{project}/graph/telemetry.ndjson）。
+    仅在新 .engine/ 路径无数据时使用。
     """
     log_path = Path(project_root) / "graph" / "telemetry.ndjson"
     if not log_path.exists():
-        return {"error": "无遥测数据"}
+        return []
     
     entries = []
     with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
-                entries.append(json.loads(line))
+                try:
+                    entry = json.loads(line)
+                    # 旧数据没有 project/caller 字段，补默认值
+                    entry.setdefault("project", os.path.basename(project_root))
+                    entry.setdefault("caller", "unknown")
+                    entries.append(entry)
+                except json.JSONDecodeError:
+                    pass
+    return entries
+
+
+def analyze_telemetry(project_root: str = "", project: str = "") -> dict:
+    """
+    分析遥测数据，输出结构化的故障模式和优化建议。
+    
+    Args:
+        project_root: 旧格式兼容项目的根目录（回退用）
+        project: 要分析的项目名（可选，不传则分析所有项目数据）
+    
+    读取优先级: .engine/telemetry/ → {project}/graph/telemetry.ndjson（回退）
+    """
+    # 优先读新路径
+    entries = _read_engine_telemetry(project)
+    
+    # 回退：新路径无数据但提供了旧项目路径
+    if not entries and project_root:
+        entries = _read_project_telemetry(project_root)
     
     if not entries:
         return {"error": "无遥测数据"}
@@ -194,11 +285,20 @@ def analyze_telemetry(project_root: str) -> dict:
     # 按错误类型统计
     error_types = Counter(e.get("error", {}).get("type", "unknown") for e in failures)
     
+    # 按 caller 统计
+    caller_counts = Counter(e.get("caller", "unknown") for e in entries)
+    caller_failures = Counter(e.get("caller", "unknown") for e in failures)
+    
     # 按操作统计平均耗时
     op_durations = defaultdict(list)
     for e in entries:
         op_durations[e["op"]].append(e.get("duration_ms", 0))
     avg_durations = {op: round(sum(vals)/len(vals), 1) for op, vals in op_durations.items()}
+    
+    # 按 caller × op 交叉统计
+    caller_op_counts = defaultdict(Counter)
+    for e in entries:
+        caller_op_counts[e.get("caller", "unknown")][e["op"]] += 1
     
     # 找出最慢的操作
     slow_ops = sorted(avg_durations.items(), key=lambda x: -x[1])[:5]
@@ -209,6 +309,8 @@ def analyze_telemetry(project_root: str) -> dict:
         error = e.get("error", {})
         common_errors.append({
             "op": e["op"],
+            "caller": e.get("caller", "unknown"),
+            "project": e.get("project", ""),
             "type": error.get("type", "unknown"),
             "detail": error.get("detail", "")[:200],
             "params": {k: v for k, v in e.get("params", {}).items() if k not in ("content", "data")},
@@ -260,9 +362,12 @@ def analyze_telemetry(project_root: str) -> dict:
         "total_calls": total,
         "success_count": len(successes),
         "failure_count": len(failures),
-        "success_rate": f"{round(len(successes)/total*100, 1)}%",
+        "success_rate": f"{round(len(successes)/total*100, 1)}%" if total else "0%",
         "by_operation": dict(op_counts.most_common(20)),
+        "by_caller": dict(caller_counts),
+        "by_caller_operation": {caller: dict(ops.most_common(10)) for caller, ops in caller_op_counts.items()},
         "by_error_type": dict(error_types),
+        "caller_failures": dict(caller_failures),
         "failure_rates": failure_rates,
         "avg_durations_ms": avg_durations,
         "slowest_operations": slow_ops,

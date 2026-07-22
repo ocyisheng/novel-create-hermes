@@ -22,6 +22,8 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 3 | MUST | V2 项目以 graph 为真相源，不再依赖文件后处理链 |
 | 4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | 5 | NEVER | 安装系统 Python |
+| 7 | MUST | 编排层直接调用的 `novel-tool` 需标注 `--caller orchestrator`；子 agent 调用标注对应 caller |
+
 
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。
 
@@ -467,6 +469,7 @@ graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-
 参考 `novel-v2` skill 操作指南 §6（可视化章节），使用 `viz` 命令直接从 graph 生成交互式 HTML 关系图/时间线。
 
 > 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
+
 
 ## 六、V2 快速参考
 

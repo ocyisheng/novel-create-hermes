@@ -31,7 +31,11 @@ class _DaemonLogger:
         self._log_file = None
     
     def open(self, graph_dir: str):
-        log_path = os.path.join(graph_dir, "daemon.log")
+        # 写入 .engine/daemon/daemon.log（引擎级日志，非项目级）
+        _tool_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        _engine_dir = os.path.join(_tool_root, ".engine", "daemon")
+        os.makedirs(_engine_dir, exist_ok=True)
+        log_path = os.path.join(_engine_dir, "daemon.log")
         try:
             self._log_file = open(log_path, "a", encoding="utf-8")
         except OSError:
@@ -137,6 +141,9 @@ _PARAM_MAP = {
     # 会话
     "cycle_type": "cycle_type",
     "level": "level",
+    "session_id": "session_id",
+    # summary
+    "focus_name": "focus_name",
     # 偏差
     "findings": "findings",
     "scan_version": "scan_version",
@@ -219,12 +226,18 @@ def handle_request(request: dict) -> str:
     _start = _time.time()
     op = request.get("operation", "")
     project = request.get("project", "")
+    caller = request.get("caller", "unknown")
     canonical = {}
     proj_root = ""
+    proj_name = project  # 项目名（非完整路径），用于遥测记录
     
     try:
         if not op:
             return _err("缺少 operation 字段")
+
+        # subagent.trace 是遥测专用操作，不经过 handler
+        if op == "subagent.trace":
+            return _handle_subagent_trace(request)
 
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)
@@ -235,26 +248,24 @@ def handle_request(request: dict) -> str:
         duration_ms = (_time.time() - _start) * 1000
         
         if "error" in result:
-            _record_failure(proj_root, op, canonical, duration_ms, result["error"])
+            _record_failure(proj_name, caller, op, canonical, duration_ms, result["error"])
             return _err(result["error"])
         
-        _record_success(proj_root, op, canonical, duration_ms, result)
+        _record_success(proj_name, caller, op, canonical, duration_ms, result)
         return _ok(result)
 
     except Exception as e:
         duration_ms = (_time.time() - _start) * 1000
         stack = traceback.format_exc()
-        _record_failure(proj_root, op, canonical, duration_ms, f"{e}\n{stack}")
+        _record_failure(proj_name, caller, op, canonical, duration_ms, f"{e}\n{stack}")
         return _err(f"{e}\n{stack}")
 
 
-def _record_success(proj_root: str, op: str, canonical: dict, duration_ms: float, result: dict):
-    """记录成功的工具调用到遥测。"""
-    if not proj_root:
-        return
+def _record_success(proj_name: str, caller: str, op: str, canonical: dict, duration_ms: float, result: dict):
+    """记录成功的工具调用到遥测（全局 .engine/telemetry/ 存储）。"""
     try:
         from telemetry import get_recorder
-        recorder = get_recorder(proj_root)
+        recorder = get_recorder()
         result_str = json.dumps(result, ensure_ascii=False, default=str)
         unit_count = 0
         relation_count = 0
@@ -274,26 +285,69 @@ def _record_success(proj_root: str, op: str, canonical: dict, duration_ms: float
             operation=op, params=canonical, success=True,
             duration_ms=duration_ms, result_size=len(result_str),
             unit_count=unit_count, relation_count=relation_count,
+            project=proj_name, caller=caller,
         )
     except Exception:
         pass
 
 
-def _record_failure(proj_root: str, op: str, canonical: dict, duration_ms: float, error_str: str):
-    """记录失败的工具调用到遥测。"""
-    if not proj_root:
-        return
+def _record_failure(proj_name: str, caller: str, op: str, canonical: dict, duration_ms: float, error_str: str):
+    """记录失败的工具调用到遥测（全局 .engine/telemetry/ 存储）。"""
     try:
         from telemetry import get_recorder, classify_error
-        recorder = get_recorder(proj_root)
+        recorder = get_recorder()
         error_summary = error_str.split("\n")[0] if "\n" in error_str else error_str[:300]
         recorder.record_error(
             operation=op, params=canonical,
             error_type=classify_error(error_summary, error_str),
             error_msg=error_summary, duration_ms=duration_ms,
+            project=proj_name, caller=caller,
         )
     except Exception:
         pass
+
+
+def _handle_subagent_trace(request: dict) -> str:
+    """处理 subagent.trace 操作：记录子 agent 调度信息到 .engine/subagents/。"""
+    import json as _json
+    from datetime import datetime, timezone as _timezone
+
+    project = request.get("project", "")
+    if not project:
+        return _err("subagent.trace 缺少 project 字段")
+
+    # 解析 .engine/ 路径（4 级 dirname 到达工具根目录）
+    _tool_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    _engine_dir = os.path.join(_tool_root, ".engine", "subagents")
+    os.makedirs(_engine_dir, exist_ok=True)
+
+    now = datetime.now(_timezone.utc)
+    month_key = now.strftime("%Y-%m")
+    trace_path = os.path.join(_engine_dir, f"{month_key}.ndjson")
+
+    record = {
+        "ts": now.isoformat(),
+        "project": project,
+        "subagent": request.get("subagent", ""),
+        "focus_type": request.get("focus_type", ""),
+        "focus_name": request.get("focus_name", ""),
+        "preheat_level": request.get("preheat_level", ""),
+        "cycle_type": request.get("cycle_type", ""),
+        "humanize": request.get("humanize", False),
+        "session_id": request.get("session_id", ""),
+        "result": request.get("result", "unknown"),
+        "new_units": request.get("new_units", 0),
+        "updated_units": request.get("updated_units", 0),
+        "duration_estimate_ms": request.get("duration_estimate_ms", 0),
+        "error_summary": request.get("error_summary", ""),
+    }
+
+    try:
+        with open(trace_path, "a", encoding="utf-8") as f:
+            f.write(_json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        return _ok({"ok": True, "file": trace_path})
+    except Exception as e:
+        return _err(f"subagent.trace 写入失败: {e}")
 
 
 # ── 守护进程模式 ───────────────────────────────────────────────────────

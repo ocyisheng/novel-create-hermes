@@ -16,10 +16,12 @@ import signal
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-# 确保 shared/ 在 sys.path 中
+# 确保 shared/ 和 shared/v2/ 在 sys.path 中
 _SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SHARED_DIR not in sys.path:
-    sys.path.insert(0, _SHARED_DIR)
+_V2_DIR = os.path.join(_SHARED_DIR, "v2")
+for _d in [_SHARED_DIR, _V2_DIR]:
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 
 # ── 守护进程日志 ─────────────────────────────────────────────────────

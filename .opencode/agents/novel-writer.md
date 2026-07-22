@@ -59,8 +59,8 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   ├─ 先走 grill（按 §3.1 模糊判断规则）
-  │   ├─ grill 后 → 按 §3.3 判断是否需要 ideation 生成方案
-  │   └─ 用户确认方向 → 按 §3.3 后续路由
+│   ├─ grill 后 → 按 §3.4 判断是否需要 ideation 生成方案
+│   └─ 用户确认方向 → 按 §3.4 后续路由
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
   │   │   `novel-tool --operation session.info --project {PROJECT}`
@@ -137,7 +137,7 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 
 ### 3.2 焦点路由表
 
-可用的 cycle_type：`ideation`（发散构思）、`expansion`（扩展写作）、`refinement`（精修润色）、`proofing`（校对质检）、`planning`（规划组织）。session 预热推荐值综合 cycle_type + 焦点类型计算。`ideation` 走 ideation subagent（§3.3），不直接走 V2 路由。
+可用的 cycle_type：`ideation`（发散构思）、`expansion`（扩展写作）、`refinement`（精修润色）、`proofing`（校对质检）、`planning`（规划组织）。session 预热推荐值综合 cycle_type + 焦点类型计算。`ideation` 走 ideation subagent（§3.4），不直接走 V2 路由。
 
 三层链路：**章纲规划 → 场景设计 → 正文执行**。章纲通过 PLANS 边声明计划场景（规划层），正文（CHUNK）通过 BELONGS_TO 边关联执行场景（执行层）。规划与执行解耦——增减场景只操作 BELONGS_TO，章纲的 PLANS 边保持规划原样。
 - 章纲（CHAPTER_PLAN）规划整章骨架：场域序列、节奏、字数分配
@@ -170,7 +170,41 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 - **warm**：焦点 + 1 度邻居，适量关联角色和设定（日常写作、修改）
 - **hot**：焦点 + 2 度邻居，全量关联数据
 
-### 3.3 Grill 后续操作：Ideation 方案生成
+### 3.3 全图影响扫描（大范围设定修改前置）
+
+编辑一个在多个叙事单元中引用的核心设定（如角色能力、世界观规则、地名）时，
+**直接修改目标单元会导致其他引用该设定的单元产生不一致。**
+
+编排层在检测到以下模式时应执行全图影响扫描：
+
+| 触发条件 | 示例 | 操作 |
+|---------|------|------|
+| 修改的焦点单元有 10+ 邻居 | 核心角色、重要世界观规则 | 先扫描后修改 |
+| 用户在单个会话中连续修改 3+ 单元 | 批量设定修正 | 中间插入全图一致性检查 |
+| 修改涉及 NAME/CONTENT 中跨单元匹配的字符串 | 改地名/改设定名 | `graph.search` 全图扫描 |
+
+**标准流程（证据来源：Session 2 复盘 — 罗侯壁障引用跨 6 单元需 3 轮搜索）**：
+
+```
+1. 在修改前执行 graph.search(keyword="{被修改内容的关键词}")
+   → 列出所有引用了该设定的单元
+2. 记录引用清单，判断影响范围（是只改核心单元，还是要更新所有引用）
+3. 执行修改
+4. 修改后再次执行 graph.search 验证无残留
+```
+
+当编排层判断修改可能跨单元时，在调度 crafter 前注入 `### 全图影响扫描` 段落：
+
+```markdown
+### 全图影响扫描
+修改「{目标设定}」可能影响以下 {N} 个单元：
+{引用清单}
+请确认：
+- 哪些需要同步更新
+- 哪些是"引用而非定义"，无需修改
+```
+
+### 3.4 Grill 后续操作：Ideation 方案生成
 
 grill 收敛用户需求后，编排层询问用户是否想看看参考方案。如用户需要，调度 ideation subagent 生成方案。
 

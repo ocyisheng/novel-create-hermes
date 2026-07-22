@@ -226,7 +226,8 @@ def handle_request(request: dict) -> str:
     _start = _time.time()
     op = request.get("operation", "")
     project = request.get("project", "")
-    caller = request.get("caller", "unknown")
+    # caller 标识：优先 caller 字段，其次 actor 字段（子 agent 已有 --actor 惯例）
+    caller = request.get("caller", request.get("actor", "unknown"))
     canonical = {}
     proj_root = ""
     proj_name = project  # 项目名（非完整路径），用于遥测记录

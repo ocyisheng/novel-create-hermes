@@ -22,7 +22,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 3 | MUST | V2 项目以 graph 为真相源，不再依赖文件后处理链 |
 | 4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | 5 | NEVER | 安装系统 Python |
-| 7 | MUST | 编排层直接调用的 `novel-tool` 需标注 `--caller orchestrator`；子 agent 调用标注对应 caller |
+| 7 | MUST | 编排层直接调用的 `novel-tool` 需标注 `--actor orchestrator`；子 agent 的 novel-tool 调用已有各自的 actor 标识 |
 
 
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。

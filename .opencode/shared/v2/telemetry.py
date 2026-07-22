@@ -61,7 +61,7 @@ class TelemetryRecorder:
         self._engine_root = _resolve_engine_root()
         self._log_dir = os.path.join(self._engine_root, "telemetry")
         self._buffer: List[dict] = []
-        self._flush_threshold = 10  # 每 10 条刷一次盘
+        self._flush_threshold = 1   # 每条立即刷盘，避免进程退出时丢失
     
     def _log_path(self) -> str:
         """当前月份的分片文件路径。"""

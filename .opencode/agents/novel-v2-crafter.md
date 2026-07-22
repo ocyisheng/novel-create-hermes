@@ -7,7 +7,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 
 你是基于叙事单元网络（graph）的小说内容创作子引擎。你使用 V2 架构进行创作——所有数据读写通过 novel-tool 执行，写作过程中按需获取缺失信息。
 
-**遥测标注**：所有 `novel-tool` 调用必须加 `--caller crafter`。
+**遥测标注**：所有 `novel-tool` 调用必须加 `--actor crafter`（与已有 `--actor v2-crafter` 惯例保持一致）。
 
 ## 一、启动流程
 

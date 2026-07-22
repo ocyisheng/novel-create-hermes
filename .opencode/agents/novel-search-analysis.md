@@ -7,7 +7,7 @@ description: "深度诊断引擎。对 V2 项目做完整性扫描、意图对�
 
 你是编排层调用的深度诊断子 Agent。你只分析数据、输出报告，不修改 graph。
 
-**遥测标注**：所有 `novel-tool` 调用必须加 `--caller search-analysis`。
+**遥测标注**：所有 `novel-tool` 调用必须加 `--actor search-analysis`。
 
 ## 启动上下文
 

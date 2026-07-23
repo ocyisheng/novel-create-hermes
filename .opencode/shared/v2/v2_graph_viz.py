@@ -292,7 +292,7 @@ class V2GraphLoader:
         for rel in self.store.get_relations(unit_id, direction="outgoing"):
             target = self.store.get_unit(rel.target_id)
             if target and target.type == UnitType.WORLD_RULE:
-                rel_label = RELATION_LABELS.get(rel.relation_type, rel.relation_type.value)
+                rel_label = rel.label or RELATION_LABELS.get(rel.relation_type, rel.relation_type.value)
                 events.append({
                     "sort_key": -2,
                     "time_label": "世界观",
@@ -410,7 +410,7 @@ class V2GraphLoader:
 
     def _rel_to_edge(self, rel) -> dict:
         """Relation → vis-network 边"""
-        label = RELATION_LABELS.get(rel.relation_type, rel.relation_type.value)
+        label = rel.label or RELATION_LABELS.get(rel.relation_type, rel.relation_type.value)
         color = RELATION_COLORS.get(rel.relation_type, "#4a4a6a")
         width = 1.5 if rel.weight >= 0.7 else 1.0
 

@@ -91,6 +91,9 @@ class SearchEngine:
         ("R6", "info",    "_check_chunk_no_chapter"),
         ("R7", "warning", "_check_location_changes"),          # 位置变化标记 → LLM 判断瞬移
         ("R9", "error",   "_check_precedes_ordinal_conflicts"), # PRECEDES vs ordinal 纯结构冲突
+        ("R10", "warning", "_check_pacing_monotony"),           # 节奏单调：同类型场景连续出现
+        ("R11", "warning", "_check_density_deviation"),         # 密度偏离：CHUNK 字数超出密度预算
+        ("R12", "warning", "_check_protagonist_agency"),        # 主角能动性：主角连续被动场景
     ]
 
     def __init__(self, store: GraphStore):

@@ -259,12 +259,20 @@ def _auto_detect_chapter(content: str, unit_name: str) -> Optional[int]:
 # ── Handler 函数 ─────────────────────────────────────────────────────────
 
 def handle_list_relation_types() -> dict:
-    """列出所有可用关系类型。"""
+    """列出所有可用关系类型，含中文显示名。"""
     from graph_schema import RelationType
+    # 从 viz 模块借用中文标签映射
+    try:
+        from v2_graph_viz import RELATION_LABELS as RELATION_ZH
+    except ImportError:
+        RELATION_ZH = {}
     return {
         "relation_types": [
-            {"value": rt.value, "name": rt.name,
-             "inverse": rt.inverse.value if rt.inverse != rt else rt.value}
+            {
+                "value": rt.value, "name": rt.name,
+                "inverse": rt.inverse.value if rt.inverse != rt else rt.value,
+                "label_zh": RELATION_ZH.get(rt, rt.value),
+            }
             for rt in RelationType
         ]
     }
@@ -587,25 +595,50 @@ def handle_purge_archived(project_root: str, ids: str = "", actor: str = "novel-
     }
 
 
+def _resolve_rel_type(rel_type: str):
+    """解析关系类型：先按 name 查，再按 value 查，都失败时返回 REFERENCES + 原始输入作为 label。"""
+    from graph_schema import RelationType
+    try:
+        rtype = RelationType[rel_type.upper()]
+        return rtype, ""
+    except KeyError:
+        try:
+            rtype = RelationType(rel_type.lower())
+            return rtype, ""
+        except ValueError:
+            # 非枚举值（如"师徒""母子"）→ 降级为 REFERENCES，原始输入存为语义标签
+            return RelationType.REFERENCES, rel_type
+
+
 def handle_add_relation(
     project_root: str,
     source: str,
     target: str,
     rel_type: str,
     bidirectional: bool = False,
+    label: str = "",
     actor: str = "novel-tool",
 ) -> dict:
-    """建立关系。"""
+    """建立关系。
+
+    语义标签支持：rel_type 传入中文语义关系名（如"师徒"）时自动降级为 REFERENCES，
+    并将中文名存入 label 字段。也支持通过 label 参数显式指定语义标签。
+    """
     from graph_schema import RelationType
-    rtype = RelationType[rel_type.upper()]
+    rtype, fallback_label = _resolve_rel_type(rel_type)
+    # 优先使用显式 label，其次使用降级 label
+    effective_label = label or fallback_label
     store = _get_store(project_root)
-    rel = store.add_relation(source, target, rtype, actor=actor)
+    rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label)
     if not rel:
         return {"error": "关系建立失败"}
     result = {"id": rel.id, "type": rtype.value}
+    if effective_label:
+        result["label"] = effective_label
     if bidirectional:
         inv = rtype.inverse
-        inv_rel = store.add_relation(target, source, inv, actor=actor)
+        inv_label = effective_label  # 反向关系携带相同语义标签
+        inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label)
         if inv_rel:
             result["inverse_id"] = inv_rel.id
     store.flush()
@@ -664,6 +697,7 @@ def handle_get_relations(
                 "target_id": r.target_id,
                 "type": r.relation_type.value,
                 "weight": r.weight, "description": r.description,
+                "label": r.label,
             }
             for r in relations
         ],

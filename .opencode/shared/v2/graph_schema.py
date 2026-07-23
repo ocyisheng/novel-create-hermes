@@ -78,7 +78,12 @@ class UnitStatus(str, Enum):
 
 
 class RelationType(str, Enum):
-    """叙事单元之间的关系类型"""
+    """叙事单元之间的关系类型
+
+    注意：此枚举用于程序化查询和一致性规则（如 CONTAINS 环检测、PRECEDES 序数校验）。
+    用户想表达的中文语义标签（师徒、母子、欠人情等）存储在 Relation.label 字段中，
+    不在此枚举中 —— 用户可自由输入任意标签。
+    """
     CAUSES = "causes"                   # A 导致 B 发生
     PRECEDES = "precedes"               # A 在时间线上先于 B
     CONTRADICTS = "contradicts"         # A 与 B 矛盾（需解决）
@@ -100,6 +105,16 @@ class RelationType(str, Enum):
     HAS_MEMBER = "has_member"           # A 拥有成员 B（MEMBER_OF 的反向）
     LOCATION_OF = "location_of"         # A 是 B 的位置（LOCATED_AT 的反向）
     CONTROLLED_BY = "controlled_by"     # A 受 B 控制（CONTROLS 的反向）
+
+    @classmethod
+    def _missing_(cls, value: str):
+        """宽松查找：先按 name（大写），再按 value（小写），
+        都找不到时返回 None（由调用方决定降级策略）。"""
+        # 尝试 value 查找（小写化）
+        for member in cls:
+            if member.value == value.lower():
+                return member
+        return None
 
     @property
     def inverse(self) -> "RelationType":
@@ -265,9 +280,10 @@ class Relation:
     id: str                               # UUID
     source_id: str                        # 源单元 ID
     target_id: str                        # 目标单元 ID
-    relation_type: RelationType           # 关系类型
+    relation_type: RelationType           # 关系类型（枚举，用于查询/校验）
     weight: float = 0.5                   # 0.0-1.0，关系强度
     description: str = ""                 # 可选的关系描述
+    label: str = ""                       # 关系语义标签（如"师徒""母子"），自由文本，不限枚举
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     

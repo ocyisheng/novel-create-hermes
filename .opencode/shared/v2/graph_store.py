@@ -127,6 +127,7 @@ class GraphStore:
                         relation_type=RelationType(data["relation_type"]),
                         weight=data.get("weight", 0.5),
                         description=data.get("description", ""),
+                        label=data.get("label", ""),
                         metadata=data.get("metadata", {}),
                     )
                     if "created_at" in data and isinstance(data["created_at"], str):
@@ -240,6 +241,7 @@ class GraphStore:
                 relation_type=RelationType(data["relation_type"]),
                 weight=data.get("weight", 0.5),
                 description=data.get("description", ""),
+                label=data.get("label", ""),
                 metadata=data.get("metadata", {}),
             )
             if "created_at" in data and isinstance(data["created_at"], str):
@@ -792,6 +794,7 @@ class GraphStore:
         relation_type: RelationType,
         weight: float = 0.5,
         description: str = "",
+        label: str = "",
         actor: str = "script",
         record_event: bool = True,
     ) -> Optional[Relation]:
@@ -817,6 +820,7 @@ class GraphStore:
             relation_type=relation_type,
             weight=weight,
             description=description,
+            label=label,
         )
         self._relations[rel.id] = rel
         self._outgoing_edges[source_id].append(rel.id)

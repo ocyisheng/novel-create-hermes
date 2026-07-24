@@ -161,7 +161,6 @@ _PARAM_MAP = {
     "humanize": "humanize",
     "prompt_summary": "prompt_summary",
     "result_summary": "result_summary",
-    "conversation": "conversation",
     "new_units": "new_units",
     "updated_units": "updated_units",
     "duration_estimate_ms": "duration_estimate_ms",

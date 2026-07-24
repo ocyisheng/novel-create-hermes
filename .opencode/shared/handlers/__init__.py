@@ -339,16 +339,12 @@ OPERATION_REGISTRY = {
         "handler": handle_subagent_save,
         "params": {"project_root": {}, "task_id": {}, "subagent": {}, "focus_type": {}, "focus_name": {},
                     "preheat_level": {}, "cycle_type": {}, "humanize": {}, "session_id": {},
-                    "result": {}, "prompt_summary": {}, "result_summary": {}, "conversation": {},
+                    "result": {}, "prompt_summary": {}, "result_summary": {},
                     "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {}},
     },
     "subagent.list": {
         "handler": handle_subagent_list,
         "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
-    },
-    "subagent.read": {
-        "handler": handle_subagent_read,
-        "params": {"project_root": {}, "task_id": {}, "id": {}},
     },
 }
 

@@ -87,6 +87,12 @@ from .handlers_summary import (
     handle_read_summary,
 )
 
+from .handlers_subagent import (
+    handle_subagent_save,
+    handle_subagent_list,
+    handle_subagent_read,
+)
+
 
 OPERATION_REGISTRY = {
     # graph reads
@@ -327,6 +333,22 @@ OPERATION_REGISTRY = {
     "summary.read": {
         "handler": handle_read_summary,
         "params": {"project_root": {"required": True}, "file": {"required": True}},
+    },
+    # subagent
+    "subagent.save": {
+        "handler": handle_subagent_save,
+        "params": {"project_root": {}, "task_id": {}, "subagent": {}, "focus_type": {}, "focus_name": {},
+                    "preheat_level": {}, "cycle_type": {}, "humanize": {}, "session_id": {},
+                    "result": {}, "prompt_summary": {}, "result_summary": {}, "conversation": {},
+                    "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {}},
+    },
+    "subagent.list": {
+        "handler": handle_subagent_list,
+        "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
+    },
+    "subagent.read": {
+        "handler": handle_subagent_read,
+        "params": {"project_root": {}, "task_id": {}, "id": {}},
     },
 }
 

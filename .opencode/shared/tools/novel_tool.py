@@ -153,13 +153,15 @@ _PARAM_MAP = {
     "full_scan_version": "full_scan_version",
     # 知识库
     "slug": "slug", "topic": "topic",
-    # subagent trace
+    # subagent
     "task_id": "task_id",
     "subagent": "subagent",
+    "result": "result",
     "preheat_level": "preheat_level",
     "humanize": "humanize",
     "prompt_summary": "prompt_summary",
     "result_summary": "result_summary",
+    "conversation": "conversation",
     "new_units": "new_units",
     "updated_units": "updated_units",
     "duration_estimate_ms": "duration_estimate_ms",
@@ -250,9 +252,10 @@ def handle_request(request: dict) -> str:
         if not op:
             return _err("缺少 operation 字段")
 
-        # subagent.trace/save 记录子 agent 调用信息，不经过 handler
-        if op in ("subagent.trace", "subagent.save"):
-            return _handle_subagent_trace(request)
+        # subagent.trace 是旧版 bypass，重定向到 subagent.save（走正规 handler 管道）
+        if op == "subagent.trace":
+            op = "subagent.save"
+            request["operation"] = "subagent.save"
 
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)

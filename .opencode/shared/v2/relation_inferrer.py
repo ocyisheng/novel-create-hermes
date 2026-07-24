@@ -35,6 +35,11 @@ from graph_store import GraphStore
 from render_utils import extract_entity_refs
 
 
+# ── 结构层级类型集合 ────────────────────────────────────────────────
+_STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                    UnitType.CHAPTER_PLAN}
+
+
 # ── 推断规则表 ─────────────────────────────────────────────────────
 
 # 每条规则定义：(源类型, 目标类型, 产出关系类型, 方向, 权重)
@@ -311,8 +316,6 @@ class RelationInferrer:
             for other in self.store._units.values():
                 if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                     continue
-                _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
-                                    UnitType.CHAPTER_PLAN}
                 if other.type not in _STRUCTURE_TYPES:
                     continue
                 if other.structure_path is not None and len(other.structure_path) == len(parent_path) \

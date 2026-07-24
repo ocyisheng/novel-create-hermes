@@ -343,12 +343,13 @@ def handle_search(
     }
 
 
-def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0) -> dict:
-    """列出叙事单元。"""
-    from graph_schema import UnitType
+def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0, status: str = "") -> dict:
+    """列出叙事单元。status 可选：archived/mature/sprout/growing/frozen。为空时默认排除 archived。"""
+    from graph_schema import UnitType, UnitStatus
     ut = UnitType[unit_type.upper()] if unit_type and unit_type.upper() != "ALL" else None
     store = _get_store(project_root)
-    units = store.find_units(type=ut)
+    status_obj = UnitStatus[status.upper()] if status and status.upper() else None
+    units = store.find_units(type=ut, status=status_obj)
     if limit and limit > 0:
         units = units[:limit]
     return {

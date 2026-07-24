@@ -108,7 +108,7 @@ OPERATION_REGISTRY = {
     },
     "graph.list_units": {
         "handler": handle_list_units,
-        "params": {"project_root": {"required": True}, "unit_type": {}, "limit": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {}, "limit": {}, "status": {}},
     },
     "graph.stats": {
         "handler": handle_stats,

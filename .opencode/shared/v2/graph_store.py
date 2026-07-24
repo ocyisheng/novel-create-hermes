@@ -279,11 +279,17 @@ class GraphStore:
                         data = json.loads(stripped)
                         uid = data.get("id", "")
                         if uid in self._dirty_unit_ids:
-                            lines[i] = json.dumps(
-                                self._units[uid].to_dict(), ensure_ascii=False
-                            ) + "\n"
-                            seen_ids.add(uid)
-                    except (json.JSONDecodeError, KeyError):
+                            if uid in self._units:
+                                # 更新：替换该行
+                                lines[i] = json.dumps(
+                                    self._units[uid].to_dict(), ensure_ascii=False
+                                ) + "\n"
+                                seen_ids.add(uid)
+                            else:
+                                # 删除：置空该行（后续过滤掉）
+                                lines[i] = ""
+                                seen_ids.add(uid)
+                    except json.JSONDecodeError:
                         continue
                 
                 # 追加在文件中不存在的新单元（create_unit 场景）
@@ -292,6 +298,9 @@ class GraphStore:
                         lines.append(
                             json.dumps(self._units[uid].to_dict(), ensure_ascii=False) + "\n"
                         )
+                
+                # 过滤掉被删除的空行
+                lines = [l for l in lines if l]
                 
                 tmp = self.nodes_path.with_suffix(".jsonl.tmp")
                 with open(tmp, "w", encoding="utf-8") as f:

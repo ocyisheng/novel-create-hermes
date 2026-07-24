@@ -51,7 +51,19 @@ def _get_store(project_root: str):
     from graph_store import GraphStore
     store = GraphStore(resolved)
     store.initialize()
+    # 自动注册约束引擎到 post_flush 钩子
+    _register_constraint_engine(store)
     return store
+
+
+def _register_constraint_engine(store):
+    """注册约束引擎到 GraphStore 的 post_flush 钩子。"""
+    try:
+        from constraint_engine import ConstraintEngine
+        engine = ConstraintEngine(store)
+        engine.register_with_store()
+    except Exception:
+        pass  # 约束引擎注册失败不影响核心功能
 
 
 def _get_engine(project_root: str):
@@ -254,6 +266,39 @@ def _auto_detect_chapter(content: str, unit_name: str) -> Optional[int]:
         if m:
             chapter = int(m.group(1))
     return chapter
+
+
+# ── 编排层写操作拦截 ──────────────────────────────────────────────────
+
+_ORCHESTRATOR_WRITE_BLOCKED = True
+
+def set_orchestrator_write_blocked(blocked: bool):
+    """设置是否禁止编排层直接写 graph（默认禁止）"""
+    global _ORCHESTRATOR_WRITE_BLOCKED
+    _ORCHESTRATOR_WRITE_BLOCKED = blocked
+
+def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
+    """检查调用者是否有权限直接写 graph。返回 dict | None 而非抛异常。
+    
+    允许的 actor：novel-v2-crafter / v2-crafter（创作通路）、script（迁移脚本）、fix-asymmetry、novel-tool
+    禁止的 actor：orchestrator（编排层应通过 crafter）或其他未识别值
+    
+    Returns: None（允许）或 {"error": ..., "blocked_operation": ...}（拒绝，error 含修正指引）
+    """
+    if not _ORCHESTRATOR_WRITE_BLOCKED:
+        return None
+    
+    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool"}
+    if actor not in ALLOWED_WRITE_ACTORS:
+        return {
+            "error": (
+                f"不允许直接调用 {operation}（actor={actor}）。"
+                f"叙事内容写操作必须通过 novel-v2-crafter 子 agent 执行。"
+                f"请使用 task(subagent_type='novel-v2-crafter', load_skills=['novel-v2'], ...)"
+            ),
+            "blocked_operation": operation,
+        }
+    return None
 
 
 # ── Handler 函数 ─────────────────────────────────────────────────────────
@@ -484,14 +529,13 @@ def handle_create_unit(
     file_path: Optional[str] = None,
     tags: Optional[str] = None,
     chapter: Optional[int] = None,
-    actor: str = "script",
+    actor: str = "orchestrator",
     parent_id: Optional[str] = None,
 ) -> dict:
-    """创建叙事单元。
-
-    Schema 校验：必填字段缺失时 graph_store.create_unit 会抛出 ValueError，
-    此处自动捕获并返回友好错误信息（而非 500）。
-    """
+    """创建叙事单元。"""
+    blocked = _check_orchestrator_write(actor, "graph.create_unit")
+    if blocked:
+        return blocked
     from graph_schema import UnitType
     from relation_inferrer import RelationInferrer
 
@@ -547,9 +591,12 @@ def handle_update_unit(
     name: Optional[str] = None,
     tags: Optional[str] = None,
     status: Optional[str] = None,
-    actor: str = "script",
+    actor: str = "orchestrator",
 ) -> dict:
     """更新叙事单元。"""
+    blocked = _check_orchestrator_write(actor, "graph.update_unit")
+    if blocked:
+        return blocked
     from graph_schema import UnitStatus
     from relation_inferrer import RelationInferrer
 
@@ -597,8 +644,11 @@ def handle_update_unit(
     }
 
 
-def handle_archive_unit(project_root: str, id: str, actor: str = "novel-tool") -> dict:
+def handle_archive_unit(project_root: str, id: str, actor: str = "orchestrator") -> dict:
     """归档叙事单元。"""
+    blocked = _check_orchestrator_write(actor, "graph.archive_unit")
+    if blocked:
+        return blocked
     store = _get_store(project_root)
     ok = store.archive_unit(id, actor=actor)
     if ok:
@@ -607,13 +657,13 @@ def handle_archive_unit(project_root: str, id: str, actor: str = "novel-tool") -
     return {"error": "归档失败：叙事单元不存在"}
 
 
-def handle_purge_archived(project_root: str, ids: str = "", actor: str = "novel-tool") -> dict:
+def handle_purge_archived(project_root: str, ids: str = "", actor: str = "orchestrator") -> dict:
     """
     物理删除已归档的叙事单元及其关联边。
-    
-    Args:
-        ids: 逗号分隔的单元 ID 列表。为空时删除所有 archived 单元。
     """
+    blocked = _check_orchestrator_write(actor, "graph.purge_archived")
+    if blocked:
+        return blocked
     store = _get_store(project_root)
     id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
     result = store.purge_archived(ids=id_list, actor=actor)
@@ -652,16 +702,14 @@ def handle_add_relation(
     rel_type: str,
     bidirectional: bool = False,
     label: str = "",
-    actor: str = "novel-tool",
+    actor: str = "orchestrator",
 ) -> dict:
-    """建立关系。
-
-    语义标签支持：rel_type 传入中文语义关系名（如"师徒"）时自动降级为 REFERENCES，
-    并将中文名存入 label 字段。也支持通过 label 参数显式指定语义标签。
-    """
+    """建立关系。"""
+    blocked = _check_orchestrator_write(actor, "graph.add_relation")
+    if blocked:
+        return blocked
     from graph_schema import RelationType
     rtype, fallback_label = _resolve_rel_type(rel_type)
-    # 优先使用显式 label，其次使用降级 label
     effective_label = label or fallback_label
     store = _get_store(project_root)
     rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label)
@@ -680,11 +728,32 @@ def handle_add_relation(
     return result
 
 
-def handle_flush(project_root: str) -> dict:
+def handle_flush(project_root: str, skip_constraint_check: bool = False) -> dict:
     """持久化 graph 数据。"""
     store = _get_store(project_root)
-    store.flush()
+    store.flush(skip_constraint_check=skip_constraint_check)
     return {"ok": True}
+
+
+def handle_constraint_check(project_root: str, full: bool = False) -> dict:
+    """手动触发约束检查。"""
+    from constraint_engine import ConstraintEngine
+    store = _get_store(project_root)
+    engine = ConstraintEngine(store)
+    if full:
+        results = engine.run(full=True)
+    else:
+        results = engine.run_incremental()
+    engine._persist_results(results)
+    return {
+        "checked": True,
+        "total_results": len(results),
+        "results": [
+            {"rule_id": r.rule_id, "severity": r.severity,
+             "description": r.description, "units_involved": r.units_involved}
+            for r in results
+        ],
+    }
 
 
 def handle_fix_asymmetry(project_root: str) -> dict:
@@ -745,9 +814,12 @@ def handle_remove_relation(
     source: str = "",
     target: str = "",
     rel_type: str = "",
-    actor: str = "novel-tool",
+    actor: str = "orchestrator",
 ) -> dict:
     """删除关系。"""
+    blocked = _check_orchestrator_write(actor, "graph.remove_relation")
+    if blocked:
+        return blocked
     from graph_schema import RelationType
     store = _get_store(project_root)
 
@@ -775,8 +847,11 @@ def handle_remove_relation(
     return {"removed": True, "relation_id": removed_id}
 
 
-def handle_batch_infer(project_root: str) -> dict:
+def handle_batch_infer(project_root: str, actor: str = "orchestrator") -> dict:
     """批量推断：扫描所有已有单元，自动建立关系。"""
+    blocked = _check_orchestrator_write(actor, "graph.batch_infer")
+    if blocked:
+        return blocked
     from relation_inferrer import RelationInferrer
     store = _get_store(project_root)
     before = store.stats()["total_relations"]

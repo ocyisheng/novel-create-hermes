@@ -93,7 +93,7 @@ class TestGraphRead:
         proj_path, store = tmp_project
         from graph_schema import UnitType
         long_content = "A" * 500
-        u = store.create_unit(type=UnitType.NOTE, unit_name="长内容", content=long_content, actor="test")
+        u = store.create_unit(type=UnitType.NOTE, unit_name="长内容", content=long_content, actor="novel-v2-crafter")
         store.flush()
         res = call_tool("graph.get_unit", project=proj_path, id=u.id)
         content = res["data"]["unit"]["content"]
@@ -103,7 +103,7 @@ class TestGraphRead:
         proj_path, store = tmp_project
         from graph_schema import UnitType
         long_content = "A" * 500
-        u = store.create_unit(type=UnitType.NOTE, unit_name="长内容", content=long_content, actor="test")
+        u = store.create_unit(type=UnitType.NOTE, unit_name="长内容", content=long_content, actor="novel-v2-crafter")
         store.flush()
         res = call_tool("graph.get_unit", project=proj_path, id=u.id, verbose=True)
         assert len(res["data"]["unit"]["content"]) == 500
@@ -122,7 +122,8 @@ class TestGraphRead:
     def test_find_unit_no_name(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.find_unit", project=proj_path)
-        assert_error(res, "missing 1 required positional argument: 'name'")
+        assert_success(res)
+        assert "请提供 name" in res["data"].get("message", "")
 
     def test_search_by_keyword(self, sample_units):
         proj_path, store, units = sample_units
@@ -260,7 +261,7 @@ class TestGraphWrite:
         res = call_tool("graph.create_unit", project=proj_path,
                         type="CHARACTER_ARC", name="新角色",
                         content="测试内容", tags="主角,新标签",
-                        chapter=1, actor="test")
+                        chapter=1, actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["id"].startswith("ca_")
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
@@ -271,14 +272,14 @@ class TestGraphWrite:
     def test_create_unit_default_type(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="默认笔记", actor="test")
+                        type="NOTE", name="默认笔记", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["id"].startswith("nt_")
 
     def test_create_unit_invalid_type(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="INVALID_TYPE", name="坏单元", actor="test")
+                        type="INVALID_TYPE", name="坏单元", actor="novel-v2-crafter")
         assert_error(res)
 
     def test_update_unit(self, sample_units):
@@ -286,7 +287,7 @@ class TestGraphWrite:
         uid = units["林渊"].id
         res = call_tool("graph.update_unit", project=proj_path,
                         id=uid, content="更新内容", name="林渊改",
-                        tags="主角,剑修,更新", actor="test")
+                        tags="主角,剑修,更新", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["name"] == "林渊改"
         assert res["data"]["version"] >= 2
@@ -295,27 +296,27 @@ class TestGraphWrite:
     def test_update_unit_not_found(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.update_unit", project=proj_path,
-                        id="nonexistent", content="x", actor="test")
+                        id="nonexistent", content="x", actor="novel-v2-crafter")
         assert_error(res, "不存在")
 
     def test_archive_unit(self, sample_units):
         proj_path, store, units = sample_units
         uid = units["林渊"].id
-        res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="test")
+        res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
         assert_success(res, {"archived": True})
         verify = call_tool("graph.get_unit", project=proj_path, id=uid)
         assert verify["data"]["unit"]["status"] == "archived"
 
     def test_archive_unit_not_found(self, tmp_project):
         proj_path, _ = tmp_project
-        res = call_tool("graph.archive_unit", project=proj_path, id="nonexistent", actor="test")
+        res = call_tool("graph.archive_unit", project=proj_path, id="nonexistent", actor="novel-v2-crafter")
         assert_error(res, "不存在")
 
     def test_add_relation(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="MEMBER_OF", actor="test")
+                        type="MEMBER_OF", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["type"] == "member_of"
 
@@ -323,7 +324,7 @@ class TestGraphWrite:
         proj_path, store, units = sample_units
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="MEMBER_OF", bidirectional=True, actor="test")
+                        type="MEMBER_OF", bidirectional=True, actor="novel-v2-crafter")
         assert_success(res)
         assert "inverse_id" in res["data"]
         assert res["data"]["inverse_id"] is not None
@@ -333,7 +334,7 @@ class TestGraphWrite:
         # 非法关系类型不再报错——降级为 REFERENCES，原始输入存为 label
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="NOT_A_TYPE", actor="test")
+                        type="NOT_A_TYPE", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["type"] == "references"
         assert res["data"].get("label") == "NOT_A_TYPE"
@@ -352,7 +353,7 @@ class TestGraphWrite:
 
     def test_batch_infer(self, sample_units):
         proj_path, store, units = sample_units
-        res = call_tool("graph.batch_infer", project=proj_path)
+        res = call_tool("graph.batch_infer", project=proj_path, actor="novel-v2-crafter")
         assert_success(res)
         assert "new_relations" in res["data"]
         assert "total_before" in res["data"]
@@ -361,7 +362,7 @@ class TestGraphWrite:
     def test_create_unit_without_content(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="空内容笔记", actor="test")
+                        type="NOTE", name="空内容笔记", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["content"] is None
@@ -377,7 +378,7 @@ class TestGraphWriteChapterNumber:
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
                         type="CHUNK", name="第5章",
-                        content='{"章节号":5,"章节名":"测试"}', actor="test")
+                        content='{"章节号":5,"章节名":"测试"}', actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 5
@@ -386,7 +387,7 @@ class TestGraphWriteChapterNumber:
         """不传 --chapter，从名称 第N章 自动推断"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="SCENE", name="第3章_上山", actor="test")
+                        type="SCENE", name="第3章_上山", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 3
@@ -396,7 +397,7 @@ class TestGraphWriteChapterNumber:
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
                         type="CHUNK", name="第8章_测试",
-                        content='{"章节名":"测试"}', actor="test")
+                        content='{"章节名":"测试"}', actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 8
@@ -407,7 +408,7 @@ class TestGraphWriteChapterNumber:
         res = call_tool("graph.create_unit", project=proj_path,
                         type="CHUNK", name="第8章_测试",
                         content='{"章节号":5,"章节名":"测试"}',
-                        chapter=7, actor="test")
+                        chapter=7, actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 7
@@ -416,7 +417,7 @@ class TestGraphWriteChapterNumber:
         """无任何章节信息时 chapter 为 None"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="日常笔记", actor="test")
+                        type="NOTE", name="日常笔记", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] is None
@@ -426,7 +427,7 @@ class TestGraphWriteChapterNumber:
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
                         type="CHUNK", name="第2章_赶路",
-                        content="纯文本正文内容", actor="test")
+                        content="纯文本正文内容", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 2
@@ -527,7 +528,7 @@ class TestGraphSessionExportViz:
         proj_path, store = tmp_project
         from graph_schema import UnitType
         store.create_unit(type=UnitType.CHUNK, unit_name="第1章",
-                          content="第一章正文", chapter_number=1, actor="test")
+                          content="第一章正文", chapter_number=1, actor="novel-v2-crafter")
         store.flush()
         res = call_tool("graph.export_chunks", project=proj_path)
         assert_success(res)
@@ -1000,31 +1001,31 @@ class TestIntegration:
                 # graph.create_unit x3
                 r2 = call_tool("graph.create_unit", project=proj_path,
                               type="CHARACTER_ARC", name="叶凡",
-                              content="主角", tags="主角", actor="test")
+                              content="主角", tags="主角", actor="novel-v2-crafter")
                 assert_success(r2)
                 vf_id = r2["data"]["id"]
 
                 r3 = call_tool("graph.create_unit", project=proj_path,
                               type="SCENE", name="第一章-上山",
-                              content="上山拜师", chapter=1, actor="test")
+                              content="上山拜师", chapter=1, actor="novel-v2-crafter")
                 assert_success(r3)
                 scene_id = r3["data"]["id"]
 
                 r4 = call_tool("graph.create_unit", project=proj_path,
                               type="WORLD_RULE", name="青云门",
-                              content="修仙门派", actor="test")
+                              content="修仙门派", actor="novel-v2-crafter")
                 assert_success(r4)
                 sect_id = r4["data"]["id"]
 
                 # graph.add_relation
                 r5 = call_tool("graph.add_relation", project=proj_path,
                               source=vf_id, target=scene_id,
-                              type="PARTICIPATES_IN", actor="test")
+                              type="PARTICIPATES_IN", actor="novel-v2-crafter")
                 assert_success(r5)
 
                 r6 = call_tool("graph.add_relation", project=proj_path,
                               source=vf_id, target=sect_id,
-                              type="MEMBER_OF", actor="test")
+                              type="MEMBER_OF", actor="novel-v2-crafter")
                 assert_success(r6)
 
                 # graph.get_neighbors

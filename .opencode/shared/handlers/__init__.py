@@ -36,6 +36,7 @@ from .handlers_graph import (
     handle_rebuild_structure_path,
     handle_migrate_structure_to_edges,
     handle_schema_info,
+    handle_constraint_check,
 )
 
 from .handlers_project import (
@@ -69,6 +70,7 @@ from .handlers_deviation import (
     handle_deviation_retain,
     handle_deviation_delete,
     handle_deviation_stats,
+    handle_deviation_summary,
 )
 
 from .handlers_knowledge import (
@@ -158,7 +160,11 @@ OPERATION_REGISTRY = {
     },
     "graph.flush": {
         "handler": handle_flush,
-        "params": {"project_root": {"required": True}},
+        "params": {"project_root": {"required": True}, "skip_constraint_check": {}},
+    },
+    "constraint.check": {
+        "handler": handle_constraint_check,
+        "params": {"project_root": {"required": True}, "full": {}},
     },
     "graph.fix_asymmetry": {
         "handler": handle_fix_asymmetry,
@@ -174,7 +180,7 @@ OPERATION_REGISTRY = {
     },
     "graph.batch_infer": {
         "handler": handle_batch_infer,
-        "params": {"project_root": {"required": True}},
+        "params": {"project_root": {"required": True}, "actor": {}},
     },
     "graph.export_docs": {
         "handler": handle_export_docs,
@@ -299,6 +305,10 @@ OPERATION_REGISTRY = {
     },
     "deviation.stats": {
         "handler": handle_deviation_stats,
+        "params": {"project_root": {"required": True}},
+    },
+    "deviation.summary": {
+        "handler": handle_deviation_summary,
         "params": {"project_root": {"required": True}},
     },
     # knowledge

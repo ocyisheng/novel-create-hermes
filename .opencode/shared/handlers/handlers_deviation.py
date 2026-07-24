@@ -185,3 +185,14 @@ def handle_deviation_stats(project_root: str) -> dict:
 
     mgr = DeviationManager(project)
     return mgr.stats()
+
+def handle_deviation_summary(project_root: str) -> dict:
+    """偏差快速概览（简化版 stats，带 source 维度）。"""
+    from deviation_manager import DeviationManager
+
+    project = _resolve_project(project_root)
+    if not project or not os.path.isdir(os.path.join(project, "graph")):
+        return {"error": f"项目路径无效: {project}"}
+
+    mgr = DeviationManager(project)
+    return mgr.summary()

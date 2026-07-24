@@ -158,19 +158,10 @@ class SearchEngine:
         """
         获取 version > since_version 的变更单元（用于增量分析）。
         
-        与 VizIncrementalEngine.get_changed_unit_ids()（v2_graph_viz.py:977）
-        相同模式，但不依赖 events.olog。
-        
-        - O(n_units) 而非 O(n_events)
-        - unit.version 在每次 update_unit() 时自增（graph_store.py:357）
+        委托给 GraphStore.get_modified_units()。
+        保持向后兼容。
         """
-        changed = []
-        for unit in self.store._units.values():
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
-            if unit.version > since_version:
-                changed.append(unit)
-        return changed
+        return self.store.get_modified_units(since_version)
 
     # ── 一致性检查 ───────────────────────────────────────────────────────
 
@@ -657,3 +648,20 @@ class SearchEngine:
                 lines.append(f"      关联: {', '.join(r.neighbors[:5])}")
             lines.append("")
         return "\n".join(lines)
+    
+    # ── R10-R12：占位实现（供 _CHECKERS 注册表调用） ──────────────
+    # 这些规则设计用于节奏分析和主角能动性检测，需要结合 LLM 分析。
+    # 当前返回空列表作为占位，避免 check_consistency 时 AttributeError。
+    # 后续可在 constraint_engine.py 中实现为 pattern 类别约束。
+    
+    def _check_pacing_monotony(self) -> List[CheckResult]:
+        """规则 10：节奏单调检测（占位，返回空）"""
+        return []
+    
+    def _check_density_deviation(self) -> List[CheckResult]:
+        """规则 11：密度偏离检测（占位，返回空）"""
+        return []
+    
+    def _check_protagonist_agency(self) -> List[CheckResult]:
+        """规则 12：主角能动性检测（占位，返回空）"""
+        return []

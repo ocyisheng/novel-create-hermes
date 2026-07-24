@@ -572,7 +572,7 @@ class TestCheckerRegistry:
         """验证 _CHECKERS 注册表包含所有预期规则"""
         from search_engine import SearchEngine
         rule_ids = {rid for rid, _, _ in SearchEngine._CHECKERS}
-        expected = {"R1", "R2", "R3", "R4", "R5", "R6", "R7", "R9"}
+        expected = {"R1", "R2", "R3", "R4", "R5", "R6", "R7", "R9", "R10", "R11", "R12"}
         missing = expected - rule_ids
         assert not missing, f"Missing rules: {missing}"
         unexpected = rule_ids - expected

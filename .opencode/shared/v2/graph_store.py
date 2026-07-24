@@ -74,6 +74,9 @@ class GraphStore:
         self._flush_counter = 0
         self._cache_write_interval = int(os.environ.get("NOVEL_CACHE_INTERVAL", "5"))
         
+        # post_flush 回调链（约束引擎等通过此钩子注册）
+        self._post_flush_hooks: List[Callable[["GraphStore"], None]] = []
+        
         # 是否已初始化
         self._initialized = False
     
@@ -357,14 +360,16 @@ class GraphStore:
         self._last_flushed_event = len(self._events)
         self._dirty_events = False
     
-    def flush(self):
+    def flush(self, skip_constraint_check: bool = False):
         """将所有脏数据写回磁盘（事务性：全部成功或全部保留脏标记）
         
         flush 的性能优化：
         1. 事件始终 append-only，无需全量重写
         2. 缓存写（_save_cache）节流——每 N 次 flush 写一次，
            避免 400-700ms 的每次全量序列化开销
-        3. 单元增量 flush — 只写脏单元，而非全量 200+ 单元
+        
+        Args:
+            skip_constraint_check: True 时跳过约束引擎 post_flush 钩子
         """
         if not (self._dirty_nodes or self._dirty_edges or self._dirty_events):
             return
@@ -401,6 +406,42 @@ class GraphStore:
             except Exception:
                 pass  # 缓存写失败不阻塞业务
             self._flush_counter = 0
+        
+        # post_flush：执行已注册的回调链（失败不影响写）
+        if not skip_constraint_check:
+            for hook in self._post_flush_hooks:
+                try:
+                    hook(self)
+                except Exception:
+                    pass  # 回调失败不阻塞业务
+    
+    def register_post_flush_hook(self, hook: Callable[["GraphStore"], None]):
+        """注册 flush 后回调钩子。
+        
+        回调签名：hook(store: GraphStore) -> None
+        回调执行失败不影响 flush 本身的写结果。
+        用于约束引擎自动检测等场景。
+        """
+        self._post_flush_hooks.append(hook)
+    
+    # ── 增量分析支持 ──────────────────────────────────────────────────
+    
+    def get_modified_units(self, since_version: int) -> List["NarrativeUnit"]:
+        """
+        获取 version > since_version 的所有活跃单元（用于增量分析）。
+        
+        - O(n_units) 而非 O(n_events)
+        - unit.version 在每次 update_unit() 时自增
+        - 过滤已归档单元
+        """
+        from graph_schema import UnitStatus
+        changed = []
+        for unit in self._units.values():
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+            if unit.version > since_version:
+                changed.append(unit)
+        return changed
     
     # ── 事件记录 ────────────────────────────────────────────────────────
     

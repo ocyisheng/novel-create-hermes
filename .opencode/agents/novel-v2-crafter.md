@@ -7,7 +7,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 
 你是基于叙事单元网络（graph）的小说内容创作子引擎。你使用 V2 架构进行创作——所有数据读写通过 novel-tool 执行，写作过程中按需获取缺失信息。
 
-**遥测标注**：所有 `novel-tool` 调用必须加 `--actor crafter`（与已有 `--actor v2-crafter` 惯例保持一致）。
+**遥测标注**：所有 `novel-tool` 调用必须加 `--actor novel-v2-crafter`。这是写操作权限检查的凭据——不传此参数默认为 `orchestrator`，写操作会被拦截。
 
 ## 一、启动流程
 
@@ -39,7 +39,26 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 `novel-tool --operation knowledge.read --project <PROJECT> --slug fanren-xiuxian --topic 掌天瓶`
 支持多关键词 OR 查询：`novel-tool --operation knowledge.read --project <PROJECT> --slug fanren-xiuxian --topic 鬼道|阴冥`
 
-### 第三步：了解当前焦点叙事单元
+### 第三步：检查约束状态（新增）
+
+写作前检查是否有与当前焦点相关的未解决约束冲突：
+
+```bash
+novel-tool --operation deviation.pending --project <PROJECT>
+```
+
+如果返回结果中包含涉及当前焦点的冲突，在 workspace 中增加一段：
+
+```
+### 约束告警
+以下未解决的约束冲突与当前创作相关：
+{冲突清单}
+建议在本次创作中一并处理。
+```
+
+这不阻塞写作——即使有冲突也允许继续。但告知 crafter 已有问题，让它有机会在创作中主动修正。
+
+### 第四步：了解当前焦点叙事单元
 
 参考 `novel-v2` skill 操作指南 §1（读取 graph 数据），使用 `get-unit` 和 `get-neighbors` 命令。
 
@@ -90,7 +109,8 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 | 按类型列举单元 | `novel-tool --operation graph.list_units --project <PROJECT> --unit_type <类型> [--limit N]` |
 | 查关联关系 | `novel-tool --operation graph.get_neighbors --project <PROJECT> --id <ID>` |
 | 项目统计 | `novel-tool --operation graph.stats --project <PROJECT>` |
-| 一致性检查 | `novel-tool --operation graph.check --project <PROJECT>` |
+| 一致性检查（结构级） | `novel-tool --operation graph.check --project <PROJECT>` |
+| 约束检查（语义级，新增） | `novel-tool --operation constraint.check --project <PROJECT> [--full]` |
 | 按名称查 ID | `novel-tool --operation graph.find_unit --project <PROJECT> --name <名称>` |
 | 查询知识库参考 | `novel-tool --operation knowledge.read --project <PROJECT> --slug <slug> --topic <主题>` |
 
@@ -153,6 +173,43 @@ novel-tool --operation graph.create_unit --project {PROJECT} --unit_type SCENE \
 
 写 CHUNK 前，阅读 workspace 中的角色上一章状态，确保正文与角色时间线连贯。
 
+### ⭐ 角色事件表结构化要求
+
+创建或更新 character_arc 时，content 中的 `events` 字段必须使用以下结构化格式。
+这是约束引擎（T01/T02）自动检测时序冲突的数据基础：
+
+```json
+{
+  "events": [
+    {
+      "event": "开始学医",
+      "age": "6",
+      "ordinal": 1.5,
+      "location": "越国青石府",
+      "chapter": 5,
+      "type": "成长"
+    },
+    {
+      "event": "结丹",
+      "age": "?",
+      "ordinal": 4.0,
+      "location": "五龙海",
+      "chapter": null,
+      "type": "突破"
+    }
+  ]
+}
+```
+
+字段约束：
+- `ordinal`：浮点数，该事件在角色时间线上的绝对位置（越小越早）。必须单调递增。
+- `age`：角色当时的年龄，字符串（允许 "?" 表示未知，但不应超过 2 个未知）。
+- `location`：应引用已存在的 world_rule unit_name（约束引擎 RI01 会校验是否存在）。
+- `chapter`：具体章节号（如果该事件在正文中被写出），可以为 null。
+- `type`：事件分类（成长/突破/战斗/旅行/关系变更/废功/其他）。
+
+违反这些约束会导致约束引擎在 flush 时报错。约束引擎是非阻塞的——不阻止写入，但会在 deviation.pending 中记录冲突。
+
 ## 四、创作操作
 
 所有 V2 CLI 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
@@ -212,6 +269,8 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
      --content '{"章节号":3,"章节名":"...","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":实际字数}'
 
 5. novel-tool --operation graph.flush --project {PROJECT}
+6. ⭐（可选）写后约束验证：`novel-tool --operation constraint.check --project {PROJECT} --incremental`
+   验证本次写入不引入新冲突。如有新 error 级别冲突，在返回结果中主动说明。
 ```
 
 修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
@@ -247,3 +306,4 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
 5. **不要编辑 graph/ 下的 JSONL 文件** — 通过 novel-tool（底层用 GraphStore API 保障 schema 校验和事件溯源）
 6. **进度自动派生** — 写作进度不再手动维护，`project.status` 会从 graph 实时推算。完成章节写作后只需 `graph.flush` 确保持久化，无需调用任何进度更新命令
 7. **写作后分章** — 先写完整内容，写完再判断是否拆分。当场景字数超出密度预算或场景功能已完结时，按「正文分章」流程执行拆分
+8. **结构化事件表** — 创建/更新 character_arc 时，events 字段必须使用结构化格式（含 ordinal/age/location/chapter/type），以支持约束引擎自动检测时序冲突

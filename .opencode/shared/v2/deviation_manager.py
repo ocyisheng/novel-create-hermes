@@ -48,6 +48,7 @@ class DeviationItem:
     summary: str = ""
     detail: str = ""
     suggested_changeset: Optional[Dict[str, Any]] = None
+    source: str = "llm_analysis"  # 来源："llm_analysis" | "constraint_RI" | "constraint_T" | "graph_check" | "legacy"
 
 
 @dataclass
@@ -123,6 +124,7 @@ class DeviationManager:
                     summary=d.get("summary", ""),
                     detail=d.get("detail", ""),
                     suggested_changeset=d.get("suggested_changeset"),
+                    source=d.get("source", "llm_analysis"),
                 )
                 self._state.deviations[item.id] = item
         except Exception:
@@ -270,6 +272,89 @@ class DeviationManager:
             "full_scan_version": self._state.scan.full_scan_version,
         }
 
+    def merge_from_check_results(self, results: list) -> Dict[str, int]:
+        """
+        将约束引擎/一致性检查结果合并到偏差状态中。
+        
+        接收 SearchEngine.CheckResult 或兼容的 dict 列表。
+        返回: {"new": N, "resolved": M, "updated": K}
+        """
+        from dataclasses import dataclass
+        now = datetime.now(timezone.utc).isoformat()
+        stats = {"new": 0, "resolved": 0, "updated": 0}
+        
+        for result in results:
+            # 兼容 CheckResult dataclass 和 dict 两种输入
+            if isinstance(result, dict):
+                rule_id = result.get("rule_id", "UNKNOWN")
+                severity = result.get("severity", "info")
+                description = result.get("description", "")
+                units_involved = result.get("units_involved", [])
+                detail = result.get("detail", "")
+            else:
+                rule_id = result.rule_id
+                severity = result.severity
+                description = result.description
+                units_involved = result.units_involved
+                detail = getattr(result, "detail", "")
+            
+            # 推导 source：rule_id 前缀（如 "T01" → "constraint_T"）
+            prefix = rule_id.rstrip("0123456789")
+            source_prefix = f"constraint_{prefix}" if prefix != rule_id else "graph_check"
+            
+            # 用 rule_id + 涉及单元 IDs 生成稳定 key
+            unit_ids_sorted = sorted(units_involved) if units_involved else ["global"]
+            key = f"{rule_id}:" + ":".join(unit_ids_sorted[:3])
+            
+            existing = self._state.deviations.get(key)
+            if existing:
+                if existing.status == "pending":
+                    existing.detection_count += 1
+                    existing.last_detected = now
+                    if detail:
+                        existing.detail = detail
+                    stats["updated"] += 1
+                else:
+                    # 之前标记 resolved/retained 但再次检出 → 重置
+                    existing.status = "pending"
+                    existing.detection_count += 1
+                    existing.last_detected = now
+                    existing.detail = detail
+                    stats["resolved"] += 1
+            else:
+                self._state.deviations[key] = DeviationItem(
+                    id=key,
+                    dimension=rule_id,
+                    entity=description[:80],
+                    severity=severity,
+                    status="pending",
+                    first_detected=now,
+                    last_detected=now,
+                    summary=description[:200],
+                    detail=detail,
+                    source=source_prefix,
+                )
+                stats["new"] += 1
+        
+        self.save()
+        return stats
+    
+    def summary(self) -> Dict[str, Any]:
+        """快速概览当前偏差状态（简化版 stats）"""
+        counts = {"pending": 0, "resolved": 0, "retained": 0}
+        severities = {"error": 0, "warning": 0, "info": 0}
+        by_source = {}
+        for d in self._state.deviations.values():
+            counts[d.status] = counts.get(d.status, 0) + 1
+            severities[d.severity] = severities.get(d.severity, 0) + 1
+            by_source[d.source] = by_source.get(d.source, 0) + 1
+        return {
+            "total": len(self._state.deviations),
+            "by_status": counts,
+            "by_severity": severities,
+            "by_source": by_source,
+        }
+    
     # ── 内部方法 ───────────────────────────────────────────────────────
 
     def _find_existing(self, dimension: str, entity: str, entity_id: str = "") -> Optional[DeviationItem]:

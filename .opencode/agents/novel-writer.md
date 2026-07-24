@@ -59,8 +59,8 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   ├─ 先走 grill（按 §3.1 模糊判断规则）
-│   ├─ grill 后 → 按 §3.4 判断是否需要 ideation 生成方案
-│   └─ 用户确认方向 → 按 §3.4 后续路由
+│   ├─ grill 后 → 按 §3.6 判断是否需要 ideation 生成方案
+│   └─ 用户确认方向 → 按 §3.6 后续路由
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
   │   │   `novel-tool --operation session.info --project {PROJECT}`
@@ -137,7 +137,7 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 
 ### 3.2 焦点路由表
 
-可用的 cycle_type：`ideation`（发散构思）、`expansion`（扩展写作）、`refinement`（精修润色）、`proofing`（校对质检）、`planning`（规划组织）。session 预热推荐值综合 cycle_type + 焦点类型计算。`ideation` 走 ideation subagent（§3.4），不直接走 V2 路由。
+可用的 cycle_type：`ideation`（发散构思）、`expansion`（扩展写作）、`refinement`（精修润色）、`proofing`（校对质检）、`planning`（规划组织）。session 预热推荐值综合 cycle_type + 焦点类型计算。`ideation` 走 ideation subagent（§3.6），不直接走 V2 路由。
 
 三层链路：**章纲规划 → 场景设计 → 正文执行**。章纲通过 PLANS 边声明计划场景（规划层），正文（CHUNK）通过 BELONGS_TO 边关联执行场景（执行层）。规划与执行解耦——增减场景只操作 BELONGS_TO，章纲的 PLANS 边保持规划原样。
 - 章纲（CHAPTER_PLAN）规划整章骨架：场域序列、节奏、字数分配
@@ -204,7 +204,77 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 - 哪些是"引用而非定义"，无需修改
 ```
 
-### 3.4 Grill 后续操作：Ideation 方案生成
+### 3.4 跨卷章纲一致性校验（卷末章纲前置）
+
+编排层在创建/编辑卷末尾章节（属于某卷的后 20% 章节范围）的 chapter_plan 时，
+必须检查下一卷的 volume_plan 是否与当前章纲的路线设定一致。
+
+**触发条件**：
+- 正在创建的 chapter_plan 属于某卷的后 20%（如卷1共60章，第48-60章触发）
+- 项目有下一卷（`graph.get_neighbors(current_volume_plan)` 存在 `PRECEDES` 边的下一卷）
+
+**标准流程**：
+
+```
+1. 创建 chapter_plan 前，先调 graph.get_unit({当前卷 volume_plan ID})
+   提取当前卷的「章节范围」和「终点状态」
+2. 调 graph.get_neighbors({当前卷 ID}, rel_type="PRECEDES")
+   找到下一卷的 volume_plan ID
+3. 调 graph.get_unit({下一卷 volume_plan ID})
+   提取下一卷的「核心冲突」或备注中的「开场」设定
+4. 检查当前卷的终点状态 → 下一卷的开场设定 → 正在创建的章纲是否一致
+5. 如不一致 → 先报告用户，修正后再继续创建
+```
+
+**注入模板**（注入 crafter TASK 前）：
+
+```markdown
+### 跨卷一致性检查
+当前卷（{卷号}）终点：{终点状态}
+下一卷（{卷号}）开场：{开场设定}
+当前创建的章纲（第N章）路线：{移动路线/场景序列摘要}
+→ 结果：{一致/不一致，不一致时说明冲突点}
+```
+
+当检查结果不一致时，编排层不应继续调度 crafter，而应先报告用户并等待修正指令。
+
+### 3.5 角色事件时间线交叉校验（章纲创建前置）
+
+编排层在创建/编辑任何 chapter_plan 时，应自动扫描项目中所有 character_arc 单元，
+提取关键事件中的章节号/时间标记，与当前章纲的章节范围做交叉校验。
+
+**触发条件**：
+- 创建/批量创建 chapter_plan（如"创建卷1全部60章章纲"）
+- 编辑已有 chapter_plan 的场景序列或章节号
+- 编辑 character_arc 的关键事件时间表
+
+**标准流程**：
+
+```
+1. 调 graph.list_units(unit_type="character_arc") 获取所有活跃角色
+2. 对每个角色，读取 content 中的关键事件列表或角色弧线中的时间标记
+   （可能以事件表、章节号范围、时间戳等形式存在）
+3. 提取所有带有「章节号」或「时间定位」的事件 → 形成事件-章节映射表
+4. 检查当前创建的 chapter_plan 的章节号是否与任何角色事件匹配：
+   - 匹配 → 该章纲涉及的角色事件 → 在 crafter TASK 中注入参考信息
+   - 不匹配 → 正常创建
+5. 输出事件引用清单（如有）
+```
+
+**注入模板**（注入 crafter TASK 前，仅在匹配到角色事件时使用）：
+
+```markdown
+### 角色事件参考（自动检测）
+以下角色在本章范围内有关键事件：
+- {角色名}（{事件描述} — 第{N}章）
+- {角色名}（{事件描述} — 第{N}章）
+```
+
+当编排层在注入任务时发现角色事件与当前创建的章纲预期行为不一致
+（如正在写第28章，吕风的角色弧线标注「第28章·重伤散修出场」），
+应主动向用户确认后再继续调度。
+
+### 3.6 Grill 后续操作：Ideation 方案生成
 
 grill 收敛用户需求后，编排层询问用户是否想看看参考方案。如用户需要，调度 ideation subagent 生成方案。
 

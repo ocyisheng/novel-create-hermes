@@ -100,11 +100,11 @@ OPERATION_REGISTRY = {
     },
     "graph.find_unit": {
         "handler": handle_find_unit,
-        "params": {"project_root": {"required": True}, "name": {"required": True}},
+        "params": {"project_root": {"required": True}, "name": {}, "keyword": {}},
     },
     "graph.search": {
         "handler": handle_search,
-        "params": {"project_root": {"required": True}, "keyword": {}, "pattern": {}, "name": {}, "scope": {}, "regex": {}, "case_sensitive": {}, "limit": {}},
+        "params": {"project_root": {"required": True}, "keyword": {}, "pattern": {}, "name": {}, "scope": {}, "regex": {}, "case_sensitive": {}, "limit": {}, "verbose": {}},
     },
     "graph.list_units": {
         "handler": handle_list_units,
@@ -149,7 +149,7 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "actor": {}},
     },
     "graph.flush": {
         "handler": handle_flush,

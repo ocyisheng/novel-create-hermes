@@ -292,13 +292,41 @@ def handle_get_unit(project_root: str, id: str = "", name: str = "") -> dict:
     return {"unit": _unit_to_dict(u)}
 
 
-def handle_find_unit(project_root: str, name: str) -> dict:
-    """按名称查找叙事单元 ID。"""
-    store = _get_store(project_root)
-    u = store.get_unit_by_name(name)
-    if not u:
-        return {"id": None, "found": False, "message": f"未找到名称为「{name}」的叙事单元"}
-    return {"id": u.id, "found": True}
+def handle_find_unit(project_root: str, name: str = "", keyword: str = "") -> dict:
+    """按名称或关键词查找叙事单元 ID。
+    
+    Args:
+        name: 精确单元名称（name 和 keyword 至少提供一个）
+        keyword: 模糊关键词搜索（name 和 keyword 至少提供一个）
+    
+    Returns:
+        单个精确 ID（name 匹配时），或候选列表（keyword 搜索时）
+    """
+    store, engine = _get_engine(project_root)
+    
+    if name and not keyword:
+        # 精确匹配（原有逻辑）
+        u = store.get_unit_by_name(name)
+        if not u:
+            return {"id": None, "found": False, "message": f"未找到名称为「{name}」的叙事单元"}
+        return {"id": u.id, "found": True}
+    
+    if keyword and not name:
+        # 模糊搜索
+        result = engine.search(keyword=keyword, max_results=10)
+        items = []
+        for r in result.results:
+            items.append({
+                "unit_id": r.unit_id,
+                "unit_name": r.unit_name,
+                "unit_type": r.unit_type.value if hasattr(r.unit_type, "value") else str(r.unit_type),
+                "content_preview": r.content_preview[:120] + "..." if len(r.content_preview) > 120 else r.content_preview,
+                "score": r.score,
+            })
+        return {"id": None, "found": len(items) > 0, "candidates": items, "total": result.total,
+                "message": f"找到 {result.total} 个匹配结果，请指定精确 name 或从 candidates 中选择"}
+    
+    return {"id": None, "found": False, "message": "请提供 name（精确匹配）或 keyword（模糊搜索）"}
 
 
 def handle_search(
@@ -310,6 +338,7 @@ def handle_search(
     regex: bool = False,
     case_sensitive: bool = False,
     limit: int = 20,
+    verbose: bool = False,
 ) -> dict:
     """搜索叙事单元。接受 scope 为列表或逗号分隔字符串。"""
     from graph_schema import UnitType
@@ -325,21 +354,26 @@ def handle_search(
         scope=types, regex=regex, case_sensitive=case_sensitive,
         max_results=limit,
     )
+    items = []
+    for r in result.results:
+        item = {
+            "unit_id": r.unit_id, "unit_name": r.unit_name,
+            "unit_type": r.unit_type.value if hasattr(r.unit_type, "value") else str(r.unit_type),
+            "content_preview": r.content_preview,
+            "content_length": r.content_length, "chapter": r.chapter,
+            "score": r.score, "tags": r.tags,
+            "status": r.status.value if hasattr(r.status, "value") else str(r.status),
+            "version": r.version, "neighbors": r.neighbors,
+        }
+        if verbose:
+            u = _store.get_unit(r.unit_id)
+            if u:
+                item["content"] = u.content
+        items.append(item)
     return {
         "total": result.total,
         "time_ms": result.time_ms,
-        "results": [
-            {
-                "unit_id": r.unit_id, "unit_name": r.unit_name,
-                "unit_type": r.unit_type.value if hasattr(r.unit_type, "value") else str(r.unit_type),
-                "content_preview": r.content_preview,
-                "content_length": r.content_length, "chapter": r.chapter,
-                "score": r.score, "tags": r.tags,
-                "status": r.status.value if hasattr(r.status, "value") else str(r.status),
-                "version": r.version, "neighbors": r.neighbors,
-            }
-            for r in result.results
-        ],
+        "results": items,
     }
 
 

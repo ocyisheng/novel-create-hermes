@@ -113,7 +113,7 @@ _PARAM_MAP = {
     "content": "content", "file": "file_path",
     "tags": "tags", "chapter": "chapter",
     "actor": "actor", "limit": "limit",
-    "keyword": "keyword", "pattern": "pattern",
+    "keyword": "keyword", "pattern": "pattern", "verbose": "verbose",
     "scope": "scope", "regex": "regex",
     "case_sensitive": "case_sensitive",
     "since_version": "since_version",
@@ -125,6 +125,7 @@ _PARAM_MAP = {
     # 关系
     "source": "source", "target": "target",
     "bidirectional": "bidirectional",
+    "label": "label",
     "direction": "direction",
     # 可视化
     "character": "character", "timeline": "timeline",

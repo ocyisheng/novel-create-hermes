@@ -153,6 +153,17 @@ _PARAM_MAP = {
     "full_scan_version": "full_scan_version",
     # 知识库
     "slug": "slug", "topic": "topic",
+    # subagent trace
+    "task_id": "task_id",
+    "subagent": "subagent",
+    "preheat_level": "preheat_level",
+    "humanize": "humanize",
+    "prompt_summary": "prompt_summary",
+    "result_summary": "result_summary",
+    "new_units": "new_units",
+    "updated_units": "updated_units",
+    "duration_estimate_ms": "duration_estimate_ms",
+    "error_summary": "error_summary",
 }
 
 # 需要额外处理别名/兼容性的操作
@@ -239,8 +250,8 @@ def handle_request(request: dict) -> str:
         if not op:
             return _err("缺少 operation 字段")
 
-        # subagent.trace 是遥测专用操作，不经过 handler
-        if op == "subagent.trace":
+        # subagent.trace/save 记录子 agent 调用信息，不经过 handler
+        if op in ("subagent.trace", "subagent.save"):
             return _handle_subagent_trace(request)
 
         canonical = _build_canonical_params(op, request)
@@ -332,6 +343,7 @@ def _handle_subagent_trace(request: dict) -> str:
     record = {
         "ts": now.isoformat(),
         "project": project,
+        "task_id": request.get("task_id", request.get("session_id", "")),
         "subagent": request.get("subagent", ""),
         "focus_type": request.get("focus_type", ""),
         "focus_name": request.get("focus_name", ""),
@@ -340,6 +352,8 @@ def _handle_subagent_trace(request: dict) -> str:
         "humanize": request.get("humanize", False),
         "session_id": request.get("session_id", ""),
         "result": request.get("result", "unknown"),
+        "prompt_summary": request.get("prompt_summary", ""),
+        "result_summary": request.get("result_summary", ""),
         "new_units": request.get("new_units", 0),
         "updated_units": request.get("updated_units", 0),
         "duration_estimate_ms": request.get("duration_estimate_ms", 0),

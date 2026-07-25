@@ -290,6 +290,9 @@ class Relation:
     取代现有架构中分散在 project_index.yaml 和各文件内部的隐式引用。
     关系是 graph 的核心——它使得"如果改这个角色会影响哪些情节线"这类
     查询成为可能，而不需要手动遍历文件。
+    
+    第二阶段扩展：metadata → payload 重命名，payload 带 schema 校验。
+    to_dict() 同时写入 payload 和 metadata 字段以保证向后兼容。
     """
     id: str                               # UUID
     source_id: str                        # 源单元 ID
@@ -298,14 +301,40 @@ class Relation:
     weight: float = 0.5                   # 0.0-1.0，关系强度
     description: str = ""                 # 可选的关系描述
     label: str = ""                       # 关系语义标签（如"师徒""母子"），自由文本，不限枚举
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    payload: Dict[str, Any] = field(default_factory=dict)  # 结构化载荷（含 schema 校验）
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     def to_dict(self) -> Dict[str, Any]:
         result = asdict(self)
         result["relation_type"] = self.relation_type.value
         result["created_at"] = self.created_at.isoformat()
+        result["updated_at"] = self.updated_at.isoformat()
+        # 向后兼容：新 payload 同时写入 metadata 字段
+        if self.payload:
+            result["metadata"] = self.payload
         return result
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Relation":
+        """从 dict 反序列化，兼容旧 metadata 字段。"""
+        data = dict(data)
+        # 旧数据兼容：metadata → payload（仅当 payload 不存在时）
+        if "metadata" in data:
+            if "payload" not in data or not data["payload"]:
+                data["payload"] = data.pop("metadata")
+            else:
+                data.pop("metadata")  # payload 已存在，删除 metadata 避免冲突
+        if "payload" not in data:
+            data["payload"] = {}
+        # 类型转换
+        if "relation_type" in data and isinstance(data["relation_type"], str):
+            data["relation_type"] = RelationType(data["relation_type"])
+        if "created_at" in data and isinstance(data["created_at"], str):
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+        if "updated_at" in data and isinstance(data["updated_at"], str):
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        return cls(**data)
 
 
 @dataclass

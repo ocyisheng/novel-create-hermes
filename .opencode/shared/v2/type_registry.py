@@ -50,12 +50,34 @@ class ConstraintDef:
 
 
 @dataclass
+class PayloadConstraintDef:
+    """边 payload 约束定义"""
+    rule_id: str
+    category: str          # temporal | boundary | pattern
+    severity: str
+    description: str
+    fields: List[str]      # payload 中的字段路径
+    check: str             # field_a_lt_field_b | monotonic_increasing | field_not_null
+    skip_when_null: bool = True
+    params: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class RelationRule:
     """关系规则"""
     target_type: List[str]
     cardinality: str = "any"
     bidirectional: bool = False
     description: str = ""
+    # 第二阶段扩展：payload schema + 约束
+    payload_schema: Optional[Dict] = None
+    payload_constraints: List[PayloadConstraintDef] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.payload_schema is None:
+            self.payload_schema = {}
+        if self.payload_constraints is None:
+            self.payload_constraints = []
 
 
 @dataclass
@@ -293,11 +315,29 @@ class TypeRegistry:
         allowed = rel_data.get("allowed", {}) or {}
         for rel_type_name, rule in allowed.items():
             if isinstance(rule, dict):
+                # 解析 payload_constraints
+                payload_constraints = []
+                for pc in (rule.get("payload_constraints", []) or []):
+                    payload_constraints.append(PayloadConstraintDef(
+                        rule_id=pc.get("id", ""),
+                        category=pc.get("category", ""),
+                        severity=pc.get("severity", "info"),
+                        description=pc.get("description", ""),
+                        fields=pc.get("fields", pc.get("field", [])),
+                        check=pc.get("check", ""),
+                        skip_when_null=pc.get("skip_when_null", True),
+                        params={k: v for k, v in pc.items()
+                                if k not in ("id", "category", "severity",
+                                             "description", "fields", "field",
+                                             "check", "skip_when_null")},
+                    ))
                 td.relations.allowed[rel_type_name] = RelationRule(
                     target_type=rule.get("target_type", ["*"]),
                     cardinality=rule.get("cardinality", "any"),
                     bidirectional=rule.get("bidirectional", False),
                     description=rule.get("description", ""),
+                    payload_schema=rule.get("payload_schema", {}),
+                    payload_constraints=payload_constraints,
                 )
 
         fw_list = rel_data.get("forbidden_when", []) or []
@@ -404,6 +444,93 @@ class TypeRegistry:
                     enum_vals = schema.get("enum")
                     if enum_vals and val is not None and val not in enum_vals:
                         errors.append(f"field '{field_name}' value '{val}' not in {enum_vals}")
+
+        return errors
+
+    # ── 关系 payload schema ──────────────────────────────────────────────
+
+    def get_relation_payload_schema(self, source_type: str, rel_type: str) -> Optional[Dict]:
+        """获取某类型的特定关系上的 payload schema。"""
+        td = self._types.get(source_type)
+        if not td:
+            return None
+        rule = td.relations.allowed.get(rel_type)
+        if not rule:
+            return None
+        return rule.payload_schema
+
+    def get_relation_payload_constraints(self, source_type: str, rel_type: str) -> List[PayloadConstraintDef]:
+        """获取某关系的 payload 级约束定义。"""
+        td = self._types.get(source_type)
+        if not td:
+            return []
+        rule = td.relations.allowed.get(rel_type)
+        if not rule:
+            return []
+        return rule.payload_constraints
+
+    def validate_relation_payload(self, source_type: str, rel_type: str, payload: Dict) -> List[str]:
+        """校验 payload 是否符合该关系的 payload schema。
+        
+        返回错误信息列表，空列表 = 通过。
+        复用 validate_content 的字段类型校验逻辑。
+        """
+        schema = self.get_relation_payload_schema(source_type, rel_type)
+        if not schema:
+            return []
+        return self._validate_dict(payload, schema)
+
+    def _validate_dict(self, data: Dict, schema: Dict, prefix: str = "") -> List[str]:
+        """递归校验 dict 数据是否符合 schema 定义。"""
+        errors = []
+        for field_name, field_schema in (schema or {}).items():
+            path = f"{prefix}.{field_name}" if prefix else field_name
+            field_type = field_schema.get("type", "any")
+            nullable = field_schema.get("nullable", False)
+            value = data.get(field_name) if isinstance(data, dict) else None
+
+            # null 处理
+            if value is None:
+                if not nullable:
+                    errors.append(f"{path}: field is required (not nullable)")
+                continue
+
+            # 类型校验
+            if field_type == "string" and not isinstance(value, str):
+                errors.append(f"{path}: expected string, got {type(value).__name__}")
+            elif field_type == "number" and not isinstance(value, (int, float)):
+                errors.append(f"{path}: expected number, got {type(value).__name__}")
+            elif field_type == "boolean" and not isinstance(value, bool):
+                errors.append(f"{path}: expected bool, got {type(value).__name__}")
+            elif field_type == "array":
+                if not isinstance(value, list):
+                    errors.append(f"{path}: expected array, got {type(value).__name__}")
+                else:
+                    items_schema = field_schema.get("items", {})
+                    if items_schema:
+                        for i, item in enumerate(value):
+                            item_path = f"{path}[{i}]"
+                            if isinstance(item, dict):
+                                item_errors = self._validate_dict(
+                                    item, items_schema.get("properties", {}), item_path)
+                                errors.extend(item_errors)
+                            elif items_schema.get("type") and items_schema["type"] != "any":
+                                item_type = items_schema["type"]
+                                if item_type == "string" and not isinstance(item, str):
+                                    errors.append(f"{item_path}: expected string, got {type(item).__name__}")
+                                elif item_type == "number" and not isinstance(item, (int, float)):
+                                    errors.append(f"{item_path}: expected number, got {type(item).__name__}")
+            elif field_type == "object":
+                if not isinstance(value, dict):
+                    errors.append(f"{path}: expected object, got {type(value).__name__}")
+                else:
+                    props = field_schema.get("properties", {})
+                    sub_errors = self._validate_dict(value, props, path)
+                    errors.extend(sub_errors)
+            # enum 校验
+            enum_vals = field_schema.get("enum")
+            if enum_vals and value is not None and value not in enum_vals:
+                errors.append(f"{path}: value '{value}' not in {enum_vals}")
 
         return errors
 

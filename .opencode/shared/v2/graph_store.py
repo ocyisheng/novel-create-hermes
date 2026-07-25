@@ -69,6 +69,7 @@ class GraphStore:
         self._dirty_edges = False
         self._dirty_events = False
         self._dirty_unit_ids: Set[str] = set()  # 仅跟踪变更的单元 ID（增量 flush）
+        self._dirty_relation_ids: Set[str] = set()  # 仅跟踪变更的边 ID（payload 增量检查）
         
         # 缓存写节流：每 N 次 flush 写一次 cache
         self._flush_counter = 0
@@ -123,18 +124,7 @@ class GraphStore:
                 line = line.strip()
                 if line:
                     data = json.loads(line)
-                    rel = Relation(
-                        id=data["id"],
-                        source_id=data["source_id"],
-                        target_id=data["target_id"],
-                        relation_type=RelationType(data["relation_type"]),
-                        weight=data.get("weight", 0.5),
-                        description=data.get("description", ""),
-                        label=data.get("label", ""),
-                        metadata=data.get("metadata", {}),
-                    )
-                    if "created_at" in data and isinstance(data["created_at"], str):
-                        rel.created_at = datetime.fromisoformat(data["created_at"])
+                    rel = Relation.from_dict(data)
                     self._relations[rel.id] = rel
     
     def _load_events(self):
@@ -237,18 +227,7 @@ class GraphStore:
         
         # 恢复关系
         for rid, data in cache.get("relations", {}).items():
-            rel = Relation(
-                id=data["id"],
-                source_id=data["source_id"],
-                target_id=data["target_id"],
-                relation_type=RelationType(data["relation_type"]),
-                weight=data.get("weight", 0.5),
-                description=data.get("description", ""),
-                label=data.get("label", ""),
-                metadata=data.get("metadata", {}),
-            )
-            if "created_at" in data and isinstance(data["created_at"], str):
-                rel.created_at = datetime.fromisoformat(data["created_at"])
+            rel = Relation.from_dict(data)
             self._relations[rid] = rel
         
         # 重建索引
@@ -890,6 +869,7 @@ class GraphStore:
                 },
             )
         self._dirty_edges = True
+        self._dirty_relation_ids.add(rel.id)
         return rel
     
     def _would_create_cycle(
@@ -1054,6 +1034,150 @@ class GraphStore:
             results = [r for r in results if r.relation_type == relation_type]
         return results
     
+    def get_relation(self, relation_id: str) -> Optional[Relation]:
+        """按 ID 获取单条边。"""
+        return self._relations.get(relation_id)
+
+    def update_relation_payload(
+        self,
+        relation_id: str,
+        payload: Dict[str, Any],
+        actor: str = "script",
+    ) -> bool:
+        """更新单条边的 payload。
+        
+        触发脏标记，使约束引擎在下次 flush 时检查 payload。
+        """
+        rel = self._relations.get(relation_id)
+        if not rel:
+            return False
+        rel.payload = payload
+        rel.updated_at = datetime.now(timezone.utc)
+        self._dirty_edges = True
+        self._dirty_relation_ids.add(relation_id)
+        self._record_event(
+            EventType.RELATION_UPDATED,
+            actor=actor,
+            target_type="relation",
+            target_ids=[relation_id],
+            payload={"relation_type": rel.relation_type.value,
+                     "source_id": rel.source_id, "target_id": rel.target_id},
+        )
+        return True
+
+    def get_dirty_relation_ids(self) -> Set[str]:
+        """获取所有待检查的边 ID（供约束引擎增量检查使用）。"""
+        result = set(self._dirty_relation_ids)
+        # flush 过全量 edges 后，脏边标记已落盘，可清空
+        if not self._dirty_edges:
+            self._dirty_relation_ids.clear()
+        return result
+
+    def find_relations(
+        self,
+        relation_type: Optional[RelationType] = None,
+        source_type: Optional[UnitType] = None,
+        target_type: Optional[UnitType] = None,
+        source_id: Optional[str] = None,
+        target_id: Optional[str] = None,
+        payload_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Relation]:
+        """查询边，支持按类型、源/目标类型、payload 字段过滤。
+        
+        payload_filter 示例：
+          {"acquired_at.ordinal": {"$gt": 5}}     # ordinal > 5
+          {"upgrades": {"$exists": True}}           # 有升级记录
+          {"lost_at": None}                         # 未丢失
+          {"acquired_at.chapter": 5}                # 精确匹配
+        """
+        results = []
+        for rel in self._relations.values():
+            if relation_type and rel.relation_type != relation_type:
+                continue
+            if source_id and rel.source_id != source_id:
+                continue
+            if target_id and rel.target_id != target_id:
+                continue
+            if source_type:
+                src = self._units.get(rel.source_id)
+                if not src or src.type != source_type:
+                    continue
+            if target_type:
+                tgt = self._units.get(rel.target_id)
+                if not tgt or tgt.type != target_type:
+                    continue
+            if payload_filter and not self._match_payload(rel.payload, payload_filter):
+                continue
+            results.append(rel)
+        return results
+
+    def _match_payload(self, payload: Dict, filter: Dict) -> bool:
+        """递归 payload 过滤匹配。支持精确匹配和 $gt/$gte/$lt/$lte/$eq/$exists 操作符。"""
+        for key, condition in filter.items():
+            value = self._dict_get_nested(payload, key)
+            if isinstance(condition, dict):
+                for op, expected in condition.items():
+                    if op == "$gt":
+                        if not (value is not None and self._to_num(value) > self._to_num(expected)):
+                            return False
+                    elif op == "$gte":
+                        if not (value is not None and self._to_num(value) >= self._to_num(expected)):
+                            return False
+                    elif op == "$lt":
+                        if not (value is not None and self._to_num(value) < self._to_num(expected)):
+                            return False
+                    elif op == "$lte":
+                        if not (value is not None and self._to_num(value) <= self._to_num(expected)):
+                            return False
+                    elif op == "$eq":
+                        if value != expected:
+                            return False
+                    elif op == "$exists":
+                        exists = value is not None
+                        if bool(expected) != exists:
+                            return False
+                    elif op == "$in":
+                        if value not in expected:
+                            return False
+                    else:
+                        return False
+            else:
+                if condition is None and value is not None:
+                    return False
+                if condition is not None and value != condition:
+                    return False
+        return True
+
+    @staticmethod
+    def _dict_get_nested(d: Dict, path: str) -> Any:
+        """按点分路径从 dict 中取值（支持数组索引）。"""
+        parts = path.split(".")
+        current = d
+        for part in parts:
+            if isinstance(current, dict):
+                current = current.get(part)
+            elif isinstance(current, list):
+                try:
+                    idx = int(part)
+                    current = current[idx] if 0 <= idx < len(current) else None
+                except (ValueError, IndexError):
+                    return None
+            else:
+                return None
+            if current is None:
+                return None
+        return current
+
+    @staticmethod
+    def _to_num(v: Any) -> Optional[float]:
+        """尝试转为数值用于比较。"""
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
     def get_neighbors(
         self,
         unit_id: str,

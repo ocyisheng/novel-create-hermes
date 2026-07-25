@@ -55,16 +55,15 @@ class ConstraintEngine:
         self.store.register_post_flush_hook(lambda s: self._on_flush(s))
 
     def _on_flush(self, store: GraphStore):
-        """flush 后自动调用的回调。"""
-        results = self.run_incremental()
-        if results:
-            self._persist_results(results)
+        """flush 后自动调用的回调。run_incremental 自身已持久化。"""
+        self.run_incremental()
 
     def run(self, full: bool = False) -> List[CheckResult]:
         """
         全量运行约束检查。
-
+        
         遍历所有非 archived 单元，检查其类型定义中的约束。
+        结果自动持久化到 DeviationManager。
         """
         results = []
         for unit in self.store._units.values():
@@ -79,13 +78,15 @@ class ConstraintEngine:
             unit_results = self._check_unit(unit, type_def)
             results.extend(unit_results)
 
+        if results:
+            self._persist_results(results)
         return results
 
     def run_incremental(self) -> List[CheckResult]:
         """
         增量运行：只检查有变更的单元相关的约束。
-
-        返回 CheckResult 列表。
+        
+        结果自动持久化到 DeviationManager。
         """
         modified = self.store.get_modified_units(since_version=0)
         results = []
@@ -109,6 +110,8 @@ class ConstraintEngine:
         relation_results = self._check_relations_incremental()
         results.extend(relation_results)
 
+        if results:
+            self._persist_results(results)
         return results
 
     def _check_archived_units(self) -> List[CheckResult]:
@@ -472,5 +475,8 @@ class ConstraintEngine:
             project_root = str(self.store.project_root)
             dm = DeviationManager(project_root)
             dm.merge_from_check_results(results)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "ConstraintEngine._persist_results 失败: %s", e
+            )

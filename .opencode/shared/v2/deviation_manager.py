@@ -20,6 +20,7 @@ DeviationManager — LLM 跨 session 分析的状态存储。
 from __future__ import annotations
 
 import os
+import re
 import copy
 import uuid
 from datetime import datetime, timezone
@@ -276,12 +277,46 @@ class DeviationManager:
         """
         将约束引擎/一致性检查结果合并到偏差状态中。
         
-        接收 SearchEngine.CheckResult 或兼容的 dict 列表。
+        接收 CheckResult dataclass 或兼容的 dict 列表。
         返回: {"new": N, "resolved": M, "updated": K}
         """
         from dataclasses import dataclass
         now = datetime.now(timezone.utc).isoformat()
         stats = {"new": 0, "resolved": 0, "updated": 0}
+        
+        # rule_id → source 映射表（按最长前缀优先匹配）
+        SOURCE_RULES = [
+            ("payload_schema_",  "constraint_payload_schema"),
+            ("has_",             "constraint_cardinality"),
+            ("archived_",        "constraint_state"),
+            ("location_exists",  "constraint_ref_integrity"),
+            ("age_",             "constraint_temporal"),
+            ("realm_",           "constraint_temporal"),
+        ]
+        # 已知 payload 约束 rule_id 前缀（没有数字后缀）
+        PAYLOAD_RULE_PREFIXES = frozenset({
+            "entry_state_", "acquired_", "join_", "allied_", "since_",
+            "upgrade_", "plans_",
+        })
+        
+        def _derive_source(rid: str) -> str:
+            for prefix, source in SOURCE_RULES:
+                if rid.startswith(prefix):
+                    return source
+            # 检查是否是 payload 约束
+            for p in PAYLOAD_RULE_PREFIXES:
+                if rid.startswith(p):
+                    return "constraint_payload"
+            # 旧风格 rule_id（如 "T01" → "constraint_T"）
+            stripped = rid.rstrip("0123456789")
+            if stripped != rid:
+                return f"constraint_{stripped}"
+            return "graph_check"
+        
+        def _extract_entity(desc: str) -> str:
+            """从描述中提取「」内的实体名称。"""
+            m = re.search(r'「(.+?)」', desc)
+            return m.group(1) if m else desc[:80]
         
         for result in results:
             # 兼容 CheckResult dataclass 和 dict 两种输入
@@ -298,9 +333,8 @@ class DeviationManager:
                 units_involved = result.units_involved
                 detail = getattr(result, "detail", "")
             
-            # 推导 source：rule_id 前缀（如 "T01" → "constraint_T"）
-            prefix = rule_id.rstrip("0123456789")
-            source_prefix = f"constraint_{prefix}" if prefix != rule_id else "graph_check"
+            source = _derive_source(rule_id)
+            entity = _extract_entity(description)
             
             # 用 rule_id + 涉及单元 IDs 生成稳定 key
             unit_ids_sorted = sorted(units_involved) if units_involved else ["global"]
@@ -311,8 +345,7 @@ class DeviationManager:
                 if existing.status == "pending":
                     existing.detection_count += 1
                     existing.last_detected = now
-                    if detail:
-                        existing.detail = detail
+                    existing.detail = detail or existing.detail
                     stats["updated"] += 1
                 else:
                     # 之前标记 resolved/retained 但再次检出 → 重置
@@ -325,14 +358,14 @@ class DeviationManager:
                 self._state.deviations[key] = DeviationItem(
                     id=key,
                     dimension=rule_id,
-                    entity=description[:80],
+                    entity=entity,
                     severity=severity,
                     status="pending",
                     first_detected=now,
                     last_detected=now,
                     summary=description[:200],
                     detail=detail,
-                    source=source_prefix,
+                    source=source,
                 )
                 stats["new"] += 1
         

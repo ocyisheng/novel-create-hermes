@@ -23,9 +23,9 @@ import os
 from typing import Dict, List, Optional, Set, Any, Callable
 
 from graph_store import GraphStore
-from graph_schema import NarrativeUnit, RelationType
+from graph_schema import NarrativeUnit, Relation, RelationType
 
-from type_registry import TypeRegistry, ConstraintDef
+from type_registry import TypeRegistry, ConstraintDef, PayloadConstraintDef
 from matchers import MATCHERS
 from matchers.base import CheckResult
 
@@ -104,6 +104,10 @@ class ConstraintEngine:
         # get_modified_units 已归档的不会返回，但状态守恒需要检查
         archived_check = self._check_archived_units()
         results.extend(archived_check)
+
+        # 第二阶段扩展：检查脏边的 payload 约束
+        relation_results = self._check_relations_incremental()
+        results.extend(relation_results)
 
         return results
 
@@ -228,6 +232,238 @@ class ConstraintEngine:
                             ))
 
         return results
+
+    # ── 第二阶段：边 payload 约束检查 ───────────────────────────────────
+
+    def _check_relations_incremental(self) -> List[CheckResult]:
+        """
+        增量检查被修改的边（dirty_relation_ids）的 payload。
+
+        只检查有脏标记的边，避免全量扫描。
+        """
+        results = []
+        dirty_ids = self.store.get_dirty_relation_ids()
+
+        if not dirty_ids:
+            return results
+
+        for rel_id in dirty_ids:
+            rel = self.store.get_relation(rel_id)
+            if not rel:
+                continue
+
+            source = self.store.get_unit(rel.source_id)
+            if not source:
+                continue
+
+            source_type = (
+                source.type.value if hasattr(source.type, "value") else str(source.type)
+            )
+            rel_type = (
+                rel.relation_type.value
+                if hasattr(rel.relation_type, "value")
+                else str(rel.relation_type)
+            )
+
+            # 1. payload schema 校验
+            schema_violations = self._check_relation_payload_schema(
+                source_type, rel_type, rel, source
+            )
+            results.extend(schema_violations)
+
+            # 2. payload 约束检查
+            constraint_results = self._check_relation_payload_constraints(
+                source_type, rel_type, rel, source
+            )
+            results.extend(constraint_results)
+
+        return results
+
+    def _check_relation_payload_schema(
+        self,
+        source_type: str,
+        rel_type: str,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> List[CheckResult]:
+        """校验边的 payload 是否符合类型定义的 payload_schema。"""
+        results = []
+        schema = self.registry.get_relation_payload_schema(source_type, rel_type)
+        if not schema:
+            return results
+
+        violations = self.registry._validate_dict(rel.payload, schema)
+        if violations:
+            # 只取前 5 条错误避免消息爆炸
+            truncated = violations[:5]
+            results.append(CheckResult(
+                rule_id=f"payload_schema_{rel_type}",
+                severity="warning",
+                description=f"「{source.unit_name}」的 {rel_type} 边 payload 不合 schema",
+                units_involved=[rel.source_id, rel.target_id],
+                detail="; ".join(truncated),
+            ))
+        return results
+
+    def _check_relation_payload_constraints(
+        self,
+        source_type: str,
+        rel_type: str,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> List[CheckResult]:
+        """校验边的 payload 约束定义。"""
+        results = []
+        constraints = self.registry.get_relation_payload_constraints(source_type, rel_type)
+        if not constraints:
+            return results
+
+        for pc in constraints:
+            try:
+                result = self._check_single_payload_constraint(pc, rel, source)
+                if result:
+                    results.append(result)
+            except Exception:
+                pass  # 单条约束失败不影响其他
+
+        return results
+
+    def _check_single_payload_constraint(
+        self,
+        pc: PayloadConstraintDef,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> Optional[CheckResult]:
+        """执行单条 payload 约束检查。"""
+        if pc.category == "temporal":
+            return self._check_payload_temporal(pc, rel, source)
+        elif pc.category == "boundary":
+            return self._check_payload_boundary(pc, rel, source)
+        elif pc.category == "pattern":
+            return self._check_payload_pattern(pc, rel, source)
+        return None
+
+    def _check_payload_temporal(
+        self,
+        pc: PayloadConstraintDef,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> Optional[CheckResult]:
+        """payload 时序约束检查。"""
+        # field_a_lt_field_b: 比较两个字段值，确保 a < b
+        if pc.check == "field_a_lt_field_b" and len(pc.fields) >= 2:
+            raw_a = self._traverse_payload(rel.payload, pc.fields[0])
+            raw_b = self._traverse_payload(rel.payload, pc.fields[1])
+            # _traverse 返回 List[Any]，提取第一个元素
+            val_a = raw_a[0] if isinstance(raw_a, list) and raw_a else None
+            val_b = raw_b[0] if isinstance(raw_b, list) and raw_b else None
+            if val_a is not None and val_b is not None:
+                try:
+                    if float(val_a) >= float(val_b):
+                        return CheckResult(
+                            rule_id=pc.rule_id,
+                            severity=pc.severity,
+                            description=(
+                                f"「{source.unit_name}」{pc.description}: "
+                                f"{pc.fields[0]}={val_a} ≥ {pc.fields[1]}={val_b}"
+                            ),
+                            units_involved=[rel.source_id, rel.target_id],
+                            detail=f"边 {rel.id}, payload.{pc.fields[0]}={val_a}, "
+                                   f"payload.{pc.fields[1]}={val_b}",
+                        )
+                except (ValueError, TypeError):
+                    return None
+            # skip_when_null: 任一字段为空就跳过（默认 True）
+            if not pc.skip_when_null:
+                if val_a is None or val_b is None:
+                    return CheckResult(
+                        rule_id=pc.rule_id,
+                        severity=pc.severity,
+                        description=(
+                            f"「{source.unit_name}」{pc.description}: "
+                            f"{pc.fields[0]}={val_a}, {pc.fields[1]}={val_b}（字段为空但不可跳过）"
+                        ),
+                        units_involved=[rel.source_id, rel.target_id],
+                    )
+            return None
+
+        # monotonic_increasing: 检查数组字段是否单调递增
+        if pc.check == "monotonic_increasing" and len(pc.fields) >= 1:
+            raw = self._traverse_payload(rel.payload, pc.fields[0])
+            # 如果结果是 [[...]]（嵌套路径如 upgrades → 取 upgrades 字段本身作为数组）
+            values = raw[0] if isinstance(raw, list) and raw else raw
+            if not isinstance(values, list):
+                return None
+            if len(values) <= 1:
+                return None
+            prev = None
+            for i, v in enumerate(values):
+                if v is None:
+                    continue
+                # v 可能是 dict，提取 ordinal 字段
+                item_val = None
+                if isinstance(v, dict):
+                    item_val = v.get('ordinal')
+                else:
+                    item_val = v
+                if item_val is None:
+                    continue
+                try:
+                    num = float(item_val)
+                except (ValueError, TypeError):
+                    continue
+                if prev is not None and prev >= num:
+                    return CheckResult(
+                        rule_id=pc.rule_id,
+                        severity=pc.severity,
+                        description=(
+                            f"「{source.unit_name}」{pc.description}: "
+                            f"{pc.fields[0]}[{i - 1}]={prev} ≥ [{i}]={num}"
+                        ),
+                        units_involved=[rel.source_id, rel.target_id],
+                        detail=f"边 {rel.id}, 值 {prev} → {num} 未递增",
+                    )
+                prev = num
+            return None
+
+        return None
+
+    def _check_payload_boundary(
+        self,
+        pc: PayloadConstraintDef,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> Optional[CheckResult]:
+        """payload 边界约束检查（如字段不可为空）。"""
+        if pc.check == "field_not_null" and len(pc.fields) >= 1:
+            raw = self._traverse_payload(rel.payload, pc.fields[0])
+            # _traverse 返回列表，空列表或 None 都表示字段不存在
+            val = raw[0] if isinstance(raw, list) and raw else raw
+            if val is None or (isinstance(val, list) and not val):
+                return CheckResult(
+                    rule_id=pc.rule_id,
+                    severity=pc.severity,
+                    description=(
+                        f"「{source.unit_name}」{pc.description}: "
+                        f"{pc.fields[0]} 为空"
+                    ),
+                    units_involved=[rel.source_id, rel.target_id],
+                    detail=f"边 {rel.id}, payload.{pc.fields[0]} 缺失",
+                )
+        return None
+
+    def _check_payload_pattern(
+        self,
+        pc: PayloadConstraintDef,
+        rel: Relation,
+        source: NarrativeUnit,
+    ) -> Optional[CheckResult]:
+        """payload 模式检测约束（扩展预留）。"""
+        return None
+
+    def _traverse_payload(self, payload: Dict, path: str) -> Any:
+        """在 payload dict 中按点分路径取值。"""
+        return self.registry._traverse(payload, path)
 
     def _persist_results(self, results: List[CheckResult]):
         """将检查结果持久化到 DeviationManager。"""

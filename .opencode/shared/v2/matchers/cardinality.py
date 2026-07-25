@@ -74,4 +74,38 @@ class CardinalityMatcher(BaseMatcher):
                 detail=f"关系类型: {rel_type.value}, 当前: {count}, 预期 <= {max_count}",
             )
 
+        # 第二阶段扩展：检查边的 payload 字段基数
+        payload_field_cardinality = params.get("payload_field_cardinality")
+        if payload_field_cardinality:
+            field = payload_field_cardinality.get("field", "")
+            min_items = payload_field_cardinality.get("min_items")
+            max_items = payload_field_cardinality.get("max_items")
+            if field and (min_items is not None or max_items is not None):
+                for r in relevant:
+                    field_values = registry._traverse(r.payload, field) if registry else None
+                    if field_values is None and registry:
+                        # fallback: 直接用 _traverse cls 方法
+                        from type_registry import TypeRegistry
+                        field_values = TypeRegistry._traverse(
+                            TypeRegistry, r.payload, field
+                        ) if isinstance(r.payload, dict) else None
+                    if isinstance(field_values, list):
+                        items_count = len(field_values)
+                        if min_items is not None and items_count < min_items:
+                            return CheckResult(
+                                rule_id=f"{constraint.rule_id}_payload_min",
+                                severity=constraint.severity,
+                                description=f"「{unit.unit_name}」的 {rel_type.value} 边 payload.{field} 项数({items_count})低于最小值({min_items})",
+                                units_involved=[unit.id, r.target_id],
+                                detail=f"边 {r.id}, payload.{field} 项数: {items_count}, 预期 >= {min_items}",
+                            )
+                        if max_items is not None and items_count > max_items:
+                            return CheckResult(
+                                rule_id=f"{constraint.rule_id}_payload_max",
+                                severity=constraint.severity,
+                                description=f"「{unit.unit_name}」的 {rel_type.value} 边 payload.{field} 项数({items_count})超过最大值({max_items})",
+                                units_involved=[unit.id, r.target_id],
+                                detail=f"边 {r.id}, payload.{field} 项数: {items_count}, 预期 <= {max_items}",
+                            )
+
         return None

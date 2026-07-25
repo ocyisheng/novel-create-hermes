@@ -1,0 +1,51 @@
+unit_type: outline
+description: "总纲：全书级结构设计（本体论、七面观照、模式选择）"
+
+content_schema:
+  title:
+    type: string
+    description: "作品名称"
+  genre:
+    type: string
+    description: "类型"
+  premise:
+    type: string
+    nullable: true
+    description: "核心 premise"
+  theme:
+    type: string
+    nullable: true
+    description: "主题"
+  target_word_count:
+    type: number
+    nullable: true
+    description: "目标字数"
+  structure_type:
+    type: string
+    nullable: true
+    enum: ["三幕", "五幕", "七幕", "起承转合", "升级流", "单元剧"]
+    description: "叙事结构类型"
+
+fact_fields: []
+
+constraints: []
+
+relations:
+  allowed:
+    contains:
+      target_type: [arc_plan]
+      cardinality: "0..n"
+      description: "全书的部大纲"
+    references:
+      target_type: [character_arc, plot_thread, thematic_motif, narrative_voice]
+      cardinality: any
+      description: "引用的角色/情节/主题/腔调"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

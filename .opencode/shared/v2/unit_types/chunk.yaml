@@ -1,0 +1,44 @@
+unit_type: chunk
+description: "正文片段：已写成的文字块"
+
+content_schema:
+  text:
+    type: string
+    description: "正文内容"
+  word_count:
+    type: number
+    description: "字数"
+  chapter_number:
+    type: number
+    nullable: true
+    description: "所属章节号"
+
+fact_fields: []
+
+constraints:
+  - id: has_text
+    category: boundary
+    severity: warning
+    description: "正文片段不能为空"
+    preceding_type: chunk
+    field: "text"
+
+relations:
+  allowed:
+    belongs_to:
+      target_type: [chapter_plan, scene]
+      cardinality: "0..1"
+      description: "所属的章纲或场景"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "引用其他单元"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }]
+    frozen:  [{ to_status: growing }]
+    archived: []

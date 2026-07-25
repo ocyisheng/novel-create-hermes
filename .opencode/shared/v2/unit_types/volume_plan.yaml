@@ -1,0 +1,74 @@
+unit_type: volume_plan
+description: "卷大纲：卷级规划（冲突、情绪、起止状态）"
+
+content_schema:
+  volume_number:
+    type: number
+    description: "卷号"
+  title:
+    type: string
+    nullable: true
+    description: "卷名"
+  synopsis:
+    type: string
+    nullable: true
+    description: "卷概要"
+  conflict:
+    type: string
+    nullable: true
+    description: "本卷核心冲突"
+  starting_state:
+    type: string
+    nullable: true
+    description: "卷初状态"
+  ending_state:
+    type: string
+    nullable: true
+    description: "卷末状态"
+  mood_arc:
+    type: string
+    nullable: true
+    description: "情绪弧线描述"
+
+fact_fields:
+  - name: "start_state"
+    path: "starting_state"
+    type: scalar
+    description: "卷初状态"
+  - name: "end_state"
+    path: "ending_state"
+    type: scalar
+    description: "卷末状态"
+
+constraints:
+  - id: start_end_consistency
+    category: boundary
+    severity: warning
+    description: "本卷 ending_state 应与下一卷 starting_state 匹配"
+    preceding_type: volume_plan
+    following_relation: PRECEDES
+    field: "starting_state"
+
+relations:
+  allowed:
+    contains:
+      target_type: [chapter_plan]
+      cardinality: "1+"
+      description: "本卷包含的章纲"
+    belongs_to:
+      target_type: [arc_plan]
+      cardinality: "0..1"
+      description: "所属部大纲"
+    precedes:
+      target_type: [volume_plan]
+      cardinality: "0..1"
+      description: "前驱卷"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

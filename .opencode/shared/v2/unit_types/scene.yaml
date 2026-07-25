@@ -1,0 +1,76 @@
+﻿unit_type: scene
+description: "场景：一个时间×地点×人物组的叙事切片"
+
+content_schema:
+  synopsis:
+    type: string
+    description: "场景概要"
+  mood:
+    type: string
+    nullable: true
+    description: "场景基调"
+  pacing:
+    type: string
+    nullable: true
+    enum: ["fast", "medium", "slow"]
+    description: "叙事节奏"
+  location:
+    type: string
+    nullable: true
+    description: "场景地点"
+  time_label:
+    type: string
+    nullable: true
+    description: "时间标签（如'第三日清晨'）"
+
+fact_fields:
+  - name: "location_ref"
+    path: "location"
+    type: entity_reference
+    target_type: world_rule
+    match_field: unit_name
+    description: "场景地点引用"
+
+constraints:
+  - id: has_participants
+    category: cardinality
+    severity: info
+    description: "场景至少应有一个角色参与"
+    relation_type: "participates_in"
+    min_count: 1
+    target_type: [character_arc]
+
+  - id: location_exists
+    category: referential_integrity
+    severity: info
+    description: "场景地点应在 world_rule 中有对应条目"
+    fact_field: "location_ref"
+
+relations:
+  allowed:
+    participates_in:
+      target_type: [character_arc]
+      cardinality: "1+"
+      bidirectional: true
+      description: "参与该场景的角色"
+    located_at:
+      target_type: [world_rule]
+      cardinality: "0..1"
+      description: "场景发生地点"
+    planned_by:
+      target_type: [chapter_plan, plot_thread]
+      cardinality: any
+      description: "规划该场景的章纲/情节线"
+    precedes:
+      target_type: [scene]
+      cardinality: any
+      description: "时间线前驱场景"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

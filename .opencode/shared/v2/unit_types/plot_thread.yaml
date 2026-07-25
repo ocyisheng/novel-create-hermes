@@ -1,0 +1,63 @@
+unit_type: plot_thread
+description: "情节线：一条完整的故事脉络"
+
+content_schema:
+  type:
+    type: string
+    enum: ["主线", "支线", "暗线", "感情线"]
+    description: "情节线分类"
+  summary:
+    type: string
+    nullable: true
+    description: "情节概要"
+  conflict:
+    type: string
+    nullable: true
+    description: "核心冲突"
+  resolution:
+    type: string
+    nullable: true
+    description: "解决方式"
+  story_arc:
+    type: string
+    nullable: true
+    description: "故事弧线（三幕/五幕/七幕等）"
+
+fact_fields: []
+
+constraints:
+  - id: has_chapters
+    category: cardinality
+    severity: warning
+    description: "情节线至少应有关联的 scene 或 chapter_plan"
+    relation_type: "plans"
+    min_count: 1
+    target_type: [scene, chapter_plan]
+
+relations:
+  allowed:
+    plans:
+      target_type: [scene, chapter_plan]
+      cardinality: "1+"
+      description: "情节线规划的场景或章纲"
+    causes:
+      target_type: [plot_thread]
+      cardinality: any
+      description: "因果关系的情节线"
+    references:
+      target_type: [character_arc, world_rule]
+      cardinality: any
+      description: "情节线涉及的角色或设定"
+    belongs_to:
+      target_type: [arc_plan, outline]
+      cardinality: "0..1"
+      description: "所属的部大纲或总纲"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

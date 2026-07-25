@@ -1,0 +1,44 @@
+unit_type: thematic_motif
+description: "主题意象：反复出现的象征性元素"
+
+content_schema:
+  motif_name:
+    type: string
+    description: "意象名称"
+  description:
+    type: string
+    description: "意象描述"
+  occurrences:
+    type: array
+    nullable: true
+    items:
+      type: object
+      properties:
+        chapter:    { type: number, description: "出现章节" }
+        context:    { type: string, description: "出现上下文" }
+        variation:  { type: string, nullable: true, description: "变体形式" }
+    description: "出现记录"
+
+fact_fields: []
+
+constraints: []
+
+relations:
+  allowed:
+    references:
+      target_type: [chunk, chapter_plan, scene]
+      cardinality: any
+      description: "意象出现的章节或场景"
+    belongs_to:
+      target_type: [outline]
+      cardinality: "0..1"
+      description: "所属总纲"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

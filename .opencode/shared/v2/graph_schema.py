@@ -33,6 +33,20 @@ class UnitType(str, Enum):
     NARRATIVE_VOICE = "narrative_voice" # 叙述腔调：腔调谱系、叙事视角、笔法约定
 
     @classmethod
+    def _missing_(cls, value: str):
+        """宽松查找：先按 value（小写），再按 name（大写），都找不到返回 None。"""
+        if isinstance(value, str):
+            # 先按小写 value 查找
+            for member in cls:
+                if member.value == value.lower():
+                    return member
+            # 再按 name 查找（大写）
+            for member in cls:
+                if member.name == value.upper():
+                    return member
+        return None
+
+    @classmethod
     def from_legacy_entity_type(cls, entity_type: str) -> "UnitType":
         """从现有三层YAML的 entity_type 映射到 UnitType"""
         mapping = {

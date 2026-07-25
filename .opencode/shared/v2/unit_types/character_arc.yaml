@@ -1,0 +1,137 @@
+﻿unit_type: character_arc
+description: "角色弧线：角色跨章节的成长轨迹"
+
+content_schema:
+  events:
+    type: array
+    description: "角色事件序列"
+    items:
+      type: object
+      properties:
+        ordinal:  { type: number, description: "事件序数" }
+        age:      { type: number, nullable: true, description: "年龄" }
+        realm:    { type: string, nullable: true, description: "修为等级" }
+        location: { type: string, description: "地点名称" }
+        type:     { type: string, description: "事件分类（修炼/战斗/废功）" }
+  end_state:
+    type: string
+    nullable: true
+    description: "卷末状态描述"
+  personality:
+    type: string
+    nullable: true
+    description: "性格概要"
+  goal:
+    type: string
+    nullable: true
+    description: "当前目标"
+  background:
+    type: string
+    nullable: true
+    description: "背景设定"
+
+fact_fields:
+  - name: "age_events"
+    path: "events[].age"
+    type: temporal_sequence
+    ordering: "events[].ordinal"
+    description: "年龄时间序列"
+  - name: "realm_events"
+    path: "events[].realm"
+    type: temporal_sequence
+    ordering: "events[].ordinal"
+    description: "修为等级时间序列"
+  - name: "location_refs"
+    path: "events[].location"
+    type: entity_reference
+    target_type: world_rule
+    match_field: unit_name
+    description: "事件地点引用"
+  - name: "ending_state"
+    path: "end_state"
+    type: scalar
+    description: "角色卷末状态"
+
+constraints:
+  - id: age_monotonic
+    category: temporal
+    severity: warning
+    description: "角色年龄必须随事件序数单调递增"
+    fact_field: "age_events"
+    check: monotonic_increasing
+    exceptions:
+      field: "events[].type"
+      values: ["废功", "散功", "转世"]
+
+  - id: realm_monotonic
+    category: temporal
+    severity: warning
+    description: "角色修为等级应随序数递增（除非有废功事件标注）"
+    fact_field: "realm_events"
+    check: monotonic_increasing
+    exceptions:
+      field: "events[].type"
+      values: ["废功", "散功", "转世"]
+
+  - id: location_exists
+    category: referential_integrity
+    severity: warning
+    description: "角色事件表中的位置必须在 world_rule 中有对应条目"
+    fact_field: "location_refs"
+
+  - id: archived_no_participate
+    category: state_conservation
+    severity: warning
+    description: "已归档角色不应继续通过 PARTICIPATES_IN 出现在场景中"
+    state_field: "status"
+    forbidden_relation: "participates_in"
+    allowed_exception_values: ["flashback", "回忆", "梦境"]
+
+  - id: has_min_relations
+    category: cardinality
+    severity: info
+    description: "角色至少应关联一个场景"
+    relation_type: "participates_in"
+    min_count: 1
+
+relations:
+  allowed:
+    participates_in:
+      target_type: [scene]
+      cardinality: any
+      description: "角色参与场景"
+    located_at:
+      target_type: [world_rule]
+      cardinality: "0..n"
+      description: "角色当前所在地点"
+    allied_with:
+      target_type: [character_arc]
+      cardinality: any
+      bidirectional: true
+      description: "角色之间的同盟关系"
+    member_of:
+      target_type: [world_rule]
+      cardinality: "0..n"
+      description: "角色所属组织/势力"
+    possesses:
+      target_type: [world_rule]
+      cardinality: "0..n"
+      description: "角色拥有的物品/能力/法宝"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "角色引用其他单元"
+  forbidden_when:
+    - relation_type: participates_in
+      condition:
+        field: "status"
+        eq: "archived"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

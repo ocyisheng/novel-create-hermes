@@ -1,0 +1,501 @@
+"""
+类型注册表 — 加载、校验、查询叙事单元类型定义。
+
+取代：
+  - fact_extractor.py（事实提取职责合并到此模块）
+  - constraints.yaml（约束定义分散到各类型定义中）
+
+职责：
+  1. 加载内置和项目级类型定义 YAML
+  2. 校验 content 格式是否符合类型 schema
+  3. 按类型定义的 fact_fields 提取结构化事实
+  4. 暴露类型查询接口
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import yaml
+
+
+# ── 类型定义的运行时表示 ──────────────────────────────────────────────
+
+
+@dataclass
+class FactFieldDef:
+    """事实字段定义"""
+    name: str
+    path: str
+    type: str                       # temporal_sequence | entity_reference | scalar | text
+    ordering: Optional[str] = None  # 时序字段的序数路径
+    target_type: Optional[str] = None  # entity_reference 的目标类型
+    match_field: Optional[str] = None  # entity_reference 的匹配字段
+    description: str = ""
+
+
+@dataclass
+class ConstraintDef:
+    """单条约束定义的运行时表示"""
+    rule_id: str
+    category: str                   # temporal | referential_integrity | cardinality | boundary | state_conservation | pattern
+    severity: str                   # error | warning | info
+    description: str
+    enabled: bool = True
+    params: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class RelationRule:
+    """关系规则"""
+    target_type: List[str]
+    cardinality: str = "any"
+    bidirectional: bool = False
+    description: str = ""
+
+
+@dataclass
+class ForbiddenWhen:
+    """条件性禁止关系"""
+    relation_type: str
+    condition_field: str = "status"
+    condition_eq: str = "archived"
+
+
+@dataclass
+class RelationDefSet:
+    """关系定义集合"""
+    allowed: Dict[str, RelationRule] = field(default_factory=dict)
+    forbidden_when: List[ForbiddenWhen] = field(default_factory=list)
+
+
+@dataclass
+class StateTransition:
+    """状态迁移"""
+    to_status: str
+    allowed_when: Optional[str] = None
+
+
+@dataclass
+class StateMachineDef:
+    """状态机定义"""
+    initial: str = "sprout"
+    transitions: Dict[str, List[StateTransition]] = field(default_factory=dict)
+
+
+@dataclass
+class ContentSchema:
+    """内容 schema（简化为字段声明列表）"""
+    fields: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+
+@dataclass
+class TypeDefinition:
+    """类型定义的完整运行时表示"""
+    unit_type: str
+    description: str = ""
+    content_schema: ContentSchema = field(default_factory=ContentSchema)
+    fact_fields: List[FactFieldDef] = field(default_factory=list)
+    constraints: List[ConstraintDef] = field(default_factory=list)
+    relations: RelationDefSet = field(default_factory=RelationDefSet)
+    state_machine: StateMachineDef = field(default_factory=StateMachineDef)
+
+
+# ── Schema 校验模式 ──────────────────────────────────────────────────
+
+_VALID_TYPES = {"string", "number", "boolean", "array", "object", "any"}
+_VALID_SEVERITIES = {"error", "warning", "info"}
+_VALID_CATEGORIES = {
+    "temporal", "referential_integrity", "cardinality",
+    "boundary", "state_conservation", "pattern",
+}
+_VALID_CARDINALITIES = {"any", "0..1", "1", "1+", "0..n"}
+
+
+# ── 类型注册表 ────────────────────────────────────────────────────────
+
+
+class TypeRegistry:
+    """
+    类型注册表。
+
+    加载顺序：
+      1. 内置默认：.opencode/shared/v2/unit_types/<type>.yaml
+      2. 项目级覆盖：{project_root}/.opencode/unit_types/<type>.yaml
+
+    同名类型，项目级覆盖合并/覆盖内置定义。
+    """
+
+    _global_instance: Optional["TypeRegistry"] = None
+    _BUILTIN_DIR = os.path.join(os.path.dirname(__file__), "unit_types")
+
+    def __init__(self, project_root: Optional[str] = None, lazy: bool = False):
+        self._project_root = project_root
+        self._types: Dict[str, TypeDefinition] = {}
+        self._loaded = False
+        if not lazy:
+            self.load_all()
+
+    # ── 加载 ─────────────────────────────────────────────────────────────
+
+    def load_all(self):
+        """加载所有内置类型定义 + 项目级覆盖。"""
+        self._types = {}
+
+        # 1. 加载内置
+        if os.path.isdir(self._BUILTIN_DIR):
+            for fname in sorted(os.listdir(self._BUILTIN_DIR)):
+                if fname.endswith(".yaml") or fname.endswith(".yml"):
+                    fpath = os.path.join(self._BUILTIN_DIR, fname)
+                    type_name = fname.rsplit(".", 1)[0]
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            data = yaml.safe_load(f)
+                        if data:
+                            td = self._parse_definition(data)
+                            self._types[type_name] = td
+                    except Exception as e:
+                        import warnings
+                        warnings.warn(f"Failed to load builtin type '{type_name}': {e}")
+
+        # 2. 加载项目级覆盖
+        project_dir = None
+        if self._project_root:
+            project_dir = os.path.join(self._project_root, ".opencode", "unit_types")
+        else:
+            # 尝试从 CWD 推断
+            cwd = os.getcwd()
+            for candidate in [cwd, os.path.join(cwd, "..")]:
+                pdir = os.path.join(candidate, ".opencode", "unit_types")
+                if os.path.isdir(pdir):
+                    project_dir = pdir
+                    break
+
+        if project_dir and os.path.isdir(project_dir):
+            for fname in sorted(os.listdir(project_dir)):
+                if fname.endswith(".yaml") or fname.endswith(".yml"):
+                    fpath = os.path.join(project_dir, fname)
+                    type_name = fname.rsplit(".", 1)[0]
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            data = yaml.safe_load(f)
+                        if data:
+                            td = self._parse_definition(data)
+                            # 如果内置已有，逐字段覆盖
+                            if type_name in self._types:
+                                existing = self._types[type_name]
+                                if td.description:
+                                    existing.description = td.description
+                                if td.content_schema.fields:
+                                    existing.content_schema.fields.update(td.content_schema.fields)
+                                if td.fact_fields:
+                                    existing.fact_fields = td.fact_fields
+                                if td.constraints:
+                                    # 按 rule_id 替换
+                                    existing_ids = {c.rule_id for c in existing.constraints}
+                                    for c in td.constraints:
+                                        if c.rule_id in existing_ids:
+                                            existing.constraints = [
+                                                ec if ec.rule_id != c.rule_id else c
+                                                for ec in existing.constraints
+                                            ]
+                                        else:
+                                            existing.constraints.append(c)
+                                if td.relations.allowed:
+                                    existing.relations.allowed.update(td.relations.allowed)
+                                if td.relations.forbidden_when:
+                                    existing.relations.forbidden_when = td.relations.forbidden_when
+                                if td.state_machine.transitions:
+                                    existing.state_machine.transitions.update(td.state_machine.transitions)
+                            else:
+                                self._types[type_name] = td
+                    except Exception as e:
+                        import warnings
+                        warnings.warn(f"Failed to load project type '{type_name}': {e}")
+
+        self._loaded = True
+
+    def reload(self):
+        """重新加载所有定义。"""
+        self._types = {}
+        self.load_all()
+
+    # ── 解析 ─────────────────────────────────────────────────────────────
+
+    def _parse_definition(self, data: dict) -> TypeDefinition:
+        """将 YAML dict 解析为 TypeDefinition。"""
+        td = TypeDefinition(unit_type=data.get("unit_type", ""))
+
+        td.description = data.get("description", "")
+
+        # content_schema
+        cs_data = data.get("content_schema", {}) or {}
+        td.content_schema = ContentSchema(fields=self._parse_schema_fields(cs_data))
+
+        # fact_fields
+        ff_list = data.get("fact_fields", []) or []
+        for ff in ff_list:
+            td.fact_fields.append(FactFieldDef(
+                name=ff.get("name", ""),
+                path=ff.get("path", ""),
+                type=ff.get("type", "text"),
+                ordering=ff.get("ordering"),
+                target_type=ff.get("target_type"),
+                match_field=ff.get("match_field"),
+                description=ff.get("description", ""),
+            ))
+
+        # constraints
+        c_list = data.get("constraints", []) or []
+        for c in c_list:
+            constraint = ConstraintDef(
+                rule_id=c.get("id", ""),
+                category=c.get("category", ""),
+                severity=c.get("severity", "info"),
+                description=c.get("description", ""),
+                enabled=c.get("enabled", True),
+            )
+            # 收集 category-specific 参数
+            params = {}
+            param_keys = [
+                "fact_field", "check", "exceptions", "field", "state_field",
+                "forbidden_relation", "allowed_exception_values",
+                "relation_type", "min_count", "max_count", "target_type",
+                "preceding_type", "following_relation",
+                "source_type", "extract_field", "ordering_field", "monotonic",
+                "exception_field", "exception_values",
+                "match", "traverse",
+            ]
+            for k in param_keys:
+                if k in c:
+                    params[k] = c[k]
+            # 兼容旧字段名 'on'（YAML 1.1 中 on 被解析为 boolean True）
+            if "fact_field" in params and "on" not in params:
+                params["on"] = params["fact_field"]
+            if "on" in params and "fact_field" not in params:
+                params["fact_field"] = params["on"]
+            # 处理 exceptions 子字段
+            exc = c.get("exceptions")
+            if isinstance(exc, dict):
+                if "field" in exc:
+                    params["exception_field"] = exc["field"]
+                if "values" in exc:
+                    params["exception_values"] = exc["values"]
+            constraint.params = params
+            td.constraints.append(constraint)
+
+        # relations
+        rel_data = data.get("relations", {}) or {}
+        allowed = rel_data.get("allowed", {}) or {}
+        for rel_type_name, rule in allowed.items():
+            if isinstance(rule, dict):
+                td.relations.allowed[rel_type_name] = RelationRule(
+                    target_type=rule.get("target_type", ["*"]),
+                    cardinality=rule.get("cardinality", "any"),
+                    bidirectional=rule.get("bidirectional", False),
+                    description=rule.get("description", ""),
+                )
+
+        fw_list = rel_data.get("forbidden_when", []) or []
+        for fw in fw_list:
+            condition = fw.get("condition", {})
+            td.relations.forbidden_when.append(ForbiddenWhen(
+                relation_type=fw.get("relation_type", ""),
+                condition_field=condition.get("field", "status"),
+                condition_eq=condition.get("eq", "archived"),
+            ))
+
+        # state_machine
+        sm_data = data.get("state_machine", {}) or {}
+        td.state_machine.initial = sm_data.get("initial", "sprout")
+        trans = sm_data.get("transitions", {}) or {}
+        for from_status, to_list in trans.items():
+            td.state_machine.transitions[from_status] = [
+                StateTransition(to_status=t.get("to_status", ""),
+                                allowed_when=t.get("allowed_when"))
+                for t in (to_list or [])
+            ]
+
+        return td
+
+    def _parse_schema_fields(self, schema: dict) -> Dict[str, Dict[str, Any]]:
+        """将 content_schema 解析为平面字段 dict。"""
+        fields = {}
+        for key, val in (schema or {}).items():
+            if isinstance(val, dict):
+                fields[key] = {
+                    "type": val.get("type", "any"),
+                    "nullable": val.get("nullable", False),
+                    "description": val.get("description", ""),
+                }
+                if "enum" in val:
+                    fields[key]["enum"] = val["enum"]
+            else:
+                fields[key] = {"type": "any", "nullable": True, "description": ""}
+        return fields
+
+    # ── 查询 ─────────────────────────────────────────────────────────────
+
+    def get_type(self, type_name: str) -> Optional[TypeDefinition]:
+        """按类型名获取 TypeDefinition。"""
+        return self._types.get(type_name)
+
+    def list_types(self) -> Dict[str, TypeDefinition]:
+        """列出所有已注册的类型。"""
+        return dict(self._types)
+
+    def has_type(self, type_name: str) -> bool:
+        """判断类型是否存在。"""
+        return type_name in self._types
+
+    @property
+    def loaded(self) -> bool:
+        return self._loaded
+
+    # ── Schema 校验 ──────────────────────────────────────────────────────
+
+    def validate_content(self, type_name: str, content: Any) -> List[str]:
+        """
+        校验 content 是否符合类型的 content_schema。
+
+        返回错误信息列表，空列表 = 通过。
+        """
+        errors = []
+        td = self._types.get(type_name)
+        if not td or not td.content_schema.fields:
+            return errors  # 无 schema 定义时不校验
+
+        if content is None:
+            content = {}
+
+        # content 可能是 JSON 字符串
+        if isinstance(content, str):
+            try:
+                parsed = json.loads(content)
+            except (json.JSONDecodeError, ValueError):
+                errors.append(f"content is not valid JSON")
+                return errors
+        else:
+            parsed = content
+
+        if not isinstance(parsed, dict):
+            return errors  # 非 dict 跳过
+
+        for field_name, schema in td.content_schema.fields.items():
+            if field_name in parsed:
+                val = parsed[field_name]
+                field_type = schema.get("type", "any")
+                if field_type != "any" and val is not None:
+                    if field_type == "string" and not isinstance(val, str):
+                        errors.append(f"field '{field_name}' should be string, got {type(val).__name__}")
+                    elif field_type == "number" and not isinstance(val, (int, float)):
+                        errors.append(f"field '{field_name}' should be number, got {type(val).__name__}")
+                    elif field_type == "boolean" and not isinstance(val, bool):
+                        errors.append(f"field '{field_name}' should be boolean, got {type(val).__name__}")
+                    elif field_type == "array" and not isinstance(val, list):
+                        errors.append(f"field '{field_name}' should be array, got {type(val).__name__}")
+                    elif field_type == "object" and not isinstance(val, dict):
+                        errors.append(f"field '{field_name}' should be object, got {type(val).__name__}")
+                    # enum 校验
+                    enum_vals = schema.get("enum")
+                    if enum_vals and val is not None and val not in enum_vals:
+                        errors.append(f"field '{field_name}' value '{val}' not in {enum_vals}")
+
+        return errors
+
+    # ── 事实提取 ─────────────────────────────────────────────────────────
+
+    def extract_facts(self, type_name: str, unit_content: Any) -> Dict[str, List[Any]]:
+        """
+        按类型定义的 fact_fields 从 content 中提取结构化事实。
+
+        返回 dict: { fact_field_name: [values...] }
+
+        取代 FactExtractor.extract_field_values()。
+        """
+        td = self._types.get(type_name)
+        if not td:
+            return {}
+
+        if unit_content is None:
+            unit_content = {}
+
+        # 解析 JSON 字符串
+        if isinstance(unit_content, str):
+            try:
+                parsed = json.loads(unit_content)
+            except (json.JSONDecodeError, ValueError):
+                return {}
+        else:
+            parsed = unit_content
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        facts: Dict[str, List[Any]] = {}
+        for ff in td.fact_fields:
+            values = self._traverse(parsed, ff.path)
+            facts[ff.name] = values
+
+        return facts
+
+    def _traverse(self, data: Any, path: str) -> List[Any]:
+        """
+        递归遍历 JSON 数据，按点分路径提取所有值。
+
+        支持：
+          "events[].age" → 遍历 events 数组，取每个元素的 age
+          "end_state"    → 取 data["end_state"]
+        """
+        parts = self._parse_path(path)
+        current = [data]
+
+        for part in parts:
+            next_current = []
+            is_array = part.endswith("[]")
+            key = part[:-2] if is_array else part
+
+            for item in current:
+                if not isinstance(item, dict):
+                    continue
+                if key not in item:
+                    continue
+                value = item[key]
+
+                if is_array:
+                    if isinstance(value, list):
+                        next_current.extend(value)
+                    else:
+                        next_current.append(value)
+                else:
+                    next_current.append(value)
+
+            current = next_current
+            if not current:
+                return []
+
+        return current
+
+    def _parse_path(self, path: str) -> List[str]:
+        """解析点分路径为部分列表。"""
+        if not path:
+            return []
+        return [p.strip() for p in path.split(".") if p.strip()]
+
+    # ── 单例 ─────────────────────────────────────────────────────────────
+
+    @classmethod
+    def get_global(cls, project_root: Optional[str] = None) -> "TypeRegistry":
+        """获取全局单例。"""
+        if cls._global_instance is None:
+            cls._global_instance = cls(project_root=project_root, lazy=False)
+        return cls._global_instance
+
+    @classmethod
+    def reset_global(cls):
+        """重置全局单例（测试用）。"""
+        cls._global_instance = None

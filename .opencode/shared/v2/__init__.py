@@ -42,6 +42,7 @@ try:
     from projection_engine import ProjectionEngine
     from search_engine import SearchEngine, SearchResult, SearchResultSet, CheckResult
     from deviation_manager import DeviationManager, DeviationItem, DeviationState
+    from type_registry import TypeRegistry
 
     __all__ = [
         "NarrativeUnit",
@@ -61,6 +62,7 @@ try:
         "DeviationManager",
         "DeviationItem",
         "DeviationState",
+        "TypeRegistry",
     ]
 except ImportError:
     # 在 pytest 或部分导入场景下，graph_schema 可能尚未就绪

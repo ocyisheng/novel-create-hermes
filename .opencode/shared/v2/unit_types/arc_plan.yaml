@@ -1,0 +1,62 @@
+unit_type: arc_plan
+description: "部大纲：跨卷级规划（覆盖部/篇两种命名约定）"
+
+content_schema:
+  arc_number:
+    type: number
+    description: "部序号"
+  title:
+    type: string
+    nullable: true
+    description: "部名称"
+  synopsis:
+    type: string
+    nullable: true
+    description: "部概要"
+  theme:
+    type: string
+    nullable: true
+    description: "部主题"
+  main_conflict:
+    type: string
+    nullable: true
+    description: "部核心冲突"
+
+fact_fields: []
+
+constraints:
+  - id: has_volumes
+    category: cardinality
+    severity: info
+    description: "部大纲至少应包含一个卷"
+    relation_type: "contains"
+    min_count: 1
+    target_type: [volume_plan]
+
+relations:
+  allowed:
+    contains:
+      target_type: [volume_plan]
+      cardinality: "1+"
+      description: "本部的卷大纲"
+    belongs_to:
+      target_type: [outline]
+      cardinality: "0..1"
+      description: "所属总纲"
+    precedes:
+      target_type: [arc_plan]
+      cardinality: "0..1"
+      description: "前驱部"
+    references:
+      target_type: [thematic_motif, plot_thread]
+      cardinality: any
+      description: "涉及的主题意象或情节线"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

@@ -1,0 +1,53 @@
+unit_type: narrative_voice
+description: "叙述腔调：腔调谱系、叙事视角、笔法约定"
+
+content_schema:
+  voice_name:
+    type: string
+    description: "腔调名称"
+  pov:
+    type: string
+    nullable: true
+    enum: ["第一人称", "第三人称有限", "第三人称全知", "第二人称"]
+    description: "叙事视角"
+  tense:
+    type: string
+    nullable: true
+    description: "时态风格"
+  tone:
+    type: string
+    nullable: true
+    description: "语调（幽默/严肃/诗意/口语化等）"
+  vocabulary_tags:
+    type: array
+    nullable: true
+    items: { type: string }
+    description: "词汇特征标签"
+  sentence_style:
+    type: string
+    nullable: true
+    description: "句式风格（长短句/排比/对仗等）"
+  reference_text:
+    type: string
+    nullable: true
+    description: "参考文本片段"
+
+fact_fields: []
+
+constraints: []
+
+relations:
+  allowed:
+    applies_to:
+      target_type: [outline, arc_plan, volume_plan]
+      cardinality: any
+      description: "此腔调适用的范围"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

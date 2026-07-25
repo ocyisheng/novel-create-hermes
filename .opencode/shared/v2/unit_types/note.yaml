@@ -1,0 +1,36 @@
+unit_type: note
+description: "创作笔记：作者/Agent 的备忘和灵感"
+
+content_schema:
+  note:
+    type: string
+    description: "笔记内容"
+  category:
+    type: string
+    nullable: true
+    description: "笔记分类（灵感/备忘/待办/评价）"
+  reference_units:
+    type: array
+    nullable: true
+    items: { type: string }
+    description: "关联的单元 ID 列表"
+
+fact_fields: []
+
+constraints: []
+
+relations:
+  allowed:
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "笔记引用的单元"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

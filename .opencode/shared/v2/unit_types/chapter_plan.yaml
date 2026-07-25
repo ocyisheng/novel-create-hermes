@@ -1,0 +1,85 @@
+﻿unit_type: chapter_plan
+description: "章纲：章节级规划（场景序列、节奏、信息分布）"
+
+content_schema:
+  scenes:
+    type: array
+    description: "场景列表"
+    items:
+      type: object
+      properties:
+        scene_id:   { type: string, description: "场景 ID" }
+        beat:       { type: string, description: "节拍描述" }
+        word_count: { type: number, nullable: true, description: "预期字数" }
+  end_state:
+    type: string
+    nullable: true
+    description: "章节结束状态"
+  mood_curve:
+    type: array
+    nullable: true
+    items: { type: number }
+    description: "情绪曲线数值序列"
+  pacing:
+    type: string
+    nullable: true
+    description: "节奏描述"
+  synopsis:
+    type: string
+    nullable: true
+    description: "章概"
+
+fact_fields:
+  - name: "scene_refs"
+    path: "scenes[].scene_id"
+    type: entity_reference
+    target_type: scene
+    match_field: id
+    description: "章纲中引用的场景 ID"
+  - name: "ending_state"
+    path: "end_state"
+    type: scalar
+    description: "章节结束状态"
+
+constraints:
+  - id: scenes_exist
+    category: referential_integrity
+    severity: warning
+    description: "章纲中引用的场景 ID 应在 graph 中有对应 scene 节点"
+    fact_field: "scene_refs"
+
+  - id: end_state_continuity
+    category: boundary
+    severity: warning
+    description: "相邻章纲的 end_state 应一致"
+    preceding_type: chapter_plan
+    following_relation: PRECEDES
+    field: "end_state"
+
+relations:
+  allowed:
+    plans:
+      target_type: [scene]
+      cardinality: any
+      description: "章纲规划的场景"
+    precedes:
+      target_type: [chapter_plan]
+      cardinality: "0..1"
+      description: "时间线前驱章纲"
+    belongs_to:
+      target_type: [volume_plan]
+      cardinality: "0..1"
+      description: "所属卷大纲"
+    planned_by:
+      target_type: [plot_thread, arc_plan]
+      cardinality: any
+      description: "规划本章纲的情节线或部大纲"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

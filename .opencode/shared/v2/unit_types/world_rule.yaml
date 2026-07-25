@@ -1,0 +1,72 @@
+unit_type: world_rule
+description: "世界观规则：世界运行的核心法则"
+
+content_schema:
+  sub_type:
+    type: string
+    enum: ["势力", "地点", "境界", "物品", "功法", "历史事件", "文化", "经济", "政治", "社会", "种族", "自然法则"]
+    description: "规则子类型"
+  description:
+    type: string
+    description: "规则描述"
+  hierarchy:
+    type: string
+    nullable: true
+    description: "层级定位（如'下位宗门'）"
+  power_level:
+    type: string
+    nullable: true
+    description: "力量层级"
+
+fact_fields:
+  - name: "hierarchy_ref"
+    path: "hierarchy"
+    type: entity_reference
+    target_type: world_rule
+    match_field: unit_name
+    description: "层级归属引用"
+
+constraints:
+  - id: sub_type_required
+    category: boundary
+    severity: info
+    description: "world_rule 最好有子类型分类"
+    preceding_type: world_rule
+    field: "sub_type"
+
+relations:
+  allowed:
+    belongs_to:
+      target_type: [world_rule]
+      cardinality: "0..1"
+      description: "层级归属（如宗门所属地域）"
+    contains:
+      target_type: [world_rule]
+      cardinality: "0..n"
+      description: "包含的子规则"
+    located_at:
+      target_type: [world_rule]
+      cardinality: "0..1"
+      description: "地理位置归属"
+    controls:
+      target_type: [world_rule]
+      cardinality: any
+      description: "控制关系（势力控制地域）"
+    allied_with:
+      target_type: [world_rule]
+      cardinality: any
+      bidirectional: true
+      description: "同盟关系"
+    member_of:
+      target_type: [character_arc]
+      cardinality: any
+      description: "角色所属此规则"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: growing }, { to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

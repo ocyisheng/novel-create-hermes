@@ -269,8 +269,11 @@ novel-tool --operation graph.add_relation --project {PROJECT} \
      --content '{"章节号":3,"章节名":"...","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":实际字数}'
 
 5. novel-tool --operation graph.flush --project {PROJECT}
-6. ⭐（可选）写后约束验证：`novel-tool --operation constraint.check --project {PROJECT} --incremental`
-   验证本次写入不引入新冲突。如有新 error 级别冲突，在返回结果中主动说明。
+6. （自动）约束验证：`graph.flush` 的返回结果中包含 `constraint_check` 字段，
+   自动报告本次写入后的约束偏差概要。检查该字段：
+   - 如有 error 级别的 pending 偏差 → 在最终结果中主动说明并建议处理方案
+   - 如有 warning 级别包含当前焦点的 → 可选择性告知用户
+   - info 级别可忽略（系统已知的设计意图偏差）
 ```
 
 修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。

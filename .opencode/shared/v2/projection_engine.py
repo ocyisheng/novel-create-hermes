@@ -28,6 +28,14 @@ from graph_schema import (
     get_unit_chapter,
 )
 from graph_store import GraphStore
+from deviation_manager import DeviationManager
+
+
+class BlockedByDeviationError(Exception):
+    """投影因未解决的 error 级别偏差被阻断。"""
+    def __init__(self, message: str, blocking: List[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.blocking = blocking or []
 
 
 class ProjectionEngine:
@@ -91,6 +99,65 @@ class ProjectionEngine:
             ProjectionView.TIMELINE: self._project_timeline,
         }
     
+    # ── 偏差阻断 ─────────────────────────────────────────────────────────
+    
+    def check_blocking_deviations(
+        self,
+        involved_unit_ids: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        检查是否存在阻断性偏差（error 级别且 pending 状态）。
+        
+        Args:
+            involved_unit_ids: 可选，只检查涉及特定单元的偏差。
+                               None 时检查全部 pending error 偏差。
+        
+        Returns:
+            阻断偏差列表，空列表表示无阻断。
+        """
+        try:
+            project_root_str = str(self.project_root)
+            dm = DeviationManager(project_root_str)
+            blocking = []
+            for d in dm.list_all():
+                if d.status != "pending" or d.severity != "error":
+                    continue
+                if involved_unit_ids is not None and d.entity_id:
+                    if d.entity_id not in involved_unit_ids:
+                        continue
+                blocking.append({
+                    "id": d.id,
+                    "dimension": d.dimension,
+                    "entity": d.entity,
+                    "summary": d.summary,
+                    "detail": d.detail,
+                })
+            return blocking
+        except Exception:
+            return []  # DeviationManager 不可用时降级为不阻断
+
+    def assert_no_blocking_deviations(
+        self,
+        context: str = "",
+        involved_unit_ids: Optional[Set[str]] = None,
+    ):
+        """
+        断言无阻断偏差，否则抛出 BlockedByDeviationError。
+        
+        在投影写入前调用。
+        """
+        blocking = self.check_blocking_deviations(involved_unit_ids)
+        if blocking:
+            msg_parts = [f"投影被 {len(blocking)} 条 error 级别偏差阻断"]
+            if context:
+                msg_parts.append(f"（{context}）")
+            msg_parts.append(":")
+            for b in blocking[:5]:
+                msg_parts.append(f"\n  - [{b['dimension']}] {b['entity']}: {b['summary'][:80]}")
+            if len(blocking) > 5:
+                msg_parts.append(f"\n  ...还有 {len(blocking) - 5} 条")
+            raise BlockedByDeviationError("".join(msg_parts), blocking)
+
     # ── 公共 API ────────────────────────────────────────────────────────
     
     def project(
@@ -117,14 +184,26 @@ class ProjectionEngine:
         view: ProjectionView,
         params: Optional[Dict[str, Any]] = None,
         force_rebuild: bool = False,
+        skip_blocking_check: bool = False,
     ) -> str:
         """
         生成投影并写入文件。
         output_mode="graph_only" 时跳过文件写入（纯 V2 模式）。
         output_mode="hybrid" 时同时写入原位和 projections/。
         返回写入的文件路径，graph_only 模式返回空字符串。
+        
+        Raises:
+            BlockedByDeviationError: 存在未解决的 error 级别偏差且非 graph_only 模式
         """
         content = self.project(view, params, force_rebuild)
+        
+        # graph_only 模式：跳过所有文件写入
+        if self.output_mode == "graph_only":
+            return ""
+        
+        # 写前偏差阻断检查（除非显式跳过）
+        if not skip_blocking_check:
+            self.assert_no_blocking_deviations(context=f"视图 {view.value}")
         
         # graph_only 模式：跳过所有文件写入
         if self.output_mode == "graph_only":
@@ -145,8 +224,16 @@ class ProjectionEngine:
         
         return file_path
     
-    def rebuild_all(self) -> List[str]:
-        """全量重建所有投影"""
+    def rebuild_all(self, skip_blocking_check: bool = False) -> List[str]:
+        """全量重建所有投影。
+        
+        Raises:
+            BlockedByDeviationError: 存在未解决的 error 级别偏差且非 graph_only 模式
+        """
+        # 全量重建前检查（除非显式跳过）
+        if not skip_blocking_check:
+            self.assert_no_blocking_deviations(context="全量投影重建")
+        
         written = []
         
         # 1. 总纲投影

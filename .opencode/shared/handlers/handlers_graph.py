@@ -729,10 +729,27 @@ def handle_add_relation(
 
 
 def handle_flush(project_root: str, skip_constraint_check: bool = False) -> dict:
-    """持久化 graph 数据。"""
+    """持久化 graph 数据。flush 后自动触发约束检查（除非跳过）。"""
+    from deviation_manager import DeviationManager
     store = _get_store(project_root)
     store.flush(skip_constraint_check=skip_constraint_check)
-    return {"ok": True}
+    
+    # 收集本次约束检查产生的偏差概要（不阻断 flush）
+    try:
+        dm = DeviationManager(project_root)
+        pending = dm.filter_for_presentation()
+        stats = dm.stats()
+        return {
+            "ok": True,
+            "constraint_check": {
+                "pending_count": len(pending),
+                "total_deviations": stats["total"],
+                "by_severity": stats.get("by_severity", {}),
+                "by_status": stats.get("by_status", {}),
+            }
+        }
+    except Exception:
+        return {"ok": True, "constraint_check": None}
 
 
 def handle_constraint_check(project_root: str, full: bool = False) -> dict:

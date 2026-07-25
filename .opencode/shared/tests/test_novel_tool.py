@@ -342,7 +342,7 @@ class TestGraphWrite:
     def test_flush(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.flush", project=proj_path)
-        assert_success(res, {"ok": True})
+        assert_success(res, lambda d: d.get("ok") is True and "constraint_check" in d)
 
     def test_fix_asymmetry(self, sample_units):
         proj_path, store, units = sample_units
@@ -1050,9 +1050,9 @@ class TestIntegration:
                 r10 = call_tool("graph.check", project=proj_path)
                 assert_success(r10)
 
-                # graph.flush
+                # graph.flush (含约束检查自动触发)
                 r11 = call_tool("graph.flush", project=proj_path)
-                assert_success(r11, {"ok": True})
+                assert_success(r11, lambda d: d.get("ok") is True and "constraint_check" in d)
 
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

@@ -113,6 +113,8 @@ class RelationType(str, Enum):
     PARTICIPATES_IN = "participates_in" # A 参与 B（角色参与场景）
     LOCATED_AT = "located_at"           # A 位于 B（场景/角色所在地点）
     ALLIED_WITH = "allied_with"         # A 与 B 同盟（角色/势力之间）
+    POSSESSES = "possesses"             # A 拥有 B（角色拥有物品/能力/法宝）
+    POSSESSED_BY = "possessed_by"       # A 被 B 拥有（POSSESSES 的反向）
     CONTAINS = "contains"               # A 包含 B（BELONGS_TO 的反向）
     CONTROLS = "controls"               # A 控制 B（势力控制地域等）
     MEMBER_OF = "member_of"             # A 是 B 的成员（角色属于势力/组织）

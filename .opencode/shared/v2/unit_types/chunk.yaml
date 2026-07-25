@@ -33,6 +33,20 @@ relations:
       target_type: ["*"]
       cardinality: any
       description: "引用其他单元"
+      payload_schema:
+        ref_type:
+          type: string
+          nullable: true
+          enum: ["direct", "implicit", "allegory", "contrast", "callback"]
+          description: "引用类型"
+        position:
+          type: object
+          nullable: true
+          description: "引用在正文中的位置（仅限 chunk→*）"
+          properties:
+            start_offset: { type: number, description: "起始字符偏移" }
+            end_offset:   { type: number, description: "结束字符偏移" }
+            context:      { type: string, nullable: true, description: "引用的上下文摘录" }
 
 state_machine:
   initial: sprout

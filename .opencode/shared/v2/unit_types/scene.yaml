@@ -53,10 +53,44 @@ relations:
       cardinality: "1+"
       bidirectional: true
       description: "参与该场景的角色"
+      payload_schema:
+        role:
+          type: string
+          nullable: true
+          description: "角色在该场景中的戏份定位"
+        entrance:
+          type: string
+          nullable: true
+          description: "入场方式描述"
+        exit:
+          type: string
+          nullable: true
+          description: "退场方式描述"
+        screen_time:
+          type: number
+          nullable: true
+          description: "戏份权重（0.0-1.0）"
+        appearance_order:
+          type: number
+          nullable: true
+          description: "出场顺序"
     located_at:
       target_type: [world_rule]
       cardinality: "0..1"
       description: "场景发生地点"
+      payload_schema:
+        position_desc:
+          type: string
+          nullable: true
+          description: "在该地点中的具体位置描述"
+        sub_location:
+          type: string
+          nullable: true
+          description: "子地点（如'城主府·后花园'）"
+        weather:
+          type: string
+          nullable: true
+          description: "该场景的天气设定"
     planned_by:
       target_type: [chapter_plan, plot_thread]
       cardinality: any

@@ -100,23 +100,168 @@ relations:
       target_type: [scene]
       cardinality: any
       description: "角色参与场景"
+      payload_schema:
+        role:
+          type: string
+          nullable: true
+          description: "角色在该场景中的戏份定位（主角/配角/客串）"
+        entry_state:
+          type: string
+          nullable: true
+          description: "入场状态描述（如'筑基后期'）"
+        exit_state:
+          type: string
+          nullable: true
+          description: "退场状态描述"
+        screen_time:
+          type: number
+          nullable: true
+          description: "戏份权重（0.0-1.0）"
+        entry_ordinal:
+          type: number
+          nullable: true
+          description: "出场序数（在该场景事件时间线中的位置）"
+      payload_constraints:
+        - id: entry_state_not_null
+          category: boundary
+          severity: info
+          description: "重要角色应有入场状态标注"
+          field: "entry_state"
+          check: field_not_null
+
     located_at:
       target_type: [world_rule]
       cardinality: "0..n"
       description: "角色当前所在地点"
+      payload_schema:
+        since_ordinal:
+          type: number
+          nullable: true
+          description: "从该序数开始驻留"
+        until_ordinal:
+          type: number
+          nullable: true
+          description: "直到该序数离开"
+        reason:
+          type: string
+          nullable: true
+          description: "驻留原因"
+      payload_constraints:
+        - id: since_before_until
+          category: temporal
+          severity: warning
+          description: "驻留起始序数应早于结束序数"
+          fields: ["since_ordinal", "until_ordinal"]
+          check: field_a_lt_field_b
+          skip_when_null: true
+
     allied_with:
       target_type: [character_arc]
       cardinality: any
       bidirectional: true
       description: "角色之间的同盟关系"
+      payload_schema:
+        relation_label:
+          type: string
+          nullable: true
+          description: "关系标签（师徒/盟友/仇敌/夫妻）"
+        intensity:
+          type: number
+          nullable: true
+          description: "关系强度 0.0-1.0"
+        since_ordinal:
+          type: number
+          nullable: true
+          description: "关系开始的序数"
+        until_ordinal:
+          type: number
+          nullable: true
+          description: "关系结束的序数"
+      payload_constraints:
+        - id: allied_since_before_until
+          category: temporal
+          severity: info
+          description: "关系开始序数应早于结束序数"
+          fields: ["since_ordinal", "until_ordinal"]
+          check: field_a_lt_field_b
+          skip_when_null: true
+
     member_of:
       target_type: [world_rule]
       cardinality: "0..n"
       description: "角色所属组织/势力"
+      payload_schema:
+        role:
+          type: string
+          nullable: true
+          description: "在该组织中的职务"
+        joined_at:
+          type: object
+          nullable: true
+          properties:
+            ordinal: { type: number, description: "加入序数" }
+            chapter: { type: number, nullable: true }
+            label:   { type: string, nullable: true, description: "加入场景" }
+        left_at:
+          type: object
+          nullable: true
+          properties:
+            ordinal: { type: number }
+            chapter: { type: number, nullable: true }
+            reason:  { type: string, nullable: true, description: "离开原因" }
+      payload_constraints:
+        - id: join_before_leave
+          category: temporal
+          severity: warning
+          description: "加入序数应早于离开序数"
+          fields: ["joined_at.ordinal", "left_at.ordinal"]
+          check: field_a_lt_field_b
+          skip_when_null: true
+
     possesses:
       target_type: [world_rule]
       cardinality: "0..n"
       description: "角色拥有的物品/能力/法宝"
+      payload_schema:
+        acquired_at:
+          type: object
+          nullable: true
+          properties:
+            ordinal:  { type: number, description: "获取序数" }
+            chapter:  { type: number, nullable: true }
+            label:    { type: string, nullable: true, description: "获取场景" }
+        upgrades:
+          type: array
+          nullable: true
+          description: "升级记录"
+          items:
+            type: object
+            properties:
+              ordinal:  { type: number, description: "升级序数" }
+              new_name: { type: string, description: "升级后的名称" }
+              event:    { type: string, nullable: true, description: "升级方式" }
+        lost_at:
+          type: object
+          nullable: true
+          properties:
+            ordinal: { type: number, description: "丢失序数" }
+            chapter: { type: number, nullable: true }
+            cause:   { type: string, nullable: true, description: "丢失原因" }
+      payload_constraints:
+        - id: acquired_before_lost
+          category: temporal
+          severity: warning
+          description: "获取序数应早于丢失序数"
+          fields: ["acquired_at.ordinal", "lost_at.ordinal"]
+          check: field_a_lt_field_b
+          skip_when_null: true
+        - id: upgrade_ordinal_ascending
+          category: temporal
+          severity: info
+          description: "升级记录序数应递增"
+          fields: ["upgrades"]
+          check: monotonic_increasing
+
     references:
       target_type: ["*"]
       cardinality: any

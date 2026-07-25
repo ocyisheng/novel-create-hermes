@@ -40,6 +40,31 @@ relations:
       target_type: [scene, chapter_plan]
       cardinality: "1+"
       description: "情节线规划的场景或章纲"
+      payload_schema:
+        weight:
+          type: number
+          nullable: true
+          description: "该节点在此情线中的重要性权重（0.0-1.0）"
+        phase:
+          type: string
+          nullable: true
+          enum: ["setup", "rising", "climax", "falling", "resolution"]
+          description: "该节点在情节线中所处的阶段"
+        sub_plot_label:
+          type: string
+          nullable: true
+          description: "子情节标签，用于区分同一情节线下的多条支线"
+        expected_length:
+          type: number
+          nullable: true
+          description: "预期字数"
+      payload_constraints:
+        - id: plans_phase_valid
+          category: boundary
+          severity: info
+          description: "如果填写了阶段，必须是合法值之一"
+          fields: ["phase"]
+          check: field_not_null
     causes:
       target_type: [plot_thread]
       cardinality: any

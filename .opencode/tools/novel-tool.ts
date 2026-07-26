@@ -289,7 +289,9 @@ export default tool({
         "graph.find_descendants", "graph.find_ancestors",
         "graph.rebuild_structure_path", "graph.migrate_structure_to_edges",
         // graph exports
-        "graph.export_docs", "graph.export_chunks",       // graph migrate\n        \"graph.migrate\",
+        "graph.export_docs", "graph.export_chunks",
+        // graph schema & migrate
+        "graph.schema_info", "graph.migrate",
         // project
         "project.new", "project.import", "project.status",
         "project.resume", "project.switch", "project.delete",
@@ -301,7 +303,8 @@ export default tool({
         "session.start", "session.build_workspace", "session.info", "session.set_cycle", "session.set_phase",
         // deviation
         "deviation.merge", "deviation.list", "deviation.pending",
-        "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats",
+        "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats", "deviation.summary",
+        
         // server
         "server.start",
       ])

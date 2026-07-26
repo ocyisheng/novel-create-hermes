@@ -7,9 +7,10 @@ GET /api/graph/timeline/{id}  → 时间线数据
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from graph_store import GraphStore, NarrativeUnit
+from graph_store import NarrativeUnit
 from graph_schema import UnitType, UnitStatus, RelationType
-from web.deps import get_store
+from web.deps import get_project_root
+from handlers.handlers_graph import _get_store
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
@@ -128,8 +129,9 @@ def _rel_to_viz(r) -> dict:
 # ── GET /api/graph ────────────────────────────────────────────────
 
 @router.get("")
-def get_full_graph(store: GraphStore = Depends(get_store)):
+def get_full_graph(project_root: str = Depends(get_project_root)):
     """返回全量图谱数据（用于前端 vis-network 渲染）"""
+    store = _get_store(project_root)
     nodes = {}
     for u in store._units.values():
         if u.status == UnitStatus.ARCHIVED:
@@ -154,8 +156,9 @@ def get_full_graph(store: GraphStore = Depends(get_store)):
 def get_neighbors(
     id: str,
     depth: int = Query(1, description="Ego Network 深度: 1 或 2"),
-    store: GraphStore = Depends(get_store),
+    project_root: str = Depends(get_project_root),
 ):
+    store = _get_store(project_root)
     center = store.get_unit(id)
     if not center:
         # 按名称查找
@@ -222,8 +225,9 @@ def get_neighbors(
 # ── GET /api/graph/timeline/{id} ──────────────────────────────────
 
 @router.get("/timeline/{id}")
-def get_timeline(id: str, store: GraphStore = Depends(get_store)):
+def get_timeline(id: str, project_root: str = Depends(get_project_root)):
     """获取指定实体的时间线数据"""
+    store = _get_store(project_root)
     from time_utils import get_story_ordinal, get_story_label
 
     center = store.get_unit(id)

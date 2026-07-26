@@ -6,13 +6,16 @@ GET    /api/nodes/{id}     → 单节点详情（含 content）
 POST   /api/nodes          → 创建节点
 PUT    /api/nodes/{id}     → 更新节点
 DELETE /api/nodes/{id}     → 归档节点（?purge=true 彻底删除）
+
+统一通过 run_operation 调用 handlers 层，不再直接操作 GraphStore。
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from graph_store import GraphStore, NarrativeUnit
+from graph_store import NarrativeUnit
 from graph_schema import UnitType, UnitStatus
-from web.deps import get_store
-from web.models import NodeOut, NodeCreate, NodeUpdate
+from web.deps import get_project_root
+from handlers import run_operation
+from web.models import NodeCreate, NodeUpdate
 
 router = APIRouter(prefix="/api/nodes", tags=["nodes"])
 
@@ -37,12 +40,41 @@ def _unit_to_out(u: NarrativeUnit) -> dict:
         "type_label": _type_label(u.type),
         "status": u.status.value,
         "confidence": u.confidence,
-        "tags": u.tags,
-        "chapter": getattr(u, "chapter", None),
+        "tags": list(u.tags) if u.tags else [],
+        "chapter": u.chapter_number,
         "volume": getattr(u, "volume", None),
         "content": content_raw if len(content_raw) < 5000 else content_raw[:5000] + "...",
         "extra": extra,
         "version": u.version,
+    }
+
+
+def _handler_unit_to_out(unit_dict: dict) -> dict:
+    """将 handler get_unit 返回的 dict 转为 _unit_to_out 格式（含 extra 和 type_label）。"""
+    import json
+    content_raw = unit_dict.get("content") or ""
+    extra = {}
+    if isinstance(content_raw, str) and content_raw.strip().startswith("{"):
+        try:
+            extra = json.loads(content_raw)
+        except json.JSONDecodeError:
+            extra = {"_raw": content_raw[:200]}
+    elif content_raw:
+        extra = {"_raw": content_raw[:200]}
+    utype = unit_dict.get("type", "")
+    return {
+        "id": unit_dict["id"],
+        "name": unit_dict.get("name", ""),
+        "type": utype,
+        "type_label": _type_label_str(utype),
+        "status": unit_dict.get("status", ""),
+        "confidence": unit_dict.get("confidence", 0),
+        "tags": unit_dict.get("tags", []),
+        "chapter": unit_dict.get("chapter"),
+        "volume": unit_dict.get("volume"),
+        "content": content_raw if len(content_raw) < 5000 else content_raw[:5000] + "...",
+        "extra": extra,
+        "version": unit_dict.get("version", 0),
     }
 
 
@@ -63,6 +95,20 @@ def _type_label(t: UnitType) -> str:
     return labels.get(t, t.value)
 
 
+def _type_label_str(t: str) -> str:
+    """字符串版 type_label，供 handler dict 使用。"""
+    labels = {
+        "character_arc": "角色", "scene": "场景",
+        "plot_thread": "情节线", "world_rule": "世界观",
+        "thematic_motif": "主题意象", "note": "笔记",
+        "chunk": "正文", "outline": "总纲",
+        "arc_plan": "部篇大纲", "volume_plan": "卷大纲",
+        "chapter_plan": "章纲", "structure": "结构",
+        "narrative_voice": "叙述腔调",
+    }
+    return labels.get(t, t)
+
+
 # ── GET /api/nodes ────────────────────────────────────────────────
 
 @router.get("")
@@ -71,31 +117,21 @@ def list_nodes(
     status: str = Query("", description="筛选状态: sprout/growing/mature/archived"),
     limit: int = Query(0, description="最大返回数, 0=不限"),
     offset: int = Query(0, description="偏移量"),
-    store: GraphStore = Depends(get_store),
+    project_root: str = Depends(get_project_root),
 ):
-    units = list(store._units.values())
-
-    # 筛选类型
-    if type:
-        utype = UnitType(type) if type else None
-        if utype:
-            units = [u for u in units if u.type == utype]
-
-    # 筛选状态
-    if status:
-        ustatus = UnitStatus(status) if status else None
-        if ustatus:
-            units = [u for u in units if u.status == ustatus]
-    else:
-        # 默认排除 archived
+    """列出叙事单元。handlers 层 list_units 不返回完整数据，直接调 _get_store 获取。"""
+    # 通过 handlers 的统一 _get_store 获取完整数据（list_units handler 数据量不足）
+    from handlers.handlers_graph import _get_store
+    store = _get_store(project_root)
+    ut = UnitType(type) if type else None
+    us = UnitStatus(status) if status else None
+    units = store.find_units(type=ut, status=us)
+    if not status:
         units = [u for u in units if u.status != UnitStatus.ARCHIVED]
 
     total = len(units)
-
-    # 排序: type + name
     units.sort(key=lambda u: (u.type.value, u.unit_name))
 
-    # 分页
     if offset > 0:
         units = units[offset:]
     if limit > 0:
@@ -111,26 +147,22 @@ def list_nodes(
 # ── GET /api/nodes/{id} ───────────────────────────────────────────
 
 @router.get("/{id}")
-def get_node(id: str, store: GraphStore = Depends(get_store)):
-    u = store.get_unit(id)
-    if not u:
+def get_node(id: str, project_root: str = Depends(get_project_root)):
+    result = run_operation("graph.get_unit", project_root=project_root, id=id)
+    if "error" in result or not result.get("unit"):
         # 尝试按名称查找
-        u = store.get_unit_by_name(id)
-    if not u:
+        find = run_operation("graph.find_unit", project_root=project_root, name=id)
+        if find.get("found") and find.get("id"):
+            result = run_operation("graph.get_unit", project_root=project_root, id=find["id"])
+    if "error" in result or not result.get("unit"):
         raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
-    return {"node": _unit_to_out(u)}
+    return {"node": _handler_unit_to_out(result["unit"])}
 
 
 # ── POST /api/nodes ───────────────────────────────────────────────
 
 @router.post("", status_code=201)
-def create_node(body: NodeCreate, store: GraphStore = Depends(get_store)):
-    # 解析 unit_type
-    try:
-        utype = UnitType(body.unit_type)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"无效的单元类型: {body.unit_type}")
-
+def create_node(body: NodeCreate, project_root: str = Depends(get_project_root)):
     # 解析 content
     content = None
     if body.content is not None:
@@ -140,42 +172,33 @@ def create_node(body: NodeCreate, store: GraphStore = Depends(get_store)):
         else:
             content = str(body.content)
 
-    # 创建单元
-    try:
-        unit = store.create_unit(
-            unit_type=utype,
-            name=body.name,
-            content=content,
-            tags=body.tags,
-            chapter=body.chapter,
-            actor=body.actor,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    tags_str = ",".join(body.tags) if body.tags else None
 
-    # 如果指定了 parent_id，自动建立 CONTAINS 关系
-    if body.parent_id:
-        try:
-            store.add_relation(
-                source_id=body.parent_id,
-                target_id=unit.id,
-                rel_type="contains",
-                actor=body.actor,
-            )
-        except Exception:
-            pass
+    result = run_operation(
+        "graph.create_unit",
+        project_root=project_root,
+        unit_type=body.unit_type,
+        name=body.name,
+        content=content,
+        tags=tags_str,
+        chapter=body.chapter,
+        actor=body.actor or "web-ui",
+        parent_id=body.parent_id,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
 
-    return {"node": _unit_to_out(unit)}
+    # 重新获取完整单元数据以生成响应
+    created_id = result["id"]
+    get_result = run_operation("graph.get_unit", project_root=project_root, id=created_id)
+    unit = get_result.get("unit", {})
+    return {"node": _handler_unit_to_out(unit)}
 
 
 # ── PUT /api/nodes/{id} ───────────────────────────────────────────
 
 @router.put("/{id}")
-def update_node(id: str, body: NodeUpdate, store: GraphStore = Depends(get_store)):
-    u = store.get_unit(id)
-    if not u:
-        raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
-
+def update_node(id: str, body: NodeUpdate, project_root: str = Depends(get_project_root)):
     # 解析 content
     content = None
     if body.content is not None:
@@ -185,27 +208,28 @@ def update_node(id: str, body: NodeUpdate, store: GraphStore = Depends(get_store
         else:
             content = str(body.content)
 
-    # 解析 status
-    status = None
-    if body.status:
-        try:
-            status = UnitStatus(body.status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"无效的状态: {body.status}")
+    tags_str = ",".join(body.tags) if body.tags else None
 
-    try:
-        unit = store.update_unit(
-            unit_id=id,
-            content=content,
-            name=body.name,
-            tags=body.tags,
-            status=status,
-            actor=body.actor,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    result = run_operation(
+        "graph.update_unit",
+        project_root=project_root,
+        id=id,
+        content=content,
+        name=body.name,
+        tags=tags_str,
+        status=body.status,
+        actor=body.actor or "web-ui",
+    )
+    if "error" in result:
+        # 区分「不存在」和其他错误
+        if "不存在" in str(result["error"]):
+            raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
+        raise HTTPException(status_code=400, detail=result["error"])
 
-    return {"node": _unit_to_out(unit)}
+    # 重新获取完整数据
+    get_result = run_operation("graph.get_unit", project_root=project_root, id=id)
+    unit = get_result.get("unit", {})
+    return {"node": _handler_unit_to_out(unit)}
 
 
 # ── DELETE /api/nodes/{id} ────────────────────────────────────────
@@ -214,19 +238,24 @@ def update_node(id: str, body: NodeUpdate, store: GraphStore = Depends(get_store
 def delete_node(
     id: str,
     purge: bool = Query(False, description="true=彻底删除, false=归档"),
-    store: GraphStore = Depends(get_store),
+    project_root: str = Depends(get_project_root),
 ):
-    u = store.get_unit(id)
-    if not u:
+    # 先确认存在
+    check = run_operation("graph.get_unit", project_root=project_root, id=id)
+    if "error" in check or not check.get("unit"):
         raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
 
     if purge:
-        # 彻底删除（hard delete）：标记为 archived，然后调用 purge
+        # 归档后 purge：退回到统一 _get_store 直接操作（handler 不支持批量移除关系）
+        from handlers.handlers_graph import _get_store
+        store = _get_store(project_root)
         store.archive_unit(id, actor="web-ui")
-        # 删除关联关系
         for rel in store.get_relations(id):
             store.remove_relation(rel.id, actor="web-ui")
+        store.flush()
         return {"deleted": True, "id": id, "mode": "purge"}
     else:
-        store.archive_unit(id, actor="web-ui")
+        result = run_operation("graph.archive_unit", project_root=project_root, id=id, actor="web-ui")
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
         return {"deleted": True, "id": id, "mode": "archive"}

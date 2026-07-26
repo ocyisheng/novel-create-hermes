@@ -2,13 +2,13 @@
 routes/search.py — 搜索 API
 
 GET /api/search?q=&type=&scope= → 全文搜索
+
+通过 run_operation 调用 handlers 层。
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from graph_store import GraphStore
-from search_engine import SearchEngine
-from graph_schema import UnitType, UnitStatus
-from web.deps import get_store, get_project_root
+from web.deps import get_project_root
+from handlers import run_operation
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
@@ -19,55 +19,27 @@ def search(
     type: str = Query("", description="限定类型（scene/character_arc/...）"),
     scope: str = Query("", description="逗号分隔的类型列表（优先级高于 type）"),
     limit: int = Query(50, description="最大返回数"),
-    store: GraphStore = Depends(get_store),
     project_root: str = Depends(get_project_root),
 ):
     if not q:
         return {"query": "", "total": 0, "results": [], "time_ms": 0}
 
-    engine = SearchEngine(store)
+    # scope 决定：显式 scope > 单 type > 全量
+    effective_scope = scope if scope else type
 
-    # 解析 scope
-    type_filter = None
-    if scope:
-        types = []
-        for t in scope.split(","):
-            t = t.strip()
-            if t:
-                try:
-                    types.append(UnitType(t))
-                except ValueError:
-                    pass
-        if types:
-            type_filter = types
-    elif type:
-        try:
-            type_filter = [UnitType(type)]
-        except ValueError:
-            pass
-
-    result_set = engine.search(
+    result = run_operation(
+        "graph.search",
+        project_root=project_root,
         keyword=q,
-        scope=type_filter,
-        max_results=limit,
+        scope=effective_scope,
+        limit=limit,
     )
-
-    results = []
-    for r in result_set.results:
-        results.append({
-            "unit_id": r.unit_id,
-            "unit_name": r.unit_name,
-            "unit_type": r.unit_type.value if hasattr(r.unit_type, "value") else str(r.unit_type),
-            "content_preview": r.content_preview[:200] if r.content_preview else "",
-            "chapter": r.chapter,
-            "tags": r.tags,
-            "status": r.status.value if hasattr(r.status, "value") else str(r.status),
-            "score": r.score,
-        })
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
 
     return {
         "query": q,
-        "total": result_set.total,
-        "results": results,
-        "time_ms": result_set.time_ms,
+        "total": result.get("total", 0),
+        "results": result.get("results", []),
+        "time_ms": result.get("time_ms", 0),
     }

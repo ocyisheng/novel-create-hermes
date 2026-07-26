@@ -34,37 +34,29 @@ from web.routes.stats import router as stats_router
 from web.routes.pages import router as pages_router
 
 
-_STORE = None  # 全局 GraphStore 实例
-_STORE_ROOT = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """生命周期管理：启动时加载 graph，关闭时 flush。"""
-    global _STORE, _STORE_ROOT
     root = getattr(app.state, "project_root", None)
     if root:
         _init_store(app, root)
     yield
     # 关闭时 flush
-    if _STORE:
+    store = getattr(app.state, "graph_store", None)
+    if store:
         try:
-            _STORE.flush()
+            store.flush()
         except Exception:
             pass
 
 
 def _init_store(app, project_root: str):
-    """初始化 GraphStore 并挂到 app.state"""
-    global _STORE, _STORE_ROOT
-    from graph_store import GraphStore
+    """初始化 GraphStore 并挂到 app.state（通过统一入口 _get_store）。"""
+    from handlers.handlers_graph import _get_store
     try:
-        store = GraphStore(project_root)
-        store.initialize()
+        store = _get_store(project_root)
         app.state.graph_store = store
         app.state.project_root = project_root
-        _STORE = store
-        _STORE_ROOT = project_root
     except Exception as e:
         raise RuntimeError(f"GraphStore 初始化失败: {e}")
 

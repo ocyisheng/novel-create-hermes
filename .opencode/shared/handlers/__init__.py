@@ -28,9 +28,7 @@ from .handlers_graph import (
     handle_remove_relation,
     handle_batch_infer,
     handle_export_docs,
-    handle_export_chunks,
-    handle_viz,
-    handle_migrate,
+    handle_export_chunks,\n    handle_migrate,
     handle_find_descendants,
     handle_find_ancestors,
     handle_rebuild_structure_path,
@@ -92,6 +90,10 @@ from .handlers_summary import (
 from .handlers_subagent import (
     handle_subagent_save,
     handle_subagent_list,
+)
+
+from .handlers_server import (
+    handle_server_start,
 )
 
 
@@ -189,10 +191,6 @@ OPERATION_REGISTRY = {
     "graph.export_chunks": {
         "handler": handle_export_chunks,
         "params": {"project_root": {"required": True}, "out": {}},
-    },
-    "graph.viz": {
-        "handler": handle_viz,
-        "params": {"project_root": {"required": True}, "character": {}, "timeline": {}, "output": {}, "open_browser": {}, "force": {}, "incremental": {}},
     },
     "graph.migrate": {
         "handler": handle_migrate,
@@ -354,6 +352,11 @@ OPERATION_REGISTRY = {
     "subagent.list": {
         "handler": handle_subagent_list,
         "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
+    },
+    # server
+    "server.start": {
+        "handler": handle_server_start,
+        "params": {"project_root": {"required": True}, "host": {}, "port": {}},
     },
 }
 

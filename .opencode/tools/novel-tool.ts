@@ -289,9 +289,7 @@ export default tool({
         "graph.find_descendants", "graph.find_ancestors",
         "graph.rebuild_structure_path", "graph.migrate_structure_to_edges",
         // graph exports
-        "graph.export_docs", "graph.export_chunks",
-        // graph viz & migrate
-        "graph.viz", "graph.migrate",
+        "graph.export_docs", "graph.export_chunks",       // graph migrate\n        \"graph.migrate\",
         // project
         "project.new", "project.import", "project.status",
         "project.resume", "project.switch", "project.delete",
@@ -304,6 +302,8 @@ export default tool({
         // deviation
         "deviation.merge", "deviation.list", "deviation.pending",
         "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats",
+        // server
+        "server.start",
       ])
       .describe("操作类型"),
     project: tool.schema.string().optional().describe("小说项目名（如 凡人之诡影重重）或绝对路径"),

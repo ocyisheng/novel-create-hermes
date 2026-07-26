@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>叙事单元网络</title>
+<link rel="stylesheet" href="static/css/main.css">
+</head>
+<body>
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <div class="tb-left">
+      <span class="tb-logo">📖</span>
+      <h1 id="projectName">—</h1>
+    </div>
+    <div class="tb-center">
+      <select id="typeFilter"><option value="all">全部</option></select>
+      <div class="search-wrap">
+        <input id="searchBox" type="text" placeholder="搜索名称..." />
+        <span id="searchClear" class="search-clear">&times;</span>
+      </div>
+      <button id="btnPhysics" onclick="togglePhysics()">🧊 冻结</button>
+      <button id="btnAddNode" onclick="showAddNodeModal()">＋ 新建</button>
+      <button id="btnAddEdge" onclick="showAddEdgeModal()">↔ 关联</button>
+    </div>
+    <div class="tb-right">
+      <span id="statsDisplay" class="stats">0 节点 · 0 关系</span>
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div id="main">
+    <!-- Network -->
+    <div id="network"></div>
+
+    <!-- Legend -->
+    <div id="legend"></div>
+
+    <!-- Tooltip -->
+    <div id="tooltip"></div>
+
+    <!-- Detail panel -->
+    <div id="detailPanel" class="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="dpTitle"></div>
+        <div class="panel-meta" id="dpMeta"></div>
+        <button class="panel-close" onclick="closeDetail()">&times;</button>
+      </div>
+      <div class="panel-body" id="dpBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal overlay -->
+<div id="modalOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="static/js/api.js"></script>
+<script src="static/js/app.js"></script>
+</body>
+</html>

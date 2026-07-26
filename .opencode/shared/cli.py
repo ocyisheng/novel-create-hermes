@@ -7,11 +7,11 @@ novel-create-hermes 统一 CLI 入口。
 调用 handlers 模块中的纯业务函数，只做参数提取和输出格式化。
 
 用法:
-    python .opencode/shared/cli.py viz --project-root <路径> [选项]
-    python .opencode/shared/cli.py migrate --project-root <路径> [选项]
-    python .opencode/shared/cli.py project <command> [参数]
-    python .opencode/shared/cli.py env [--fix|--force] [--root <路径>]
-    python .opencode/shared/cli.py v2 <command> [--path <PROJECT>] [args...]
+        python .opencode/shared/cli.py server --project-root <路径> --port 8765
+        python .opencode/shared/cli.py migrate --project-root <路径> [选项]
+        python .opencode/shared/cli.py project <command> [参数]
+        python .opencode/shared/cli.py env [--fix|--force] [--root <路径>]
+        python .opencode/shared/cli.py v2 <command> [--path <PROJECT>] [args...]
 """
 
 import sys
@@ -23,37 +23,7 @@ if _SHARED_DIR not in sys.path:
     sys.path.insert(0, _SHARED_DIR)
 
 
-# ── viz ────────────────────────────────────────────────────────────
-
-def _build_viz_parser(sub):
-    p = sub.add_parser("viz", help="生成叙事单元网络可视化")
-    p.add_argument("--project-root", "-p", required=True, help="项目根目录")
-    p.add_argument("--output", "-o", default="", help="输出 HTML 路径")
-    p.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network")
-    p.add_argument("--timeline", "-t", default="", help="角色名称/ID：生成时间线")
-    p.add_argument("--list-units", action="store_true", help="列出所有叙事单元")
-    p.add_argument("--open", action="store_true", help="生成后自动在浏览器打开")
-    p.add_argument("--incremental", action="store_true", help="增量模式")
-    p.add_argument("--force", action="store_true", help="强制全量重建")
-    return p
-
-
-def _run_viz(args):
-    from handlers import handle_viz
-    result = handle_viz(
-        project_root=args.project_root,
-        output=args.output,
-        character=args.character,
-        timeline=args.timeline,
-        list_units=args.list_units,
-        open_browser=args.open,
-        incremental=args.incremental,
-        force=args.force,
-    )
-    if "error" in result:
-        print(f"❌ {result['error']}")
-        sys.exit(1)
-    print("✅ 可视化已生成")
+# (viz 子命令已移除 — 改用 `server` 子命令启动 Web 端动态可视化)
 
 
 # ── migrate ─────────────────────────────────────────────────────────
@@ -308,7 +278,7 @@ def _run_env(args):
 # ── v2 工具集（argparse + 输出格式化，业务逻辑在 handlers 中）────────────
 
 def _build_v2_parser(sub):
-    p = sub.add_parser("v2", help="V2 工具集（search/check/report/create-unit/viz/stats 等）")
+    p = sub.add_parser("v2", help="V2 工具集（search/check/report/create-unit/stats 等）")
     v2_sub = p.add_subparsers(dest="v2_command")
 
     sp = v2_sub.add_parser("start-session", help="启动/恢复创作会话")
@@ -423,15 +393,6 @@ def _build_v2_parser(sub):
     sp.add_argument("--slug", required=True, help="知识库 slug（如 fanren-xiuxian）")
     sp.add_argument("--topic", required=True, help="搜索主题（支持正则，如 宗门|势力|门派）")
 
-    sp = v2_sub.add_parser("viz", help="生成可视化：关系图 / 角色网络 / 时间线")
-    sp.add_argument("--path", "-p", required=True, help="项目根目录")
-    sp.add_argument("--character", "-c", default="", help="角色名称/ID：生成 Ego Network")
-    sp.add_argument("--timeline", "-t", default="", help="角色名称/ID：生成时间线")
-    sp.add_argument("--output", "-o", default="", help="输出 HTML 路径")
-    sp.add_argument("--open", action="store_true", help="生成后自动在浏览器打开")
-    sp.add_argument("--incremental", action="store_true", help="增量模式")
-    sp.add_argument("--force", action="store_true", help="强制全量重建")
-
     sp = v2_sub.add_parser("find-descendants", help="递归查找所有后代（CONTAINS）")
     sp.add_argument("--path", required=True)
     sp.add_argument("--id", required=True)
@@ -466,7 +427,7 @@ def _run_v2(args):
         handle_list_units, handle_list_relation_types, handle_stats,
         handle_recent_events, handle_flush, handle_add_relation,
         handle_fix_asymmetry, handle_batch_infer, handle_export_docs,
-        handle_export_chunks, handle_viz, handle_find_descendants,
+        handle_export_chunks, handle_find_descendants,
         handle_find_ancestors, handle_rebuild_structure_path,
         handle_migrate_structure_to_edges, handle_session_start,
         handle_session_build_workspace, handle_purge_archived,
@@ -778,16 +739,6 @@ def _run_v2(args):
         if content:
             print(content)
 
-    elif cmd == "viz":
-        result = handle_viz(
-            project_root=args.path, character=args.character,
-            timeline=args.timeline, output=args.output,
-            open_browser=args.open, incremental=args.incremental,
-            force=args.force,
-        )
-        _err_exit(result)
-        print("✅ 可视化已生成")
-
     elif cmd == "find-descendants":
         result = handle_find_descendants(
             project_root=args.path, id=args.id, max_depth=args.max_depth,
@@ -851,6 +802,28 @@ def _run_v2(args):
         sys.exit(1)
 
 
+# ── server ────────────────────────────────────────────────────────────
+
+def _build_server_parser(sub):
+    p = sub.add_parser("server", help="启动本地 Web 服务（FastAPI + 前端 SPA）")
+    p.add_argument("--project-root", "-p", required=True, help="项目根目录")
+    p.add_argument("--host", default="127.0.0.1", help="监听地址（默认 127.0.0.1）")
+    p.add_argument("--port", type=int, default=8765, help="监听端口（默认 8765）")
+    return p
+
+
+def _run_server(args):
+    from handlers import handle_server_start
+    result = handle_server_start(
+        project_root=args.project_root,
+        host=args.host,
+        port=args.port,
+    )
+    if "error" in result:
+        print(f"❌ {result['error']}")
+        sys.exit(1)
+
+
 # ── analyze ────────────────────────────────────────────────────────
 
 def _build_analyze_parser(sub):
@@ -895,11 +868,11 @@ def main():
     )
     sub = parser.add_subparsers(dest="domain")
 
-    _build_viz_parser(sub)
     _build_migrate_parser(sub)
     _build_project_parser(sub)
     _build_env_parser(sub)
     _build_v2_parser(sub)
+    _build_server_parser(sub)
     _build_analyze_parser(sub)
 
     args = parser.parse_args()
@@ -909,11 +882,11 @@ def main():
         sys.exit(1)
 
     dispatch = {
-        "viz": _run_viz,
         "migrate": _run_migrate,
         "project": _run_project,
         "env": _run_env,
         "v2": _run_v2,
+        "server": _run_server,
         "analyze": _run_analyze,
     }
 

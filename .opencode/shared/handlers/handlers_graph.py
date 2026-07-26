@@ -9,7 +9,7 @@ import json
 import os
 import re
 import sys
-import io
+
 from pathlib import Path
 from typing import Any, Optional
 
@@ -306,17 +306,33 @@ def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
 def handle_list_relation_types() -> dict:
     """列出所有可用关系类型，含中文显示名。"""
     from graph_schema import RelationType
-    # 从 viz 模块借用中文标签映射
-    try:
-        from v2_graph_viz import RELATION_LABELS as RELATION_ZH
-    except ImportError:
-        RELATION_ZH = {}
+    RELATION_LABELS = {
+        RelationType.PARTICIPATES_IN: "参与",
+        RelationType.CAUSES: "导致",
+        RelationType.PRECEDES: "先于",
+        RelationType.CONTRADICTS: "矛盾",
+        RelationType.IMPLEMENTS: "实现",
+        RelationType.BELONGS_TO: "属于",
+        RelationType.REFERENCES: "引用",
+        RelationType.IMPLIES: "隐含",
+        RelationType.PARALLEL: "并列",
+        RelationType.INSPIRES: "启发",
+        RelationType.REFINES: "细化",
+        RelationType.LOCATED_AT: "位于",
+        RelationType.ALLIED_WITH: "同盟",
+        RelationType.CONTAINS: "包含",
+        RelationType.CONTROLS: "统治",
+        RelationType.MEMBER_OF: "成员",
+        RelationType.HAS_MEMBER: "拥有成员",
+        RelationType.LOCATION_OF: "所在",
+        RelationType.CONTROLLED_BY: "受制",
+    }
     return {
         "relation_types": [
             {
                 "value": rt.value, "name": rt.name,
                 "inverse": rt.inverse.value if rt.inverse != rt else rt.value,
-                "label_zh": RELATION_ZH.get(rt, rt.value),
+                "label_zh": RELATION_LABELS.get(rt, rt.value),
             }
             for rt in RelationType
         ]
@@ -935,33 +951,7 @@ def handle_export_chunks(project_root: str, out: str = "") -> dict:
     return {"files": files}
 
 
-def handle_viz(
-    project_root: str,
-    character: str = "",
-    timeline: str = "",
-    output: str = "",
-    open_browser: bool = False,
-    force: bool = False,
-    incremental: bool = False,
-) -> dict:
-    """生成可视化：关系图 / 角色网络 / 时间线。"""
-    from v2_graph_viz import generate_viz
 
-    _old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
-        generate_viz(
-            project_root=str(Path(project_root).resolve()),
-            character=character,
-            timeline=timeline,
-            output=output,
-            open_browser=open_browser,
-            force=force,
-            incremental=incremental,
-        )
-    finally:
-        sys.stdout = _old_stdout
-    return {"viz_generated": True}
 
 
 def handle_migrate(

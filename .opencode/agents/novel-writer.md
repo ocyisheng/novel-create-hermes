@@ -53,9 +53,9 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 扩展/润色/精修/去AI味?
   │   └─ 查 session.info → cycle_type=refinement → PREHEAT=hot 走 V2 创作路由（HUMANIZE=true 注入 crafter prompt）
   ├─ 可视化（关系图/时间线/图谱）?
-  │   ├─ 通知用户 "正在生成可视化..."
-  │   ├─ 参考 novel-v2 skill 的操作指南 §6 可视化章节，task(run_in_background=true) 生成 viz
-  │   └─ 返回 "可视化正在生成，完成后通知你查看 graph/viz/ 目录"
+  │   ├─ 通知用户 "正在启动 web 可视化..."
+  │   ├─ novel-tool --operation web.start --project {PROJECT}
+  │   └─ 告知用户 "Web 可视化已启动，打开 http://localhost:8765 查看交互式关系图"
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   ├─ 先走 grill（按 §3.1 模糊判断规则）
@@ -163,7 +163,7 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 | 编辑修改 | 根据目标类型推断 | session推荐/warm | ✅ 仅模糊修改请求 | |
 | 记录灵感 | note | session推荐/cold | ❌ | |
 | 导出 | — | — | ❌ | |
-| 可视化/关系图/时间线 | — | — | ❌ | 参考 novel-v2 skill §6 |
+| 可视化/关系图/时间线 | — | — | ❌ | 调 web.start → 打开 http://localhost:8765 交互式 Web UI |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）
@@ -568,11 +568,15 @@ todowrite([
 graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-v2` skill 中的导出命令。
 导出是**可选的**——graph 本身就是完整的。
 
-### 可视化
+### 可视化（Web 交互式）
 
-参考 `novel-v2` skill 操作指南 §6（可视化章节），使用 `viz` 命令直接从 graph 生成交互式 HTML 关系图/时间线。
+调 `novel-tool --operation web.start --project {PROJECT}` 启动 Web 服务，打开浏览器访问 `http://localhost:8765`：
 
-> 命令示例详见 `novel-v2` SKILL.md 中的完整命令列表，此处不再重复。
+- **关系图**：vis-network 交互式渲染，支持物理引擎拖动/缩放/筛选/搜索
+- **详情面板**：点击节点查看内容、标签、关联关系；支持编辑/删除
+- **CRUD**：直接在浏览器中创建/编辑/删除节点和关系
+- **时间线**：API `/api/graph/timeline/{id}` 获取实体时间线数据
+- **Ego Network**：API `/api/graph/neighbors/{id}?depth=1|2` 查看节点邻居
 
 
 ## 六、V2 快速参考

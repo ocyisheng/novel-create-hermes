@@ -109,8 +109,12 @@ novel-tool --operation graph.find_descendants --project {PROJECT} --id {单元ID
 # 层级结构遍历：父单元
 novel-tool --operation graph.find_ancestors --project {PROJECT} --id {单元ID}
 
-# 可视化：关系图/角色网络/时间线（输出 HTML 到 graph/viz/）
-novel-tool --operation graph.viz --project {PROJECT} [--character {角色名} --timeline {角色名}]
+# 可视化（Web 交互式）
+启动 Web 服务后打开浏览器查看交互式关系图：
+```bash
+novel-tool --operation web.start --project {PROJECT}
+# 打开 http://localhost:8765
+```
 ```
 
 ### 2. 写入 graph 数据

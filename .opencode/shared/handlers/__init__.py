@@ -95,6 +95,7 @@ from .handlers_subagent import (
 
 from .handlers_server import (
     handle_server_start,
+    handle_server_restart,
 )
 
 
@@ -355,9 +356,13 @@ OPERATION_REGISTRY = {
         "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
     },
     # server
-    "server.start": {
+    "web.start": {
         "handler": handle_server_start,
         "params": {"project_root": {"required": True}, "host": {}, "port": {}},
+    },
+    "web.restart": {
+        "handler": handle_server_restart,
+        "params": {"project_root": {}, "host": {}, "port": {}},
     },
 }
 

@@ -64,6 +64,11 @@ class EdgeCreate(BaseModel):
     actor: str = "web-ui"
 
 
+class EdgeUpdate(BaseModel):
+    label: Optional[str] = None
+    actor: str = "web-ui"
+
+
 # ── 图谱模型 ──────────────────────────────────────────────────────────
 
 class GraphData(BaseModel):

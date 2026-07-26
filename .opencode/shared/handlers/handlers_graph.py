@@ -288,7 +288,7 @@ def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
     if not _ORCHESTRATOR_WRITE_BLOCKED:
         return None
     
-    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool"}
+    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool", "web-ui"}
     if actor not in ALLOWED_WRITE_ACTORS:
         return {
             "error": (

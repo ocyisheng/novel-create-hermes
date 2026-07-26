@@ -306,7 +306,7 @@ export default tool({
         "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats", "deviation.summary",
         
         // server
-        "server.start",
+        "web.start", "web.restart",
       ])
       .describe("操作类型"),
     project: tool.schema.string().optional().describe("小说项目名（如 凡人之诡影重重）或绝对路径"),

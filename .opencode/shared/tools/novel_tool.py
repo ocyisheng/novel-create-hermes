@@ -28,23 +28,40 @@ for _d in [_SHARED_DIR, _V2_DIR]:
 # ── 守护进程日志 ─────────────────────────────────────────────────────
 
 class _DaemonLogger:
-    """守护进程结构化日志，写入 graph/daemon.log。"""
-    
+    """守护进程结构化日志，按天新建文件。"""
+
     def __init__(self):
         self._log_file = None
-    
-    def open(self, graph_dir: str):
-        # 写入 .engine/daemon/daemon.log（引擎级日志，非项目级）
+        self._log_dir = None
+        self._current_date = None
+
+    def _ensure_dir(self):
+        if self._log_dir:
+            return self._log_dir
         _tool_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        _engine_dir = os.path.join(_tool_root, ".engine", "daemon")
-        os.makedirs(_engine_dir, exist_ok=True)
-        log_path = os.path.join(_engine_dir, "daemon.log")
+        self._log_dir = os.path.join(_tool_root, ".engine", "daemon")
+        os.makedirs(self._log_dir, exist_ok=True)
+        return self._log_dir
+
+    def _date_stamped_path(self) -> tuple[str, str]:
+        """返回 (日志目录, YYYY-MM-DD) 和对应文件路径。"""
+        d = self._ensure_dir()
+        today = datetime.now().strftime("%Y-%m-%d")
+        return today, os.path.join(d, f"daemon-{today}.log")
+
+    def open(self, graph_dir: str):
+        _ = self._ensure_dir()
+        today, path = self._date_stamped_path()
+        self._current_date = today
         try:
-            self._log_file = open(log_path, "a", encoding="utf-8")
+            self._log_file = open(path, "a", encoding="utf-8")
         except OSError:
             self._log_file = None
-    
+
     def log(self, event: str, **fields):
+        today, _ = self._date_stamped_path()
+        if today != self._current_date:
+            self._rotate(today)
         if not self._log_file:
             return
         entry = {"ts": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
@@ -53,7 +70,17 @@ class _DaemonLogger:
             self._log_file.flush()
         except Exception:
             pass
-    
+
+    def _rotate(self, new_date: str):
+        """跨天时关闭旧文件，打开新文件。"""
+        self.close()
+        self._current_date = new_date
+        _, path = self._date_stamped_path()
+        try:
+            self._log_file = open(path, "a", encoding="utf-8")
+        except OSError:
+            self._log_file = None
+
     def close(self):
         if self._log_file:
             try:

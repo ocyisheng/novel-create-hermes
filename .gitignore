@@ -49,6 +49,7 @@ docs/
 novels/
 knowledge/
 oh-my-openagent/
+AGENTS.md
 # ----- 测试和覆盖率 -----
 .pytest_cache
 tests/ 

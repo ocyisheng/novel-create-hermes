@@ -14,7 +14,8 @@ from graph_schema import RelationType
 from web.deps import get_project_root
 from handlers import run_operation
 from handlers.handlers_graph import _get_store
-from web.models import EdgeCreate
+from datetime import datetime, timezone
+from web.models import EdgeCreate, EdgeUpdate
 
 router = APIRouter(prefix="/api/edges", tags=["edges"])
 
@@ -79,6 +80,24 @@ def get_edge(id: str, project_root: str = Depends(get_project_root)):
     rel = store._relations.get(id)
     if not rel:
         raise HTTPException(status_code=404, detail=f"关系不存在: {id}")
+    return {"edge": _rel_to_out(rel)}
+
+
+# ── PUT /api/edges/{id} ────────────────────────────────────────────
+
+@router.put("/{id}")
+def update_edge(id: str, body: EdgeUpdate, project_root: str = Depends(get_project_root)):
+    """更新关系（修改 label 等）。直接操作 store 层。"""
+    store = _get_store(project_root)
+    rel = store._relations.get(id)
+    if not rel:
+        raise HTTPException(status_code=404, detail=f"关系不存在: {id}")
+
+    if body.label is not None:
+        rel.label = body.label
+    rel.updated_at = datetime.now(timezone.utc)
+    store._dirty_edges = True
+    store.flush()
     return {"edge": _rel_to_out(rel)}
 
 

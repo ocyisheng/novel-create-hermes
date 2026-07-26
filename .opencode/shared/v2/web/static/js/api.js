@@ -41,6 +41,9 @@
     /** 创建关系 */
     createEdge(data) { return _post('/api/edges', data); },
 
+    /** 更新关系 */
+    updateEdge(id, data) { return _put(`/api/edges/${encodeURIComponent(id)}`, data); },
+
     /** 删除关系 */
     deleteEdge(id) { return _del(`/api/edges/${encodeURIComponent(id)}`); },
 

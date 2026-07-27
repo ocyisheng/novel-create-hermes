@@ -5,7 +5,7 @@ models.py — Pydantic 请求/响应模型
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ── 节点模型 ──────────────────────────────────────────────────────────
@@ -26,6 +26,8 @@ class NodeOut(BaseModel):
 
 
 class NodeCreate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str
     unit_type: str = Field(alias="type")
     content: Optional[Any] = None
@@ -56,6 +58,8 @@ class EdgeOut(BaseModel):
 
 
 class EdgeCreate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     source: str
     target: str
     rel_type: str = Field(alias="type")

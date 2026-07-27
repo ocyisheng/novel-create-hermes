@@ -256,6 +256,10 @@ def _build_canonical_params(op: str, request: dict) -> dict:
     if "project" in request:
         canonical["project_root"] = _resolve_project(request["project"])
 
+    # 4. actor 默认值：未指定时用 "novel-tool"（在白名单中），避免 handler 默认 "orchestrator" 被拦截
+    if "actor" not in canonical:
+        canonical["actor"] = "novel-tool"
+
     return canonical
 
 

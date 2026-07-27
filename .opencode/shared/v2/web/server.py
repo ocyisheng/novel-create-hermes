@@ -92,6 +92,13 @@ def create_app(project_root: str = "") -> FastAPI:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    # favicon — 防止 404
+    @app.get("/favicon.ico")
+    def favicon():
+        from fastapi.responses import Response
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">\xf0\x9f\x93\x96</text></svg>'
+        return Response(content=svg, media_type="image/svg+xml")
+
     # 项目根 API
     @app.get("/api/project")
     def get_project_info():

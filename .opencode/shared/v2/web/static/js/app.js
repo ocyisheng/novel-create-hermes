@@ -69,17 +69,16 @@
 
       const isLarge = Object.keys(nodeData).length > 200;
 
+      // 物理引擎：弱力 + 高阻尼，缓慢漂移不弹跳
+      const physicsConfig = {
+        solver: 'barnesHut',
+        barnesHut: { gravitationalConstant: -1500, centralGravity: 0.6, springLength: 120, springConstant: 0.08, damping: 0.9 },
+        stabilization: { iterations: 80, updateInterval: 10 },
+      };
+
       const options = {
         layout: { improvedLayout: false },
-        physics: isLarge ? {
-          solver: 'barnesHut',
-          barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 95, springConstant: 0.04, damping: 0.5, overlapAvoid: 0.1 },
-          stabilization: { iterations: 50, updateInterval: 25 },
-        } : {
-          solver: 'forceAtlas2Based',
-          forceAtlas2Based: { gravitationalConstant: -60, centralGravity: 0.01, springLength: 150, springConstant: 0.03, damping: 0.5 },
-          stabilization: { iterations: 30, updateInterval: 10 },
-        },
+        physics: physicsConfig,
         interaction: {
           dragNodes: true, dragView: true, zoomView: true,
           hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true,
@@ -88,6 +87,8 @@
       };
 
       network = new vis.Network(cont, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+      // 物理常开：用户可通过 🧊 冻结按钮手动暂停
 
       // 大图自动聚类
       if (isLarge) {
@@ -185,6 +186,23 @@
 
     const typeVal = document.getElementById('typeFilter').value;
     const query = document.getElementById('searchBox').value.trim().toLowerCase();
+    const noFilter = typeVal === 'all' && !query;
+
+    if (noFilter) {
+      // 无筛选条件时：移除所有 hidden 标记，恢复全部显示
+      const toShow = [];
+      nodesDataSet.forEach(node => {
+        if (node.hidden) toShow.push({ id: node.id, hidden: false });
+      });
+      if (toShow.length) nodesDataSet.update(toShow);
+      const edgeToShow = [];
+      edgesDataSet.forEach(edge => {
+        if (edge.hidden) edgeToShow.push({ id: edge.id, hidden: false });
+      });
+      if (edgeToShow.length) edgesDataSet.update(edgeToShow);
+      network.fit({ animation: false });
+      return;
+    }
 
     // 预计算可见节点
     const visible = new Set();
@@ -195,11 +213,11 @@
       if (ok) visible.add(id);
     });
 
-    // 批量更新节点可见性（一次 update 一批，避免逐条 re-render）
+    // 批量更新节点可见性
     const nodeUpdates = [];
     nodesDataSet.forEach(node => {
       const shouldHide = !visible.has(node.id);
-      if (node.hidden !== shouldHide) nodeUpdates.push({ id: node.id, hidden: shouldHide });
+      if (!!node.hidden !== shouldHide) nodeUpdates.push({ id: node.id, hidden: shouldHide });
     });
     if (nodeUpdates.length) nodesDataSet.update(nodeUpdates);
 
@@ -207,11 +225,13 @@
     const edgeUpdates = [];
     edgesDataSet.forEach(edge => {
       const shouldHide = !visible.has(edge.from) || !visible.has(edge.to);
-      if (edge.hidden !== shouldHide) edgeUpdates.push({ id: edge.id, hidden: shouldHide });
+      if (!!edge.hidden !== shouldHide) edgeUpdates.push({ id: edge.id, hidden: shouldHide });
     });
     if (edgeUpdates.length) edgesDataSet.update(edgeUpdates);
 
-    network.fit({ animation: false });
+    // 强制重绘 + 适配视角
+    network.redraw();
+    setTimeout(() => network.fit({ animation: false }), 50);
   }
 
   // ── Hover ─────────────────────────────────────────────────

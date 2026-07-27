@@ -29,17 +29,18 @@ UNIT_TYPE_LABELS = {
 }
 
 UNIT_TYPE_COLORS = {
-    UnitType.CHARACTER_ARC: {"bg": "#5B9BD5", "border": "#2E75B6", "text": "#fff"},
-    UnitType.SCENE: {"bg": "#A5A5A5", "border": "#7A7A7A", "text": "#fff"},
-    UnitType.PLOT_THREAD: {"bg": "#FFC000", "border": "#BF8F00", "text": "#000"},
-    UnitType.WORLD_RULE: {"bg": "#70AD47", "border": "#4E6B31", "text": "#fff"},
-    UnitType.THEMATIC_MOTIF: {"bg": "#B4A7D6", "border": "#8E7CC3", "text": "#fff"},
-    UnitType.NOTE: {"bg": "#D6D6D6", "border": "#A0A0A0", "text": "#000"},
-    UnitType.CHUNK: {"bg": "#CD853F", "border": "#8B6914", "text": "#fff"},
-    UnitType.OUTLINE: {"bg": "#4472C4", "border": "#2E5090", "text": "#fff"},
-    UnitType.ARC_PLAN: {"bg": "#5B9BD5", "border": "#3A72B0", "text": "#fff"},
-    UnitType.VOLUME_PLAN: {"bg": "#7FCDBB", "border": "#4EA08A", "text": "#000"},
-    UnitType.CHAPTER_PLAN: {"bg": "#A8D08D", "border": "#70AD47", "text": "#000"},
+    # 适应深色背景 (#0f0f1a)，高饱和 + 白色文字保证可读性
+    UnitType.CHARACTER_ARC:   {"bg": "#4FC3F7", "border": "#0288D1", "text": "#fff"},
+    UnitType.SCENE:           {"bg": "#E0E0E0", "border": "#9E9E9E", "text": "#222"},
+    UnitType.PLOT_THREAD:     {"bg": "#FFD54F", "border": "#F9A825", "text": "#222"},
+    UnitType.WORLD_RULE:      {"bg": "#81C784", "border": "#388E3C", "text": "#fff"},
+    UnitType.THEMATIC_MOTIF:  {"bg": "#CE93D8", "border": "#7B1FA2", "text": "#fff"},
+    UnitType.NOTE:            {"bg": "#BDBDBD", "border": "#757575", "text": "#222"},
+    UnitType.CHUNK:           {"bg": "#FF8A65", "border": "#D84315", "text": "#fff"},
+    UnitType.OUTLINE:         {"bg": "#42A5F5", "border": "#1565C0", "text": "#fff"},
+    UnitType.ARC_PLAN:        {"bg": "#29B6F6", "border": "#0277BD", "text": "#fff"},
+    UnitType.VOLUME_PLAN:     {"bg": "#80CBC4", "border": "#00695C", "text": "#fff"},
+    UnitType.CHAPTER_PLAN:    {"bg": "#AED581", "border": "#558B2F", "text": "#fff"},
 }
 
 RELATION_LABELS = {
@@ -87,7 +88,7 @@ RELATION_COLORS = {
 }
 
 
-def _node_to_viz(u: NarrativeUnit, extra: dict = None) -> dict:
+def _node_to_viz(u: NarrativeUnit, extra: dict = None, hop: int = 0) -> dict:
     """NarrativeUnit → vis-network 兼容的节点 dict"""
     import json
     colors = UNIT_TYPE_COLORS.get(u.type, {"bg": "#D6D6D6", "border": "#A0A0A0", "text": "#000"})

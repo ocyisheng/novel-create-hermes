@@ -75,9 +75,20 @@
 
   // ── 内部方法 ──────────────────────────────────────────────
 
+  function _errMsg(e) {
+    // Pydantic 422 错误 detail 可能是数组 [ { loc, msg, type } ]
+    if (Array.isArray(e.detail)) {
+      return e.detail.map(d => d.msg || d.message).join('; ') || `HTTP 422 (请求参数错误)`;
+    }
+    if (e.detail && typeof e.detail === 'object') {
+      return e.detail.message || e.detail.msg || `HTTP ${e.status || 400}`;
+    }
+    return e.detail || `HTTP ${e.status || 400}`;
+  }
+
   function _get(url) {
     return fetch(url).then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.detail || `HTTP ${r.status}`); });
+      if (!r.ok) return r.json().then(e => { throw new Error(_errMsg(e)); });
       return r.json();
     });
   }
@@ -88,7 +99,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.detail || `HTTP ${r.status}`); });
+      if (!r.ok) return r.json().then(e => { throw new Error(_errMsg(e)); });
       return r.json();
     });
   }
@@ -99,14 +110,14 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.detail || `HTTP ${r.status}`); });
+      if (!r.ok) return r.json().then(e => { throw new Error(_errMsg(e)); });
       return r.json();
     });
   }
 
   function _del(url) {
     return fetch(url, { method: 'DELETE' }).then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.detail || `HTTP ${r.status}`); });
+      if (!r.ok) return r.json().then(e => { throw new Error(_errMsg(e)); });
       return r.json();
     });
   }

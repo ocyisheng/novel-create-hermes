@@ -23,6 +23,12 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | 5 | NEVER | 安装系统 Python |
 | 6 | MUST | 编排层直接调用的 `novel-tool` **不需要**传 `--actor`（适配层默认值 `novel-tool` 已在写操作白名单中）；子 agent 的 novel-tool 调用必须传各自的 actor 标识 |
+| 7 | MUST | **创建前查重**：任何 `graph.create_unit` 操作前，先调用 `graph.list_units(unit_type=目标类型)` 或 `graph.find_unit(name=目标名称)` 检查是否已存在同名/同类型单元，避免重复创建 |
+| 8 | MUST | **操作前确认设定**：讨论任意具体角色/设定前，先调 `graph.get_unit` 确认其 content 中的已有设定，**不得凭名称推测** |
+| 9 | MUST | **已有设计优先**：对已有完整 content 的 chapter_plan / scene 等单元执行设计操作前，先读取当前 content，确认已有设计后再基于现状微调，不得完全重新规划 |
+| 10 | MUST | **update 前备份旧值**：执行 `graph.update_unit` 前，先调 `graph.get_unit` 读取当前 content 并在内存中缓存，以备回滚。如新内容导致数据丢失，编排层应主动提供恢复选项 |
+| 11 | MUST | **世界观常识门槛**：分析角色关系/设计情节前，先确认该世界观下的常识边界——什么信息是公开的/保密的、什么修为级别知道什么。不得基于现实常识或错误假设推导演绎 |
+| 12 | SHOULD | **焦点自检**：在执行过程中维护当前用户核心意图。检测到分支讨论超过 3 轮时，暂停并自检是否仍在回答原问题。偏题时应主动回正，不等用户提醒 |
 
 
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。
@@ -575,7 +581,7 @@ todowrite([
 
 ### 可视化（Web 交互式）
 
-调 `novel-tool --operation web.start --project {PROJECT}` 启动 Web 服务，打开浏览器访问 `http://localhost:8765`：
+调 `novel-tool --operation web.start --project {PROJECT}` 启动 Web 服务，打开浏览器访问 `http://localhost:8766`：
 
 - **关系图**：vis-network 交互式渲染，支持物理引擎拖动/缩放/筛选/搜索
 - **详情面板**：点击节点查看内容、标签、关联关系；支持编辑/删除

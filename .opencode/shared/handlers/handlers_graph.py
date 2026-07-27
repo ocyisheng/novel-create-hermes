@@ -1025,3 +1025,84 @@ def handle_schema_info(unit_type: str) -> dict:
         return {"error": f"未知单元类型: {unit_type}", "available_types": [t.name for t in UnitType]}
     lines = schema_info(ut)
     return {"unit_type": unit_type, "fields": lines}
+
+
+def handle_change_type(
+    project_root: str,
+    id: str,
+    new_type: str,
+    actor: str = "orchestrator",
+) -> dict:
+    """变更叙事单元的类型（world_rule→plot_thread 等）。
+
+    流程：创建新类型单元 → 搬运 content/relations → 归档旧单元。
+    """
+    blocked = _check_orchestrator_write(actor, "graph.change_type")
+    if blocked:
+        return blocked
+    from graph_schema import UnitType
+
+    store = _get_store(project_root)
+    old = store.get_unit(id)
+    if not old:
+        return {"error": f"单元 {id} 不存在"}
+
+    old_type = old.type.value if hasattr(old.type, "value") else str(old.type)
+    try:
+        new_ut = UnitType[new_type.upper()]
+    except KeyError:
+        return {"error": f"未知类型: {new_type}", "available_types": [t.name for t in UnitType]}
+    new_type_val = new_ut.value
+
+    if old_type == new_type_val:
+        return {"error": f"单元 {id} 已经是 {old_type} 类型，无需变更"}
+
+    # 1. 读取旧单元数据
+    unit_name = old.unit_name
+    content = old.content
+    tags = list(old.tags) if old.tags else []
+    chapter = old.chapter_number
+
+    # 2. 获取旧单元的所有关系
+    old_relations = store.get_relations(unit_id=id, direction="both")
+
+    # 3. 创建新单元
+    try:
+        new_unit = store.create_unit(
+            type=new_ut, unit_name=unit_name, content=content,
+            tags=tags, chapter_number=chapter, actor=actor,
+        )
+    except ValueError as e:
+        return {"error": f"创建新单元失败: {e}"}
+
+    new_id = new_unit.id
+
+    # 4. 搬运关系：删除旧关系 + 在新单元上重建
+    from graph_schema import RelationType
+    moved = 0
+    for r in old_relations:
+        rtype = r.relation_type
+        # 确定新关系两端
+        if r.source_id == id:
+            src, tgt = new_id, r.target_id
+        else:
+            src, tgt = r.source_id, new_id
+        # 添加新关系
+        new_rel = store.add_relation(src, tgt, rtype, actor=actor, label=r.label or "")
+        if new_rel:
+            moved += 1
+        # 删除旧关系
+        store.remove_relation(r.id, actor=actor)
+
+    # 5. 归档旧单元
+    store.archive_unit(id, actor=actor)
+    store.flush()
+
+    return {
+        "old_id": id,
+        "new_id": new_id,
+        "old_type": old_type,
+        "new_type": new_type_val,
+        "unit_name": unit_name,
+        "relations_moved": moved,
+    }

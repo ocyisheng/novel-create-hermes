@@ -389,7 +389,14 @@
     }
     if (mode === 'tagcloud') {
       const items = Array.isArray(value) ? value : String(value).split(/[,，、\s]+/);
-      const tags = items.filter(t => t).map(t => '<span class="tag">' + esc(String(t)) + '</span>').join(' ');
+      const tags = items.filter(t => t).map(t => {
+        if (typeof t === 'object') {
+          // 对象数组：取第一个字符串字段的值作为标签
+          const vals = Object.values(t).filter(v => typeof v === 'string');
+          return '<span class="tag">' + esc(vals[0] || JSON.stringify(t).slice(0, 40)) + '</span>';
+        }
+        return '<span class="tag">' + esc(String(t)) + '</span>';
+      }).join(' ');
       return '<div class="section"><h3>' + esc(key) + '</h3>' + tags + '</div>';
     }
     if (mode === 'timeline') {
@@ -587,9 +594,10 @@
         <label>状态</label>
         <select name="status">${statusOpts}</select>
         ${showStructured ? '<div class="section" style="margin-top:12px"><h3>内容字段</h3>' + extraFieldsHtml + '</div>' : ''}
+        ${isEdit ? '' : '<div id="schemaFieldsArea" style="margin-top:12px;display:none"><h3 style="font-size:14px;margin-bottom:8px">内容字段</h3><div id="schemaFields"></div></div>'}
         <div style="margin-top:8px">
           <label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:var(--text-dim);font-size:12px">
-            <input type="checkbox" id="toggleRawJson" ${showStructured ? '' : 'checked'} onchange="document.getElementById('rawJsonArea').style.display=this.checked?'block':'none'" />
+            <input type="checkbox" id="toggleRawJson" ${showStructured || isEdit ? '' : 'checked'} onchange="document.getElementById('rawJsonArea').style.display=this.checked?'block':'none'" />
             编辑原始 JSON
           </label>
         </div>
@@ -605,6 +613,39 @@
 
     document.getElementById('modalOverlay').style.display = 'flex';
 
+    // 新建模式：类型下拉切换 → 加载模板字段
+    if (!isEdit) {
+      var typeSelect = document.querySelector('#nodeForm select[name="unit_type"]');
+      var schemaFieldsDiv = document.getElementById('schemaFields');
+      var schemaFieldsArea = document.getElementById('schemaFieldsArea');
+      var currentSchemaFields = null;
+
+      function loadSchema(unitType) {
+        schemaFieldsDiv.innerHTML = '<div style="color:#888;font-size:12px">加载中...</div>';
+        schemaFieldsArea.style.display = 'block';
+        _fetchSchema(unitType).then(function(fields) {
+          if (Object.keys(fields).length === 0) {
+            schemaFieldsDiv.innerHTML = '<div style="color:#888;font-size:12px">该类型无预定义字段</div>';
+            currentSchemaFields = null;
+            return;
+          }
+          currentSchemaFields = fields;
+          var html = '';
+          Object.entries(fields).forEach(function(entry) {
+            html += renderSchemaField(entry[0], entry[1]);
+          });
+          schemaFieldsDiv.innerHTML = html;
+        });
+      }
+
+      // 默认加载当前选中类型的 schema
+      loadSchema(typeSelect.value);
+
+      typeSelect.addEventListener('change', function() {
+        loadSchema(this.value);
+      });
+    }
+
     document.getElementById('nodeForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       const submitBtn = this.querySelector('.btn-primary');
@@ -618,19 +659,25 @@
       var statusVal = fd.get('status');
       if (statusVal) data.status = statusVal;
 
-      // 结构化模式 → 从 _extra_* 字段重建 content
+      // 结构化模式 → 从 _extra_* 字段或 _schema_* 字段重建 content
       var toggle = document.getElementById('toggleRawJson');
-      var useStructured = toggle && !toggle.checked && showStructured;
-      if (useStructured) {
-        var built = buildContentFromStructured(fd, extraData, skipKeys);
+      if (!isEdit && currentSchemaFields && toggle && !toggle.checked) {
+        // 新建 + schema 模板模式（且未勾选"原始 JSON"）
+        var built = buildContentFromSchema(fd, currentSchemaFields);
         if (built && Object.keys(built).length > 0) data.content = built;
       } else {
-        const contentRaw = fd.get('content') || '';
-        if (contentRaw) {
-          try {
-            data.content = JSON.parse(contentRaw);
-          } catch {
-            data.content = contentRaw;
+        var useStructured = toggle && !toggle.checked && showStructured;
+        if (useStructured) {
+          var built = buildContentFromStructured(fd, extraData, skipKeys);
+          if (built && Object.keys(built).length > 0) data.content = built;
+        } else {
+          const contentRaw = fd.get('content') || '';
+          if (contentRaw) {
+            try {
+              data.content = JSON.parse(contentRaw);
+            } catch {
+              data.content = contentRaw;
+            }
           }
         }
       }
@@ -789,6 +836,222 @@
   const STATUS_LABELS = { sprout:'萌芽', growing:'生长中', mature:'成熟', frozen:'冻结', archived:'已归档' };
   const STATUS_LIST = ['sprout', 'growing', 'mature', 'frozen', 'archived'];
 
+  // ── Schema 缓存（新建节点模板用） ──────────────────────────
+
+  var _schemaCache = {};
+
+  function _fetchSchema(unitType) {
+    if (_schemaCache[unitType]) return Promise.resolve(_schemaCache[unitType]);
+    return API.schemaFields(unitType).then(function(resp) {
+      _schemaCache[unitType] = resp.fields || {};
+      return _schemaCache[unitType];
+    }).catch(function() { return {}; });
+  }
+
+  /** 根据 schema 字段定义渲染表单控件 */
+  function renderSchemaField(key, schema) {
+    var name = '_schema_' + key;
+    var required = schema.required ? ' <span style="color:var(--danger)">*</span>' : '';
+    var label = '<div style="font-size:12px;color:var(--text-dim);margin-top:8px;margin-bottom:2px">' + esc(key) + required + '</div>';
+    var desc = schema.description ? '<div style="font-size:11px;color:#888;margin-bottom:4px">' + esc(schema.description) + '</div>' : '';
+
+    // 有选项 → select 下拉
+    if (schema.options && schema.options.length > 0) {
+      var opts = schema.options.map(function(o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('');
+      return desc + label + '<select class="inline-edit" name="' + name + '">' + opts + '</select>';
+    }
+
+    // 对象类型（有子字段）
+    if (schema.type === 'object' || schema.type === ['object']) {
+      if (schema.fields) {
+        var children = '';
+        Object.entries(schema.fields).forEach(function(e) {
+          var subSchema = {
+            type: Array.isArray(e[1]) ? e[1][0] || 'string' : e[1],
+            required: false,
+          };
+          children += renderSchemaField(e[0], subSchema);
+        });
+        return desc + '<div class="section" style="margin:4px 0"><h4 style="font-size:13px">' + esc(key) + '</h4>' + children + '</div>';
+      }
+      // 无子字段 → 动态键值编辑器
+      var kvHtml = '<div class="schema-kv-editor" data-key="' + key + '" style="margin-top:4px">';
+      kvHtml += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">' + esc(key) + required + '</div>';
+      kvHtml += '<div class="kv-entries" id="kvEntries_' + key + '">';
+      kvHtml += renderKvRow(key, 0);
+      kvHtml += '</div>';
+      kvHtml += '<button type="button" onclick="window.addKvItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加字段</button>';
+      kvHtml += '</div>';
+      return desc + kvHtml;
+    }
+
+    // 数组类型 + 有 item_fields → 交互式列表
+    if ((schema.type === 'array' || (Array.isArray(schema.type) && schema.type.indexOf('array') >= 0)) && schema.item_fields) {
+      var html = '<div class="schema-array-field" data-key="' + key + '" style="margin-top:8px">';
+      html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">' + esc(key) + required + '</div>';
+      html += '<div class="array-items" id="arrayItems_' + key + '">';
+      // 初始一行空模板
+      html += renderArrayItemRow(key, schema.item_fields, 0);
+      html += '</div>';
+      html += '<button type="button" onclick="window.addArrayItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:4px 10px">＋ 添加条目</button>';
+      html += '</div>';
+      return html;
+    }
+
+    // 数组类型（无 item_fields）→ 简单文本列表（add/remove text inputs）
+    if (schema.type === 'array' || (Array.isArray(schema.type) && schema.type.indexOf('array') >= 0)) {
+      var arrHtml = '<div class="schema-plain-array" data-key="' + key + '" style="margin-top:4px">';
+      arrHtml += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">' + esc(key) + required + '</div>';
+      arrHtml += '<div class="plain-array-items" id="plainArrayItems_' + key + '">';
+      arrHtml += renderPlainArrayRow(key, 0);
+      arrHtml += '</div>';
+      arrHtml += '<button type="button" onclick="window.addPlainArrayItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加</button>';
+      arrHtml += '</div>';
+      return desc + arrHtml;
+    }
+
+    // 布尔
+    if (schema.type === 'boolean') {
+      return desc + '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;cursor:pointer">' +
+        '<input type="checkbox" name="' + name + '" value="true" /> ' + esc(key) + '</label>';
+    }
+
+    // 数字
+    if (schema.type === 'int' || schema.type === 'float') {
+      return desc + label + '<input class="inline-edit" type="number" name="' + name + '" step="' + (schema.type === 'float' ? 'any' : '1') + '" />';
+    }
+
+    // 默认 text input（长文本 → textarea）
+    var isMulti = schema.description && schema.description.length > 40;
+    return desc + (isMulti
+      ? label + '<textarea class="inline-edit" name="' + name + '" style="min-height:60px"></textarea>'
+      : label + '<input class="inline-edit" name="' + name + '" />');
+  }
+
+  /** 渲染数组 item_fields 的一行 */
+  function renderArrayItemRow(key, itemFields, index) {
+    var fieldsHtml = '';
+    Object.keys(itemFields).forEach(function(fk) {
+      var ft = itemFields[fk];
+      var fname = '_schema_' + key + '_' + index + '_' + fk;
+      var fLabel = '<span style="font-size:11px;color:#999;margin-right:4px">' + esc(fk) + '</span>';
+      if (ft === 'boolean') {
+        fieldsHtml += '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:8px;font-size:12px;cursor:pointer">' +
+          '<input type="checkbox" name="' + fname + '" value="true" /> ' + esc(fk) + '</label>';
+      } else if (ft === 'int' || ft === 'float') {
+        fieldsHtml += fLabel + '<input class="inline-edit" type="number" name="' + fname + '" step="' + (ft === 'float' ? 'any' : '1') + '" style="width:80px;margin-right:8px" />';
+      } else if (ft === 'object' || ft === 'array') {
+        fieldsHtml += fLabel + '<input class="inline-edit" name="' + fname + '" placeholder="JSON" style="width:120px;margin-right:8px;font-size:11px" />';
+      } else {
+        fieldsHtml += fLabel + '<input class="inline-edit" name="' + fname + '" style="width:120px;margin-right:8px" />';
+      }
+    });
+    var rowId = 'arrayRow_' + key + '_' + index;
+    return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:2px;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      fieldsHtml +
+      '<span onclick="window.removeArrayItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:2px 6px" title="删除">&times;</span>' +
+      '</div>';
+  }
+
+  /** 渲染简单数组的一行（无 item_fields） */
+  function renderPlainArrayRow(key, index) {
+    var fname = '_schema_' + key + '_' + index;
+    var rowId = 'plainArrayRow_' + key + '_' + index;
+    return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:4px;padding:3px 0">' +
+      '<input class="inline-edit" name="' + fname + '" style="flex:1;min-width:80px" />' +
+      '<span onclick="window.removePlainArrayItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
+      '</div>';
+  }
+
+  /** 渲染键值对的一行（object 无 fields） */
+  function renderKvRow(key, index) {
+    var kName = '_schema_' + key + '_kvk_' + index;
+    var vName = '_schema_' + key + '_kvv_' + index;
+    var rowId = 'kvRow_' + key + '_' + index;
+    return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:4px;padding:3px 0">' +
+      '<input class="inline-edit" name="' + kName + '" placeholder="key" style="width:100px;font-size:12px" />' +
+      '<input class="inline-edit" name="' + vName + '" placeholder="value" style="flex:1;min-width:80px;font-size:12px" />' +
+      '<span onclick="window.removeKvItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
+      '</div>';
+  }
+
+  /** 从 _schema_* 表单字段构建 content JSON */
+  function buildContentFromSchema(fd, schemaFields) {
+    var obj = {};
+    Object.keys(schemaFields).forEach(function(key) {
+      var s = schemaFields[key];
+
+      // 数组 + item_fields → 从 _schema_{key}_{idx}_{field} 逐行读取
+      if ((s.type === 'array' || (Array.isArray(s.type) && s.type.indexOf('array') >= 0)) && s.item_fields) {
+        var items = [];
+        var idx = 0;
+        while (true) {
+          var row = {};
+          var hasAny = false;
+          Object.keys(s.item_fields).forEach(function(fk) {
+            var fv = fd.get('_schema_' + key + '_' + idx + '_' + fk);
+            if (fv === null) return;
+            hasAny = true;
+            var ft = s.item_fields[fk];
+            if (ft === 'boolean') { row[fk] = fv === 'true' || fv === 'on'; }
+            else if (ft === 'int') { row[fk] = parseInt(fv, 10) || 0; }
+            else if (ft === 'float') { row[fk] = parseFloat(fv) || 0; }
+            else if (ft === 'object' || ft === 'array') {
+              if (fv.trim()) { try { row[fk] = JSON.parse(fv); } catch { row[fk] = fv; } }
+            } else {
+              row[fk] = fv;
+            }
+          });
+          if (!hasAny) break;
+          items.push(row);
+          idx++;
+        }
+        if (items.length > 0) obj[key] = items;
+        return;
+      }
+
+      // 数组（无 item_fields）→ 从 _schema_{key}_{idx} 读取
+      if ((s.type === 'array' || (Array.isArray(s.type) && s.type.indexOf('array') >= 0)) && !s.item_fields) {
+        var items = [];
+        var idx = 0;
+        while (true) {
+          var fv = fd.get('_schema_' + key + '_' + idx);
+          if (fv === null) break;
+          if (fv.trim()) items.push(fv.trim());
+          idx++;
+        }
+        if (items.length > 0) obj[key] = items;
+        return;
+      }
+
+      // 对象（无 fields）→ 从 _schema_{key}_kvk_{idx} / _kvv_{idx} 读取
+      if ((s.type === 'object' || (Array.isArray(s.type) && s.type.indexOf('object') >= 0)) && !s.fields) {
+        var kvObj = {};
+        var idx = 0;
+        while (true) {
+          var k = fd.get('_schema_' + key + '_kvk_' + idx);
+          var v = fd.get('_schema_' + key + '_kvv_' + idx);
+          if (k === null || v === null) break;
+          if (k.trim()) kvObj[k.trim()] = v.trim();
+          idx++;
+        }
+        if (Object.keys(kvObj).length > 0) obj[key] = kvObj;
+        return;
+      }
+
+      var v = fd.get('_schema_' + key);
+      if (v === null) return;
+      // 有选项 → 字符串值
+      if (s.options && s.options.length > 0) { obj[key] = v; return; }
+      if (s.type === 'boolean') { obj[key] = v === 'true' || v === 'on'; return; }
+      if (s.type === 'int') { obj[key] = parseInt(v, 10) || 0; return; }
+      if (s.type === 'float') { obj[key] = parseFloat(v) || 0; return; }
+      // string → 直接存
+      obj[key] = v;
+    });
+    return Object.keys(obj).length > 0 ? obj : null;
+  }
+
   // ── 确信度渲染 ──────────────────────────────────────────────
 
   function renderConfidence(val) {
@@ -885,7 +1148,82 @@
     },
   };
 
-  // ── 刷新图谱 ──────────────────────────────────────────────
+  // ── 交互式数组字段操作 ─────────────────────────────────────
+
+  var _arrayCounters = {};
+
+  window.addArrayItem = function(key) {
+    var container = document.getElementById('arrayItems_' + key);
+    if (!container) return;
+    if (!_arrayCounters[key]) _arrayCounters[key] = 0;
+    _arrayCounters[key]++;
+    var idx = _arrayCounters[key];
+    // 从第一个子元素获取 item_fields（存储为 data-* 或从 schemaCache 获取）
+    var schema = _schemaCache ? getCachedSchema(key) : null;
+    if (!schema || !schema.item_fields) return;
+    var row = renderArrayItemRow(key, schema.item_fields, idx);
+    // 替换末尾的临时标记（removeArrayItem 用 data-key+idx 而不是 id 来避免重复 id）
+    var tempId = 'arrayRow_' + key + '_' + idx;
+    container.insertAdjacentHTML('beforeend', row);
+    // 让新行的删除按钮使用当前索引
+    var newRow = document.getElementById(tempId);
+    if (newRow) {
+      var delBtn = newRow.querySelector('[onclick*="removeArrayItem"]');
+      if (delBtn) delBtn.setAttribute('onclick', 'window.removeArrayItem(\'' + key + '\',' + idx + ')');
+    }
+  };
+
+  window.removeArrayItem = function(key, index) {
+    var row = document.getElementById('arrayRow_' + key + '_' + index);
+    if (row) row.remove();
+  };
+
+  function getCachedSchema(key) {
+    // 从 _schemaCache 中查找包含该 key 的 schema 定义
+    for (var typeKey in _schemaCache) {
+      var fields = _schemaCache[typeKey];
+      if (fields[key] && fields[key].item_fields) return fields[key];
+    }
+    return null;
+  }
+
+  // ── 简单数组（无 item_fields）操作 ──────────────────────────
+
+  var _plainArrayCounters = {};
+
+  window.addPlainArrayItem = function(key) {
+    var container = document.getElementById('plainArrayItems_' + key);
+    if (!container) return;
+    if (!_plainArrayCounters[key]) _plainArrayCounters[key] = 0;
+    _plainArrayCounters[key]++;
+    var idx = _plainArrayCounters[key];
+    var row = renderPlainArrayRow(key, idx);
+    container.insertAdjacentHTML('beforeend', row);
+  };
+
+  window.removePlainArrayItem = function(key, index) {
+    var row = document.getElementById('plainArrayRow_' + key + '_' + index);
+    if (row) row.remove();
+  };
+
+  // ── 键值编辑器（object 无 fields）操作 ──────────────────────
+
+  var _kvCounters = {};
+
+  window.addKvItem = function(key) {
+    var container = document.getElementById('kvEntries_' + key);
+    if (!container) return;
+    if (!_kvCounters[key]) _kvCounters[key] = 0;
+    _kvCounters[key]++;
+    var idx = _kvCounters[key];
+    var row = renderKvRow(key, idx);
+    container.insertAdjacentHTML('beforeend', row);
+  };
+
+  window.removeKvItem = function(key, index) {
+    var row = document.getElementById('kvRow_' + key + '_' + index);
+    if (row) row.remove();
+  };
 
   async function refreshGraph() {
     try {

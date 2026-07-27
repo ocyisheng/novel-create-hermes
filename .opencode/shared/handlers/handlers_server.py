@@ -54,7 +54,7 @@ def _kill_proc(pid: int) -> bool:
 def handle_server_start(
     project_root: str = "",
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = 8766,
 ) -> dict:
     """启动本地 Web 服务（subprocess，不阻塞 daemon）。"""
     if not project_root:
@@ -96,7 +96,7 @@ def handle_server_start(
 def handle_server_restart(
     project_root: str = "",
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = 8766,
 ) -> dict:
     """重启 Web 服务：kill 旧进程 → 启动新进程。"""
     meta = _load_meta()

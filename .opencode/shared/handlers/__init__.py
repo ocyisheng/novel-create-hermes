@@ -35,6 +35,7 @@ from .handlers_graph import (
     handle_rebuild_structure_path,
     handle_migrate_structure_to_edges,
     handle_schema_info,
+    handle_change_type,
     handle_constraint_check,
 )
 
@@ -218,6 +219,10 @@ OPERATION_REGISTRY = {
     "graph.schema_info": {
         "handler": handle_schema_info,
         "params": {"unit_type": {"required": True}},
+    },
+    "graph.change_type": {
+        "handler": handle_change_type,
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "new_type": {"required": True}, "actor": {}},
     },
     # project
     "project.new": {

@@ -71,6 +71,9 @@
 
     /** 搜索范围（可用类型列表） */
     searchScope() { return _get('/api/project/search-scope'); },
+
+    /** 获取类型的内容字段 schema */
+    schemaFields(unitType) { return _get(`/api/project/schema-fields?unit_type=${encodeURIComponent(unitType)}`); },
   };
 
   // ── 内部方法 ──────────────────────────────────────────────

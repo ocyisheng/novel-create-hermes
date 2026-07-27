@@ -149,6 +149,46 @@ def create_app(project_root: str = "") -> FastAPI:
             ]
         }
 
+    @app.get("/api/project/schema-fields")
+    def get_schema_fields(unit_type: str = ""):
+        """返回指定叙事单元类型的 content JSON 字段 schema（供前端创建节点时渲染模板表单）"""
+        if not unit_type:
+            return {"error": "缺少 unit_type 参数"}
+        from graph_schema import UnitType
+        from schemas import SCHEMA_REGISTRY
+        try:
+            ut = UnitType[unit_type.upper()]
+        except KeyError:
+            return {"error": f"未知单元类型: {unit_type}"}
+        schema = SCHEMA_REGISTRY.get(ut, {})
+        # 转成可 JSON 序列化的格式
+        def _serialize_type(t):
+            if t is str: return "string"
+            if t is int: return "int"
+            if t is float: return "float"
+            if t is bool: return "boolean"
+            if t is list: return "array"
+            if t is dict: return "object"
+            if isinstance(t, list):
+                return [_serialize_type(x) for x in t]
+            return str(t)
+        fields = {}
+        for field_name, rules in schema.items():
+            item = {
+                "type": _serialize_type(rules.get("type", "string")),
+                "required": rules.get("required", False),
+            }
+            if "options" in rules:
+                item["options"] = rules["options"]
+            if "description" in rules:
+                item["description"] = rules["description"]
+            if "fields" in rules:
+                item["fields"] = {k: _serialize_type(v.get("type", "string")) for k, v in rules["fields"].items()}
+            if "item_fields" in rules:
+                item["item_fields"] = {k: _serialize_type(v.get("type", "string")) for k, v in rules["item_fields"].items()}
+            fields[field_name] = item
+        return {"unit_type": unit_type, "fields": fields}
+
     if project_root:
         _init_store(app, project_root)
 

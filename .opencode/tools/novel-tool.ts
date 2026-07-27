@@ -291,7 +291,7 @@ export default tool({
         // graph exports
         "graph.export_docs", "graph.export_chunks",
         // graph schema & migrate
-        "graph.schema_info", "graph.migrate",
+        "graph.schema_info", "graph.change_type", "graph.migrate",
         // project
         "project.new", "project.import", "project.status",
         "project.resume", "project.switch", "project.delete",
@@ -353,6 +353,7 @@ export default tool({
     case_sensitive: tool.schema.boolean().optional().describe("区分大小写"),
     cycle_type: tool.schema.string().optional().describe("会话循环类型 (ideation/expansion/refinement/proofing/planning)"),
     phase: tool.schema.string().optional().describe("会话阶段 (ideation/planning/expansion/refinement/proofing)"),
+    new_type: tool.schema.string().optional().describe("目标类型（用于 graph.change_type 操作）"),
     incremental: tool.schema.boolean().optional().describe("增量生成"),
     verify: tool.schema.boolean().optional().describe("迁移时验证"),
     report: tool.schema.boolean().optional().describe("迁移时输出报告"),
@@ -361,6 +362,8 @@ export default tool({
     scan_version: tool.schema.number().optional().describe("扫描版本号"),
     full_scan_version: tool.schema.number().optional().describe("全量扫描版本号"),
     out: tool.schema.string().optional().describe("导出目录"),
+    host: tool.schema.string().optional().describe("Web 服务绑定地址（默认 127.0.0.1）"),
+    port: tool.schema.number().optional().describe("Web 服务端口（默认 8765）"),
   },
   async execute(args, context) {
     return run(args, context.worktree)

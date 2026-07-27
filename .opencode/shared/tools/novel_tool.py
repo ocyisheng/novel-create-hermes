@@ -161,6 +161,8 @@ _PARAM_MAP = {
     "incremental": "incremental",
     # 迁移
     "verify": "verify", "report": "report",
+    # 类型变更
+    "new_type": "new_type",
     # 层级查询
     "max_depth": "max_depth",
     # 项目
@@ -217,10 +219,13 @@ _PARAM_ALIASES = {
     "session.start": {"focus_type": ["type", "focus_type"]},
     # graph.update_unit: data 是 content 的别名
     "graph.update_unit": {"content": ["content", "data"]},
-    # project.new: v2 默认为 True
-    "project.new": {"v2_default": True},
-    # project.import: novel_tool 传 source，handler 需要 source_path
-    "project.import": {"source_path": ["source", "source_path"]},
+    # project.*: novel_tool 传 project，handler 需要 name
+    "project.new": {"name": ["project", "name"], "v2_default": True},
+    "project.import": {"name": ["project", "name"], "source_path": ["source", "source_path"]},
+    "project.status": {"name": ["project", "name"]},
+    "project.resume": {"name": ["project", "name"]},
+    "project.switch": {"name": ["project", "name"]},
+    "project.delete": {"name": ["project", "name"]},
 }
 
 

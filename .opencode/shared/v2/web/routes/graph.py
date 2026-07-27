@@ -118,6 +118,7 @@ def _rel_to_viz(r) -> dict:
     label = r.label or RELATION_LABELS.get(r.relation_type, r.relation_type.value)
     color = RELATION_COLORS.get(r.relation_type, "#4a4a6a")
     return {
+        "id": r.id,
         "from": r.source_id,
         "to": r.target_id,
         "label": label,

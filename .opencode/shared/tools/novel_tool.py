@@ -293,6 +293,14 @@ def handle_request(request: dict) -> str:
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)
 
+        # 诊断：调用方传了 --actor orchestrator（旧 prompt 模式）→ 输出警告到 stderr
+        # 新 prompt 已改为「不需要传 --actor」，此警告帮助发现未更新的 prompt 或旧习惯
+        if caller == "orchestrator" or request.get("actor") == "orchestrator":
+            import sys as _sys
+            print(f"[actor-mismatch] caller={caller}, actor={canonical.get('actor')}: "
+                  f"编排层传入了已废弃的 actor='orchestrator'。"
+                  f"§1 规则6 已更新为「不需要传 --actor」。请更新编排层 prompt。", file=_sys.stderr)
+
         from handlers import run_operation
         result = run_operation(op, **canonical)
 

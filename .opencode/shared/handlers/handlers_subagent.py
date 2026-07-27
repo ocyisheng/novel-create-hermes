@@ -54,6 +54,7 @@ def handle_subagent_save(
     updated_units: int = 0,
     duration_estimate_ms: int = 0,
     error_summary: str = "",
+    user_intent: str = "",
 ) -> dict:
     """
     记录一次子 Agent 调用的摘要信息。
@@ -78,6 +79,7 @@ def handle_subagent_save(
         updated_units: 更新单元数
         duration_estimate_ms: 预估耗时（ms）
         error_summary: 错误摘要（如有）
+        user_intent: 用户原始输入摘要（简短，用于聚合分析"同一输入→不同路由"模式）
 
     Returns:
         dict: {"id": "...", "index_total": N}
@@ -108,6 +110,7 @@ def handle_subagent_save(
         "updated_units": updated_units,
         "duration_estimate_ms": duration_estimate_ms,
         "error_summary": error_summary,
+        "user_intent": user_intent or "",
         # 扩展字段（非必需，有值才存）
         "preheat_level": preheat_level or None,
         "cycle_type": cycle_type or None,

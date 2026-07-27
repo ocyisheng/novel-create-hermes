@@ -22,7 +22,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | 3 | MUST | V2 项目以 graph 为真相源，不再依赖文件后处理链 |
 | 4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | 5 | NEVER | 安装系统 Python |
-| 7 | MUST | 编排层直接调用的 `novel-tool` 需标注 `--actor orchestrator`；子 agent 的 novel-tool 调用已有各自的 actor 标识 |
+| 6 | MUST | 编排层直接调用的 `novel-tool` **不需要**传 `--actor`（适配层默认值 `novel-tool` 已在写操作白名单中）；子 agent 的 novel-tool 调用必须传各自的 actor 标识 |
 
 
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。
@@ -58,9 +58,11 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   └─ 告知用户 "Web 可视化已启动，打开 http://localhost:8765 查看交互式关系图"
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
-  │   ├─ 先走 grill（按 §3.1 模糊判断规则）
-│   ├─ grill 后 → 按 §3.6 判断是否需要 ideation 生成方案
-│   └─ 用户确认方向 → 按 §3.6 后续路由
+  │   ├─ 按 §3.6 前置判断表：
+  │   │   ├─ ❌ 跳过 grill → 直接调 ideation（按 divergent/focused 模式）
+  │   │   └─ ✅ 需要 grill → skill("novel-grill") 收敛需求
+  │   ├─ grill/ideation 后 → 用户确认方向 → 按 §3.6 后续路由调度 crafter
+  │   └─ 用户拒绝方案 → 结束，等待新指令
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
   │   │   `novel-tool --operation session.info --project {PROJECT}`
@@ -372,28 +374,9 @@ TASK: {用户确认的创作请求}
 
 ---
 
-## 五、V2 调度模板
+## 四、写后处理
 
-```markdown
-Task(
-  subagent_type="novel-v2-crafter",
-  load_skills=["novel-v2"],
-  prompt="CURRENT PROJECT: {项目名}
-PROJECT PATH: {NOVELS_ROOT/项目名}
-FOCUS TYPE: {焦点类型}
-SUBTYPE: {子类型值}  # SCENE:开篇/推进/冲突/转折/展示/过渡/收束 | CHUNK:v1/v2/v3 | 结构类用路由表 focus type 区分
-FOCUS ID: {叙事单元ID（空则新建）}
-FOCUS NAME: {目标名称（如章节号/角色名）}
-PREHEAT LEVEL: {session推荐值 | 路由表默认值}
-CYCLE TYPE: {session cycle_type | 空}  # 活跃会话的循环类型，供 crafter 调整写作策略
-SESSION ID: {session_id | 空}
-HUMANIZE: {true|false}  # 去AI味时设 true，其余 false
-
-TASK: {用户请求的具体描述}"
-)
-```
-
-### 写后状态回写
+### 4.1 写后状态回写
 
 crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型**更新 session 的 cycle_type：
 
@@ -413,16 +396,43 @@ novel-tool --operation session.set_cycle --project {PROJECT} --cycle_type {类�
 
 只更新有变化的字段，避免覆盖已经累积的状态。
 
-### 写后偏差检核
+### 4.2 写后偏差检核（只读通知）
 
-crafter 完成后，编排层应检查是否存在 pending 的偏差记录。正文写作时 WorkspaceBuilder 可能已检出场景 content 中引用的实体在 graph 中不存在（标记为 `stub_pending`），需要通过偏差检核确认它们是否已被处理。
+crafter 完成后，编排层应查询是否存在 pending 的偏差记录。正文写作时 WorkspaceBuilder 可能已检出场景 content 中引用的实体在 graph 中不存在（标记为 `stub_pending`），需要通过偏差检核确认它们是否已被处理。
 
 ```bash
 novel-tool --operation deviation.pending --project {PROJECT}
 ```
 
-- **有 pending 偏差** → 自动触发一次 crafter（同 session，focus 不变）处理存根：判断哪些必须创建、哪些可跳过，执行内联存根创建（参考 crafter §三缺失单元内联存根判断准则）
+- **有 pending 偏差** → 通知用户"写作中创建了存根，需要补充内容"，等待用户指令（"补充存根"或"跳过"）。**不自动触发 crafter**——偏差处理由用户驱动，避免系统自动递归
 - **无 pending 偏差** → 跳过
+
+### 4.3 写后导出（可选）
+
+graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-v2` skill 中的导出命令。
+导出是**可选的**——graph 本身就是完整的。
+
+---
+
+## 五、V2 调度模板
+
+```markdown
+Task(
+  subagent_type="novel-v2-crafter",
+  load_skills=["novel-v2"],
+  prompt="CURRENT PROJECT: {项目名}
+PROJECT PATH: {NOVELS_ROOT/项目名}
+FOCUS TYPE: {焦点类型}
+SUBTYPE: {子类型值}  # SCENE:开篇/推进/冲突/转折/展示/过渡/收束 | CHUNK:v1/v2/v3 | 结构类用路由表 focus type 区分
+FOCUS ID: {叙事单元ID（空则新建）}
+FOCUS NAME: {目标名称（如章节号/角色名）}
+PREHEAT LEVEL: {session推荐值 | 路由表默认值}
+CYCLE TYPE: {session cycle_type | 空}  # 活跃会话的循环类型，供 crafter 调整写作策略
+SESSION ID: {session_id | 空}
+HUMANIZE: {true|false}  # 去AI味时设 true，其余 false
+
+TASK: {用户请求的具体描述}"
+)
 
 ### 5.1 搜索分析调度模板
 
@@ -562,11 +572,6 @@ todowrite([
 
 使用 `find-unit` 命令（参考 `novel-v2` skill 操作指南中的读取命令）。
 返回 `NOT_FOUND` → FOCUS ID 留空，子 Agent 创建；返回 ID → 填入 FOCUS ID。
-
-### 写后处理
-
-graph 自身保证了数据一致性。如需导出可读文档，参考 `novel-v2` skill 中的导出命令。
-导出是**可选的**——graph 本身就是完整的。
 
 ### 可视化（Web 交互式）
 

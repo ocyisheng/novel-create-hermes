@@ -349,7 +349,8 @@ OPERATION_REGISTRY = {
         "params": {"project_root": {}, "task_id": {}, "subagent": {}, "focus_type": {}, "focus_name": {},
                     "preheat_level": {}, "cycle_type": {}, "humanize": {}, "session_id": {},
                     "result": {}, "prompt_summary": {}, "result_summary": {},
-                    "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {}},
+                    "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {},
+                    "user_intent": {}},
     },
     "subagent.list": {
         "handler": handle_subagent_list,

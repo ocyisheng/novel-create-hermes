@@ -27,8 +27,9 @@ class DaemonClient {
   private readyResolve: (() => void) | null = null
   private readyReject: ((reason: Error) => void) | null = null
   private launchCount = 0
+  private daemonStartupPromise: Promise<void> | null = null
   private readonly MAX_RETRIES = 3
-  private readonly LAUNCH_TIMEOUT = 5_000
+  private readonly LAUNCH_TIMEOUT = 10_000
   private readonly REQUEST_TIMEOUT = 30_000
   private readonly worktree: string
 
@@ -41,11 +42,35 @@ class DaemonClient {
   }
 
   private async ensureRunning(): Promise<void> {
+    // 已有健康进程 → 直接复用
     if (this.proc && !this.proc.killed && this.ready) return
+
     if (this.launchCount >= this.MAX_RETRIES) {
       throw new DaemonError(
         `Daemon crashed ${this.MAX_RETRIES} times, falling back to execSync`
       )
+    }
+
+    // 如果已有其他调用正在启动 daemon，等待它完成（避免竞态启动多个进程）
+    if (this.daemonStartupPromise) {
+      await this.daemonStartupPromise
+      if (this.proc && !this.proc.killed && this.ready) return
+      // 启动失败则 fall through 重试
+    }
+
+    this.daemonStartupPromise = this._startDaemon()
+    try {
+      await this.daemonStartupPromise
+    } finally {
+      this.daemonStartupPromise = null
+    }
+  }
+
+  /** 实际启动 daemon 进程并等待就绪信号 */
+  private async _startDaemon(): Promise<void> {
+    // 启动新 daemon 前，杀死旧的孤儿进程（避免残留 stdin 导致错乱）
+    if (this.proc && !this.proc.killed) {
+      this.kill()
     }
 
     this.launchCount++

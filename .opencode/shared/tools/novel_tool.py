@@ -13,7 +13,9 @@ import os
 import json
 import time
 import signal
+import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -368,37 +370,44 @@ def _record_failure(proj_name: str, caller: str, op: str, canonical: dict, durat
 
 # ── 守护进程模式 ───────────────────────────────────────────────────────
 
-# GraphStore 进程内缓存（LRU 池）
+# GraphStore 进程内缓存（LRU 池，线程安全）
 _STORES: Dict[str, 'GraphStore'] = {}
 _LRU_ORDER: list[str] = []
 _MAX_STORES = int(os.environ.get("NOVEL_DAEMON_MAX_STORES", "5"))
+_STORE_LOCK = threading.Lock()
 
 
 def _get_store_cached(project_root: str):
-    """带 LRU 淘汰的 GraphStore 缓存。替换 _get_store 的默认行为。"""
-    if project_root in _STORES:
-        # 移到 LRU 末尾（最近使用）
-        _LRU_ORDER.remove(project_root)
-        _LRU_ORDER.append(project_root)
-        return _STORES[project_root]
+    """带 LRU 淘汰的 GraphStore 缓存（线程安全）。"""
+    # 快速路径：缓存命中
+    with _STORE_LOCK:
+        if project_root in _STORES:
+            _LRU_ORDER.remove(project_root)
+            _LRU_ORDER.append(project_root)
+            return _STORES[project_root]
     
     from graph_store import GraphStore
     store = GraphStore(project_root)
     store.initialize()
     
-    # LRU 淘汰
-    while len(_STORES) >= _MAX_STORES:
-        evict_key = _LRU_ORDER.pop(0)
-        evicted = _STORES.pop(evict_key)
-        try:
-            if evicted._dirty_nodes or evicted._dirty_edges or evicted._dirty_events:
-                evicted.flush()
-        except Exception as exc:
-            print(f"[daemon] LRU evict flush failed: {exc}", file=sys.stderr)
-    
-    _STORES[project_root] = store
-    _LRU_ORDER.append(project_root)
-    _DAEMON_LOG.log("store_cache_miss", project=project_root, pool_size=len(_STORES))
+    with _STORE_LOCK:
+        # double-check：可能在初始化期间被另一个线程抢先创建
+        if project_root in _STORES:
+            return _STORES[project_root]
+        
+        # LRU 淘汰
+        while len(_STORES) >= _MAX_STORES:
+            evict_key = _LRU_ORDER.pop(0)
+            evicted = _STORES.pop(evict_key)
+            try:
+                if evicted._dirty_nodes or evicted._dirty_edges or evicted._dirty_events:
+                    evicted.flush()
+            except Exception as exc:
+                print(f"[daemon] LRU evict flush failed: {exc}", file=sys.stderr)
+        
+        _STORES[project_root] = store
+        _LRU_ORDER.append(project_root)
+        _DAEMON_LOG.log("store_cache_miss", project=project_root, pool_size=len(_STORES))
     return store
 
 
@@ -433,7 +442,7 @@ def _daemon_handle_request(request: dict) -> str:
 
 
 def _daemon_main():
-    """守护进程主循环。由 novel_tool.py --daemon 调用。"""
+    """守护进程主循环（异步线程池版）。由 novel_tool.py --daemon 调用。"""
     # 预加载 handlers（触发 sys.path.insert + 模块编译）
     import handlers  # noqa: F401
     
@@ -450,8 +459,12 @@ def _daemon_main():
     total_requests = 0
     request_id = 0
     
-    # 打开 daemon.log（写到项目无关的临时目录；首次真实请求时会切换）
-    _DAEMON_LOG.log("daemon_start", pid=os.getpid(), stores=0)
+    # 线程池（最多 4 个并行 worker）
+    max_workers = int(os.environ.get("NOVEL_DAEMON_WORKERS", "4"))
+    executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="daemon")
+    stdout_lock = threading.Lock()
+    
+    _DAEMON_LOG.log("daemon_start", pid=os.getpid(), stores=0, workers=max_workers)
     
     # 握手信号
     sys.stdout.write(json.dumps({
@@ -459,6 +472,7 @@ def _daemon_main():
         "pid": os.getpid(),
         "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
         "max_stores": _MAX_STORES,
+        "max_workers": max_workers,
     }, ensure_ascii=False) + "\n")
     sys.stdout.flush()
     
@@ -479,10 +493,11 @@ def _daemon_main():
         try:
             request = json.loads(line)
         except json.JSONDecodeError as e:
-            sys.stdout.write(
-                json.dumps({"success": False, "error": f"JSON parse error: {e}"},
-                           ensure_ascii=False) + "\n")
-            sys.stdout.flush()
+            with stdout_lock:
+                sys.stdout.write(
+                    json.dumps({"success": False, "error": f"JSON parse error: {e}"},
+                               ensure_ascii=False) + "\n")
+                sys.stdout.flush()
             continue
         
         # 注入 _req_id（若有则透传，无则自动生成）
@@ -495,35 +510,51 @@ def _daemon_main():
             break
         
         if request.get("operation") == "__ping__":
-            sys.stdout.write(
-                json.dumps({"_req_id": client_req_id, "success": True, "data": {"pong": True}},
-                           ensure_ascii=False) + "\n")
-            sys.stdout.flush()
+            with stdout_lock:
+                sys.stdout.write(
+                    json.dumps({"_req_id": client_req_id, "success": True, "data": {"pong": True}},
+                               ensure_ascii=False) + "\n")
+                sys.stdout.flush()
             continue
         
-        # ── 普通请求 ──
+        # ── 普通请求：提交到线程池并行处理 ──
         t0 = time.time()
-        result_str = _daemon_handle_request(request)
-        elapsed = (time.time() - t0) * 1000
+        future = executor.submit(_daemon_handle_request, request)
         
-        # 在响应中注入 _req_id
-        try:
-            result_obj = json.loads(result_str)
-            result_obj["_req_id"] = client_req_id
-            result_str = json.dumps(result_obj, ensure_ascii=False)
-        except Exception:
-            pass
+        def _on_done(fut, _req_id=client_req_id, _op=request.get("operation", "?"),
+                     _project=request.get("project", ""), _t0=t0):
+            """线程池任务完成回调：写入 stdout 并记录日志。"""
+            try:
+                result_str = fut.result()
+                elapsed = (time.time() - _t0) * 1000
+                
+                # 在响应中注入 _req_id
+                try:
+                    result_obj = json.loads(result_str)
+                    result_obj["_req_id"] = _req_id
+                    result_str = json.dumps(result_obj, ensure_ascii=False)
+                except Exception:
+                    pass
+                
+                with stdout_lock:
+                    sys.stdout.write(result_str + "\n")
+                    sys.stdout.flush()
+                
+                _DAEMON_LOG.log("request_end", req_id=_req_id,
+                                operation=_op, project=_project,
+                                duration_ms=round(elapsed, 1))
+            except Exception as e:
+                err_str = json.dumps(
+                    {"success": False, "error": f"daemon worker error: {e}"},
+                    ensure_ascii=False)
+                with stdout_lock:
+                    sys.stdout.write(err_str + "\n")
+                    sys.stdout.flush()
         
-        sys.stdout.write(result_str + "\n")
-        sys.stdout.flush()
-        
-        # 日志
-        _DAEMON_LOG.log("request_end", req_id=client_req_id,
-                        operation=request.get("operation", "?"),
-                        project=request.get("project", ""),
-                        duration_ms=round(elapsed, 1))
+        future.add_done_callback(_on_done)
     
-    # 清理：flush 所有 store
+    # 清理：等待所有未完成的任务 + flush 所有 store
+    executor.shutdown(wait=True)
     for path, store in _STORES.items():
         try:
             store.flush()

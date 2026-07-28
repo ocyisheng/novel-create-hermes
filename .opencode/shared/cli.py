@@ -278,141 +278,21 @@ def _run_env(args):
 # ── v2 工具集（argparse + 输出格式化，业务逻辑在 handlers 中）────────────
 
 def _build_v2_parser(sub):
-    p = sub.add_parser("v2", help="V2 工具集（search/check/report/create-unit/stats 等）")
+    p = sub.add_parser("v2", help="V2 工具集（graph CRUD / search / session / deviation 等）")
     v2_sub = p.add_subparsers(dest="v2_command")
 
-    sp = v2_sub.add_parser("start-session", help="启动/恢复创作会话")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--focus-type", required=True)
-    sp.add_argument("--id", required=True)
+    # 自动注册 OPERATION_REGISTRY 中所有 graph/session/deviation/knowledge 操作
+    from cli_gen import add_registry_commands
+    add_registry_commands(v2_sub)
 
-    sp = v2_sub.add_parser("find-unit", help="按名称查找叙事单元ID")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--name", required=True)
-
-    sp = v2_sub.add_parser("create-unit", help="创建新叙事单元")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--unit-type", required=True, help="SCENE / CHARACTER_ARC / PLOT_THREAD 等")
-    sp.add_argument("--name", required=True)
-    sp.add_argument("--content", default="", help="内容（JSON 字符串，与 --file 二选一）")
-    sp.add_argument("--data", default="", help="同 --content（别名）")
-    sp.add_argument("--file", default="", help="从 JSON 文件读取内容（优先于 --content/--data）")
-    sp.add_argument("--tags", default="", help="逗号分隔的标签列表")
-    sp.add_argument("--chapter", default="", help="所属章节号")
-    sp.add_argument("--actor", default="script")
-
-    sp = v2_sub.add_parser("update-unit", help="更新叙事单元内容/名称/标签")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-    sp.add_argument("--content", default="", help="新内容（JSON 字符串，与 --file 二选一）")
-    sp.add_argument("--data", default="", help="同 --content（别名）")
-    sp.add_argument("--file", default="", help="从 JSON 文件读取新内容（优先于 --content/--data）")
-    sp.add_argument("--name", default="", help="新名称")
-    sp.add_argument("--tags", default="", help="逗号分隔的标签列表")
-    sp.add_argument("--actor", default="script")
-
-    sp = v2_sub.add_parser("get-unit", help="获取叙事单元详情")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-    sp.add_argument("--verbose", "-v", action="store_true", help="显示完整内容（默认截断前200字）")
-
-    sp = v2_sub.add_parser("get-neighbors", help="查询关联关系（可按关系类型过滤）")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-    sp.add_argument("--rel-type", default="", help="关系类型（如 contains/has_member/located_at）")
-    sp.add_argument("--limit", type=int, default=0, help="最大返回数量（0=不限）")
-
-    sp = v2_sub.add_parser("add-relation", help="建立关系（支持 --bidirectional 自动补反向）")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--source", required=True)
-    sp.add_argument("--target", required=True)
-    sp.add_argument("--rel-type", required=True, help="关系类型（participates_in/implements/references 等）")
-    sp.add_argument("--actor", default="script")
-    sp.add_argument("--bidirectional", action="store_true", help="同时添加反向关系")
-
-    sp = v2_sub.add_parser("list-relation-types", help="列出所有关系类型及用法")
-
-    sp = v2_sub.add_parser("flush", help="持久化 graph 数据")
-    sp.add_argument("--path", required=True)
-
-    sp = v2_sub.add_parser("build-workspace", help="构建工作空间上下文")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-    sp.add_argument("--level", default="warm", choices=["cold", "warm", "hot"])
-
+    # 手动覆盖：registry 未覆盖的命令
     sp = v2_sub.add_parser("rebuild-projections", help="重建投影")
     sp.add_argument("--path", required=True)
     sp.add_argument("--mode", default="hybrid", choices=["in_place", "hybrid", "graph_only"])
 
-    sp = v2_sub.add_parser("stats", help="graph 统计")
-    sp.add_argument("--path", required=True)
-
-    sp = v2_sub.add_parser("list-units", help="列出叙事单元")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--unit-type", default="", help="UnitType 名称（SCENE/CHARACTER_ARC 等）")
-    sp.add_argument("--limit", default="0", help="返回条数上限（0=全部）")
-
-    sp = v2_sub.add_parser("recent-events", help="最近事件")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--limit", default="5")
-
-    sp = v2_sub.add_parser("fix-asymmetry", help="补齐所有对称关系类型的缺失反向边")
-    sp.add_argument("--path", required=True)
-
-    sp = v2_sub.add_parser("batch-infer", help="批量推断：扫描所有单元自动建立关系")
-    sp.add_argument("--path", required=True)
-
-    sp = v2_sub.add_parser("export-docs", help="导出结构化文档（Markdown）到 graph/export/")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--out", default="", help="输出目录（默认 graph/export/）")
-
-    sp = v2_sub.add_parser("export", help="导出 CHUNK 单元为章节 TXT 文件")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--out", default="", help="输出目录（默认 chapters/）")
-
-    sp = v2_sub.add_parser("search", help="搜索叙事单元")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--keyword", default="", help="关键词搜索")
-    sp.add_argument("--pattern", default="", help="正则搜索（与 --keyword 互斥）")
-    sp.add_argument("--name", default="", help="实体搜索（按名称或ID，与 --keyword/--pattern 互斥）")
-    sp.add_argument("--scope", nargs="*", default=None, help="过滤单元类型（如 SCENE CHARACTER_ARC）")
-    sp.add_argument("--regex", action="store_true", help="启用正则模式")
-    sp.add_argument("--case-sensitive", dest="case_sensitive", action="store_true", help="区分大小写")
-    sp.add_argument("--limit", type=int, default=20, help="最大返回条数")
-
-    sp = v2_sub.add_parser("check", help="一致性检查")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--limit", type=int, default=0, help="最大显示条数（0=全部）")
-
-    sp = v2_sub.add_parser("report", help="项目报告（统计 + gap 原始数据）")
+    sp = v2_sub.add_parser("report", help="项目报告（统计 + 一致性 + 偏差 + Gap）")
     sp.add_argument("--path", required=True)
     sp.add_argument("--with-deviations", action="store_true", help="包含偏差状态统计")
-
-    sp = v2_sub.add_parser("read-knowledge", help="查询知识库（book-knowledge）")
-    sp.add_argument("--path", required=True, help="项目根目录（含 knowledge/）")
-    sp.add_argument("--slug", required=True, help="知识库 slug（如 fanren-xiuxian）")
-    sp.add_argument("--topic", required=True, help="搜索主题（支持正则，如 宗门|势力|门派）")
-
-    sp = v2_sub.add_parser("find-descendants", help="递归查找所有后代（CONTAINS）")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-    sp.add_argument("--max-depth", type=int, default=10, help="递归深度（默认 10）")
-
-    sp = v2_sub.add_parser("find-ancestors", help="递归查找所有祖先（CONTAINS）")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-
-    sp = v2_sub.add_parser("rebuild-structure-path", help="从 CONTAINS 关系重建结构路径")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--id", required=True)
-
-    sp = v2_sub.add_parser("migrate-structure", help="将结构路径字段迁移为 CONTAINS 边")
-    sp.add_argument("--path", required=True)
-
-    sp = v2_sub.add_parser("purge-archived", help="物理删除所有已归档(archived)的叙事单元及其关联边")
-    sp.add_argument("--path", required=True)
-    sp.add_argument("--ids", default="", help="逗号分隔的单元 ID 列表；为空则删除全部 archived 单元")
-    sp.add_argument("--actor", default="script")
 
     return p
 
@@ -420,80 +300,63 @@ def _build_v2_parser(sub):
 # ── v2 dispatch ──────────────────────────────────────────────────────────
 
 def _run_v2(args):
-    """直接调 handlers，不再经过 v2_cli.py。"""
-    from handlers import (
-        handle_get_unit, handle_find_unit, handle_create_unit, handle_update_unit,
-        handle_get_neighbors, handle_search, handle_check_consistency,
-        handle_list_units, handle_list_relation_types, handle_stats,
-        handle_recent_events, handle_flush, handle_add_relation,
-        handle_fix_asymmetry, handle_batch_infer, handle_export_docs,
-        handle_export_chunks, handle_find_descendants,
-        handle_find_ancestors, handle_rebuild_structure_path,
-        handle_migrate_structure_to_edges, handle_session_start,
-        handle_session_build_workspace, handle_purge_archived,
-    )
+    """直接调 handlers，不再经过 v2_cli.py。自动 dispatch + override 表。"""
+    import json as _json
 
-    def _err_exit(result, msg="操作失败"):
+    def _err_exit(result):
         if "error" in result:
             print(f"❌ {result['error']}")
             sys.exit(1)
 
     cmd = args.v2_command
 
-    # Phase 2 fallback: 未在手动 if/elif 中注册的操作尝试自动 dispatch
-    from cli_gen import dispatch_registry_command
-    if cmd and dispatch_registry_command(args):
-        return
+    # ── override 表：特殊输出格式的命令 ──
+    from handlers import (
+        handle_get_unit, handle_stats, handle_search, handle_check_consistency,
+        handle_list_relation_types, handle_find_unit, handle_list_units,
+        handle_recent_events, handle_get_neighbors, handle_create_unit,
+        handle_update_unit, handle_add_relation, handle_flush,
+        handle_fix_asymmetry, handle_batch_infer, handle_export_docs,
+        handle_export_chunks, handle_find_descendants, handle_find_ancestors,
+        handle_rebuild_structure_path, handle_migrate_structure_to_edges,
+        handle_purge_archived, handle_session_start,
+        handle_session_build_workspace,
+    )
 
-    if cmd == "start-session":
-        result = handle_session_start(project_root=args.path, focus_type=args.focus_type, id=args.id)
-        _err_exit(result)
-        print(f"SESSION={result['session_id']}")
+    OVERRIDES = {}
+    # 短名称 → 自动生成的全名称映射
+    CMD_ALIASES = {
+        "get-unit": "graph-get-unit", "stats": "graph-stats",
+        "search": "graph-search", "check": "graph-check",
+        "list-relation-types": "graph-list-relation-types",
+        "find-unit": "graph-find-unit", "create-unit": "graph-create-unit",
+        "update-unit": "graph-update-unit", "add-relation": "graph-add-relation",
+        "flush": "graph-flush", "build-workspace": "session-build-workspace",
+        "start-session": "session-start", "list-units": "graph-list-units",
+        "recent-events": "graph-recent-events", "get-neighbors": "graph-get-neighbors",
+        "fix-asymmetry": "graph-fix-asymmetry", "batch-infer": "graph-batch-infer",
+        "export-docs": "graph-export-docs", "export": "graph-export-chunks",
+        "find-descendants": "graph-find-descendants",
+        "find-ancestors": "graph-find-ancestors",
+        "rebuild-structure-path": "graph-rebuild-structure-path",
+        "migrate-structure": "graph-migrate-structure-to-edges",
+        "purge-archived": "graph-purge-archived",
+    }
 
-    elif cmd == "find-unit":
-        result = handle_find_unit(project_root=args.path, name=args.name)
-        _err_exit(result)
-        print(result.get("id") or "NOT_FOUND")
+    def _register(name):
+        def decorator(fn):
+            OVERRIDES[name] = fn
+            return fn
+        return decorator
 
-    elif cmd == "create-unit":
-        result = handle_create_unit(
-            project_root=args.path, unit_type=args.unit_type, name=args.name,
-            content=args.content or args.data or None,
-            file_path=args.file or None,
-            tags=args.tags or None,
-            chapter=int(args.chapter) if args.chapter else None,
-            actor=args.actor,
-        )
-        _err_exit(result)
-        print(f"创建成功: {result['id']}")
-        if result.get('relations_created'):
-            print(f"关系推断: 新增 {result['relations_created']} 条关联")
-        if result.get('schema_errors'):
-            for se in result['schema_errors']:
-                print(f"  ⚠️  {se}")
-
-    elif cmd == "update-unit":
-        result = handle_update_unit(
-            project_root=args.path, id=args.id,
-            content=args.content or None, file_path=args.file or None,
-            name=args.name or None, tags=args.tags or None,
-            actor=args.actor,
-        )
-        _err_exit(result)
-        print(f"更新成功: {result['id']}")
-        print(f"  名称: {result.get('name', '')}")
-        print(f"  版本: {result.get('version', '')}")
-        print(f"  标签: {', '.join(result.get('tags', [])) or '无'}")
-
-    elif cmd == "get-unit":
+    @_register("get-unit")
+    def _get_unit():
         result = handle_get_unit(project_root=args.path, id=args.id)
         _err_exit(result)
         u = result.get("unit")
         if not u:
             print("NOT_FOUND")
             return
-        from graph_schema import get_unit_chapter
-        store = __import__('graph_store', fromlist=['GraphStore'])
         print(f"名称: {u['name']}")
         print(f"类型: {u['type']}")
         print(f"状态: {u['status']}")
@@ -503,7 +366,7 @@ def _run_v2(args):
         print(f"章节: {ch}")
         content = u.get('content', '')
         if content:
-            if args.verbose:
+            if getattr(args, 'verbose', False):
                 print(f"内容:\n{content}")
             else:
                 preview = content[:200].replace("\n", " ")
@@ -511,117 +374,21 @@ def _run_v2(args):
                 if len(content) > 200:
                     print("（使用 --verbose 查看完整内容）")
 
-    elif cmd == "get-neighbors":
-        result = handle_get_neighbors(
-            project_root=args.path, id=args.id,
-            rel_type=args.rel_type, limit=args.limit,
-        )
-        _err_exit(result)
-        for n in result.get("neighbors", []):
-            print(f"{n['type']}: {n['name']} ({n['id']})")
-
-    elif cmd == "add-relation":
-        result = handle_add_relation(
-            project_root=args.path, source=args.source,
-            target=args.target, rel_type=args.rel_type,
-            bidirectional=args.bidirectional, actor=args.actor,
-        )
-        _err_exit(result)
-        print(f"关系已建立: {result.get('id', '')}")
-        if result.get('inverse_id'):
-            print(f"反向关系已建立: {result['inverse_id']}")
-
-    elif cmd == "list-relation-types":
-        result = handle_list_relation_types()
-        print("可用关系类型（--rel-type 参数值）:")
-        print()
-        for rt in result.get("relation_types", []):
-            inv_note = f" → 反向: {rt['inverse']}" if rt['inverse'] != rt['value'] else "（对称）"
-            print(f"  {rt['value']:20s} {rt['name']}{inv_note}")
-        print()
-        print("查询方向说明：")
-        print("  get-neighbors 返回的是通过该关系类型连接到目标的所有单元")
-
-    elif cmd == "flush":
-        result = handle_flush(project_root=args.path)
-        _err_exit(result)
-        print("graph 已持久化")
-
-    elif cmd == "build-workspace":
-        result = handle_session_build_workspace(
-            project_root=args.path, id=args.id, level=args.level,
-        )
-        _err_exit(result)
-        print(result.get("context", ""))
-
-    elif cmd == "rebuild-projections":
-        from projection_engine import ProjectionEngine
-        from graph_store import GraphStore
-        store = GraphStore(args.path)
-        store.initialize()
-        p = ProjectionEngine(store, args.path, output_mode=args.mode)
-        p.rebuild_all()
-        print("投影已重建")
-
-    elif cmd == "stats":
+    @_register("stats")
+    def _stats():
         result = handle_stats(project_root=args.path)
         _err_exit(result)
         for k, v in result.items():
             print(f"{k}: {v}")
 
-    elif cmd == "list-units":
-        from graph_schema import UnitType
-        result = handle_list_units(
-            project_root=args.path, unit_type=args.unit_type,
-            limit=int(args.limit) if args.limit and int(args.limit) > 0 else 0,
-        )
-        _err_exit(result)
-        for u in result.get("units", []):
-            print(f"[{u['type']}] {u['name']} [{u['status']}]")
-
-    elif cmd == "recent-events":
-        limit = int(args.limit) if args.limit else 5
-        result = handle_recent_events(project_root=args.path, limit=limit)
-        _err_exit(result)
-        for e in result.get("events", []):
-            print(f"[{e['timestamp']}] {e['actor']}: {e['event_type']}")
-
-    elif cmd == "fix-asymmetry":
-        result = handle_fix_asymmetry(project_root=args.path)
-        _err_exit(result)
-        total = result.get("created", 0) + result.get("skipped", 0)
-        print(f"检查了 {total} 条关系")
-        print(f"补齐反向边: {result.get('created', 0)} 条新建, {result.get('skipped', 0)} 条已存在")
-
-    elif cmd == "batch-infer":
-        result = handle_batch_infer(project_root=args.path)
-        _err_exit(result)
-        before = result.get("total_before", 0)
-        after = result.get("total_after", 0)
-        print(f"批量推断完成:")
-        print(f"  新建关系: {result.get('new_relations', 0)}")
-        print(f"  关系总计: {before} → {after}")
-
-    elif cmd == "export-docs":
-        result = handle_export_docs(project_root=args.path, out=args.out)
-        _err_exit(result)
-        files = result.get("files", [])
-        print(f"✅ 结构化文档已导出: {len(files)} 个文件")
-        for w in files:
-            print(f"   📄 {w}")
-
-    elif cmd == "export":
-        result = handle_export_chunks(project_root=args.path, out=args.out)
-        _err_exit(result)
-        files = result.get("files", [])
-        print(f"导出完成: {len(files)} 个章节文件")
-
-    elif cmd == "search":
+    @_register("search")
+    def _search():
         result = handle_search(
-            project_root=args.path, keyword=args.keyword,
-            pattern=args.pattern, name=args.name,
-            scope=args.scope, regex=args.regex,
-            case_sensitive=args.case_sensitive, limit=args.limit,
+            project_root=args.path, keyword=getattr(args, 'keyword', ''),
+            pattern=getattr(args, 'pattern', ''), name=getattr(args, 'name', ''),
+            scope=getattr(args, 'scope', None), regex=getattr(args, 'regex', False),
+            case_sensitive=getattr(args, 'case_sensitive', False),
+            limit=getattr(args, 'limit', 20),
         )
         _err_exit(result)
         total = result.get("total", 0)
@@ -633,7 +400,8 @@ def _run_v2(args):
             if preview:
                 print(f"    {preview}")
 
-    elif cmd == "check":
+    @_register("check")
+    def _check():
         result = handle_check_consistency(project_root=args.path)
         _err_exit(result)
         findings = result.get("findings", [])
@@ -657,12 +425,243 @@ def _run_v2(args):
                     for line in r['detail'].split("\n"):
                         print(f"      {line}")
                 shown += 1
-                if args.limit > 0 and shown >= args.limit:
+                limit = getattr(args, 'limit', 0)
+                if limit > 0 and shown >= limit:
                     break
-            if args.limit > 0 and shown >= args.limit:
+            if limit > 0 and shown >= limit:
                 break
 
-    elif cmd == "report":
+    @_register("list-relation-types")
+    def _list_relation_types():
+        result = handle_list_relation_types()
+        print("可用关系类型（--rel-type 参数值）:")
+        print()
+        for rt in result.get("relation_types", []):
+            inv_note = f" → 反向: {rt['inverse']}" if rt['inverse'] != rt['value'] else "（对称）"
+            print(f"  {rt['value']:20s} {rt['name']}{inv_note}")
+        print()
+        print("查询方向说明：")
+        print("  get-neighbors 返回的是通过该关系类型连接到目标的所有单元")
+
+    @_register("find-unit")
+    def _find_unit():
+        result = handle_find_unit(project_root=args.path, name=args.name)
+        _err_exit(result)
+        print(result.get("id") or "NOT_FOUND")
+
+    @_register("create-unit")
+    def _create_unit():
+        result = handle_create_unit(
+            project_root=args.path, unit_type=args.unit_type, name=args.name,
+            content=getattr(args, 'content', None) or getattr(args, 'data', None),
+            file_path=getattr(args, 'file', None) or None,
+            tags=getattr(args, 'tags', None) or None,
+            chapter=int(getattr(args, 'chapter', 0)) if getattr(args, 'chapter', None) else None,
+            actor=getattr(args, 'actor', 'script'),
+        )
+        _err_exit(result)
+        print(f"创建成功: {result['id']}")
+        if result.get('relations_created'):
+            print(f"关系推断: 新增 {result['relations_created']} 条关联")
+        if result.get('schema_errors'):
+            for se in result['schema_errors']:
+                print(f"  ⚠️  {se}")
+
+    @_register("update-unit")
+    def _update_unit():
+        result = handle_update_unit(
+            project_root=args.path, id=args.id,
+            content=getattr(args, 'content', None) or None,
+            file_path=getattr(args, 'file', None) or None,
+            name=getattr(args, 'name', None) or None,
+            tags=getattr(args, 'tags', None) or None,
+            actor=getattr(args, 'actor', 'script'),
+        )
+        _err_exit(result)
+        print(f"更新成功: {result['id']}")
+        print(f"  名称: {result.get('name', '')}")
+        print(f"  版本: {result.get('version', '')}")
+        print(f"  标签: {', '.join(result.get('tags', [])) or '无'}")
+
+    @_register("add-relation")
+    def _add_relation():
+        result = handle_add_relation(
+            project_root=args.path, source=args.source,
+            target=args.target, rel_type=args.rel_type,
+            bidirectional=getattr(args, 'bidirectional', False),
+            actor=getattr(args, 'actor', 'script'),
+        )
+        _err_exit(result)
+        print(f"关系已建立: {result.get('id', '')}")
+        if result.get('inverse_id'):
+            print(f"反向关系已建立: {result['inverse_id']}")
+
+    @_register("flush")
+    def _flush():
+        result = handle_flush(project_root=args.path)
+        _err_exit(result)
+        print("graph 已持久化")
+
+    @_register("build-workspace")
+    def _build_workspace():
+        result = handle_session_build_workspace(
+            project_root=args.path, id=args.id,
+            level=getattr(args, 'level', 'warm'),
+        )
+        _err_exit(result)
+        print(result.get("context", ""))
+
+    @_register("start-session")
+    def _start_session():
+        result = handle_session_start(
+            project_root=args.path, focus_type=args.focus_type, id=args.id,
+        )
+        _err_exit(result)
+        print(f"SESSION={result['session_id']}")
+
+    @_register("list-units")
+    def _list_units():
+        result = handle_list_units(
+            project_root=args.path,
+            unit_type=getattr(args, 'unit_type', ''),
+            limit=int(getattr(args, 'limit', 0)) if getattr(args, 'limit', '0') and int(getattr(args, 'limit', '0')) > 0 else 0,
+        )
+        _err_exit(result)
+        for u in result.get("units", []):
+            print(f"[{u['type']}] {u['name']} [{u['status']}]")
+
+    @_register("recent-events")
+    def _recent_events():
+        limit = int(getattr(args, 'limit', 5)) if getattr(args, 'limit', None) else 5
+        result = handle_recent_events(project_root=args.path, limit=limit)
+        _err_exit(result)
+        for e in result.get("events", []):
+            print(f"[{e['timestamp']}] {e['actor']}: {e['event_type']}")
+
+    @_register("get-neighbors")
+    def _get_neighbors():
+        result = handle_get_neighbors(
+            project_root=args.path, id=args.id,
+            rel_type=getattr(args, 'rel_type', ''),
+            limit=getattr(args, 'limit', 0),
+        )
+        _err_exit(result)
+        for n in result.get("neighbors", []):
+            print(f"{n['type']}: {n['name']} ({n['id']})")
+
+    @_register("fix-asymmetry")
+    def _fix_asymmetry():
+        result = handle_fix_asymmetry(project_root=args.path)
+        _err_exit(result)
+        total = result.get("created", 0) + result.get("skipped", 0)
+        print(f"检查了 {total} 条关系")
+        print(f"补齐反向边: {result.get('created', 0)} 条新建, {result.get('skipped', 0)} 条已存在")
+
+    @_register("batch-infer")
+    def _batch_infer():
+        result = handle_batch_infer(project_root=args.path)
+        _err_exit(result)
+        print(f"批量推断完成:")
+        print(f"  新建关系: {result.get('new_relations', 0)}")
+        print(f"  关系总计: {result.get('total_before', 0)} → {result.get('total_after', 0)}")
+
+    @_register("export-docs")
+    def _export_docs():
+        result = handle_export_docs(
+            project_root=args.path, out=getattr(args, 'out', ''),
+        )
+        _err_exit(result)
+        files = result.get("files", [])
+        print(f"✅ 结构化文档已导出: {len(files)} 个文件")
+        for w in files:
+            print(f"   📄 {w}")
+
+    @_register("export")
+    def _export():
+        result = handle_export_chunks(
+            project_root=args.path, out=getattr(args, 'out', ''),
+        )
+        _err_exit(result)
+        files = result.get("files", [])
+        print(f"导出完成: {len(files)} 个章节文件")
+
+    @_register("find-descendants")
+    def _find_descendants():
+        result = handle_find_descendants(
+            project_root=args.path, id=args.id,
+            max_depth=getattr(args, 'max_depth', 10),
+        )
+        _err_exit(result)
+        descendants = result.get("descendants", [])
+        if not descendants:
+            print("未找到后代单元")
+            return
+        print(f"找到 {len(descendants)} 个后代单元:")
+        for u in descendants:
+            ch = f" [第{u.get('chapter')}章]" if u.get("chapter") else ""
+            print(f"  • {u['type']}: {u['name']} ({u['id']}){ch}")
+
+    @_register("find-ancestors")
+    def _find_ancestors():
+        result = handle_find_ancestors(project_root=args.path, id=args.id)
+        _err_exit(result)
+        ancestors = result.get("ancestors", [])
+        if not ancestors:
+            print("未找到祖先单元")
+            return
+        print(f"找到 {len(ancestors)} 个祖先单元:")
+        for u in ancestors:
+            print(f"  • {u['type']}: {u['name']} ({u['id']})")
+
+    @_register("rebuild-structure-path")
+    def _rebuild_structure_path():
+        result = handle_rebuild_structure_path(project_root=args.path, id=args.id)
+        _err_exit(result)
+        path = result.get("structure_path", [])
+        if not path:
+            print("未重建出结构路径")
+            return
+        print(f"结构路径 ({len(path)} 级):")
+        for item in path:
+            print(f"  [{item.get('level', '?')}] {item.get('id', '')}")
+
+    @_register("migrate-structure")
+    def _migrate_structure():
+        result = handle_migrate_structure_to_edges(project_root=args.path)
+        _err_exit(result)
+        print(f"迁移完成:")
+        print(f"  新建边: {result.get('edges_created', 0)}")
+        print(f"  已存在: {result.get('edges_skipped', 0)}")
+        print(f"  错误:   {result.get('errors', 0)}")
+        if result.get("details"):
+            for d in result["details"][:10]:
+                print(f"  • {d}")
+
+    @_register("purge-archived")
+    def _purge_archived():
+        result = handle_purge_archived(
+            project_root=args.path, ids=getattr(args, 'ids', ''),
+            actor=getattr(args, 'actor', 'script'),
+        )
+        _err_exit(result)
+        print(f"✅ {result['message']}")
+        if result.get("unit_ids"):
+            print(f"  已删除单元 ({result['purged']} 个):")
+            for uid in result["unit_ids"]:
+                print(f"    • {uid}")
+
+    @_register("rebuild-projections")
+    def _rebuild_projections():
+        from projection_engine import ProjectionEngine
+        from graph_store import GraphStore
+        store = GraphStore(args.path)
+        store.initialize()
+        p = ProjectionEngine(store, args.path, output_mode=args.mode)
+        p.rebuild_all()
+        print("投影已重建")
+
+    @_register("report")
+    def _report():
         result = handle_stats(project_root=args.path)
         _err_exit(result)
         print("=" * 50)
@@ -688,7 +687,7 @@ def _run_v2(args):
         else:
             print("  未发现明显问题")
 
-        if args.with_deviations:
+        if getattr(args, 'with_deviations', False):
             from handlers import handle_deviation_stats
             ds = handle_deviation_stats(project_root=args.path)
             print(f"\n【偏差状态】")
@@ -721,85 +720,54 @@ def _run_v2(args):
                   f"{with_relations:3d} 个有关联 ({pct}%)")
         print(f"\n{'=' * 50}")
 
-    elif cmd == "read-knowledge":
-        from handlers import handle_knowledge_read
-        result = handle_knowledge_read(
-            project_root=args.path, slug=args.slug, topic=args.topic,
-        )
-        _err_exit(result)
-        slug = result.get("slug", "")
-        title = result.get("title", slug)
-        author = result.get("author", "")
-        chapter_count = result.get("chapter_count", "?")
-        print(f"## Reference: {slug}")
-        print(f"### Source")
-        print(f"{title} — {author} ({chapter_count} chapters)")
-        print()
-        content = result.get("content", "")
-        if content:
-            print(content)
+    # ── 路由 ──
+    # 1) 精确匹配 override 表
+    if cmd in OVERRIDES:
+        OVERRIDES[cmd]()
+        return
 
-    elif cmd == "find-descendants":
-        result = handle_find_descendants(
-            project_root=args.path, id=args.id, max_depth=args.max_depth,
-        )
-        _err_exit(result)
-        descendants = result.get("descendants", [])
-        if not descendants:
-            print("未找到后代单元")
-            return
-        print(f"找到 {len(descendants)} 个后代单元:")
-        for u in descendants:
-            ch = f" [第{u.get('chapter')}章]" if u.get("chapter") else ""
-            print(f"  • {u['type']}: {u['name']} ({u['id']}){ch}")
+    # 2) 别名匹配（短名称 → 自动生成的全名称，如 get-unit → graph-get-unit）
+    if cmd in CMD_ALIASES and CMD_ALIASES[cmd] in OVERRIDES:
+        OVERRIDES[CMD_ALIASES[cmd]]()
+        return
 
-    elif cmd == "find-ancestors":
-        result = handle_find_ancestors(project_root=args.path, id=args.id)
-        _err_exit(result)
-        ancestors = result.get("ancestors", [])
-        if not ancestors:
-            print("未找到祖先单元")
-            return
-        print(f"找到 {len(ancestors)} 个祖先单元:")
-        for u in ancestors:
-            print(f"  • {u['type']}: {u['name']} ({u['id']})")
+    # 3) 未在 override 表中的 → 自动 dispatch（输出 JSON）
+    _auto_dispatch_v2(args)
 
-    elif cmd == "rebuild-structure-path":
-        result = handle_rebuild_structure_path(project_root=args.path, id=args.id)
-        _err_exit(result)
-        path = result.get("structure_path", [])
-        if not path:
-            print("未重建出结构路径")
-            return
-        print(f"结构路径 ({len(path)} 级):")
-        for item in path:
-            print(f"  [{item.get('level', '?')}] {item.get('id', '')}")
 
-    elif cmd == "migrate-structure":
-        result = handle_migrate_structure_to_edges(project_root=args.path)
-        _err_exit(result)
-        print(f"迁移完成:")
-        print(f"  新建边: {result.get('edges_created', 0)}")
-        print(f"  已存在: {result.get('edges_skipped', 0)}")
-        print(f"  错误:   {result.get('errors', 0)}")
-        if result.get("details"):
-            for d in result["details"][:10]:
-                print(f"  • {d}")
+def _command_to_operation(cmd_name: str) -> str:
+    """CLI 子命令名 → novel-tool 操作名。"""
+    idx = cmd_name.find("-")
+    if idx == -1:
+        return cmd_name
+    return cmd_name[:idx] + "." + cmd_name[idx + 1:].replace("-", "_")
 
-    elif cmd == "purge-archived":
-        result = handle_purge_archived(
-            project_root=args.path, ids=args.ids, actor=args.actor,
-        )
-        _err_exit(result)
-        print(f"✅ {result['message']}")
-        if result.get("unit_ids"):
-            print(f"  已删除单元 ({result['purged']} 个):")
-            for uid in result["unit_ids"]:
-                print(f"    • {uid}")
 
-    else:
+def _auto_dispatch_v2(args):
+    """自动 dispatch 到 OPERATION_REGISTRY 并输出 JSON。"""
+    import json as _json
+    from handlers import OPERATION_REGISTRY, run_operation
+
+    cmd = args.v2_command
+    op_name = _command_to_operation(cmd)
+    entry = OPERATION_REGISTRY.get(op_name)
+    if not entry:
         print(f"未知 v2 命令: {cmd}")
         sys.exit(1)
+
+    params = {"project_root": args.path}
+    for pname in entry["params"]:
+        if pname == "project_root":
+            continue
+        val = getattr(args, pname.replace("-", "_"), None)
+        if val is not None and val != "":
+            params[pname] = val
+
+    result = run_operation(op_name, **params)
+    if "error" in result:
+        print(f"❌ {result['error']}")
+        sys.exit(1)
+    print(_json.dumps(result, ensure_ascii=False, indent=2))
 
 
 # ── server ────────────────────────────────────────────────────────────

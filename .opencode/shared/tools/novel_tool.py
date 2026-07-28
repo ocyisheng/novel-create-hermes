@@ -290,11 +290,6 @@ def handle_request(request: dict) -> str:
         if not op:
             return _err("缺少 operation 字段")
 
-        # subagent.trace 是旧版 bypass，重定向到 subagent.save（走正规 handler 管道）
-        if op == "subagent.trace":
-            op = "subagent.save"
-            request["operation"] = "subagent.save"
-
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)
 
@@ -369,52 +364,6 @@ def _record_failure(proj_name: str, caller: str, op: str, canonical: dict, durat
         )
     except Exception:
         pass
-
-
-def _handle_subagent_trace(request: dict) -> str:
-    """处理 subagent.trace 操作：记录子 agent 调度信息到 .engine/subagents/。"""
-    import json as _json
-    from datetime import datetime, timezone as _timezone
-
-    project = request.get("project", "")
-    if not project:
-        return _err("subagent.trace 缺少 project 字段")
-
-    # 解析 .engine/ 路径（4 级 dirname 到达工具根目录）
-    _tool_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    _engine_dir = os.path.join(_tool_root, ".engine", "subagents")
-    os.makedirs(_engine_dir, exist_ok=True)
-
-    now = datetime.now(_timezone.utc)
-    month_key = now.strftime("%Y-%m")
-    trace_path = os.path.join(_engine_dir, f"{month_key}.ndjson")
-
-    record = {
-        "ts": now.isoformat(),
-        "project": project,
-        "task_id": request.get("task_id", request.get("session_id", "")),
-        "subagent": request.get("subagent", ""),
-        "focus_type": request.get("focus_type", ""),
-        "focus_name": request.get("focus_name", ""),
-        "preheat_level": request.get("preheat_level", ""),
-        "cycle_type": request.get("cycle_type", ""),
-        "humanize": request.get("humanize", False),
-        "session_id": request.get("session_id", ""),
-        "result": request.get("result", "unknown"),
-        "prompt_summary": request.get("prompt_summary", ""),
-        "result_summary": request.get("result_summary", ""),
-        "new_units": request.get("new_units", 0),
-        "updated_units": request.get("updated_units", 0),
-        "duration_estimate_ms": request.get("duration_estimate_ms", 0),
-        "error_summary": request.get("error_summary", ""),
-    }
-
-    try:
-        with open(trace_path, "a", encoding="utf-8") as f:
-            f.write(_json.dumps(record, ensure_ascii=False, default=str) + "\n")
-        return _ok({"ok": True, "file": trace_path})
-    except Exception as e:
-        return _err(f"subagent.trace 写入失败: {e}")
 
 
 # ── 守护进程模式 ───────────────────────────────────────────────────────

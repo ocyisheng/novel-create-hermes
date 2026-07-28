@@ -5,6 +5,7 @@ handlers_graph.py — graph 领域纯业务逻辑函数。
 每个 handler 接受规范化参数名，返回 Python dict。
 """
 
+import io
 import json
 import os
 import re

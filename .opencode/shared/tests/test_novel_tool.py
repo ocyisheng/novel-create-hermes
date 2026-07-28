@@ -539,13 +539,6 @@ class TestGraphSessionExportViz:
         res = call_tool("graph.export_chunks", project=proj_path)
         assert_success(res, {"files": []})
 
-    @patch("v2_graph_viz.generate_viz")
-    def test_viz(self, mock_gen, sample_units):
-        proj_path, store, units = sample_units
-        res = call_tool("graph.viz", project=proj_path, character="林渊")
-        assert_success(res, {"viz_generated": True})
-        assert mock_gen.called
-
     @patch("migrate.run_migration")
     def test_migrate(self, mock_migrate, tmp_project):
         proj_path, store = tmp_project

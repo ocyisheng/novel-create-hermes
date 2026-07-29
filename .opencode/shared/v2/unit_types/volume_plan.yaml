@@ -46,7 +46,7 @@ constraints:
     severity: warning
     description: "本卷 ending_state 应与下一卷 starting_state 匹配"
     preceding_type: volume_plan
-    following_relation: PRECEDES
+    following_relation: precedes
     field: "starting_state"
 
 relations:

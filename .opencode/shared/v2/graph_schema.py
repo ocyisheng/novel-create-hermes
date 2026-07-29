@@ -112,7 +112,7 @@ class RelationType(str, Enum):
     PLANNED_BY = "planned_by"           # A 被 B 规划（PLANS 的反向）
     PARTICIPATES_IN = "participates_in" # A 参与 B（角色参与场景）
     LOCATED_AT = "located_at"           # A 位于 B（场景/角色所在地点）
-    ALLIED_WITH = "allied_with"         # A 与 B 同盟（角色/势力之间）
+    RELATES_TO = "relates_to"            # A 与 B 有关联（角色间通用容器，具体语义见 label）
     POSSESSES = "possesses"             # A 拥有 B（角色拥有物品/能力/法宝）
     POSSESSED_BY = "possessed_by"       # A 被 B 拥有（POSSESSES 的反向）
     CONTAINS = "contains"               # A 包含 B（BELONGS_TO 的反向）
@@ -124,9 +124,9 @@ class RelationType(str, Enum):
 
     @classmethod
     def _missing_(cls, value: str):
-        """宽松查找：先按 name（大写），再按 value（小写），
-        都找不到时返回 None（由调用方决定降级策略）。"""
-        # 尝试 value 查找（小写化）
+        """宽松查找。旧数据中的 allied_with → 自动映射为 relates_to"""
+        if value.lower() == "allied_with":
+            return cls.RELATES_TO
         for member in cls:
             if member.value == value.lower():
                 return member
@@ -134,21 +134,31 @@ class RelationType(str, Enum):
 
     @property
     def inverse(self) -> "RelationType":
+        """返回逆关系类型。
+
+        所有类型的逆关系定义遵循以下原则：
+        - 方向性由 edge.direction 表达，不依赖独立逆类型
+        - CONTAINS ↔ BELONGS_TO、PLANS ↔ PLANNED_BY 等配对是唯一的例外
+        - 其余类型的逆就是自身（"allied_with"之类自反类型）
+        """
         inverses = {
-            "causes": "caused_by",
-            "precedes": "follows",
-            "contradicts": "contradicted_by",
-            "implements": "implemented_by",
-            "inspires": "inspired_from",
-            "refines": "refined_by",
+            "causes": "causes",
+            "precedes": "precedes",
+            "contradicts": "contradicts",
+            "implements": "implements",
+            "inspires": "inspires",
+            "refines": "refines",
             "belongs_to": "contains",
-            "references": "referenced_by",
-            "implies": "implied_from",
+            "references": "references",
+            "implies": "implies",
             "parallel": "parallel",
             "plans": "planned_by",
             "planned_by": "plans",
+            "participates_in": "participates_in",
             "located_at": "location_of",
-            "allied_with": "allied_with",
+            "relates_to": "relates_to",
+            "possesses": "possessed_by",
+            "possessed_by": "possesses",
             "contains": "belongs_to",
             "controls": "controlled_by",
             "member_of": "has_member",
@@ -156,12 +166,86 @@ class RelationType(str, Enum):
             "location_of": "located_at",
             "controlled_by": "controls",
         }
-        # Return as RelationType if exists, else as string
         name = inverses.get(self.value, self.value)
         try:
             return RelationType(name)
         except ValueError:
             return self
+
+    @classmethod
+    def label(cls, rt: "RelationType") -> str:
+        """返回关系类型的中文显示标签。"""
+        labels = {
+            cls.CAUSES: "导致",
+            cls.PRECEDES: "先于",
+            cls.CONTRADICTS: "矛盾",
+            cls.IMPLEMENTS: "实现",
+            cls.INSPIRES: "启发",
+            cls.REFINES: "细化",
+            cls.BELONGS_TO: "属于",
+            cls.REFERENCES: "引用",
+            cls.IMPLIES: "隐含",
+            cls.PARALLEL: "并列",
+            cls.PLANS: "规划",
+            cls.PLANNED_BY: "被规划",
+            cls.PARTICIPATES_IN: "参与",
+            cls.LOCATED_AT: "位于",
+            cls.RELATES_TO: "关联",
+            cls.POSSESSES: "拥有",
+            cls.POSSESSED_BY: "被拥有",
+            cls.CONTAINS: "包含",
+            cls.CONTROLS: "统治",
+            cls.MEMBER_OF: "成员",
+            cls.HAS_MEMBER: "拥有成员",
+            cls.LOCATION_OF: "所在",
+            cls.CONTROLLED_BY: "受制",
+        }
+        return labels.get(rt, rt.value)
+
+    @classmethod
+    def color(cls, rt: "RelationType") -> str:
+        """返回关系类型的可视化颜色。"""
+        colors = {
+            cls.PARTICIPATES_IN: "#5B9BD5",
+            cls.CAUSES: "#FF4444",
+            cls.PRECEDES: "#FFC000",
+            cls.CONTRADICTS: "#FF6600",
+            cls.IMPLEMENTS: "#70AD47",
+            cls.BELONGS_TO: "#ED7D31",
+            cls.REFERENCES: "#8888AA",
+            cls.IMPLIES: "#8888AA",
+            cls.PARALLEL: "#B4A7D6",
+            cls.INSPIRES: "#B4A7D6",
+            cls.REFINES: "#70AD47",
+            cls.LOCATED_AT: "#00B0F0",
+            cls.RELATES_TO: "#92D050",
+            cls.POSSESSES: "#9B59B6",
+            cls.POSSESSED_BY: "#9B59B6",
+            cls.CONTAINS: "#ED7D31",
+            cls.CONTROLS: "#FF6600",
+            cls.MEMBER_OF: "#5B9BD5",
+            cls.HAS_MEMBER: "#5B9BD5",
+            cls.LOCATION_OF: "#00B0F0",
+            cls.CONTROLLED_BY: "#FF6600",
+            cls.PLANS: "#7F8C8D",
+            cls.PLANNED_BY: "#7F8C8D",
+        }
+        return colors.get(rt, "#888888")
+
+    @classmethod
+    def domain(cls, rt: "RelationType") -> str:
+        """返回所属域：structural / spatiotemporal / narrative"""
+        domains = {
+            cls.CONTAINS: "structural",
+            cls.BELONGS_TO: "structural",
+            cls.PLANS: "structural",
+            cls.PLANNED_BY: "structural",
+            cls.PARTICIPATES_IN: "structural",
+            cls.LOCATED_AT: "spatiotemporal",
+            cls.LOCATION_OF: "spatiotemporal",
+            cls.PRECEDES: "spatiotemporal",
+        }
+        return domains.get(rt, "narrative")
 
 
 class EventType(str, Enum):

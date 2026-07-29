@@ -713,7 +713,7 @@
     const typeOptions = [
       'participates_in', 'causes', 'precedes', 'contradicts', 'implements',
       'belongs_to', 'references', 'implies', 'parallel', 'inspires',
-      'refines', 'located_at', 'allied_with', 'contains', 'controls',
+      'refines', 'located_at', 'relates_to', 'contains', 'controls',
       'member_of', 'has_member', 'location_of', 'controlled_by',
     ].map(t => `<option value="${t}">${t}</option>`).join('');
 

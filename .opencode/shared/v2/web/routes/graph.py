@@ -43,49 +43,7 @@ UNIT_TYPE_COLORS = {
     UnitType.CHAPTER_PLAN:    {"bg": "#AED581", "border": "#558B2F", "text": "#fff"},
 }
 
-RELATION_LABELS = {
-    RelationType.PARTICIPATES_IN: "参与",
-    RelationType.CAUSES: "导致",
-    RelationType.PRECEDES: "先于",
-    RelationType.CONTRADICTS: "矛盾",
-    RelationType.IMPLEMENTS: "实现",
-    RelationType.BELONGS_TO: "属于",
-    RelationType.REFERENCES: "引用",
-    RelationType.IMPLIES: "隐含",
-    RelationType.PARALLEL: "并列",
-    RelationType.INSPIRES: "启发",
-    RelationType.REFINES: "细化",
-    RelationType.LOCATED_AT: "位于",
-    RelationType.ALLIED_WITH: "同盟",
-    RelationType.CONTAINS: "包含",
-    RelationType.CONTROLS: "统治",
-    RelationType.MEMBER_OF: "成员",
-    RelationType.HAS_MEMBER: "拥有成员",
-    RelationType.LOCATION_OF: "所在",
-    RelationType.CONTROLLED_BY: "受制",
-}
 
-RELATION_COLORS = {
-    RelationType.PARTICIPATES_IN: "#5B9BD5",
-    RelationType.CAUSES: "#FF4444",
-    RelationType.PRECEDES: "#FFC000",
-    RelationType.CONTRADICTS: "#FF6600",
-    RelationType.IMPLEMENTS: "#70AD47",
-    RelationType.BELONGS_TO: "#ED7D31",
-    RelationType.REFERENCES: "#8888AA",
-    RelationType.IMPLIES: "#8888AA",
-    RelationType.PARALLEL: "#B4A7D6",
-    RelationType.INSPIRES: "#B4A7D6",
-    RelationType.REFINES: "#70AD47",
-    RelationType.LOCATED_AT: "#00B0F0",
-    RelationType.ALLIED_WITH: "#92D050",
-    RelationType.CONTAINS: "#ED7D31",
-    RelationType.CONTROLS: "#FF6600",
-    RelationType.MEMBER_OF: "#5B9BD5",
-    RelationType.HAS_MEMBER: "#5B9BD5",
-    RelationType.LOCATION_OF: "#00B0F0",
-    RelationType.CONTROLLED_BY: "#FF6600",
-}
 
 
 def _node_to_viz(u: NarrativeUnit, extra: dict = None, hop: int = 0) -> dict:
@@ -115,8 +73,8 @@ def _node_to_viz(u: NarrativeUnit, extra: dict = None, hop: int = 0) -> dict:
 
 def _rel_to_viz(r) -> dict:
     """Relation → vis-network 兼容的边 dict"""
-    label = r.label or RELATION_LABELS.get(r.relation_type, r.relation_type.value)
-    color = RELATION_COLORS.get(r.relation_type, "#4a4a6a")
+    label = r.label or RelationType.label(r.relation_type)
+    color = RelationType.color(r.relation_type)
     return {
         "id": r.id,
         "from": r.source_id,

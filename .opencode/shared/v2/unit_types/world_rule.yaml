@@ -34,6 +34,17 @@ constraints:
     preceding_type: world_rule
     field: "sub_type"
 
+  - id: control_cycle
+    category: pattern
+    severity: warning
+    description: "势力控制关系形成环路"
+    params:
+      match:
+        mode: cycle
+        edge_type: controls
+        direction: outgoing
+        max_depth: 10
+
 relations:
   allowed:
     belongs_to:
@@ -44,6 +55,13 @@ relations:
       target_type: [world_rule]
       cardinality: "0..n"
       description: "包含的子规则"
+      auto_label:
+        都城:
+          keywords: ["都城", "王都", "皇城", "主城", "总部", "总坛", "圣地"]
+        属城:
+          keywords: ["属城", "卫城", "下辖", "分支", "分坛", "据点", "别府"]
+        辖区:
+          keywords: ["辖区", "领地", "封地", "疆域", "辖境", "地界"]
     located_at:
       target_type: [world_rule]
       cardinality: "0..1"
@@ -52,11 +70,18 @@ relations:
       target_type: [world_rule]
       cardinality: any
       description: "控制关系（势力控制地域）"
-    allied_with:
+      auto_label:
+        附庸:
+          keywords: ["附庸", "臣服", "进贡", "属国", "藩属", "朝贡", "归顺"]
+        同盟:
+          keywords: ["同盟", "盟约", "联盟", "结盟", "盟军", "友邦", "协约"]
+        敌对:
+          keywords: ["敌对", "仇视", "对立", "交战", "征讨", "讨伐"]
+    relates_to:
       target_type: [world_rule]
       cardinality: any
       bidirectional: true
-      description: "同盟关系"
+      description: "关联关系"
     member_of:
       target_type: [character_arc]
       cardinality: any

@@ -72,12 +72,15 @@ class RelationRule:
     # 第二阶段扩展：payload schema + 约束
     payload_schema: Optional[Dict] = None
     payload_constraints: List[PayloadConstraintDef] = field(default_factory=list)
+    auto_label: Optional[Dict] = None
 
     def __post_init__(self):
         if self.payload_schema is None:
             self.payload_schema = {}
         if self.payload_constraints is None:
             self.payload_constraints = []
+        if self.auto_label is None:
+            self.auto_label = {}
 
 
 @dataclass
@@ -338,6 +341,7 @@ class TypeRegistry:
                     description=rule.get("description", ""),
                     payload_schema=rule.get("payload_schema", {}),
                     payload_constraints=payload_constraints,
+                    auto_label=rule.get("auto_label", {}),
                 )
 
         fw_list = rel_data.get("forbidden_when", []) or []
@@ -468,6 +472,52 @@ class TypeRegistry:
         if not rule:
             return []
         return rule.payload_constraints
+
+    def get_relation_auto_label_keywords(self, source_type: str, rel_type: str, label_type: str) -> set:
+        """从 YAML 配置读取指定关系的自动标签关键词集。
+
+        Args:
+            source_type: 源类型名称（如 "character_arc"）
+            rel_type: 关系类型名称（如 "relates_to"）
+            label_type: 标签类型（如 "仇敌"）
+
+        Returns:
+            关键词集合，未配置时返回空集。
+        """
+        td = self._types.get(source_type)
+        if not td:
+            return set()
+        rule = td.relations.allowed.get(rel_type)
+        if not rule or not rule.auto_label:
+            return set()
+        label_cfg = rule.auto_label.get(label_type, {})
+        if isinstance(label_cfg, dict):
+            return set(label_cfg.get("keywords", []))
+        return set()
+
+    def get_relation_auto_labels(self, source_type: str, rel_type: str) -> dict[str, set]:
+        """读取指定关系的全部自动标签配置 {标签名: 关键词集合}。
+
+        Args:
+            source_type: 源类型名称（如 "character_arc"）
+            rel_type: 关系类型名称（如 "relates_to"）
+
+        Returns:
+            {标签名: 关键词集合} 字典，未配置或无关键词时返回空字典。
+        """
+        td = self._types.get(source_type)
+        if not td:
+            return {}
+        rule = td.relations.allowed.get(rel_type)
+        if not rule or not rule.auto_label:
+            return {}
+        result: dict[str, set] = {}
+        for label_name, label_cfg in rule.auto_label.items():
+            if isinstance(label_cfg, dict):
+                kws = label_cfg.get("keywords", [])
+                if kws:
+                    result[label_name] = set(kws)
+        return result
 
     def validate_relation_payload(self, source_type: str, rel_type: str, payload: Dict) -> List[str]:
         """校验 payload 是否符合该关系的 payload schema。

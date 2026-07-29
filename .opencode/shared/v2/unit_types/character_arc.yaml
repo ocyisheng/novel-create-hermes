@@ -94,6 +94,25 @@ constraints:
     relation_type: "participates_in"
     min_count: 1
 
+  - id: rivals_never_meet
+    category: pattern
+    severity: warning
+    description: "互为仇敌的角色从未在同场景中出现"
+    params:
+      match:
+        mode: intersect
+        from_start:
+          edge_type: participates_in
+          direction: incoming
+        via_relation:
+          edge_type: relates_to
+          direction: outgoing
+          label_filter: 仇敌
+          then:
+            edge_type: participates_in
+            direction: incoming
+        check: shared_none
+
 relations:
   allowed:
     participates_in:
@@ -155,16 +174,16 @@ relations:
           check: field_a_lt_field_b
           skip_when_null: true
 
-    allied_with:
+    relates_to:
       target_type: [character_arc]
       cardinality: any
       bidirectional: true
-      description: "角色之间的同盟关系"
+      description: "角色之间的关联关系（通用容器，具体语义见 relation_label）"
       payload_schema:
         relation_label:
           type: string
           nullable: true
-          description: "关系标签（师徒/盟友/仇敌/夫妻）"
+          description: "关系标签（盟友/师徒/夫妻/同门）"
         intensity:
           type: number
           nullable: true
@@ -178,13 +197,42 @@ relations:
           nullable: true
           description: "关系结束的序数"
       payload_constraints:
-        - id: allied_since_before_until
+        - id: relates_since_before_until
           category: temporal
           severity: info
           description: "关系开始序数应早于结束序数"
           fields: ["since_ordinal", "until_ordinal"]
           check: field_a_lt_field_b
           skip_when_null: true
+      auto_label:
+        仇敌:
+          keywords: ["杀", "敌", "仇", "重创", "追杀", "背叛", "围剿", "死战", "对抗", "厮杀", "斩杀"]
+        师徒:
+          keywords: ["师父", "师傅", "师尊", "弟子", "徒弟", "徒儿", "授业", "拜师", "收徒"]
+        盟友:
+          keywords: ["结盟", "联手", "合击", "共进退", "结为", "盟约", "盟友"]
+        道侣:
+          keywords: ["道侣", "双修", "合籍", "伴侣", "配偶"]
+        恋人:
+          keywords: ["恋人", "相爱", "钟情", "倾心", "爱慕", "思慕", "心上人", "意中人"]
+        夫妻:
+          keywords: ["夫妻", "夫妇", "成亲", "结发", "婚约", "娶", "嫁", "拜堂"]
+        至亲:
+          keywords: ["父子", "父女", "母子", "母女", "兄弟", "姐妹", "手足", "血亲", "骨肉", "亲生", "养育"]
+        义结:
+          keywords: ["结拜", "义兄", "义弟", "义姐", "义妹", "义父", "义子", "金兰"]
+        挚友:
+          keywords: ["挚友", "至交", "知己", "故交", "莫逆", "生死之交", "刎颈之交"]
+        同门:
+          keywords: ["同门", "师兄弟", "师姐妹", "师兄", "师弟", "师姐", "师妹", "同窗"]
+        宿敌:
+          keywords: ["宿敌", "劲敌", "对手", "宿怨", "世仇", "宿命"]
+        主仆:
+          keywords: ["主仆", "仆从", "侍从", "随从", "护卫", "效忠", "认主", "契约"]
+        恩人:
+          keywords: ["恩人", "救命恩人", "大恩", "再造", "提携", "知遇之恩"]
+        故人:
+          keywords: ["故人", "旧识", "旧友", "老友", "旧交", "故交"]
 
     member_of:
       target_type: [world_rule]

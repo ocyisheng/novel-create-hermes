@@ -82,8 +82,8 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 世界观 → 世界观（势力管辖）：势力控制地域
     (UnitType.WORLD_RULE, UnitType.WORLD_RULE, RelationType.CONTROLS,
      "source_to_target", 0.4),
-    # 角色 → 角色：同盟关系
-    (UnitType.CHARACTER_ARC, UnitType.CHARACTER_ARC, RelationType.ALLIED_WITH,
+    # 角色 → 角色：关联关系（通用容器，具体语义见 label）
+    (UnitType.CHARACTER_ARC, UnitType.CHARACTER_ARC, RelationType.RELATES_TO,
      "source_to_target", 0.3),
     # 角色 → 世界观（势力）：角色属于势力
     (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.MEMBER_OF,
@@ -257,10 +257,45 @@ class RelationInferrer:
                         source, target = unit.id, other.id
                     else:
                         source, target = other.id, unit.id
-                    if self._create_rel(source, target, rel_type, weight):
+                    # 推断关系语义标签（如"仇敌""师徒"），由 YAML 配置驱动
+                    label = self._infer_relation_label(unit, other, content, rel_type)
+                    if self._create_rel(source, target, rel_type, weight, label=label):
                         count += 1
 
         return count
+
+    def _infer_relation_label(
+        self, unit: NarrativeUnit, other: NarrativeUnit,
+        content: str, rel_type: RelationType,
+    ) -> str:
+        """
+        推断关系语义标签（通用版）。
+
+        从内容中查找对方名称出现的上下文窗口，逐个检查 YAML 配置的所有
+        标签关键词集。首个匹配到关键词的标签名即为返回值。
+        不匹配任何标签 → ""（无标签）。
+
+        配置驱动：YAML key = 标签名（如"仇敌""师徒""盟友"），value.keywords = 关键词列表。
+        不限制单元类型——任何配置了 auto_label 的类型对都能自动打标签。
+        """
+        idx = content.find(other.unit_name)
+        if idx < 0:
+            return ""
+        # 取角色名前后各 50 字作为上下文窗口
+        start = max(0, idx - 50)
+        end = min(len(content), idx + len(other.unit_name) + 50)
+        context = content[start:end]
+
+        # 从 type_registry 读取全部标签配置
+        from type_registry import TypeRegistry
+        labels = TypeRegistry.get_global().get_relation_auto_labels(
+            unit.type.value, rel_type.value
+        )
+
+        for label_name, keywords in labels.items():
+            if any(kw in context for kw in keywords):
+                return label_name
+        return ""
 
     def _infer_reverse_scan(self, character: NarrativeUnit) -> int:
         """
@@ -369,6 +404,7 @@ class RelationInferrer:
     def _create_rel(
         self, source_id: str, target_id: str,
         rel_type: RelationType, weight: float,
+        label: str = "",
     ) -> bool:
         """
         创建一条关系。已存在则跳过。
@@ -381,6 +417,7 @@ class RelationInferrer:
             relation_type=rel_type,
             weight=weight,
             description="auto-inferred",
+            label=label,
             actor=actor,
             record_event=not self._batch_mode,
         )

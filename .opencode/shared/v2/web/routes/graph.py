@@ -242,9 +242,8 @@ def get_global_timeline(project_root: str = Depends(get_project_root)):
 
 @router.get("/timeline/{id}")
 def get_timeline(id: str, project_root: str = Depends(get_project_root)):
-    """获取指定实体的时间线数据"""
+    """获取指定实体的时间线数据（跨类型，含 scene/cultivation/plot/chronicle 等）"""
     store = _get_store(project_root)
-    from time_utils import get_story_ordinal, get_story_label
 
     center = store.get_unit(id)
     if not center:
@@ -252,55 +251,26 @@ def get_timeline(id: str, project_root: str = Depends(get_project_root)):
     if not center:
         raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
 
+    from temporal_index import TemporalEventIndex
+    index = TemporalEventIndex(store).build()
+    focus_name = center.unit_name
+
+    # 通过实体名查询所有关联事件
+    raw_events = index.query().for_entity(focus_name).limit(100).all()
+
     events = []
-
-    # 角色参与的场景
-    for rel in store.get_relations(id, direction="incoming"):
-        source = store.get_unit(rel.source_id)
-        if source and source.type == UnitType.SCENE and source.status != UnitStatus.ARCHIVED:
-            import json as _json
-            content = source.content
-            if isinstance(content, str):
-                try:
-                    content = _json.loads(content)
-                except (_json.JSONDecodeError, ValueError):
-                    content = {}
-            loc = content.get("地点", "") if isinstance(content, dict) else ""
-            from graph_schema import get_unit_chapter
-            events.append({
-                "sort_key": get_unit_chapter(source) or 0,
-                "time_label": f"第{get_unit_chapter(source) or '?'}章",
-                "story_ordinal": get_story_ordinal(source),
-                "story_time_label": get_story_label(source) or "",
-                "event": source.unit_name,
-                "source_type": "chapter",
-                "node_id": source.id,
-                "location": loc,
-            })
-
-    # 关联的情节线
-    for rel in store.get_relations(id, direction="outgoing"):
-        target = store.get_unit(rel.target_id)
-        if target and target.type == UnitType.PLOT_THREAD and target.status != UnitStatus.ARCHIVED:
-            events.append({
-                "sort_key": -1,
-                "time_label": "情节线",
-                "event": f"参与情节线: {target.unit_name}",
-                "source_type": "plot",
-                "node_id": target.id,
-            })
-
-    # 关联的世界观
-    for rel in store.get_relations(id, direction="outgoing"):
-        target = store.get_unit(rel.target_id)
-        if target and target.type == UnitType.WORLD_RULE:
-            events.append({
-                "sort_key": -2,
-                "time_label": "世界观",
-                "event": f"{rel.label or RelationType.label(rel.relation_type)}: {target.unit_name}",
-                "source_type": "world",
-                "node_id": target.id,
-            })
+    for e in raw_events:
+        events.append({
+            "sort_key": e.ordinal if e.ordinal is not None else 0,
+            "time_label": e.time_label,
+            "story_ordinal": e.ordinal,
+            "story_time_label": e.time_label,
+            "event": f"[{e.event_type}] {e.summary}" if e.event_type != "scene_event" else e.summary,
+            "source_type": e.source_type,
+            "node_id": e.source_id,
+            "location": e.location,
+            "event_type": e.event_type,
+        })
 
     events.sort(key=lambda e: (
         0 if e.get("story_ordinal") is not None else 1,

@@ -94,12 +94,13 @@ class NeighborNode(BaseModel):
 class TimelineEvent(BaseModel):
     sort_key: int = 0
     time_label: str = ""
-    story_ordinal: Optional[int] = None
+    story_ordinal: Optional[float] = None
     story_time_label: str = ""
     event: str
     source_type: str = ""
     node_id: str = ""
     location: str = ""
+    event_type: str = ""
 
 
 class TimelineData(BaseModel):

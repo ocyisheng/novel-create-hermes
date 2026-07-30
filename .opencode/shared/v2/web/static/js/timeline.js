@@ -252,12 +252,35 @@
           container.innerHTML = '<div class="tl-empty" style="padding:8px 0;font-size:12px">暂无时间线事件</div>';
           return;
         }
+        // 事件类型颜色映射
+        var typeColors = {
+          scene_event: '#4A9',
+          cultivation: '#F80',
+          battle: '#E44',
+          plot_event: '#48F',
+          item_event: '#A6E',
+          chronicle: '#A8A',
+          note: '#999',
+        };
+        var typeLabels = {
+          scene_event: '场景',
+          cultivation: '修炼',
+          battle: '战斗',
+          plot_event: '情节',
+          item_event: '物品',
+          chronicle: '纪年',
+          note: '备忘',
+        };
         var html = '<div class="tl-mini">';
         data.events.forEach(function(evt) {
+          var et = evt.event_type || '';
+          var color = typeColors[et] || '#999';
+          var label = typeLabels[et] || et;
+          var badge = et ? '<span class="tl-type-badge" style="background:' + color + '">' + label + '</span> ' : '';
           html += '<div class="tl-mini-item">' +
-            '<div class="tl-mini-dot"></div>' +
+            '<div class="tl-mini-dot" style="background:' + color + '"></div>' +
             '<div class="tl-mini-body">' +
-              '<div class="tl-mini-time">' + esc(evt.time_label || '') + '</div>' +
+              '<div class="tl-mini-time">' + esc(evt.time_label || '') + badge + '</div>' +
               '<div class="tl-mini-event">' +
                 (evt.location ? '📍 ' + esc(evt.location) + ' · ' : '') +
                 esc(evt.event || '') +

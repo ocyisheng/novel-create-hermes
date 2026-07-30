@@ -31,7 +31,8 @@ SCENE_SCHEMA = {
     "子类型": {"type": str, "required": True, "options": ["开篇","推进","冲突","转折","展示","过渡","收束"]},
     "POV角色": {"type": str, "required": True},
     "地点": {"type": str, "required": True},
-    "时间": {"type": str, "required": False},
+    "时间": {"type": str, "required": False, "description": "人类可读时间表达，如'第三日黄昏'、'筑基三年后'"},
+    "时间序数": {"type": float, "required": False, "description": "故事时间坐标，如15000.5；不填则由系统自动计算"},
     "一句话概要": {"type": str, "required": True},
     "出场角色": {
         "type": list, "required": False,

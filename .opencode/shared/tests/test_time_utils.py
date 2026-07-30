@@ -134,7 +134,12 @@ class TestSortByStoryTime:
 
 class TestBackfill:
     def test_backfill_with_content_time(self, store):
-        """content 中有 '时间' 字段，backfill 应提取"""
+        """
+        content 中有 '时间' 字段。
+        注意：由于 create_unit 现在内部通过 auto_sync_story_time 自动同步了，
+        backfill 会返回 False（因为 extra.time 已存在）。
+        此验证重点：backfill 对已同步的数据不做重复操作。
+        """
         from graph_schema import UnitType
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="测试场景",
@@ -143,12 +148,16 @@ class TestBackfill:
         )
         store.flush()
 
-        changed = backfill_story_time(u)
-        assert changed is True
+        # extra.time 已被 auto_sync_story_time 自动填充
         st = get_story_time(u)
         assert st is not None
         assert st["label"] == "春日午后"
         assert st["precision"] == "vague"
+
+        # backfill 发现已有数据，返回 False（不重复写入）
+        changed = backfill_story_time(u)
+        assert changed is False
+        assert get_story_label(u) == "春日午后"
 
     def test_backfill_no_time_field(self, store):
         """content 中无 '时间' 字段，返回 False"""

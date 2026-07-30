@@ -525,6 +525,10 @@ class GraphStore:
                 record_event=True,
             )
         
+        # 自动同步 content 时间字段 → extra.time（让 TimelineLedger / Matcher 能读到标准化时间）
+        from time_utils import auto_sync_story_time
+        auto_sync_story_time(unit)
+
         self._record_event(
             EventType.UNIT_CREATED,
             actor=actor,
@@ -610,6 +614,9 @@ class GraphStore:
                     )
             changed_fields["content"] = (unit.content, content)
             unit.content = content
+            # content 变更后自动同步时间字段 → extra.time
+            from time_utils import auto_sync_story_time
+            auto_sync_story_time(unit)
         if status is not None:
             changed_fields["status"] = (unit.status.value, status.value)
             unit.status = status

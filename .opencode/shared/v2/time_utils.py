@@ -94,6 +94,51 @@ def sort_by_story_time(units: List[NarrativeUnit]) -> List[NarrativeUnit]:
     return sorted(units, key=_key)
 
 
+# ── 自动同步 content → extra.time ──────────────────────────────────────────
+
+
+def auto_sync_story_time(unit: NarrativeUnit) -> bool:
+    """
+    从 content JSON 自动同步时间字段到 extra["time"]。
+    仅在 extra["time"] 为空且 content 中有时间字段时写入。
+    返回 True 表示有变更。
+
+    这是 create_unit / update_unit 的自动钩子，确保 LLM 写入 content 后
+    extra.time 不会被遗漏，使 TemporalMatcher 和 TimelineLedger 能读到标准化数据。
+    """
+    if get_story_time(unit) is not None:
+        return False  # 已有 extra.time，不动
+
+    content = unit.content
+    if not content:
+        return False
+
+    try:
+        import json
+        content_dict = json.loads(content) if isinstance(content, str) else (content if isinstance(content, dict) else {})
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return False
+    if not isinstance(content_dict, dict):
+        return False
+
+    label = content_dict.get("时间", "") or ""
+    ordinal = content_dict.get("时间序数")
+
+    if not label and ordinal is None:
+        return False  # content 中没有时间信息
+
+    precision = "vague"
+    if ordinal is not None:
+        try:
+            ordinal = float(ordinal)
+            precision = "exact"
+        except (TypeError, ValueError):
+            ordinal = None
+
+    set_story_time(unit, label=label, ordinal=ordinal, precision=precision)
+    return True
+
+
 # ── 序数自动计算 ────────────────────────────────────────────────────────────
 
 

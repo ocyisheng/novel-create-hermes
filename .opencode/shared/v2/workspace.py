@@ -87,6 +87,73 @@ class Workspace:
     active_style: str = ""
     active_style_name: str = ""
     
+    # ════════════════════════════════════════════════
+    # 时间序列数据（用于工作空间 Prompt 注入）
+    # ════════════════════════════════════════════════
+
+    # 全局时间线摘要（按预热级别裁剪）
+    global_timeline_summary: Optional[Dict[str, Any]] = None
+    """{
+        total_scenes: int,            # 场景总数
+        chapters: [{chapter, scene_count}],  # 各章场景数
+        focus_position: int,          # 焦点在全局时间线中的索引（0-based）
+        focus_ordinal: float,         # 焦点场景的故事序数
+    }"""
+
+    # 焦点实体的时间线事件列表（已排序）
+    entity_timeline: List[Dict[str, Any]] = field(default_factory=list)
+    """[{
+        story_ordinal: float,    # 故事序数
+        time_label: str,         # 人类可读时间标签
+        event: str,              # 事件描述（场景名称）
+        location: str,           # 地点
+        source_type: str,        # chapter/plot/world
+        node_id: str,            # 关联节点 ID
+    }]"""
+
+    # 角色状态快照序列（焦点为 CHARACTER_ARC 或 SCENE 时）
+    character_snapshots: List[Dict[str, Any]] = field(default_factory=list)
+    """[{
+        character_name: str,
+        chapter: int,
+        story_ordinal: float,
+        location: str,
+        status: str,
+        source_scene_name: str,
+    }]"""
+
+    # 角色状态变化摘要（自动从快照序列推导的文本摘要）
+    character_evolution: str = ""
+    """如 '林昭: 凡人(第1章) → 炼气三层(第3章) → 筑基初期(第5章)'"""
+
+    # 地点/物品时间线
+    location_timeline: List[Dict[str, Any]] = field(default_factory=list)
+
+    # 当前焦点的故事序数（方便排序引用）
+    story_ordinal: Optional[float] = None
+
+    # ════════════════════════════════════════════════
+    # 关系图数据
+    # ════════════════════════════════════════════════
+
+    # 焦点实体的结构化 Ego Network
+    ego_graph: Optional[Dict[str, Any]] = None
+    """{
+        center_id: str,
+        node_count: int,
+        edge_count: int,
+        nodes: [{id, name, type, hop}],       # 邻居节点列表
+        edges: [{from, to, type, label, direction}],  # 边列表
+        by_type: {关系类型: [邻居信息]},       # 按关系类型分组
+    }"""
+
+    # 关系聚合摘要文本（供 LLM 直接消费）
+    relation_summary: str = ""
+    """如 'PARTICIPATES_IN: 林昭出现在 12 个场景中；IMPLEMENTS: 参与情节线-主线·逆天改命'"""
+
+    # 跨实体路径（hot 预热时）
+    entity_paths: List[Dict[str, Any]] = field(default_factory=list)
+
     # 完整性评分
     completeness_score: float = 1.0
     missing_gaps: List[str] = field(default_factory=list)
@@ -230,6 +297,75 @@ class Workspace:
                     lines.append(f"- {nt.get('unit_name', '?')}")
                 lines.append("")
         
+        # ═══════════════════════════════════════════════════════════
+        # 时间轴段落（预热级别裁剪）
+        # ═══════════════════════════════════════════════════════════
+        if self.global_timeline_summary and preheat_level in ("warm", "hot"):
+            lines.append("### 时间轴")
+            summary = self.global_timeline_summary
+            lines.append(f"全局时间线：共 {summary.get('total_scenes', 0)} 个场景")
+            ch_summary = summary.get("chapters", [])
+            if ch_summary:
+                lines.append(f"章节跨度：{ch_summary[0]['chapter']}~{ch_summary[-1]['chapter']} 章")
+            fp = summary.get("focus_position")
+            fo = summary.get("focus_ordinal")
+            if fp is not None:
+                lines.append(f"焦点位置：第 {fp + 1}/{summary['total_scenes']} 个场景（序数 #{fo:.1f}）")
+            if self.story_ordinal is not None:
+                lines.append(f"故事坐标：#{self.story_ordinal:.1f}")
+            lines.append("")
+
+        if self.entity_timeline and preheat_level in ("warm", "hot"):
+            lines.append(f"### 实体时间线（{len(self.entity_timeline)} 个事件）")
+            for evt in self.entity_timeline:
+                marker = "→ " if evt.get("is_focus") else "  "
+                loc_str = f" 📍{evt['location']}" if evt.get("location") else ""
+                lines.append(f"{marker}#{evt.get('story_ordinal', 0):.1f} {evt.get('time_label', '')}{loc_str}  {evt.get('event', '')}")
+            lines.append("")
+
+        if self.character_snapshots and preheat_level in ("warm", "hot"):
+            lines.append(f"### 角色状态演变（{len(self.character_snapshots)} 个快照）")
+            for snap in self.character_snapshots:
+                status_str = f" [{snap['status']}]" if snap.get("status") else ""
+                loc_str = f" @{snap['location']}" if snap.get("location") else ""
+                lines.append(f"  第{snap['chapter']}章{loc_str}{status_str}  {snap.get('source_scene_name', '')}")
+            lines.append("")
+
+        if self.character_evolution:
+            lines.append(f"### 角色轨迹")
+            lines.append(self.character_evolution)
+            lines.append("")
+
+        if self.location_timeline and preheat_level == "hot":
+            lines.append(f"### 地点时间线（{len(self.location_timeline)} 个事件）")
+            for evt in self.location_timeline:
+                lines.append(f"  #{evt.get('story_ordinal', 0):.1f} {evt.get('time_label', '')} 📍{evt.get('location', '')}  {evt.get('event', '')}")
+            lines.append("")
+
+        # ═══════════════════════════════════════════════════════════
+        # 关系网络段落（预热级别裁剪）
+        # ═══════════════════════════════════════════════════════════
+        if self.relation_summary and preheat_level in ("warm", "hot"):
+            lines.append("### 关系网络")
+            lines.append(self.relation_summary)
+            lines.append("")
+
+        if self.ego_graph and preheat_level == "hot":
+            eg = self.ego_graph
+            lines.append(f"### 关系图结构（{eg.get('node_count', 0)} 节点 · {eg.get('edge_count', 0)} 条边）")
+            by_type = eg.get("by_type", {})
+            for rel_type, neighbors in sorted(by_type.items()):
+                names = [n["name"] for n in neighbors[:8]]
+                extra = f" …等{len(neighbors)}" if len(neighbors) > 8 else ""
+                dirs = set(n["direction"] for n in neighbors)
+                dir_str = ""
+                if dirs == {"incoming"}:
+                    dir_str = " ← "
+                elif dirs == {"outgoing"}:
+                    dir_str = " → "
+                lines.append(f"  {rel_type}{dir_str}{', '.join(names)}{extra}")
+            lines.append("")
+
         # 活跃风格（所有预热级别都注入）
         if self.active_style:
             lines.append(f"### 活跃风格：{self.active_style_name}")
@@ -265,6 +401,9 @@ class Workspace:
             "thematic_motif_count": len(self.thematic_motifs),
             "note_count": len(self.notes),
             "weak_signal_count": len(self.weak_signals),
+            "timeline_event_count": len(self.entity_timeline),
+            "snapshot_count": len(self.character_snapshots),
+            "has_ego_graph": self.ego_graph is not None,
             "completeness": self.completeness_score,
             "gaps": self.missing_gaps,
         }
@@ -288,6 +427,10 @@ class WorkspaceBuilder:
             "world_limit": 1,
             "weak_signals": False,
             "prev_next": False,
+            "timeline_events": 0,       # 时间线事件数（0=不加载）
+            "snapshot_limit": 0,         # 角色快照数
+            "graph_depth": 1,            # 关系图深度
+            "graph_internal_edges": False,  # 邻居间内部边
         },
         "warm": {
             "neighbor_depth": 1,
@@ -296,6 +439,10 @@ class WorkspaceBuilder:
             "world_limit": 3,
             "weak_signals": False,
             "prev_next": True,
+            "timeline_events": 5,
+            "snapshot_limit": 5,
+            "graph_depth": 1,
+            "graph_internal_edges": True,
         },
         "hot": {
             "neighbor_depth": 2,
@@ -304,6 +451,10 @@ class WorkspaceBuilder:
             "world_limit": 5,
             "weak_signals": True,
             "prev_next": True,
+            "timeline_events": 20,
+            "snapshot_limit": 20,
+            "graph_depth": 2,
+            "graph_internal_edges": True,
         },
     }
     
@@ -413,10 +564,16 @@ class WorkspaceBuilder:
         if focus.type == UnitType.SCENE:
             self._enrich_scene_context(ws, focus)
         
-        # 7. 完整性评估
+        # 7. 时间序列数据加载（复用 CharacterTimelineLedger）
+        self._load_timeline_data(ws, focus, config)
+        
+        # 8. 结构化关系图加载（Ego Network）
+        self._load_ego_graph(ws, focus, config)
+        
+        # 9. 完整性评估
         self._assess_completeness(ws)
         
-        # 8. 加载焦点类型的 content 字段 Schema（注入 prompt 指导 LLM 写 JSON）
+        # 10. 加载焦点类型的 content 字段 Schema（注入 prompt 指导 LLM 写 JSON）
         from schemas import schema_info as _schema_info
         ws.schema_info = _schema_info(focus.type)
         
@@ -786,6 +943,233 @@ class WorkspaceBuilder:
                     ws.next_unit = {"unit_id": nxt.id, "unit_name": nxt.unit_name}
                 break
     
+    # ════════════════════════════════════════════════
+    # 时间序列数据加载
+    # ════════════════════════════════════════════════
+
+    def _load_timeline_data(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
+        """
+        为焦点加载时间序列数据。
+        复用 CharacterTimelineLedger（已存在的只读排序视图），避免重复实现排序逻辑。
+        """
+        from character_timeline import CharacterTimelineLedger
+
+        num_events = config.get("timeline_events", 5)
+        if num_events <= 0:
+            return
+
+        ledger = CharacterTimelineLedger(self.store)
+        view = ledger.build()
+
+        # 1. 全局时间线摘要
+        ws.global_timeline_summary = {
+            "total_scenes": view.total_scenes,
+            "chapters": [
+                {"chapter": ch, "scene_count": len(scenes)}
+                for ch, scenes in sorted(view.by_chapter.items())
+            ],
+        }
+
+        # 2. 焦点实体的时间线位置
+        if focus.type in (UnitType.SCENE, UnitType.CHARACTER_ARC, UnitType.PLOT_THREAD):
+            # 场景：直接查
+            if focus.type == UnitType.SCENE:
+                pos = ledger.get_scene_order(view, focus.id)
+                if pos >= 0:
+                    ws.global_timeline_summary["focus_position"] = pos
+                    ws.global_timeline_summary["focus_ordinal"] = view.scenes[pos].ordinal
+                    ws.story_ordinal = view.scenes[pos].ordinal
+            # 角色：查该角色时间线的第一个场景位置
+            elif focus.type == UnitType.CHARACTER_ARC:
+                char_scenes = view.by_character.get(focus.unit_name, [])
+                if char_scenes:
+                    pos = ledger.get_scene_order(view, char_scenes[0].unit_id)
+                    if pos >= 0:
+                        ws.global_timeline_summary["first_scene_position"] = pos
+
+        # 3. 焦点实体的时间线事件
+        if focus.type == UnitType.CHARACTER_ARC:
+            # 角色时间线：所有关联场景按故事时间排序
+            char_scenes = view.by_character.get(focus.unit_name, [])
+            for ts in char_scenes[:num_events]:
+                ws.entity_timeline.append({
+                    "story_ordinal": ts.ordinal,
+                    "time_label": ts.label,
+                    "event": ts.unit_name,
+                    "location": ts.location,
+                    "source_type": "chapter",
+                    "node_id": ts.unit_id,
+                })
+        elif focus.type == UnitType.SCENE:
+            # 场景本身就在时间线里，取前后相邻场景
+            pos = ledger.get_scene_order(view, focus.id)
+            if pos >= 0:
+                start = max(0, pos - 2)
+                end = min(len(view.scenes), pos + 3)
+                for ts in view.scenes[start:end]:
+                    ws.entity_timeline.append({
+                        "story_ordinal": ts.ordinal,
+                        "time_label": ts.label,
+                        "event": ts.unit_name,
+                        "location": ts.location,
+                        "source_type": "chapter",
+                        "node_id": ts.unit_id,
+                        "is_focus": ts.unit_id == focus.id,
+                    })
+        elif focus.type == UnitType.WORLD_RULE:
+            # 地点/世界观时间线：按 content["地点"] 匹配场景
+            loc_name = focus.unit_name
+            for ts in view.scenes:
+                if ts.location == loc_name or loc_name in (ts.location or ""):
+                    ws.location_timeline.append({
+                        "story_ordinal": ts.ordinal,
+                        "time_label": ts.label,
+                        "event": ts.unit_name,
+                        "location": ts.location,
+                        "source_type": "chapter",
+                        "node_id": ts.unit_id,
+                    })
+
+        # 4. 角色状态快照（CHARACTER_ARC 焦点）
+        if focus.type == UnitType.CHARACTER_ARC:
+            snapshots = ledger.get_snapshots(view, focus.unit_name)
+            limit = config.get("snapshot_limit", 5)
+            for snap in snapshots[:limit]:
+                ws.character_snapshots.append({
+                    "character_name": snap.character_name,
+                    "chapter": snap.chapter,
+                    "story_ordinal": snap.story_ordinal,
+                    "location": snap.location,
+                    "status": snap.status,
+                    "source_scene_name": snap.source_scene_name,
+                })
+            # 自动推导角色演变摘要
+            if snapshots:
+                parts = []
+                seen_statuses = set()
+                for s in snapshots:
+                    status_key = f"第{s.chapter}章"
+                    if s.location:
+                        status_key += f"·{s.location}"
+                    if status_key not in seen_statuses:
+                        seen_statuses.add(status_key)
+                        parts.append(status_key)
+                if len(parts) >= 2:
+                    ws.character_evolution = f"{focus.unit_name}: {' → '.join(parts[:6])}"
+
+    # ════════════════════════════════════════════════
+    # 关系图数据加载
+    # ════════════════════════════════════════════════
+
+    def _load_ego_graph(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
+        """
+        为焦点加载结构化 Ego Network。
+        复用 GraphStore.get_relations()，按关系类型分组聚合。
+        """
+        graph_depth = config.get("graph_depth", 1)
+        include_internal = config.get("graph_internal_edges", False)
+
+        nodes = {}
+        edges = []
+        by_type = defaultdict(list)
+        visited = {focus.id}
+
+        # 中心节点
+        nodes[focus.id] = {
+            "id": focus.id,
+            "name": focus.unit_name,
+            "type": focus.type.value,
+            "hop": 0,
+        }
+
+        # 1-hop 邻居
+        for rel in self.store.get_relations(focus.id):
+            other_id = rel.target_id if rel.source_id == focus.id else rel.source_id
+            direction = "outgoing" if rel.source_id == focus.id else "incoming"
+            other = self.store.get_unit(other_id)
+            if not other or other.status == UnitStatus.ARCHIVED:
+                continue
+
+            if other_id not in visited:
+                nodes[other_id] = {
+                    "id": other_id,
+                    "name": other.unit_name,
+                    "type": other.type.value,
+                    "hop": 1,
+                }
+                visited.add(other_id)
+
+            edge_entry = {
+                "from": rel.source_id,
+                "to": rel.target_id,
+                "type": rel.relation_type.value,
+                "label": rel.label or "",
+                "direction": direction,
+            }
+            edges.append(edge_entry)
+            by_type[rel.relation_type.value].append({
+                "name": other.unit_name,
+                "type": other.type.value,
+                "direction": direction,
+            })
+
+        # 1-hop 邻居之间的内部边（warm+）
+        if include_internal and graph_depth >= 1:
+            one_hop_ids = {nid for nid, info in nodes.items() if info["hop"] == 1}
+            seen_edge_pairs = {(e["from"], e["to"], e["type"]) for e in edges}
+            for nid in one_hop_ids:
+                for rel in self.store.get_relations(nid):
+                    pair_key = (rel.source_id, rel.target_id, rel.relation_type.value)
+                    if pair_key in seen_edge_pairs:
+                        continue
+                    a_in = rel.source_id in visited
+                    b_in = rel.target_id in visited
+                    if a_in and b_in and rel.source_id != rel.target_id:
+                        seen_edge_pairs.add(pair_key)
+                        edges.append({
+                            "from": rel.source_id,
+                            "to": rel.target_id,
+                            "type": rel.relation_type.value,
+                            "label": rel.label or "",
+                        })
+
+        # 2-hop（hot 时）
+        if graph_depth >= 2:
+            one_hop_ids = {nid for nid, info in nodes.items() if info["hop"] == 1}
+            new_visited = set(visited)
+            for nid in list(one_hop_ids):
+                for rel in self.store.get_relations(nid):
+                    other_id = rel.target_id if rel.source_id == nid else rel.source_id
+                    if other_id in new_visited:
+                        continue
+                    other = self.store.get_unit(other_id)
+                    if not other or other.status == UnitStatus.ARCHIVED:
+                        continue
+                    nodes[other_id] = {
+                        "id": other_id,
+                        "name": other.unit_name,
+                        "type": other.type.value,
+                        "hop": 2,
+                    }
+                    new_visited.add(other_id)
+
+        ws.ego_graph = {
+            "center_id": focus.id,
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "nodes": list(nodes.values()),
+            "edges": edges,
+            "by_type": dict(by_type),
+        }
+
+        # 生成关系摘要文本（给 LLM 直接消费）
+        parts = []
+        for rel_type, neighbors in sorted(by_type.items()):
+            names = [n["name"] for n in neighbors[:5]]
+            extra = f"等{len(neighbors)}个" if len(neighbors) > 5 else ""
+            parts.append(f"{rel_type}: {'、'.join(names)}{extra}")
+        ws.relation_summary = "；".join(parts)
+
     def _assess_completeness(self, ws: Workspace):
         """评估上下文完整性"""
         gaps = []

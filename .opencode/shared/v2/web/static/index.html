@@ -16,14 +16,26 @@
       <h1 id="projectName">—</h1>
     </div>
     <div class="tb-center">
-      <select id="typeFilter"><option value="all">全部</option></select>
-      <div class="search-wrap">
-        <input id="searchBox" type="text" placeholder="搜索名称..." />
-        <span id="searchClear" class="search-clear">&times;</span>
+      <div class="tab-group">
+        <button id="tabGraph" class="tab-btn active" onclick="switchView('graph')">🗺️ 图谱</button>
+        <button id="tabTimeline" class="tab-btn" onclick="switchView('timeline')">📅 时间线</button>
       </div>
-      <button id="btnPhysics" onclick="togglePhysics()">🧊 冻结</button>
-      <button id="btnAddNode" onclick="showAddNodeModal()">＋ 新建</button>
-      <button id="btnAddEdge" onclick="showAddEdgeModal()">↔ 关联</button>
+      <div id="graphToolbar" class="tb-inline">
+        <select id="typeFilter"><option value="all">全部</option></select>
+        <div class="search-wrap">
+          <input id="searchBox" type="text" placeholder="搜索名称..." />
+          <span id="searchClear" class="search-clear">&times;</span>
+        </div>
+        <button id="btnPhysics" onclick="togglePhysics()">🧊 冻结</button>
+        <button id="btnAddNode" onclick="showAddNodeModal()">＋ 新建</button>
+        <button id="btnAddEdge" onclick="showAddEdgeModal()">↔ 关联</button>
+      </div>
+      <div id="timelineToolbar" class="tb-inline" style="display:none">
+        <select id="tlCharacterFilter"><option value="">全部角色</option></select>
+        <select id="tlChapterFilter"><option value="">全部章节</option></select>
+        <button id="btnTlReset" onclick="resetTimelineFilter()">↺ 重置</button>
+        <span id="tlStats" class="stats" style="margin-left:8px"></span>
+      </div>
     </div>
     <div class="tb-right">
       <span id="statsDisplay" class="stats">0 节点 · 0 关系</span>
@@ -32,8 +44,15 @@
 
   <!-- Main area -->
   <div id="main">
-    <!-- Network -->
+    <!-- Network (graph view) -->
     <div id="network"></div>
+
+    <!-- Timeline view -->
+    <div id="timelineView" style="display:none">
+      <div id="timelineContent">
+        <div class="tl-loading">加载时间线中...</div>
+      </div>
+    </div>
 
     <!-- Legend -->
     <div id="legend"></div>
@@ -63,6 +82,7 @@
 
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <script src="static/js/api.js"></script>
+<script src="static/js/timeline.js"></script>
 <script src="static/js/app.js"></script>
 </body>
 </html>

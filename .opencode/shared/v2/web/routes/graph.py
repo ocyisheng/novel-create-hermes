@@ -182,6 +182,62 @@ def get_neighbors(
     }
 
 
+# ── GET /api/graph/timeline ──────────────────────────────────────
+
+@router.get("/timeline")
+def get_global_timeline(project_root: str = Depends(get_project_root)):
+    """返回全局时间线：所有 SCENE 按故事时间排序，按章节分组，含角色索引"""
+    store = _get_store(project_root)
+    from character_timeline import CharacterTimelineLedger
+
+    ledger = CharacterTimelineLedger(store)
+    view = ledger.build()
+
+    # 按章节分组
+    chapters: dict[int, list] = {}
+    for ts in view.scenes:
+        ch = ts.chapter or 0
+        if ch not in chapters:
+            chapters[ch] = []
+        chapters[ch].append({
+            "unit_id": ts.unit_id,
+            "unit_name": ts.unit_name,
+            "ordinal": ts.ordinal,
+            "precision": ts.precision,
+            "time_label": ts.label,
+            "location": ts.location,
+            "characters": ts.characters,
+            "chapter": ts.chapter,
+            "is_manual_ordinal": ts.is_manual_ordinal,
+        })
+
+    # 角色索引（精简版）
+    by_character = {}
+    for name, scenes in view.by_character.items():
+        by_character[name] = [
+            {
+                "unit_id": s.unit_id,
+                "unit_name": s.unit_name,
+                "ordinal": s.ordinal,
+                "chapter": s.chapter,
+                "location": s.location,
+                "time_label": s.label,
+            }
+            for s in scenes
+        ]
+
+    return {
+        "total_scenes": view.total_scenes,
+        "manual_overrides": view.manual_overrides,
+        "parallel_groups": view.parallel_groups,
+        "chapters": [
+            {"chapter": ch, "scenes": scenes}
+            for ch, scenes in sorted(chapters.items())
+        ],
+        "by_character": by_character,
+    }
+
+
 # ── GET /api/graph/timeline/{id} ──────────────────────────────────
 
 @router.get("/timeline/{id}")
@@ -207,7 +263,7 @@ def get_timeline(id: str, project_root: str = Depends(get_project_root)):
             if isinstance(content, str):
                 try:
                     content = _json.loads(content)
-                except (json.JSONDecodeError, ValueError):
+                except (_json.JSONDecodeError, ValueError):
                     content = {}
             loc = content.get("地点", "") if isinstance(content, dict) else ""
             from graph_schema import get_unit_chapter
@@ -241,7 +297,7 @@ def get_timeline(id: str, project_root: str = Depends(get_project_root)):
             events.append({
                 "sort_key": -2,
                 "time_label": "世界观",
-                "event": f"{rel.label or RELATION_LABELS.get(rel.relation_type, rel.relation_type.value)}: {target.unit_name}",
+                "event": f"{rel.label or RelationType.label(rel.relation_type)}: {target.unit_name}",
                 "source_type": "world",
                 "node_id": target.id,
             })

@@ -52,9 +52,14 @@
       return _get(`/api/graph/neighbors/${encodeURIComponent(id)}?depth=${depth}`);
     },
 
-    /** 时间线 */
+    /** 实体时间线 */
     timeline(id) {
       return _get(`/api/graph/timeline/${encodeURIComponent(id)}`);
+    },
+
+    /** 全局时间线（所有场景按故事时间排序） */
+    globalTimeline() {
+      return _get('/api/graph/timeline');
     },
 
     /** 搜索 */

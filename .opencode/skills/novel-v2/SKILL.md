@@ -113,7 +113,7 @@ novel-tool --operation graph.find_ancestors --project {PROJECT} --id {单元ID}
 启动 Web 服务后打开浏览器查看交互式关系图：
 ```bash
 novel-tool --operation web.start --project {PROJECT}
-# 打开 http://localhost:8765
+# 打开 http://localhost:8766
 ```
 ```
 

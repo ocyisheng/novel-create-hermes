@@ -217,7 +217,7 @@ def _type_label(t) -> str:
 
 # ── 启动入口 ──────────────────────────────────────────────────────
 
-def run_server(project_root: str, host: str = "127.0.0.1", port: int = 8765):
+def run_server(project_root: str, host: str = "127.0.0.1", port: int = 8766):
     """启动 uvicorn 服务器。"""
     import uvicorn
 
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="novel-web-server")
     parser.add_argument("--project-root", "-p", required=True, help="项目根目录")
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
-    parser.add_argument("--port", type=int, default=8765, help="监听端口")
+    parser.add_argument("--port", type=int, default=8766, help="监听端口")
     args = parser.parse_args()
 
     run_server(args.project_root, args.host, args.port)

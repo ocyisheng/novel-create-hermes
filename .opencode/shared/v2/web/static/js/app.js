@@ -135,6 +135,55 @@
     }
   }
 
+  // ── 视图切换 ────────────────────────────────────────────
+
+  window.switchView = function(view, focusNodeId) {
+    const network = document.getElementById('network');
+    const timelineView = document.getElementById('timelineView');
+    const graphToolbar = document.getElementById('graphToolbar');
+    const timelineToolbar = document.getElementById('timelineToolbar');
+    const tabGraph = document.getElementById('tabGraph');
+    const tabTimeline = document.getElementById('tabTimeline');
+
+    if (view === 'timeline') {
+      if (network) network.style.display = 'none';
+      if (timelineView) timelineView.style.display = 'block';
+      if (graphToolbar) graphToolbar.style.display = 'none';
+      if (timelineToolbar) timelineToolbar.style.display = 'inline-flex';
+      if (tabGraph) tabGraph.classList.remove('active');
+      if (tabTimeline) tabTimeline.classList.add('active');
+      // 关闭详情面板
+      closeDetail();
+      // 加载时间线
+      if (typeof TIMELINE !== 'undefined' && TIMELINE.load) {
+        TIMELINE.load();
+      }
+    } else {
+      if (network) network.style.display = 'block';
+      if (timelineView) timelineView.style.display = 'none';
+      if (graphToolbar) graphToolbar.style.display = 'inline-flex';
+      if (timelineToolbar) timelineToolbar.style.display = 'none';
+      if (tabGraph) tabGraph.classList.add('active');
+      if (tabTimeline) tabTimeline.classList.remove('active');
+      // 聚焦节点
+      if (focusNodeId && nodeData[focusNodeId]) {
+        setTimeout(function() {
+          if (network) {
+            network.fit({ animation: false });
+            network.focus(focusNodeId, { scale: 1.5, animation: true });
+          }
+          showDetail(focusNodeId);
+        }, 400);
+      }
+    }
+  };
+
+  window.resetTimelineFilter = function() {
+    if (typeof TIMELINE !== 'undefined' && TIMELINE.resetTimelineFilter) {
+      TIMELINE.resetTimelineFilter();
+    }
+  };
+
   // ── 节点/边构建 ──────────────────────────────────────────
 
   function buildVisNode(id, n) {
@@ -328,6 +377,13 @@
       });
     }
 
+    // ── 时间线（角色/场景专用） ────────────────────────────
+    var showTimeline = n.type && (n.type === 'character_arc' || n.type === 'scene');
+    if (showTimeline) {
+      var tlLabel = n.type === 'character_arc' ? '角色时间线' : '关联场景';
+      html += '<div class="section"><h3>' + tlLabel + '</h3><div id="entityTimeline" class="entity-timeline"><div class="tl-mini-loading">加载中...</div></div></div>';
+    }
+
     // 操作按钮
     html += '<div class="dp-actions">' +
       '<button onclick="APP.editNode(\'' + id + '\')">✏️ 编辑</button>' +
@@ -336,6 +392,11 @@
 
     body.innerHTML = html;
     document.getElementById('detailPanel').classList.add('open');
+
+    // 异步加载角色时间线
+    if (showTimeline && typeof TIMELINE !== 'undefined' && TIMELINE.renderEntityTimeline) {
+      TIMELINE.renderEntityTimeline(id, n.label || id, document.getElementById('entityTimeline'));
+    }
   }
 
   function closeDetail() {

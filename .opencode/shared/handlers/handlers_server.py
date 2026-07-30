@@ -3,6 +3,7 @@ handlers_server.py — Web Server 相关 handler
 
 web.start  : 启动本地 Web 服务（FastAPI + 前端 SPA，subprocess 非阻塞）
 web.restart : 重启 Web 服务（kill 旧进程 → 启动新进程）
+web.stop   : 停止 Web 服务（kill 进程 + 清理元数据文件）
 """
 
 import os
@@ -19,7 +20,7 @@ for _d in [_SHARED_DIR, _V2_DIR]:
 # ── PID 持久化 ────────────────────────────────────────────────────
 
 def _pid_path() -> str:
-    _engine_dir = os.path.join(os.path.dirname(_SHARED_DIR), ".engine", "daemon")
+    _engine_dir = os.path.join(os.path.dirname(os.path.dirname(_SHARED_DIR)), ".engine", "daemon")
     os.makedirs(_engine_dir, exist_ok=True)
     return os.path.join(_engine_dir, "web-server.json")
 
@@ -49,6 +50,132 @@ def _kill_proc(pid: int) -> bool:
         return False
 
 
+# ── 日志路径 ──────────────────────────────────────────────────────
+
+def _log_dir() -> str:
+    """Web 服务日志存放目录。"""
+    _engine_dir = os.path.join(os.path.dirname(os.path.dirname(_SHARED_DIR)), ".engine", "daemon")
+    os.makedirs(_engine_dir, exist_ok=True)
+    return _engine_dir
+
+
+def _server_log_path(pid: int) -> tuple[str, str]:
+    """返回 (stdout日志路径, stderr日志路径)。"""
+    log_dir = _log_dir()
+    return (
+        os.path.join(log_dir, f"web-server-{pid}.log"),
+        os.path.join(log_dir, f"web-server-{pid}-err.log"),
+    )
+
+
+# ── 端口轮询 ──────────────────────────────────────────────────────
+
+def _wait_for_port(host: str, port: int, timeout: float = 5.0, interval: float = 0.3) -> bool:
+    """轮询等待端口开始监听，超时返回 False。"""
+    import socket, time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(interval)
+    return False
+
+
+# ── 子进程启动（共用） ────────────────────────────────────────────
+
+def _start_server_process(project_root: str, host: str, port: int) -> dict:
+    """启动 uvicorn 子进程，返回 {'ok', 'url', 'pid', 'log_path'} 或 {'error'}。"""
+    import socket
+
+    # 端口先行检测（确认未被占用）
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, port))
+        sock.close()
+    except OSError:
+        sock.close()
+        return {"error": f"端口 {port} 已被占用，请先关闭已有服务或换端口"}
+
+    script = os.path.join(_V2_DIR, "web", "server.py")
+    python = sys.executable
+    url = f"http://{host}:{port}"
+
+    # 分配日志路径
+    log_dir = _log_dir()
+    out_path = os.path.join(log_dir, "web-server-out.log")
+    err_path = os.path.join(log_dir, "web-server-err.log")
+
+    # 启动子进程
+    # 注意：daemon 环境下不要设 creationflags（CREATE_NO_WINDOW 会导致子进程初始化失败），
+    # 用 stdin=DEVNULL 避免继承 daemon 的 stdin 管道。
+    try:
+        proc = subprocess.Popen(
+            [python, script, "--project-root", project_root, "--host", host, "--port", str(port)],
+            stdout=open(out_path, "wb"),
+            stderr=open(err_path, "wb"),
+            stdin=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        return {"error": f"子进程启动失败: {e}"}
+
+    pid = proc.pid
+
+    # 轮询等待端口就绪
+    ready = _wait_for_port(host, port, timeout=5.0)
+    if not ready:
+        crash_info = ""
+        for p in [err_path, out_path]:
+            if os.path.exists(p):
+                try:
+                    with open(p, "r", encoding="utf-8", errors="replace") as f:
+                        c = f.read(2000)
+                    if c.strip():
+                        crash_info += f"\n--- {p} ---\n{c}"
+                except Exception:
+                    pass
+        _kill_proc(pid)
+        msg = f"服务启动超时（5s 内未监听 {host}:{port}）"
+        if crash_info:
+            msg += f"\n进程输出：{crash_info}"
+        return {"error": msg, "log_path": err_path}
+
+    # 端口已就绪 — 通过 netstat 获取真实 PID（子进程 PID 可能与 Popen 返回的不同）
+    real_pid = pid
+    try:
+        import subprocess as _sp
+        ns = _sp.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
+        for line in ns.stdout.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                parts = line.strip().split()
+                if parts:
+                    candidate = parts[-1]
+                    if candidate.isdigit():
+                        real_pid = int(candidate)
+                        break
+    except Exception:
+        pass
+
+    # 修正日志文件名为真实 PID
+    pid_out_path = os.path.join(log_dir, f"web-server-{real_pid}.log")
+    pid_err_path = os.path.join(log_dir, f"web-server-{real_pid}-err.log")
+    for src, dst in [(out_path, pid_out_path), (err_path, pid_err_path)]:
+        try:
+            if os.path.exists(src):
+                os.rename(src, dst)
+        except OSError:
+            pass
+
+    _save_meta(project_root, real_pid, host, port)
+    return {"ok": True, "url": url, "pid": real_pid, "log_path": pid_out_path}
+
+
 # ── web.start ────────────────────────────────────────────────────
 
 def handle_server_start(
@@ -62,33 +189,10 @@ def handle_server_start(
     if not os.path.isdir(project_root):
         return {"error": f"项目目录不存在: {project_root}"}
 
-    # 端口检测
-    import socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.bind((host, port))
-        sock.close()
-    except OSError:
-        return {"error": f"端口 {port} 已被占用，请先关闭已有服务或换端口"}
-    finally:
-        sock.close()
-
-    script = os.path.join(_V2_DIR, "web", "server.py")
-    python = sys.executable
-    url = f"http://{host}:{port}"
-
-    try:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        proc = subprocess.Popen(
-            [python, script, "--project-root", project_root, "--host", host, "--port", str(port)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=flags,
-        )
-        _save_meta(project_root, proc.pid, host, port)
-        return {"ok": True, "url": url, "pid": proc.pid}
-    except Exception as e:
-        return {"error": f"服务启动失败: {e}"}
+    result = _start_server_process(project_root, host, port)
+    if "error" in result:
+        return result
+    return {"ok": True, "url": result["url"], "pid": result["pid"]}
 
 
 # ── web.restart ──────────────────────────────────────────────────
@@ -129,23 +233,41 @@ def handle_server_restart(
     else:
         return {"error": f"端口 {port} 在 5s 内未释放"}
 
-    # 3) 启动新进程
-    script = os.path.join(_V2_DIR, "web", "server.py")
-    python = sys.executable
-    url = f"http://{host}:{port}"
+    # 3) 启动新进程（共用 _start_server_process）
+    result = _start_server_process(project_root, host, port)
+    if "error" in result:
+        return result
+    return {
+        "ok": True, "url": result["url"], "pid": result["pid"],
+        "killed_old": killed, "old_pid": old_pid,
+    }
 
+
+# ── web.stop ─────────────────────────────────────────────────────
+
+def handle_server_stop() -> dict:
+    """停止 Web 服务：kill 进程 + 清理元数据文件。"""
+    meta = _load_meta()
+    if not meta:
+        return {"ok": True, "message": "没有正在运行的 Web 服务", "killed": False}
+
+    pid = meta.get("pid")
+    killed = False
+    if pid:
+        killed = _kill_proc(pid)
+
+    # 清理元数据文件
     try:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        proc = subprocess.Popen(
-            [python, script, "--project-root", project_root, "--host", host, "--port", str(port)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=flags,
-        )
-        _save_meta(project_root, proc.pid, host, port)
-        return {
-            "ok": True, "url": url, "pid": proc.pid,
-            "killed_old": killed, "old_pid": old_pid,
-        }
-    except Exception as e:
-        return {"error": f"重启失败: {e}"}
+        p = _pid_path()
+        if os.path.exists(p):
+            os.remove(p)
+    except OSError:
+        pass
+
+    return {
+        "ok": True,
+        "killed": killed,
+        "pid": pid,
+        "host": meta.get("host"),
+        "port": meta.get("port"),
+    }

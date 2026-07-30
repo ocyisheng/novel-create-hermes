@@ -7,7 +7,7 @@ novel-create-hermes 统一 CLI 入口。
 调用 handlers 模块中的纯业务函数，只做参数提取和输出格式化。
 
 用法:
-        python .opencode/shared/cli.py server --project-root <路径> --port 8765
+        python .opencode/shared/cli.py server --project-root <路径> --port 8766
         python .opencode/shared/cli.py migrate --project-root <路径> [选项]
         python .opencode/shared/cli.py project <command> [参数]
         python .opencode/shared/cli.py env [--fix|--force] [--root <路径>]
@@ -776,7 +776,7 @@ def _build_server_parser(sub):
     p = sub.add_parser("server", help="启动本地 Web 服务（FastAPI + 前端 SPA）")
     p.add_argument("--project-root", "-p", required=True, help="项目根目录")
     p.add_argument("--host", default="127.0.0.1", help="监听地址（默认 127.0.0.1）")
-    p.add_argument("--port", type=int, default=8765, help="监听端口（默认 8765）")
+    p.add_argument("--port", type=int, default=8766, help="监听端口（默认 8766）")
     return p
 
 

@@ -331,7 +331,7 @@ export default tool({
         "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats", "deviation.summary",
         
         // server
-        "web.start", "web.restart",
+        "web.start", "web.stop", "web.restart",
       ])
       .describe("操作类型"),
     project: tool.schema.string().optional().describe("小说项目名（如 凡人之诡影重重）或绝对路径"),
@@ -388,7 +388,7 @@ export default tool({
     full_scan_version: tool.schema.number().optional().describe("全量扫描版本号"),
     out: tool.schema.string().optional().describe("导出目录"),
     host: tool.schema.string().optional().describe("Web 服务绑定地址（默认 127.0.0.1）"),
-    port: tool.schema.number().optional().describe("Web 服务端口（默认 8765）"),
+    port: tool.schema.number().optional().describe("Web 服务端口（默认 8766）"),
   },
   async execute(args, context) {
     return run(args, context.worktree)

@@ -73,7 +73,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   ├─ 可视化（关系图/时间线/图谱）?
   │   ├─ 通知用户 "正在启动 web 可视化..."
   │   ├─ novel-tool --operation web.start --project {PROJECT}
-  │   └─ 告知用户 "Web 可视化已启动，打开 http://localhost:8765 查看交互式关系图"
+  │   └─ 告知用户 "Web 可视化已启动，打开 http://localhost:8766 查看交互式关系图"
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
   │   ├─ 按 §3.6 前置判断表：
@@ -207,7 +207,7 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 | 编辑修改 | 根据目标类型推断 | session推荐/warm | ✅ 仅模糊修改请求 | |
 | 记录灵感 | note | session推荐/cold | ❌ | |
 | 导出 | — | — | ❌ | |
-| 可视化/关系图/时间线 | — | — | ❌ | 调 web.start → 打开 http://localhost:8765 交互式 Web UI |
+| 可视化/关系图/时间线 | — | — | ❌ | 调 web.start → 打开 http://localhost:8766 交互式 Web UI |
 
 预热级别决定子 Agent 接收的上下文量：
 - **cold**：仅焦点单元本身，最小上下文（新构思、简单查询）

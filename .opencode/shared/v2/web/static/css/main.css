@@ -301,10 +301,143 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Tab Group ──────────────────────────────────────────── */
+.tab-group { display: flex; gap: 0; margin-right: 12px; }
+.tab-btn {
+  padding: 5px 14px; border: 1px solid var(--border);
+  background: var(--bg-surface); color: var(--text-dim); cursor: pointer;
+  font-size: 13px; font-family: var(--font); transition: all var(--transition);
+}
+.tab-btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.tab-btn:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.tab-btn:not(:last-child) { border-right: none; }
+.tab-btn:hover { background: var(--bg-hover); color: var(--text); }
+.tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.tb-inline { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ── Timeline View ─────────────────────────────────────── */
+#timelineView {
+  position: absolute; inset: 0; overflow-y: auto;
+  background: var(--bg-dark);
+  padding: 24px 40px;
+}
+#timelineContent { max-width: 800px; margin: 0 auto; }
+
+.tl-loading, .tl-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-dim); font-size: 14px;
+}
+
+/* ── Timeline Chapter ──────────────────────────────────── */
+.tl-chapter { margin-bottom: 8px; }
+.tl-chapter-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+  user-select: none;
+  position: sticky; top: 0; z-index: 10;
+}
+.tl-chapter-header:hover { background: var(--bg-hover); }
+.tl-chapter-toggle {
+  font-size: 10px; color: var(--text-dim);
+  transition: transform var(--transition);
+  width: 14px; text-align: center;
+}
+.tl-chapter-title { font-size: 14px; font-weight: 600; color: var(--text-bright); flex: 1; }
+.tl-chapter-count { font-size: 11px; color: var(--text-dim); }
+.tl-chapter-body { padding: 4px 0 4px 24px; }
+
+/* ── Timeline Scene ────────────────────────────────────── */
+.tl-scene { position: relative; }
+.tl-scene-line { display: flex; align-items: flex-start; gap: 12px; }
+
+.tl-dot-wrapper {
+  display: flex; flex-direction: column; align-items: center;
+  width: 16px; flex-shrink: 0; padding-top: 16px;
+}
+.tl-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg-dark);
+  flex-shrink: 0; z-index: 1;
+}
+.tl-dot-parallel { background: var(--accent2); }
+.tl-line {
+  width: 2px; flex: 1; min-height: 100%;
+  background: var(--border); margin-top: -2px;
+}
+
+.tl-scene-card {
+  flex: 1; padding: 12px 16px; margin: 4px 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.tl-scene-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  transform: translateX(4px);
+}
+
+.tl-scene-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
+}
+.tl-scene-name { font-size: 14px; font-weight: 500; color: var(--text-bright); flex: 1; }
+.tl-ordinal { font-size: 11px; color: var(--text-dim); font-family: monospace; }
+.tl-time-label { font-size: 12px; color: var(--accent); }
+.tl-location { font-size: 12px; color: var(--text-dim); margin-left: 8px; }
+
+.tl-scene-meta {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; margin-bottom: 6px;
+}
+
+.tl-scene-chars { display: flex; flex-wrap: wrap; gap: 4px; }
+.tl-char-tag {
+  display: inline-block; padding: 1px 8px; border-radius: 8px;
+  background: rgba(91, 155, 213, 0.15); color: var(--accent);
+  font-size: 11px; cursor: pointer; transition: all var(--transition);
+}
+.tl-char-tag:hover { background: rgba(91, 155, 213, 0.3); }
+.tl-char-more { background: var(--bg-surface); color: var(--text-dim); cursor: default; }
+
+.tl-badge { font-size: 12px; margin-left: 2px; }
+
+/* ── Mini timeline (in detail panel) ───────────────────── */
+.entity-timeline { margin-top: 4px; }
+.tl-mini-loading {
+  font-size: 12px; color: var(--text-dim); padding: 8px 0;
+}
+.tl-mini {
+  position: relative; padding-left: 16px;
+  border-left: 2px solid var(--border);
+  margin-left: 4px;
+}
+.tl-mini-item {
+  position: relative; padding: 6px 0 6px 12px;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.tl-mini-dot {
+  position: absolute; left: -22px; top: 10px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg-panel);
+}
+.tl-mini-time { font-size: 11px; color: var(--text-dim); white-space: nowrap; min-width: 60px; }
+.tl-mini-event { font-size: 12px; color: var(--text); }
+.tl-mini-body { display: flex; gap: 8px; align-items: baseline; }
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   #toolbar { padding: 6px 12px; gap: 6px; }
   .tb-center { flex-wrap: wrap; }
   #searchBox { width: 140px; }
   .panel { width: 100%; right: -100%; }
+  #timelineView { padding: 16px; }
 }

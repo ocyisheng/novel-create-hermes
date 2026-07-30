@@ -172,7 +172,7 @@ class DeviationManager:
         合并规则：
         1. 新偏差（相同 dimension + entity 不存在于已有状态）→ 添加
         2. 已有偏差（相同 dimension + entity）→ 递增 detection_count，更新 last_detected
-        3. 已解决但再次出现的 → 重置 status 为 pending
+        3. resolved/retained 偏差再次检出 → 仅更新时序记录，不重置状态
         """
         now = datetime.now(timezone.utc).isoformat()
 
@@ -195,9 +195,9 @@ class DeviationManager:
                 existing.last_detected = now
                 existing.scanned_version = new_item.scanned_version
                 
-                # 如果之前已解决但再次出现，重置为 pending
-                if existing.status in ("resolved", "retained") and new_item.status == "pending":
-                    existing.status = "pending"
+                # 已解决/保留的偏差不再自动重置为 pending
+                # 用户已做出明确判断（fixed / by-design），应尊重其决定
+                # 仅更新检测计数和时间戳作为记录
                 
                 # 更新 summary/detail（取最新的）
                 if new_item.summary:
@@ -342,18 +342,17 @@ class DeviationManager:
             
             existing = self._state.deviations.get(key)
             if existing:
+                existing.detection_count += 1
+                existing.last_detected = now
                 if existing.status == "pending":
-                    existing.detection_count += 1
-                    existing.last_detected = now
                     existing.detail = detail or existing.detail
                     stats["updated"] += 1
                 else:
-                    # 之前标记 resolved/retained 但再次检出 → 重置
-                    existing.status = "pending"
-                    existing.detection_count += 1
-                    existing.last_detected = now
-                    existing.detail = detail
-                    stats["resolved"] += 1
+                    # resolved/retained: 不重置状态，仅更新时序记录
+                    # 用户已明确判断，应尊重其决定
+                    if detail:
+                        existing.detail = detail
+                    stats["updated"] += 1
             else:
                 self._state.deviations[key] = DeviationItem(
                     id=key,

@@ -87,7 +87,13 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
 
 ④ 每个偏差项生成 suggested_changeset
 
-⑤ deviation_manager.merge() 写入偏差状态
+⑤ 过滤已解决偏差：在 merge 前，加载已有偏差记录，排除已 resolved/retained 的
+   novel-tool --operation deviation.list --project <PROJECT>
+   → 对比本次 findings 与历史状态
+   → 已在 resolved/retained 状态的 (dimension, entity) 不重复提交
+   → 除非有新的证据表明问题比之前评估的更严重（此时可附带说明重新提交）
+
+⑥ deviation_manager.merge() 写入新偏差
 
 ```
 > 评估维度详见 references/alignment_criteria.md
@@ -159,12 +165,19 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
    → 返回 version > full_scan_version 的非 ARCHIVED 单元
 
 ③ 只对变更单元运行 align + cross-ref + gap（增量分析）
-   注意：如果变更单元数量很大（>20个），优先分析：
-   - 角色相关变更（影响面最大）
-   - 世界观规则变更（影响面次之）
-   - 创建新的单元（而不是只修改内容）
+    注意：如果变更单元数量很大（>20个），优先分析：
+    - 角色相关变更（影响面最大）
+    - 世界观规则变更（影响面次之）
+    - 创建新的单元（而不是只修改内容）
 
-④ 合并新偏差并更新扫描版本
+④ 过滤已解决偏差：在生成 findings 前，加载已有偏差状态去重
+   novel-tool --operation deviation.list --project <PROJECT>
+   → 获取当前所有偏差记录
+   → 标记为 resolved 或 retained 的偏差对应的 (dimension, entity)，不再重复生成
+   → 如果发现当前变更又触发了同一问题，仅递增 detection_count（由 merge 处理），
+     不要在 findings 中重新提交已解决的条目
+
+⑤ 合并新偏差并更新扫描版本
    novel-tool --operation deviation.merge --project <PROJECT> --findings '[...]' --full_scan_version <最大unit.version>
 ```
 

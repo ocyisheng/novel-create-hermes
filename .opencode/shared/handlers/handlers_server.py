@@ -19,10 +19,13 @@ for _d in [_SHARED_DIR, _V2_DIR]:
 
 # ── PID 持久化 ────────────────────────────────────────────────────
 
+def _web_server_dir() -> str:
+    _dir = os.path.join(os.path.dirname(os.path.dirname(_SHARED_DIR)), ".engine", "web-server")
+    os.makedirs(_dir, exist_ok=True)
+    return _dir
+
 def _pid_path() -> str:
-    _engine_dir = os.path.join(os.path.dirname(os.path.dirname(_SHARED_DIR)), ".engine", "daemon")
-    os.makedirs(_engine_dir, exist_ok=True)
-    return os.path.join(_engine_dir, "web-server.json")
+    return os.path.join(_web_server_dir(), "web-server.json")
 
 def _save_meta(project_root: str, pid: int, host: str, port: int):
     with open(_pid_path(), "w", encoding="utf-8") as f:
@@ -50,21 +53,16 @@ def _kill_proc(pid: int) -> bool:
         return False
 
 
-# ── 日志路径 ──────────────────────────────────────────────────────
+# ── 日志路径（按天） ────────────────────────────────────────────────
 
-def _log_dir() -> str:
-    """Web 服务日志存放目录。"""
-    _engine_dir = os.path.join(os.path.dirname(os.path.dirname(_SHARED_DIR)), ".engine", "daemon")
-    os.makedirs(_engine_dir, exist_ok=True)
-    return _engine_dir
-
-
-def _server_log_path(pid: int) -> tuple[str, str]:
-    """返回 (stdout日志路径, stderr日志路径)。"""
-    log_dir = _log_dir()
+def _today_log_paths() -> tuple[str, str]:
+    """返回 (stdout日志路径, stderr日志路径)，按天分割。"""
+    from datetime import date
+    day = date.today().isoformat()
+    d = _web_server_dir()
     return (
-        os.path.join(log_dir, f"web-server-{pid}.log"),
-        os.path.join(log_dir, f"web-server-{pid}-err.log"),
+        os.path.join(d, f"web-server-{day}.log"),
+        os.path.join(d, f"web-server-{day}-err.log"),
     )
 
 
@@ -107,10 +105,8 @@ def _start_server_process(project_root: str, host: str, port: int) -> dict:
     python = sys.executable
     url = f"http://{host}:{port}"
 
-    # 分配日志路径
-    log_dir = _log_dir()
-    out_path = os.path.join(log_dir, "web-server-out.log")
-    err_path = os.path.join(log_dir, "web-server-err.log")
+    # 日志路径（按天追加）
+    out_path, err_path = _today_log_paths()
 
     # 启动子进程
     # 注意：daemon 环境下不要设 creationflags（CREATE_NO_WINDOW 会导致子进程初始化失败），
@@ -118,8 +114,8 @@ def _start_server_process(project_root: str, host: str, port: int) -> dict:
     try:
         proc = subprocess.Popen(
             [python, script, "--project-root", project_root, "--host", host, "--port", str(port)],
-            stdout=open(out_path, "wb"),
-            stderr=open(err_path, "wb"),
+            stdout=open(out_path, "ab"),
+            stderr=open(err_path, "ab"),
             stdin=subprocess.DEVNULL,
         )
     except Exception as e:
@@ -162,18 +158,8 @@ def _start_server_process(project_root: str, host: str, port: int) -> dict:
     except Exception:
         pass
 
-    # 修正日志文件名为真实 PID
-    pid_out_path = os.path.join(log_dir, f"web-server-{real_pid}.log")
-    pid_err_path = os.path.join(log_dir, f"web-server-{real_pid}-err.log")
-    for src, dst in [(out_path, pid_out_path), (err_path, pid_err_path)]:
-        try:
-            if os.path.exists(src):
-                os.rename(src, dst)
-        except OSError:
-            pass
-
     _save_meta(project_root, real_pid, host, port)
-    return {"ok": True, "url": url, "pid": real_pid, "log_path": pid_out_path}
+    return {"ok": True, "url": url, "pid": real_pid, "log_path": out_path}
 
 
 # ── web.start ────────────────────────────────────────────────────

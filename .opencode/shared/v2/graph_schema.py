@@ -520,6 +520,7 @@ def create_unit_id(unit_type: Optional[UnitType] = None) -> str:
         UnitType.CHAPTER_PLAN: "cp",
         UnitType.STRUCTURE: "st",           # 废弃，保留向后兼容
         UnitType.NARRATIVE_VOICE: "nv",
+        UnitType.TEMPORAL_EVENT: "te",
     }
     prefix = prefix_map.get(unit_type, "xx") if unit_type else "xx"
     short_uuid = uuid.uuid4().hex[:8]

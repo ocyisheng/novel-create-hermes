@@ -132,6 +132,12 @@ class Workspace:
     # 当前焦点的故事序数（方便排序引用）
     story_ordinal: Optional[float] = None
 
+    # 时间线上下文提示（给 LLM 的可读指引，由 _suggest_temporal_context 生成）
+    temporal_context_hint: str = ""
+    """如 '当前焦点在 ordinal ~2300（第3章），
+         林渊当前修为：凡人，将要引气入体。
+         本章在时间线上处于 2200-2500 区间。'"""
+
     # ════════════════════════════════════════════════
     # 关系图数据
     # ════════════════════════════════════════════════
@@ -382,6 +388,12 @@ class Workspace:
                 lines.append(f"- {sig.get('description', '')}")
             lines.append("")
         
+        # 时间线上下文提示（指导 LLM 产出精确的时间线信息）
+        if self.temporal_context_hint and preheat_level in ("warm", "hot"):
+            lines.append("### 时间线上下文")
+            lines.append(self.temporal_context_hint)
+            lines.append("")
+
         # 输出要求（焦点类型的 content JSON 格式约束，LLM 写入时的字段规范）
         if self.schema_info:
             lines.append("### 输出要求")
@@ -570,7 +582,10 @@ class WorkspaceBuilder:
         
         # 7. 时间序列数据加载（复用 CharacterTimelineLedger）
         self._load_timeline_data(ws, focus, config)
-        
+
+        # 7.5 时间线上下文提示生成（指导 LLM 产出的内容包含精确时间信息）
+        self._suggest_temporal_context(ws, focus, config)
+
         # 8. 结构化关系图加载（Ego Network）
         self._load_ego_graph(ws, focus, config)
         
@@ -1049,6 +1064,81 @@ class WorkspaceBuilder:
             "node_id": e.source_id,
         }
 
+    # ── 时间线上下文提示 ─────────────────────────────────────────────────
+
+    def _suggest_temporal_context(
+        self,
+        ws: Workspace,
+        focus: NarrativeUnit,
+        config: Dict[str, Any],
+    ):
+        """生成时间线上下文提示，注入 ws.temporal_context_hint。
+
+        目的是让 LLM 在生成内容时明确知道当前焦点在时间线上的位置、
+        涉及的实体当前状态，从而产出更精确的时间线信息
+        （如精确的 time_text、ordinal、cast[].role_status）。
+        """
+        from temporal_index import TemporalEventIndex
+
+        parts: List[str] = []
+        focus_name = focus.unit_name or ""
+        focus_chapter = get_unit_chapter(focus)
+
+        # 1. 焦点在时间线上的位置
+        if ws.story_ordinal is not None:
+            ordinal = ws.story_ordinal
+            ch = int(ordinal // 10000) if ordinal else focus_chapter
+            ch_info = f"第{ch}章" if ch else ""
+            parts.append(f"当前焦点在故事时间序数 ~{ordinal:.0f}")
+            if ch_info:
+                parts[-1] += f"（{ch_info}）"
+        elif focus_chapter:
+            parts.append(f"当前焦点在第 {focus_chapter} 章")
+        else:
+            parts.append(f"当前焦点：{focus_name}")
+
+        # 2. 附近的事件（从 entity_timeline 取前 3）
+        nearby = ws.entity_timeline[:3]
+        if nearby:
+            nearby_strs = []
+            for evt in nearby:
+                e_ord = evt.get("story_ordinal", "")
+                e_label = evt.get("time_label", "")
+                e_summary = evt.get("event", "")
+                e_loc = evt.get("location", "")
+                ts = f"#{e_ord:.0f}" if isinstance(e_ord, (int, float)) and e_ord else ""
+                if e_label:
+                    ts = e_label if not ts else f"{ts} {e_label}"
+                loc_str = f"📍{e_loc}" if e_loc else ""
+                nearby_strs.append(f"  {ts} {e_summary} {loc_str}".strip())
+            if nearby_strs:
+                parts.append("附近事件：")
+                parts.extend(nearby_strs)
+
+        # 3. 涉及实体的当前状态（从 character_states 取）
+        char_states = ws.character_states
+        if char_states:
+            state_lines = []
+            seen_chars: Set[str] = set()
+            for cs in char_states:
+                if cs.name and cs.name not in seen_chars:
+                    seen_chars.add(cs.name)
+                    if cs.status:
+                        state_lines.append(f"  {cs.name}：{cs.status}")
+            if state_lines:
+                parts.append("当前角色状态：")
+                parts.extend(state_lines)
+
+        # 4. 预期产出提示
+        parts.append("")
+        parts.append(
+            "请确保本章产生的 content 包含精确的时间信息"
+            "（time_text/location/cast[].role_status），"
+            "时间线信息（time_ordinal）将在写入时自动同步。"
+        )
+
+        ws.temporal_context_hint = "\n".join(parts)
+
     # ════════════════════════════════════════════════
     # 关系图数据加载
     # ════════════════════════════════════════════════
@@ -1399,8 +1489,8 @@ class WorkspaceBuilder:
         if not content:
             return
         
-        # 同步 content["time_text"] → extra.time（弥补 crafter 只写 content 不写 extra 的断层）
-        self._sync_time_to_extra(scene_unit, content)
+        # extra.time 已在 GraphStore.create_unit/update_unit 中由
+        # auto_sync_story_time 自动同步，此处不再重复。
         
         # 提取场景信息（多次调用时累加，避免最后一条覆盖前面）
         t = content.get("time_text", "")
@@ -1463,26 +1553,6 @@ class WorkspaceBuilder:
         if summary:
             ws.writing_guides.append(f"场景概要：{summary}")
 
-    @staticmethod
-    def _sync_time_to_extra(scene_unit: NarrativeUnit, content: dict):
-        """
-        单次同步 content["time_text"] → extra["time"]。
-        仅在 extra["time"] 为空且 content["time_text"] 非空时写入。
-        extra["time"].ordinal 不清空——Ledger 的自动序数可能已写入。
-        """
-        if not content.get("time_text"):
-            return
-        extra = scene_unit.extra or {}
-        if extra.get("time") is not None:
-            return  # 已同步，跳过
-        from time_utils import STORY_TIME_KEY
-        if STORY_TIME_KEY not in extra:
-            extra[STORY_TIME_KEY] = {
-                "label": content["time_text"],
-                "ordinal": content.get("time_ordinal"),
-                "precision": "vague",
-            }
-    
     def _enrich_scene_context(self, ws: Workspace, focus: NarrativeUnit):
         """提取场景级上下文信息（SCENE 焦点专用）"""
         if not focus or focus.type != UnitType.SCENE:

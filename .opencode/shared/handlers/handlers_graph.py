@@ -7,12 +7,15 @@ handlers_graph.py — graph 领域纯业务逻辑函数。
 
 import io
 import json
+import logging
 import os
 import re
 import sys
 
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # _GET_STORE 注入钩子（守护进程模式使用）
 # 由 novel_tool.py --daemon 通过 set_store_provider() 注入缓存版 _get_store。
@@ -566,6 +569,10 @@ def handle_create_unit(
 
     inferrer = RelationInferrer(store)
     created = inferrer.infer_on_create(u)
+
+    # 事件抽取：从 content 自动提取并创建 TEMPORAL_EVENT
+    temporal_count = _run_event_extractor(store, u, actor=actor)
+
     store.flush()
 
     schema_errors = _validate_content_schema(ut, content)
@@ -575,6 +582,7 @@ def handle_create_unit(
         "name": u.unit_name,
         "type": ut.value,
         "relations_created": created,
+        "temporal_events_created": temporal_count,
         "schema_errors": schema_errors,
     }
 
@@ -621,11 +629,13 @@ def handle_update_unit(
     if not u:
         return {"error": "更新失败：叙事单元不存在"}
 
-    # 仅在内容实际变更时才运行关系推断（避免 O(n) 全量扫描）
+    # 仅在内容实际变更时才运行关系推断和事件抽取（避免 O(n) 全量扫描）
     created = 0
+    temporal_count = 0
     if content_changed:
         inferrer = RelationInferrer(store)
         created = inferrer.infer_on_create(u)
+        temporal_count = _run_event_extractor(store, u, actor=actor, old_content=old_content)
     store.flush()
 
     schema_errors = _validate_content_schema(u.type, content) if content else []
@@ -636,6 +646,7 @@ def handle_update_unit(
         "version": u.version,
         "tags": list(u.tags),
         "relations_created": created,
+        "temporal_events_created": temporal_count,
         "schema_errors": schema_errors,
     }
 
@@ -1086,3 +1097,106 @@ def handle_change_type(
         "unit_name": unit_name,
         "relations_moved": moved,
     }
+
+
+# ── EventExtractor 集成 ─────────────────────────────────────────────────────
+
+
+def _run_event_extractor(
+    store,
+    unit,
+    actor: str = "orchestrator",
+    old_content: Any = None,
+) -> int:
+    """
+    对刚写入的单元运行事件抽取，自动创建 TEMPORAL_EVENT 节点和 HAS_EVENT 边。
+
+    这是 EventExtractor 与 handler 层的集成点，在每次 create_unit /
+    update_unit 后自动触发。
+
+    Args:
+        old_content: 更新前的旧 content（用于 diff 检测变化）
+
+    Returns:
+        创建的事件数
+    """
+    from graph_schema import UnitType, RelationType
+    try:
+        from event_extractor import EventExtractor
+    except ImportError:
+        return 0
+
+    ut = unit.type
+    # 只对焦点类型运行事件抽取（跳过 CHUNK 正文等无结构化事件的类型）
+    # TEMPORAL_EVENT 本身不抽（避免循环）
+    extractable_types = {
+        UnitType.SCENE,
+        UnitType.CHARACTER_ARC,
+        UnitType.PLOT_THREAD,
+        UnitType.WORLD_RULE,
+    }
+    if ut not in extractable_types:
+        return 0
+
+    extractor = EventExtractor(store)
+    events = extractor.extract(
+        unit.id, unit.content, ut, actor=actor, old_content=old_content,
+    )
+    if not events:
+        return 0
+
+    created_count = 0
+    for evt in events:
+        try:
+            # 1. 创建 TEMPORAL_EVENT 节点
+            event_unit = store.create_unit(
+                type=UnitType.TEMPORAL_EVENT,
+                unit_name=evt.summary[:80],  # 截断过长的名称
+                content=json.dumps(evt.to_temporal_content(), ensure_ascii=False),
+                actor=actor,
+            )
+            if not event_unit:
+                continue
+
+            # 2. 从主实体 → 事件：HAS_EVENT
+            if evt.source_entity_id:
+                store.add_relation(
+                    source_id=evt.source_entity_id,
+                    target_id=event_unit.id,
+                    relation_type=RelationType.HAS_EVENT,
+                    actor=actor,
+                )
+
+            # 3. 事件 → 地点：LOCATED_AT
+            if evt.location and evt.source_entity_id:
+                # 从主实体的 outgoing relations 中找地点
+                for rel in store.get_relations(evt.source_entity_id, direction="outgoing"):
+                    if rel.relation_type == RelationType.LOCATED_AT:
+                        store.add_relation(
+                            source_id=event_unit.id,
+                            target_id=rel.target_id,
+                            relation_type=RelationType.LOCATED_AT,
+                            actor=actor,
+                        )
+                        break
+
+            # 4. 事件 → 参与者：INVOLVES（如果有额外的参与者）
+            for char_name in evt.characters:
+                if char_name == evt.source_entity_name:
+                    continue  # 主实体已在 source_entity_id
+                char_unit = store.get_unit_by_name(char_name)
+                if char_unit:
+                    store.add_relation(
+                        source_id=event_unit.id,
+                        target_id=char_unit.id,
+                        relation_type=RelationType.INVOLVES,
+                        actor=actor,
+                    )
+
+            created_count += 1
+
+        except Exception:
+            logger.exception(f"创建 TEMPORAL_EVENT 失败: {evt.summary}")
+            continue
+
+    return created_count

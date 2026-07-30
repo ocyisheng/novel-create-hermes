@@ -213,7 +213,12 @@ class CharacterTimelineLedger:
         )
 
     def _auto_ordinal(self, unit: NarrativeUnit, chapter: int) -> float:
-        """自动计算序数：同章场景按创建时间排序定位"""
+        """[已弃用] 自动计算序数：同章场景按创建时间排序定位。
+
+        此方法将在未来版本中移除。序数应由 EventExtractor 在内容创建时
+        根据焦点上下文确定并写入 TEMPORAL_EVENT 节点。
+        替代方案：event_extractor.EventExtractor._resolve_ordinal()
+        """
         if chapter == 0:
             return compute_ordinal(0, 0)
 

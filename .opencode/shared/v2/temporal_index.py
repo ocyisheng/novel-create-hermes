@@ -3,23 +3,27 @@ temporal_index.py — 统一时间事件索引
 
 全类型时间线的派生视图（derived view），纯 read-time 计算。
 
-架构：
+架构（V2）：
   TemporalEventIndex.build()
-    ├─ 来源 A: TEMPORAL_EVENT 节点（通过 HAS_EVENT 边关联到实体）
-    └─ 来源 B: 存量 content JSON（events[] / key_events[] / scene）[Phase 2]
+    ├─ 来源 A: TEMPORAL_EVENT 节点（通过 HAS_EVENT 边关联到实体）[主数据源]
+    └─ 来源 B: 存量 content JSON（events[] / key_events[] / scene）[已弃用，仅存量兼容]
 
-  查询:
-    TemporalQuery: for_entity() / by_type() / range() / around() / limit()
+  TEMPORAL_EVENT 节点由 EventExtractor 在内容写入时同步创建（见 event_extractor.py）。
+  存量数据可通过迁移脚本一次性转为 TEMPORAL_EVENT 节点后，关闭来源 B。
+
+   查询:
+     TemporalQuery: for_entity() / by_type() / range() / around() / limit()
 
 设计原则：
-  - 无持久化：每次 build() 全量重新计算
+  - 无持久化：每次 build() 重新计算（全量扫描 TEMPORAL_EVENT 节点，O(n) 仅 n=事件数）
   - 无状态：TemporalEventIndex 是值对象，用完即弃
-  - 向后兼容：与 CharacterTimelineLedger 共存，后者可委托为提取来源
+  - 来源 B（_extract_from_content）已弃用：新项目应在 EventExtractor 就绪后关闭此选项
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import defaultdict
@@ -113,31 +117,60 @@ class TemporalEventIndex:
 
     # ── 构建 ──────────────────────────────────────────────────────────────
 
-    def build(self) -> TemporalEventIndex:
-        """全量扫描，构建索引。"""
+    def build(
+        self,
+        use_content_fallback: Optional[bool] = None,
+    ) -> TemporalEventIndex:
+        """
+        构建时间线索引。
+
+        Args:
+            use_content_fallback: 是否使用存量 content JSON 回退提取。
+                True=启用回退（向后兼容），False=禁用回退（仅 TEMPORAL_EVENT 节点），
+                None=读取环境变量 NOVEL_TEMPORAL_CONTENT_FALLBACK（默认 True）。
+
+        注意：
+            _extract_from_content 已弃用。新项目应确保所有事件通过 EventExtractor
+            创建 TEMPORAL_EVENT 节点后，将 use_content_fallback 设为 False。
+        """
+        if use_content_fallback is None:
+            use_content_fallback = os.environ.get(
+                "NOVEL_TEMPORAL_CONTENT_FALLBACK", "1"
+            ) in ("1", "true", "yes")
+
         self._events.clear()
         self._by_entity.clear()
         self._by_type.clear()
-        self._by_source.clear()
+        _covered: Set[str] = set()
 
-        # 来源 A: TEMPORAL_EVENT 节点
-        self._extract_from_event_nodes()
+        # 来源 A: TEMPORAL_EVENT 节点（主数据源）
+        self._extract_from_event_nodes(_covered)
 
-        # 来源 B: 存量 content JSON
-        self._extract_from_content()
+        # 来源 B: 存量 content JSON（已弃用，仅存量兼容）
+        if use_content_fallback:
+            self._extract_from_content(_covered)
 
         # 全局排序
         self._events.sort(key=lambda e: e.ordinal_sort_key())
 
-        # 重建索引（_add_event 已经在添加时建了索引，
-        # 但这里确保排序后索引指向正确的顺序）
-        # 实际上 _add_event 在插入时建的索引指向的是插入时的 idx，
-        # 排序后 idx 不变（list 排序不改变索引），所以索引仍然有效。
-        # 但如果需要按排序后的位置查询，查询时 _filtered_indices 会用
-        # sorted() 按 ordinal_sort_key 重新排序，索引只用于筛选。
+        # 重要：排序后 _events 中元素位置已变，但 _add_event 时建的
+        # _by_entity/_by_type/_by_source 存的 idx 指向的是排序前的旧位置。
+        # 必须重建全部索引，使 idx 与排序后的事件位置一致。
+        self._rebuild_indices()
         return self
 
     # ── 内部辅助 ─────────────────────────────────────────────────────────
+
+    def _rebuild_indices(self):
+        """在排序后重建所有索引，确保 idx 指向排序后的正确位置。"""
+        self._by_entity.clear()
+        self._by_type.clear()
+        self._by_source.clear()
+        for idx, evt in enumerate(self._events):
+            for char_name in evt.characters:
+                self._by_entity.setdefault(char_name, []).append(idx)
+            self._by_type.setdefault(evt.event_type, []).append(idx)
+            self._by_source.setdefault(evt.source_id, []).append(idx)
 
     def _add_event(self, evt: TemporalEvent):
         """添加一个事件到列表并更新索引。"""
@@ -150,7 +183,7 @@ class TemporalEventIndex:
 
     # ── 来源 A：从 TEMPORAL_EVENT 节点提取 ──────────────────────────────
 
-    def _extract_from_event_nodes(self):
+    def _extract_from_event_nodes(self, covered_entities: Set[str] = set()):
         """遍历 TEMPORAL_EVENT 节点，通过 HAS_EVENT 边关联到实体。"""
         for unit in self.store._units.values():
             if unit.type != UnitType.TEMPORAL_EVENT:
@@ -164,11 +197,13 @@ class TemporalEventIndex:
 
             # 通过 HAS_EVENT 入边找到关联实体
             entity_names: Set[str] = set()
+            source_entity: Optional[str] = None
             for rel in self.store._relations.values():
                 if rel.relation_type.value == "has_event" and rel.target_id == unit.id:
                     parent = self.store.get_unit(rel.source_id)
                     if parent:
                         entity_names.add(parent.unit_name)
+                        source_entity = parent.unit_name
 
             # 通过 LOCATED_AT 出边找到地点
             location = content.get("location", "") or ""
@@ -213,14 +248,29 @@ class TemporalEventIndex:
                 chapter=chapter,
             ))
 
-    # ── 来源 B：从存量 content JSON 提取（向后兼容） ─────────────────────
+            # 标记涉及实体已覆盖（防止来源 B 重复提取）
+            if source_entity:
+                covered_entities.add(source_entity)
+            for name in entity_names:
+                covered_entities.add(name)
 
-    def _extract_from_content(self):
-        """从现有 SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE 的
-        content JSON 中提取事件，保证存量数据无需迁移即可出现在时间线中。"""
+    # ── 来源 B：从存量 content JSON 提取（已弃用） ───────────────────────
+    #
+    # 此方法将在未来版本中移除。新项目应在 EventExtractor 就绪后：
+    #   1. 运行 scripts/migrate_content_events_to_temporal.py
+    #   2. 设置 NOVEL_TEMPORAL_CONTENT_FALLBACK=0 或调 build(use_content_fallback=False)
+    # 届时此方法和 _ContentExtractor 类均可安全删除。
+    #
+
+    def _extract_from_content(self, covered_entities: Set[str] = set()):
+        """[已弃用] 从存量 content JSON 中提取事件。
+        替代方案：event_extractor.EventExtractor + TEMPORAL_EVENT 节点。"""
         extractor = _ContentExtractor(self.store, self.registry)
         for unit in self.store._units.values():
             if unit.status == UnitStatus.ARCHIVED:
+                continue
+            # 跳过已有 TEMPORAL_EVENT 节点覆盖的实体
+            if unit.type == UnitType.CHARACTER_ARC and unit.unit_name in covered_entities:
                 continue
             events = extractor.extract(unit)
             for evt in events:

@@ -115,7 +115,6 @@ novel-tool --operation graph.find_ancestors --project {PROJECT} --id {单元ID}
 novel-tool --operation web.start --project {PROJECT}
 # 打开 http://localhost:8766
 ```
-```
 
 ### 2. 写入 graph 数据
 
@@ -179,55 +178,93 @@ novel-tool --operation graph.export_docs --project {PROJECT}
 novel-tool --operation graph.export_chunks --project {PROJECT}
 ```
 
+### 4. 时间事件（TEMPORAL_EVENT）
+
+时间事件是挂载到任意实体上的时间轴节点，可独立 CRUD、可关联地点/参与者/因果。
+
+**创建事件并关联到角色/地点/物品**：
+```
+# 创建事件节点
+novel-tool --operation graph.create_unit --project {PROJECT} --unit_type temporal_event \
+  --name "结丹突破" \
+  --content '{"event_type":"cultivation","ordinal":4500,"precision":"exact","time_label":"第三日黄昏","summary":"吕明理突破至结丹中期","details":{"old_realm":"结丹初期","new_realm":"结丹中期"}}'
+
+→ 返回 event_id: te_abc123
+
+# 关联到实体
+novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target te_abc123 --rel_type has_event
+
+# 关联到地点
+novel-tool --operation graph.add_relation --project {PROJECT} --source te_abc123 --target {地点ID} --rel_type located_at
+```
+
+**查询统一时间线（跨类型）**：
+```
+Workspace 构建后，entity_timeline 自动包含该实体的所有事件类型：
+  scene_event（场景参与）
+  cultivation（修炼/突破）
+  plot_event（情节节点）
+  chronicle（纪年事件）
+  item_event（物品转移）
+  
+在 prompt 中显示为：
+  实体时间线（N 个事件）
+  #ordinal time_label 📍location  [event_type] summary
+```
+
+> 存量数据（CHARACTER_ARC 的 `events[]`、PLOT_THREAD 的 `key_events[]`、SCENE 的 `time_text`）自动提取到时间线，无需迁移。
+
 ### 5. content 字段参考
 
-创建叙事单元时，content 字段遵循标准格式（详见 `references/content字段参考.md`）：
+创建叙事单元时，content 字段遵循标准格式（详见 `references/content字段参考.md`）。
+
+字段名统一为英文（ASCII），中文展示走 schema 的 `description`。以下为速查：
 
 **角色 (CHARACTER_ARC)**：
 ```json
-{"子类型": "主角/重要配角/反派/关键配角/群像/功能性角色", "性格": {"核心特质": "..."}, "角色弧线": {"起始状态": "...", "最终状态": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "关键事件": [{"事件": "...", "时间": "..."}]}
+{"subtype": "主角|重要配角|反派|关键配角|群像|功能性角色", "性格": {"核心特质": "..."}, "character_arc_detail": {"arc_start_state": "...", "arc_end_state": "..."}, "能力设定": {"修为": "...", "功法": "...", "阵营": "..."}, "events": [{"event": "...", "ordinal": 1000}]}
 ```
 
 **场景 (SCENE)**：
 ```json
-{"子类型": "开篇/推进/冲突/转折/展示/过渡/收束", "POV角色": "林渊", "地点": "落云宗后山练剑坪", "时间": "午后", "一句话概要": "林渊第一次拔剑", "出场角色": ["林渊", "苏长老"], "关联情节线": ["主线·剑道之争"]}
+{"synopsis": "场景概要", "subtype": "开篇|推进|冲突|转折|展示|过渡|收束", "pov_character": "林渊", "location": "落云宗后山练剑坪", "time_text": "午后", "one_line_summary": "林渊第一次拔剑", "cast": [{"name": "林渊", "role_status": "登场"}], "related_plotlines": ["主线·剑道之争"]}
 ```
 
-> `关联情节线` 和 `出场角色` 存可读名称（非内部 ID），真实关系走 edge。详见 §2。
+> `related_plotlines` 和 `cast` 存可读名称（非内部 ID），真实关系走 edge。详见 §2。
 
 **情节线 (PLOT_THREAD)**：
 ```json
-{"子类型": "主线/支线/暗线/感情线/成长线/世界观线", "冲突核心": "...", "关键事件": [{"章节": 10, "事件": "..."}], "终局设计": "..."}
+{"subtype": "主线|支线|暗线|感情线|成长线|世界观线", "core_conflict": "...", "key_events": [{"chapter_number": 10, "event": "..."}], "ending_design": "..."}
 ```
 
 **世界观 (WORLD_RULE)**：
 ```json
-{"子类型": "世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件", "二级类型": "大陆/宗门/家族/秘境", "描述": "...", "位置": "...", "重要场所": [...]}
+{"sub_type": "世界观总览|规则|力量体系|势力|地点|历史|文化|经济体系|政治体系|社会阶层|纪年事件", "sub_type_detail": "大陆|宗门|家族|秘境", "description": "...", "event_location": "...", "event_volume": 1}
 ```
 
 **笔记 (NOTE)**：
 ```json
-{"子类型": "灵感 | 笔记", "内容": "..."}
+{"subtype": "灵感|笔记", "note": "..."}
 ```
 
 **总纲 (OUTLINE)**：
 ```json
-{"模式选择": "沙漏/长链/螺旋/环状/多线交织", "本体论": "故事的本质是什么？为什么这个故事只能以这种方式存在？", "美学承诺": "向读者承诺的美学体验——爽快/沉思/悬疑/悲壮……", "七面观照": {"叙事起点": "...", "叙事终点": "...", "核心冲突": "...", "主题表达": "..."}, "备注": ""}
+{"title": "作品名", "genre": "类型", "mode": "沙漏|长链|螺旋|环状|多线交织", "ontology": "故事的本质", "aesthetic_promise": "美学承诺", "seven_facets": {"叙事起点": "...", "核心冲突": "...", "主题表达": "..."}, "notes": ""}
 ```
 
 **部篇大纲 (ARC_PLAN)**：
 ```json
-{"命名规范": "部/篇", "序列": 1, "核心主题": "部/篇的核心主题", "覆盖范围": "覆盖哪些卷，如'第1-3卷'", "起点状态": "本部的起始状态", "终点状态": "本部的终点状态", "宏观情绪曲线": [], "跨卷伏笔计划": [], "备注": ""}
+{"arc_number": 1, "naming_convention": "部|篇", "core_theme": "核心主题", "coverage": "第1-3卷", "arc_start_state": "...", "arc_end_state": "...", "mood_curve_overview": [], "cross_volume_foreshadowing": [], "notes": ""}
 ```
 
 **卷大纲 (VOLUME_PLAN)**：
 ```json
-{"卷号": 1, "卷名称": "卷名称", "核心冲突": "本卷的核心矛盾（一句话）", "起始状态": "卷起始时的叙事状态", "终点状态": "卷结束时的叙事状态", "情绪基调": "压抑/紧张/明快/悲壮/悬疑/热血/沉稳/诙谐", "节奏类型配比": {}, "字数目标": 0, "伏笔清单": [], "备注": ""}
+{"volume_number": 1, "volume_title": "卷名称", "core_conflict": "核心矛盾", "volume_start_state": "...", "volume_end_state": "...", "emotional_tone": "压抑|紧张|明快|悲壮|悬疑|热血|沉稳|诙谐", "word_count_target": 0, "foreshadowing_list": [], "notes": ""}
 ```
 
 **章纲 (CHAPTER_PLAN)**：
 ```json
-{"章节号": 1, "章节名": "", "本章功能": "开篇/推进/冲突/转折/展示/过渡/收束", "场景序列": [{"场景名": "场景1", "定位": "...", "字数预计": 0}], "情绪弧线": [], "信息释放计划": [], "字数分配": {}, "承接说明": "如何衔接上一章", "备注": ""}
+{"chapter_number": 1, "chapter_title": "", "chapter_function": "开篇|推进|冲突|转折|展示|过渡|收束", "scene_sequence": [{"场景名": "场景1"}], "info_release_plan": [], "word_count_allocation": {}, "transition_note": "如何衔接上一章", "notes": ""}
 ```
 
 ---
@@ -235,7 +272,7 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 ## 核心原则（HARD CONSTRAINTS）
 
 1. **graph 是真相源** — 所有创作数据优先写入 graph，投影到文件是次要的
-2. **关系走 edge，content 存可读名称** — content 里不写内部 ID（`sc_xxx` / `pt_xxx` 等）。`关联情节线` 和 `出场角色` 存的是可读名称用于快速查阅，真实关系通过 `graph.add_relation` 写入 edge。
+2. **关系走 edge，content 存可读名称** — content 里不写内部 ID（`sc_xxx` / `pt_xxx` 等）。`related_plotlines` 和 `cast[].name` 存的是可读名称用于快速查阅，真实关系通过 `graph.add_relation` 写入 edge。
 3. **按需查询，勿全量推送** — 使用 `novel-tool` 按需查询，不要一次性加载全部数据
 4. **写后 flush** — 每次 task() 完成后执行 `novel-tool --operation graph.flush` 确保持久化
 5. **记录 actor** — 所有 create/update 操作传入 `actor` 参数（如 `actor="novel-v2-crafter"`）

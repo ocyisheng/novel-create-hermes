@@ -31,6 +31,7 @@ class UnitType(str, Enum):
     CHAPTER_PLAN = "chapter_plan"       # 章纲：章节级规划（场景序列、节奏、信息分布）
     STRUCTURE = "structure"             # [已废弃] 保留向后兼容，新代码勿用
     NARRATIVE_VOICE = "narrative_voice" # 叙述腔调：腔调谱系、叙事视角、笔法约定
+    TEMPORAL_EVENT = "temporal_event"   # 时间事件：挂载到任意实体上的时间轴节点
 
     @classmethod
     def _missing_(cls, value: str):
@@ -121,6 +122,9 @@ class RelationType(str, Enum):
     HAS_MEMBER = "has_member"           # A 拥有成员 B（MEMBER_OF 的反向）
     LOCATION_OF = "location_of"         # A 是 B 的位置（LOCATED_AT 的反向）
     CONTROLLED_BY = "controlled_by"     # A 受 B 控制（CONTROLS 的反向）
+    HAS_EVENT = "has_event"             # A 有事件 B（实体 → temporal_event）
+    EVENT_OF = "event_of"               # A 是 B 的事件（HAS_EVENT 的反向）
+    INVOLVES = "involves"               # A 涉及角色 B（事件 → 角色参与）
 
     @classmethod
     def _missing_(cls, value: str):
@@ -156,6 +160,9 @@ class RelationType(str, Enum):
             "planned_by": "plans",
             "participates_in": "participates_in",
             "located_at": "location_of",
+            "has_event": "event_of",
+            "event_of": "has_event",
+            "involves": "involves",
             "relates_to": "relates_to",
             "possesses": "possessed_by",
             "possessed_by": "possesses",
@@ -190,6 +197,9 @@ class RelationType(str, Enum):
             cls.PLANNED_BY: "被规划",
             cls.PARTICIPATES_IN: "参与",
             cls.LOCATED_AT: "位于",
+            cls.HAS_EVENT: "有事件",
+            cls.EVENT_OF: "所属事件",
+            cls.INVOLVES: "涉及",
             cls.RELATES_TO: "关联",
             cls.POSSESSES: "拥有",
             cls.POSSESSED_BY: "被拥有",

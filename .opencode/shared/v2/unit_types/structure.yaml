@@ -5,10 +5,12 @@ content_schema:
   title:
     type: string
     nullable: true
+    required: false
     description: "结构名称"
   content:
     type: string
     nullable: true
+    required: false
     description: "结构内容"
 
 fact_fields: []

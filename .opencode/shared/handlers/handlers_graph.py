@@ -225,7 +225,7 @@ def _vol_name(unit) -> str:
     try:
         if unit.content and unit.content.startswith("{"):
             c = json.loads(unit.content)
-            return str(c.get("卷名称", ""))
+            return str(c.get("volume_title", ""))
     except (json.JSONDecodeError, TypeError, AttributeError):
         pass
     return ""
@@ -237,14 +237,14 @@ def _read_chunk_text(c, project_root: str) -> str:
         cd = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
     except (json.JSONDecodeError, ValueError):
         cd = {}
-    slice_info = cd.get("正文分片")
+    slice_info = cd.get("slice_info")
     if slice_info:
         sp = slice_info.get("文件", "")
         if sp:
             src = Path(project_root) / sp
             if src.exists():
                 return src.read_text(encoding="utf-8")
-    source_path = cd.get("正文路径", "")
+    source_path = cd.get("file_path", "")
     if source_path:
         src = Path(project_root) / source_path
         if src.exists():
@@ -258,8 +258,8 @@ def _auto_detect_chapter(content: str, unit_name: str) -> Optional[int]:
     if content and content.startswith("{"):
         try:
             content_dict = json.loads(content)
-            if isinstance(content_dict, dict) and "章节号" in content_dict:
-                chapter = int(content_dict["章节号"])
+            if isinstance(content_dict, dict) and "chapter_number" in content_dict:
+                chapter = int(content_dict["chapter_number"])
         except (json.JSONDecodeError, ValueError, TypeError):
             pass
     if not chapter and unit_name:

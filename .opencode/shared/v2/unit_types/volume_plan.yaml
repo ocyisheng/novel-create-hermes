@@ -4,6 +4,7 @@ description: "卷大纲：卷级规划（冲突、情绪、起止状态）"
 content_schema:
   volume_number:
     type: number
+    required: true
     description: "卷号"
   title:
     type: string
@@ -29,6 +30,38 @@ content_schema:
     type: string
     nullable: true
     description: "情绪弧线描述"
+  volume_title:
+    type: string
+    required: true
+    description: "卷名称"
+  core_conflict:
+    type: string
+    required: true
+    description: "本卷的核心矛盾（一句话）"
+  volume_start_state:
+    type: string
+    required: true
+    description: "本卷起始状态"
+  volume_end_state:
+    type: string
+    required: true
+    description: "本卷终点状态"
+  emotional_tone:
+    type: string
+    nullable: true
+    enum: [压抑, 紧张, 明快, 悲壮, 悬疑, 热血, 沉稳, 诙谐]
+    description: "情绪基调"
+  word_count_target:
+    type: number
+    nullable: true
+    description: "本卷字数目标"
+  foreshadowing_list:
+    type: array
+    nullable: true
+    description: "伏笔清单"
+  notes:
+    type: string
+    nullable: true
 
 fact_fields:
   - name: "start_state"

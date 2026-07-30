@@ -392,12 +392,12 @@ class TestRule7LocationChanges:
         # 创建两个同位置场景
         s1 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景A",
-            content='{"地点":"天道宗后山","时间":"清晨"}',
+            content='{"location":"天道宗后山","time_text":"清晨"}',
             chapter_number=1, actor="test",
         )
         s2 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景B",
-            content='{"地点":"天道宗后山","时间":"正午"}',
+            content='{"location":"天道宗后山","time_text":"正午"}',
             chapter_number=1, actor="test",
         )
         set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
@@ -416,12 +416,12 @@ class TestRule7LocationChanges:
         hero, *_ = _populate_test_data(store)
         s1 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景A",
-            content='{"地点":"天道宗","时间":"清晨"}',
+            content='{"location":"天道宗","time_text":"清晨"}',
             chapter_number=1, actor="test",
         )
         s2 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景B",
-            content='{"地点":"魔界","时间":"正午"}',
+            content='{"location":"魔界","time_text":"正午"}',
             chapter_number=1, actor="test",
         )
         set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
@@ -442,12 +442,12 @@ class TestRule7LocationChanges:
         hero, *_ = _populate_test_data(store)
         s1 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景A",
-            content='{"地点":"天道宗","时间":"清晨"}',
+            content='{"location":"天道宗","time_text":"清晨"}',
             chapter_number=1, actor="test",
         )
         s2 = store.create_unit(
             type=UnitType.SCENE, unit_name="场景B",
-            content='{"地点":"魔界","时间":"清晨"}',
+            content='{"location":"魔界","time_text":"清晨"}',
             chapter_number=5, actor="test",
         )
         set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
@@ -466,12 +466,12 @@ class TestRule7LocationChanges:
         hero, *_ = _populate_test_data(store)
         s1 = store.create_unit(
             type=UnitType.SCENE, unit_name="A",
-            content='{"地点":"X","时间":"t"}',
+            content='{"location":"X","time_text":"t"}',
             chapter_number=1, actor="test",
         )
         s2 = store.create_unit(
             type=UnitType.SCENE, unit_name="B",
-            content='{"地点":"Y","时间":"t"}',
+            content='{"location":"Y","time_text":"t"}',
             chapter_number=1, actor="test",
         )
         set_story_time(s1, "t", ordinal=101.5, precision="exact")
@@ -496,11 +496,11 @@ class TestRule9PrecedesOrdinal:
         _populate_test_data(store)
         a = store.create_unit(
             type=UnitType.SCENE, unit_name="事件A",
-            content='{"地点":"天"}', chapter_number=1, actor="test",
+            content='{"location":"天"}', chapter_number=1, actor="test",
         )
         b = store.create_unit(
             type=UnitType.SCENE, unit_name="事件B",
-            content='{"地点":"地"}', chapter_number=2, actor="test",
+            content='{"location":"地"}', chapter_number=2, actor="test",
         )
         set_story_time(a, "A", ordinal=1001.5, precision="exact")
         set_story_time(b, "B", ordinal=2001.5, precision="exact")
@@ -517,11 +517,11 @@ class TestRule9PrecedesOrdinal:
         _populate_test_data(store)
         a = store.create_unit(
             type=UnitType.SCENE, unit_name="事件A",
-            content='{"地点":"天"}', chapter_number=1, actor="test",
+            content='{"location":"天"}', chapter_number=1, actor="test",
         )
         b = store.create_unit(
             type=UnitType.SCENE, unit_name="事件B",
-            content='{"地点":"地"}', chapter_number=1, actor="test",
+            content='{"location":"地"}', chapter_number=1, actor="test",
         )
         set_story_time(a, "A", ordinal=2001.5, precision="exact")  # higher!
         set_story_time(b, "B", ordinal=1001.5, precision="exact")
@@ -541,11 +541,11 @@ class TestRule9PrecedesOrdinal:
         _populate_test_data(store)
         a = store.create_unit(
             type=UnitType.SCENE, unit_name="A",
-            content='{"地点":"天"}', chapter_number=1, actor="test",
+            content='{"location":"天"}', chapter_number=1, actor="test",
         )
         b = store.create_unit(
             type=UnitType.SCENE, unit_name="B",
-            content='{"地点":"地"}', chapter_number=1, actor="test",
+            content='{"location":"地"}', chapter_number=1, actor="test",
         )
         store.add_relation(a.id, b.id, RelationType.PRECEDES, actor="test")
         store.flush()

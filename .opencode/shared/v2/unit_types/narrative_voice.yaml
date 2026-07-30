@@ -4,10 +4,12 @@ description: "叙述腔调：腔调谱系、叙事视角、笔法约定"
 content_schema:
   voice_name:
     type: string
+    required: true
     description: "腔调名称"
   pov:
     type: string
     nullable: true
+    required: true
     enum: ["第一人称", "第三人称有限", "第三人称全知", "第二人称"]
     description: "叙事视角"
   tense:
@@ -31,6 +33,43 @@ content_schema:
     type: string
     nullable: true
     description: "参考文本片段"
+  subtype:
+    type: string
+    required: true
+    enum: [第一人称, 第三人称限制, 第三人称全知, 第二人称, 多视角交替]
+    description: "叙述视角类型"
+  voice_lineage:
+    type: string
+    required: true
+    description: "踩谁的影子？自觉继承或走出谱系"
+  function_role:
+    type: string
+    required: true
+    enum: [催眠, 警醒, 复调]
+    description: "腔调的功能定位"
+  narrative_perspective:
+    type: string
+    required: true
+    enum: [全知, 部分全知, 戏剧性手法, 多视角]
+    description: "叙事视角类型"
+  pov_switch_rules:
+    type: string
+    nullable: true
+    description: "视角切换规则"
+  info_distribution_strategy:
+    type: string
+    nullable: true
+    enum: [常规, 抵抗, 挑衅]
+    description: "信息分配策略"
+  notes_tradition_enabled:
+    type: boolean
+    nullable: true
+    description: "是否启用笔记传统"
+
+subtype:
+  field: subtype
+  required: true
+  options: [第一人称, 第三人称限制, 第三人称全知, 第二人称, 多视角交替]
 
 fact_fields: []
 

@@ -164,17 +164,17 @@ class CharacterTimelineLedger:
         if not content:
             return None
 
-        label = content.get("时间", "") or ""
-        location = content.get("地点", "") or ""
+        label = content.get("time_text", "") or ""
+        location = content.get("location", "") or ""
         chapter = get_unit_chapter(unit) or 0
 
         # 提取出场角色列表
         characters: List[str] = []
-        raw_chars = content.get("出场角色", [])
+        raw_chars = content.get("cast", [])
         if isinstance(raw_chars, list):
             for c in raw_chars:
                 if isinstance(c, dict):
-                    name = c.get("角色名", "")
+                    name = c.get("name", "")
                     if name:
                         characters.append(name)
                 elif isinstance(c, str):

@@ -1,0 +1,84 @@
+unit_type: temporal_event
+description: "时间事件：挂载到任意实体类型上的时间轴节点，可独立 CRUD、可关联地点/参与者/因果"
+
+content_schema:
+  event_type:
+    type: string
+    required: true
+    enum: [scene_event, cultivation, battle, plot_event, item_event, chronicle, relationship, note]
+    description: "事件分类"
+  ordinal:
+    type: number
+    nullable: true
+    description: "统一时间坐标（精确值或 ch×10000+position）"
+  precision:
+    type: string
+    required: true
+    default: vague
+    enum: [exact, approximate, chapter, same, volume, vague]
+    description: "时间精度"
+  time_label:
+    type: string
+    nullable: true
+    description: "人类可读时间标签（如'第三日黄昏'）"
+  summary:
+    type: string
+    required: true
+    description: "事件简述（一行）"
+  details:
+    type: object
+    nullable: true
+    description: "类型特定详情（按 event_type 不同）"
+  location:
+    type: string
+    nullable: true
+    description: "事件发生地点（可读名称，精确关联走边）"
+  characters:
+    type: array
+    nullable: true
+    description: "参与者列表"
+    items:
+      type: object
+      properties:
+        name:
+          type: string
+          required: true
+          description: "角色名称"
+        role:
+          type: string
+          nullable: true
+          description: "在该事件中的角色"
+
+fact_fields: []
+
+constraints: []
+
+relations:
+  allowed:
+    located_at:
+      target_type: [world_rule]
+      cardinality: "0..1"
+      description: "事件发生地点"
+    involves:
+      target_type: [character_arc]
+      cardinality: any
+      description: "事件涉及的角色"
+      payload_schema:
+        role: { type: string, nullable: true, description: "角色在此事件中的角色" }
+    caused_by:
+      target_type: [temporal_event]
+      cardinality: any
+      description: "前驱事件（因果关系）"
+    caused:
+      target_type: [temporal_event]
+      cardinality: any
+      description: "后继事件（结果）"
+
+state_machine:
+  initial: sprout
+  transitions:
+    sprout:  [{ to_status: growing }, { to_status: mature }]
+    growing: [{ to_status: mature }, { to_status: frozen }]
+    mature:  [{ to_status: frozen }]
+    frozen:  [{ to_status: growing }]
+    archived: []

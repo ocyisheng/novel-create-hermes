@@ -43,6 +43,7 @@ try:
     from search_engine import SearchEngine, SearchResult, SearchResultSet, CheckResult
     from deviation_manager import DeviationManager, DeviationItem, DeviationState
     from type_registry import TypeRegistry
+    from temporal_index import TemporalEventIndex, TemporalEvent, TemporalQuery
 
     __all__ = [
         "NarrativeUnit",
@@ -63,6 +64,9 @@ try:
         "DeviationItem",
         "DeviationState",
         "TypeRegistry",
+        "TemporalEventIndex",
+        "TemporalEvent",
+        "TemporalQuery",
     ]
 except ImportError:
     # 在 pytest 或部分导入场景下，graph_schema 可能尚未就绪

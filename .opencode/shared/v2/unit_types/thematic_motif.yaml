@@ -4,9 +4,11 @@ description: "主题意象：反复出现的象征性元素"
 content_schema:
   motif_name:
     type: string
+    required: true
     description: "意象名称"
   description:
     type: string
+    required: true
     description: "意象描述"
   occurrences:
     type: array
@@ -18,6 +20,36 @@ content_schema:
         context:    { type: string, description: "出现上下文" }
         variation:  { type: string, nullable: true, description: "变体形式" }
     description: "出现记录"
+  subtype:
+    type: string
+    nullable: true
+    enum: [贯穿性, 局部性, 装饰性]
+    description: "意象覆盖范围"
+  motif_symbol:
+    type: string
+    required: true
+    description: "核心象征元素"
+  symbolic_meaning:
+    type: string
+    required: true
+    description: "该意象承载的多层含义"
+  variation_method:
+    type: string
+    nullable: true
+    description: "意象如何重复并变化"
+  occurrence_chapters:
+    type: array
+    nullable: true
+    description: "出现的章节列表"
+  related_characters:
+    type: array
+    nullable: true
+    description: "相关角色列表"
+
+subtype:
+  field: subtype
+  required: false
+  options: [贯穿性, 局部性, 装饰性]
 
 fact_fields: []
 

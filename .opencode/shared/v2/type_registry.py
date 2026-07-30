@@ -128,6 +128,8 @@ class TypeDefinition:
     constraints: List[ConstraintDef] = field(default_factory=list)
     relations: RelationDefSet = field(default_factory=RelationDefSet)
     state_machine: StateMachineDef = field(default_factory=StateMachineDef)
+    # 子类型配置（从 YAML subtype 节读取，替代 schemas.py SUBTYPE_REGISTRY）
+    subtype_config: Optional[Dict[str, Any]] = None
 
 
 # ── Schema 校验模式 ──────────────────────────────────────────────────
@@ -364,22 +366,42 @@ class TypeRegistry:
                 for t in (to_list or [])
             ]
 
+        # subtype 配置（替代 schemas.py SUBTYPE_REGISTRY）
+        td.subtype_config = data.get("subtype")
+
         return td
 
     def _parse_schema_fields(self, schema: dict) -> Dict[str, Dict[str, Any]]:
-        """将 content_schema 解析为平面字段 dict。"""
+        """将 content_schema 解析为字段 dict。保留 required/fields/items 等完整信息。"""
         fields = {}
         for key, val in (schema or {}).items():
             if isinstance(val, dict):
-                fields[key] = {
+                entry = {
                     "type": val.get("type", "any"),
                     "nullable": val.get("nullable", False),
+                    "required": val.get("required", False),
                     "description": val.get("description", ""),
                 }
                 if "enum" in val:
-                    fields[key]["enum"] = val["enum"]
+                    entry["enum"] = val["enum"]
+                # 嵌套 dict 字段（如 character_arc 的 性格）
+                if "fields" in val:
+                    entry["fields"] = self._parse_schema_fields(val["fields"])
+                # 列表项定义（如 scene 的 出场角色）
+                if "items" in val:
+                    items_val = val["items"]
+                    if isinstance(items_val, dict):
+                        items_entry: Dict[str, Any] = {"type": items_val.get("type", "any")}
+                        if "properties" in items_val:
+                            items_entry["properties"] = self._parse_schema_fields(items_val["properties"])
+                        if items_val.get("nullable"):
+                            items_entry["nullable"] = True
+                        entry["items"] = items_entry
+                    else:
+                        entry["items"] = items_val
+                fields[key] = entry
             else:
-                fields[key] = {"type": "any", "nullable": True, "description": ""}
+                fields[key] = {"type": "any", "nullable": True, "required": False, "description": ""}
         return fields
 
     # ── 查询 ─────────────────────────────────────────────────────────────
@@ -396,6 +418,67 @@ class TypeRegistry:
         """判断类型是否存在。"""
         return type_name in self._types
 
+    def get_content_schema(self, type_name: str) -> Dict[str, Dict[str, Any]]:
+        """返回 content_schema 字段定义（含 required/nested/items 完整信息）。
+           替代 schemas.SCHEMA_REGISTRY。"""
+        td = self._types.get(type_name)
+        if not td:
+            return {}
+        return td.content_schema.fields
+
+    def get_required_fields(self, type_name: str) -> List[str]:
+        """返回必填字段名列表。"""
+        td = self._types.get(type_name)
+        if not td:
+            return []
+        return [n for n, s in td.content_schema.fields.items() if s.get("required", False)]
+
+    def get_subtype_config(self, type_name: str) -> Optional[Dict[str, Any]]:
+        """返回子类型配置（替代 schemas.SUBTYPE_REGISTRY）。
+           含 field/options/value_colors/behaviors 等。"""
+        td = self._types.get(type_name)
+        if not td:
+            return None
+        return td.subtype_config
+
+    def schema_info(self, type_name: str) -> List[str]:
+        """返回该类型的 Schema 摘要（供 LLM 参考注入 prompt）。
+           替代 schemas.schema_info()。"""
+        td = self._types.get(type_name)
+        if not td:
+            return [f"未知类型: {type_name}"]
+        schema = td.content_schema.fields
+        lines = [f"content JSON 字段要求 ({td.description or type_name}):"]
+        for field, rules in schema.items():
+            req = "必填" if rules.get("required") else "可选"
+            t = rules.get("type", "any")
+            desc = rules.get("description", "")
+            opts = f" 选项: {rules['enum']}" if rules.get("enum") else ""
+            desc_part = f" — {desc}" if desc else ""
+            lines.append(f"  - {field} ({t}, {req}){opts}{desc_part}")
+        return lines
+
+    def default_content(self, type_name: str) -> str:
+        """返回该类型的默认 content JSON（仅含必填字段的空值）。
+           替代 schemas.default_content()。"""
+        import json
+        schema = self.get_content_schema(type_name)
+        defaults: Dict[str, Any] = {}
+        for field, rules in schema.items():
+            if rules.get("required", False):
+                t = rules.get("type")
+                if t == "string":
+                    defaults[field] = ""
+                elif t == "number":
+                    defaults[field] = 0
+                elif t == "array":
+                    defaults[field] = []
+                elif t == "object":
+                    defaults[field] = {}
+                else:
+                    defaults[field] = None
+        return json.dumps(defaults, ensure_ascii=False)
+
     @property
     def loaded(self) -> bool:
         return self._loaded
@@ -405,6 +488,14 @@ class TypeRegistry:
     def validate_content(self, type_name: str, content: Any) -> List[str]:
         """
         校验 content 是否符合类型的 content_schema。
+
+        支持：
+          - required 必填检查
+          - 类型检查（string/number/boolean/array/object）
+          - enum 枚举值检查
+          - 嵌套 fields（dict 子字段）
+          - items.properties（数组元素子字段）
+          - nullable 空值放行
 
         返回错误信息列表，空列表 = 通过。
         """
@@ -421,33 +512,116 @@ class TypeRegistry:
             try:
                 parsed = json.loads(content)
             except (json.JSONDecodeError, ValueError):
-                errors.append(f"content is not valid JSON")
-                return errors
+                return errors  # 非 JSON 字符串跳过校验（向后兼容旧纯文本数据）
         else:
             parsed = content
 
         if not isinstance(parsed, dict):
             return errors  # 非 dict 跳过
 
+        _TYPE_MAP = {
+            "string": str,
+            "number": (int, float),
+            "boolean": bool,
+            "array": list,
+            "object": dict,
+        }
+
         for field_name, schema in td.content_schema.fields.items():
-            if field_name in parsed:
-                val = parsed[field_name]
-                field_type = schema.get("type", "any")
-                if field_type != "any" and val is not None:
-                    if field_type == "string" and not isinstance(val, str):
-                        errors.append(f"field '{field_name}' should be string, got {type(val).__name__}")
-                    elif field_type == "number" and not isinstance(val, (int, float)):
-                        errors.append(f"field '{field_name}' should be number, got {type(val).__name__}")
-                    elif field_type == "boolean" and not isinstance(val, bool):
-                        errors.append(f"field '{field_name}' should be boolean, got {type(val).__name__}")
-                    elif field_type == "array" and not isinstance(val, list):
-                        errors.append(f"field '{field_name}' should be array, got {type(val).__name__}")
-                    elif field_type == "object" and not isinstance(val, dict):
-                        errors.append(f"field '{field_name}' should be object, got {type(val).__name__}")
-                    # enum 校验
-                    enum_vals = schema.get("enum")
-                    if enum_vals and val is not None and val not in enum_vals:
-                        errors.append(f"field '{field_name}' value '{val}' not in {enum_vals}")
+            field_type = schema.get("type", "any")
+            nullable = schema.get("nullable", False)
+            required = schema.get("required", False)
+
+            # 必填检查
+            if required:
+                if field_name not in parsed or parsed[field_name] is None:
+                    errors.append(f"缺少必填字段: {field_name}")
+                    continue
+
+            if field_name not in parsed:
+                continue
+
+            val = parsed[field_name]
+            if val is None:
+                if not nullable:
+                    errors.append(f"字段 '{field_name}' 不可为空")
+                continue
+
+            # 类型检查
+            expected = _TYPE_MAP.get(field_type)
+            if expected and not isinstance(val, expected):
+                errors.append(f"字段 '{field_name}' 应为 {field_type}，实际为 {type(val).__name__}")
+                continue
+
+            # enum 值检查
+            enum_vals = schema.get("enum")
+            if enum_vals and isinstance(val, str) and val not in enum_vals:
+                errors.append(f"字段 '{field_name}' 值 '{val}' 不在允许范围内: {enum_vals}")
+
+            # 嵌套 dict 字段检查
+            sub_fields = schema.get("fields")
+            if sub_fields and isinstance(val, dict):
+                sub_errors = self._validate_content_dict(val, sub_fields, field_name)
+                errors.extend(sub_errors)
+
+            # 数组元素检查
+            items_schema = schema.get("items")
+            if items_schema and isinstance(val, list):
+                properties = items_schema.get("properties") if isinstance(items_schema, dict) else None
+                if properties:
+                    for i, item in enumerate(val):
+                        if isinstance(item, dict):
+                            sub_errors = self._validate_content_dict(item, properties, f"{field_name}[{i}]")
+                            errors.extend(sub_errors)
+                else:
+                    item_type = items_schema.get("type") if isinstance(items_schema, dict) else None
+                    if item_type and item_type != "any":
+                        item_expected = _TYPE_MAP.get(item_type)
+                        if item_expected:
+                            for i, item in enumerate(val):
+                                if not isinstance(item, item_expected):
+                                    errors.append(f"{field_name}[{i}] 应为 {item_type}，实际为 {type(item).__name__}")
+
+        return errors
+
+    def _validate_content_dict(self, data: Dict, fields_def: Dict, prefix: str) -> List[str]:
+        """递归校验 dict 嵌套字段。"""
+        errors = []
+        for field_name, schema in fields_def.items():
+            path = f"{prefix}.{field_name}"
+            field_type = schema.get("type", "any")
+            nullable = schema.get("nullable", False)
+            required = schema.get("required", False)
+
+            if required and (field_name not in data or data[field_name] is None):
+                errors.append(f"缺少必填字段: {path}")
+                continue
+
+            if field_name not in data:
+                continue
+
+            val = data[field_name]
+            if val is None:
+                if not nullable:
+                    errors.append(f"字段 '{path}' 不可为空")
+                continue
+
+            _TYPE_MAP = {
+                "string": str, "number": (int, float),
+                "boolean": bool, "array": list, "object": dict,
+            }
+            expected = _TYPE_MAP.get(field_type)
+            if expected and not isinstance(val, expected):
+                errors.append(f"字段 '{path}' 应为 {field_type}，实际为 {type(val).__name__}")
+                continue
+
+            enum_vals = schema.get("enum")
+            if enum_vals and isinstance(val, str) and val not in enum_vals:
+                errors.append(f"字段 '{path}' 值 '{val}' 不在允许范围内: {enum_vals}")
+
+            sub = schema.get("fields")
+            if sub and isinstance(val, dict):
+                errors.extend(self._validate_content_dict(val, sub, path))
 
         return errors
 

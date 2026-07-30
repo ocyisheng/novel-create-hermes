@@ -423,7 +423,7 @@ class ProjectionEngine:
         
         # 密度与建议字数
         density = d.get("叙事密度", "")
-        subtype = d.get("子类型", "")
+        subtype = d.get("subtype", "")
         if density and subtype:
             lo, hi = self._get_density_range(subtype, density)
             lines.append(f"密度: {density}")
@@ -526,28 +526,35 @@ class ProjectionEngine:
             return content_json[:300]
 
         lines = []
-        subtype = d.get("子类型", "")
+        subtype = d.get("subtype", "")
         if subtype:
             lines.append(f"功能: {subtype}")
-        summary = d.get("一句话概要", "")
+        summary = d.get("one_line_summary", "")
         if summary:
             lines.append(f"概要: {summary}")
-        pov = d.get("POV角色", "")
+        pov = d.get("pov_character", "")
         if pov:
             lines.append(f"POV: {pov}")
-        loc = d.get("地点", "")
+        loc = d.get("location", "")
         if loc:
             lines.append(f"地点: {loc}")
-        time_str = d.get("时间", "")
+        time_str = d.get("time_text", "")
         if time_str:
             lines.append(f"时间: {time_str}")
-        conflict = d.get("核心冲突", "")
+        conflict = d.get("core_conflict", "")
         if conflict and conflict != summary:
             lines.append(f"冲突: {conflict}")
-        chars = d.get("出场角色", [])
+        chars = d.get("cast", [])
         if chars:
-            lines.append(f"出场: {', '.join(chars) if isinstance(chars, list) else chars}")
-        word_count = d.get("字数", 0)
+            if isinstance(chars, list):
+                if chars and isinstance(chars[0], dict):
+                    names = [c.get("name", "") for c in chars if isinstance(c, dict)]
+                    lines.append(f"出场: {', '.join(n for n in names if n)}")
+                else:
+                    lines.append(f"出场: {', '.join(str(c) for c in chars)}")
+            elif isinstance(chars, str):
+                lines.append(f"出场: {chars}")
+        word_count = d.get("word_count", 0)
         if word_count:
             lines.append(f"字数: {word_count}")
 
@@ -1173,16 +1180,16 @@ class ProjectionEngine:
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-                slice_info = meta.get("正文分片")
+                slice_info = meta.get("slice_info")
                 if slice_info:
                     seq = slice_info.get("序号", "?")
                     path_ref = slice_info.get("文件", "?")
                     lines.append(f"- {c.unit_name} [分片 #{seq}] → `{path_ref}`")
                 else:
-                    path_ref = meta.get("正文路径", "?")
+                    path_ref = meta.get("file_path", "?")
                     lines.append(f"- {c.unit_name} → `{path_ref}`")
 
-                lines.append(f"  - 版本: v{c.version} | 子类型: {meta.get('子类型', '?')} | 字数: {meta.get('字数', '?')}")
+                lines.append(f"  - 版本: v{c.version} | 子类型: {meta.get('subtype', '?')} | 字数: {meta.get('字数', '?')}")
 
                 if c.tags:
                     lines.append(f"  - 标签: {', '.join(c.tags)}")

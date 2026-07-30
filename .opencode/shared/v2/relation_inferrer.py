@@ -166,6 +166,9 @@ class RelationInferrer:
         # 4. 如果新建的是结构类单元，推断层级关系（CONTAINS 边）
         if unit.type in (UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN, UnitType.CHAPTER_PLAN):
             count += self._infer_structure_hierarchy(unit)
+        # 5. 如果新建的是时间事件，推断 LOCATED_AT 和 INVOLVES 边
+        if unit.type == UnitType.TEMPORAL_EVENT:
+            count += self._infer_event_relations(unit)
         return count
 
     def infer_by_content(self, content: str, source_unit: NarrativeUnit) -> int:
@@ -380,6 +383,46 @@ class RelationInferrer:
                         if vol_ch <= ch_num:
                             # 检查相邻单元
                             pass  # 简化：不自动推断
+        return count
+
+    def _infer_event_relations(self, unit: NarrativeUnit) -> int:
+        """
+        新建 TEMPORAL_EVENT 后，从 content 推断关系：
+        - content.location → LOCATED_AT 边关联到 world_rule
+        - content.characters[].name → INVOLVES 边关联到 character_arc
+        """
+        import json
+        count = 0
+        try:
+            content = json.loads(unit.content) if isinstance(unit.content, str) else (unit.content or {})
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return count
+        if not isinstance(content, dict):
+            return count
+
+        # 从 location 字段推断 LOCATED_AT
+        location_name = content.get("location", "") or ""
+        if location_name:
+            target = self.store.get_unit_by_name(location_name)
+            if target and target.type == UnitType.WORLD_RULE:
+                if self._create_rel(unit.id, target.id, RelationType.LOCATED_AT, 0.5):
+                    count += 1
+
+        # 从 characters[] 字段推断 INVOLVES
+        raw_chars = content.get("characters", [])
+        if isinstance(raw_chars, list):
+            for item in raw_chars:
+                char_name = ""
+                if isinstance(item, dict):
+                    char_name = item.get("name", "")
+                elif isinstance(item, str):
+                    char_name = item
+                if char_name:
+                    target = self.store.get_unit_by_name(char_name)
+                    if target and target.type == UnitType.CHARACTER_ARC:
+                        if self._create_rel(unit.id, target.id, RelationType.INVOLVES, 0.5):
+                            count += 1
+
         return count
 
     # ── 辅助方法 ────────────────────────────────────────────────────

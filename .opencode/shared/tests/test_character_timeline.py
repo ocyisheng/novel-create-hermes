@@ -30,27 +30,27 @@ def _populate_with_scenes(store):
     # 角色
     hero = store.create_unit(
         type=UnitType.CHARACTER_ARC, unit_name="林昭",
-        content='{"子类型":"主角"}', tags=["主角"], chapter_number=1, actor="test",
+        content='{"subtype":"主角"}', tags=["主角"], chapter_number=1, actor="test",
     )
     side = store.create_unit(
         type=UnitType.CHARACTER_ARC, unit_name="韩致",
-        content='{"子类型":"反派"}', tags=["反派"], chapter_number=1, actor="test",
+        content='{"subtype":"反派"}', tags=["反派"], chapter_number=1, actor="test",
     )
 
     # 场景（按章节和时间排，含出场角色）
     s1 = store.create_unit(
         type=UnitType.SCENE, unit_name="第1章_后山练剑",
-        content='{"地点":"天道宗后山","时间":"清晨","出场角色":[{"角色名":"林昭","状态":"筑基中期"}]}',
+        content='{"location":"天道宗后山","time_text":"清晨","cast":[{"name":"林昭","role_status":"筑基中期"}]}',
         chapter_number=1, actor="test",
     )
     s2 = store.create_unit(
         type=UnitType.SCENE, unit_name="第1章_偶遇韩致",
-        content='{"地点":"山间小径","时间":"正午","出场角色":[{"角色名":"林昭","状态":"对峙"},{"角色名":"韩致","状态":"挑衅"}]}',
+        content='{"location":"山间小径","time_text":"正午","cast":[{"name":"林昭","role_status":"对峙"},{"name":"韩致","role_status":"挑衅"}]}',
         chapter_number=1, actor="test",
     )
     s3 = store.create_unit(
         type=UnitType.SCENE, unit_name="第2章_坊市冲突",
-        content='{"地点":"坊市","时间":"第三日清晨","出场角色":[{"角色名":"林昭","状态":"受伤"},{"角色名":"韩致","状态":"追击"}]}',
+        content='{"location":"坊市","time_text":"第三日清晨","cast":[{"name":"林昭","role_status":"受伤"},{"name":"韩致","role_status":"追击"}]}',
         chapter_number=2, actor="test",
     )
 

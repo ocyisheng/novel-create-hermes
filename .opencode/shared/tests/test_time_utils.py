@@ -135,7 +135,7 @@ class TestSortByStoryTime:
 class TestBackfill:
     def test_backfill_with_content_time(self, store):
         """
-        content 中有 '时间' 字段。
+        content 中有 'time_text' 字段。
         注意：由于 create_unit 现在内部通过 auto_sync_story_time 自动同步了，
         backfill 会返回 False（因为 extra.time 已存在）。
         此验证重点：backfill 对已同步的数据不做重复操作。
@@ -143,7 +143,7 @@ class TestBackfill:
         from graph_schema import UnitType
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="测试场景",
-            content='{"时间":"春日午后","地点":"落云宗"}',
+            content='{"time_text":"春日午后","location":"落云宗"}',
             chapter_number=1, actor="test",
         )
         store.flush()
@@ -164,7 +164,7 @@ class TestBackfill:
         from graph_schema import UnitType
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="无时间场景",
-            content='{"地点":"落云宗"}',
+            content='{"location":"落云宗"}',
             chapter_number=1, actor="test",
         )
         store.flush()

@@ -181,7 +181,7 @@ class ImportEngine:
                 # 从文件名推测子类型（如 第3章_v1.txt → "v1"），默认 "v1"
                 from schemas import get_subtype_info
                 chunk_subtype_config = get_subtype_info(UnitType.CHUNK)
-                chunk_options = chunk_subtype_config.options if chunk_subtype_config else ["v1","v2","v3"]
+                chunk_options = chunk_subtype_config.get("options", ["v1","v2","v3"]) if chunk_subtype_config else ["v1","v2","v3"]
                 detected_subtype = "v1"
                 stem = file_path.stem  # "第3章_v1"
                 if stem and "_" in stem:
@@ -189,9 +189,9 @@ class ImportEngine:
                     if possible in chunk_options:
                         detected_subtype = possible
                 content_meta = json.dumps({
-                    "正文路径": str(file_path),
-                    "子类型": detected_subtype,
-                    "字数": len(content),
+                    "file_path": str(file_path),
+                    "subtype": detected_subtype,
+                    "word_count": len(content),
                 }, ensure_ascii=False)
                 extra["word_count"] = len(content)
             else:
@@ -775,12 +775,12 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
 
     # 旧字段 → 新字段 映射
     OLD_FIELDS = {
-        "角色类型": "子类型",
-        "章节类型": "子类型",
-        "类型": "子类型",
-        "实体子类型": "子类型",
-        "note_type": "子类型",
-        "NoteType": "子类型",
+        "角色类型": "subtype",
+        "章节类型": "subtype",
+        "类型": "subtype",
+        "实体子类型": "subtype",
+        "note_type": "subtype",
+        "NoteType": "subtype",
     }
 
     # 旧角色类型值 → 新值映射
@@ -877,14 +877,14 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
                 changed = True
                 break  # 每个节点只处理一个旧字段
 
-        # CHAPTER_PLAN 纠偏：LLM 曾按旧 prompt 写入 "子类型":"章纲"（schema 中该字段名为"本章功能"）
+        # CHAPTER_PLAN 纠偏：LLM 曾按旧 prompt 写入 "子类型":"章纲"（schema 中该字段名为"chapter_function"）
         if unit_type in ("chapter_plan", UnitType.CHAPTER_PLAN.value):
-            if "子类型" in content and "本章功能" not in content:
+            if "子类型" in content and "chapter_function" not in content:
                 wrong_val = content.pop("子类型")
                 fixed_val = CP_FIX_MAP.get(wrong_val, "开篇")
-                content["本章功能"] = fixed_val
+                content["chapter_function"] = fixed_val
                 changed = True
-            elif "子类型" in content and "本章功能" in content:
+            elif "子类型" in content and "chapter_function" in content:
                 # 两个字段都有：删除多余的 "子类型"
                 content.pop("子类型")
                 changed = True

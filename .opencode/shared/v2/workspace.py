@@ -303,16 +303,16 @@ class Workspace:
         if self.global_timeline_summary and preheat_level in ("warm", "hot"):
             lines.append("### 时间轴")
             summary = self.global_timeline_summary
-            lines.append(f"全局时间线：共 {summary.get('total_scenes', 0)} 个场景")
-            ch_summary = summary.get("chapters", [])
-            if ch_summary:
-                lines.append(f"章节跨度：{ch_summary[0]['chapter']}~{ch_summary[-1]['chapter']} 章")
+            total_scenes = summary.get("total_scenes", 0)
+            lines.append(f"全局时间线：共 {total_scenes} 个场景，{summary.get('total_events', 0)} 个事件")
             fp = summary.get("focus_position")
             fo = summary.get("focus_ordinal")
-            if fp is not None:
-                lines.append(f"焦点位置：第 {fp + 1}/{summary['total_scenes']} 个场景（序数 #{fo:.1f}）")
-            if self.story_ordinal is not None:
-                lines.append(f"故事坐标：#{self.story_ordinal:.1f}")
+            if fp is not None and total_scenes:
+                fo_str = f"{fo:.1f}" if fo is not None else "?"
+                lines.append(f"焦点位置：第 {fp + 1}/{total_scenes} 个场景（序数 #{fo_str}）")
+            so = self.story_ordinal
+            if so is not None:
+                lines.append(f"故事坐标：#{so:.1f}")
             lines.append("")
 
         if self.entity_timeline and preheat_level in ("warm", "hot"):
@@ -320,7 +320,9 @@ class Workspace:
             for evt in self.entity_timeline:
                 marker = "→ " if evt.get("is_focus") else "  "
                 loc_str = f" 📍{evt['location']}" if evt.get("location") else ""
-                lines.append(f"{marker}#{evt.get('story_ordinal', 0):.1f} {evt.get('time_label', '')}{loc_str}  {evt.get('event', '')}")
+                ord_val = evt.get("story_ordinal")
+                ord_str = f"{ord_val:.1f}" if ord_val is not None else "?"
+                lines.append(f"{marker}#{ord_str} {evt.get('time_label', '')}{loc_str}  {evt.get('event', '')}")
             lines.append("")
 
         if self.character_snapshots and preheat_level in ("warm", "hot"):
@@ -339,7 +341,9 @@ class Workspace:
         if self.location_timeline and preheat_level == "hot":
             lines.append(f"### 地点时间线（{len(self.location_timeline)} 个事件）")
             for evt in self.location_timeline:
-                lines.append(f"  #{evt.get('story_ordinal', 0):.1f} {evt.get('time_label', '')} 📍{evt.get('location', '')}  {evt.get('event', '')}")
+                ord_val = evt.get("story_ordinal")
+                ord_str = f"{ord_val:.1f}" if ord_val is not None else "?"
+                lines.append(f"  #{ord_str} {evt.get('time_label', '')} 📍{evt.get('location', '')}  {evt.get('event', '')}")
             lines.append("")
 
         # ═══════════════════════════════════════════════════════════
@@ -950,112 +954,100 @@ class WorkspaceBuilder:
     def _load_timeline_data(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
         """
         为焦点加载时间序列数据。
-        复用 CharacterTimelineLedger（已存在的只读排序视图），避免重复实现排序逻辑。
+        使用 TemporalEventIndex（统一全类型时间线索引），
+        向后兼容 CharacterTimelineLedger 的输出格式。
         """
-        from character_timeline import CharacterTimelineLedger
+        from temporal_index import TemporalEventIndex
 
         num_events = config.get("timeline_events", 5)
         if num_events <= 0:
             return
 
-        ledger = CharacterTimelineLedger(self.store)
-        view = ledger.build()
+        index = TemporalEventIndex(self.store).build()
 
         # 1. 全局时间线摘要
+        scene_count = len(index._by_type.get("scene_event", []))
         ws.global_timeline_summary = {
-            "total_scenes": view.total_scenes,
-            "chapters": [
-                {"chapter": ch, "scene_count": len(scenes)}
-                for ch, scenes in sorted(view.by_chapter.items())
-            ],
+            "total_events": len(index._events),
+            "total_scenes": scene_count,
+            "by_type": {t: len(indices) for t, indices in index._by_type.items()},
         }
 
-        # 2. 焦点实体的时间线位置
-        if focus.type in (UnitType.SCENE, UnitType.CHARACTER_ARC, UnitType.PLOT_THREAD):
-            # 场景：直接查
-            if focus.type == UnitType.SCENE:
-                pos = ledger.get_scene_order(view, focus.id)
-                if pos >= 0:
-                    ws.global_timeline_summary["focus_position"] = pos
-                    ws.global_timeline_summary["focus_ordinal"] = view.scenes[pos].ordinal
-                    ws.story_ordinal = view.scenes[pos].ordinal
-            # 角色：查该角色时间线的第一个场景位置
-            elif focus.type == UnitType.CHARACTER_ARC:
-                char_scenes = view.by_character.get(focus.unit_name, [])
-                if char_scenes:
-                    pos = ledger.get_scene_order(view, char_scenes[0].unit_id)
-                    if pos >= 0:
-                        ws.global_timeline_summary["first_scene_position"] = pos
+        focus_name = focus.unit_name or ""
 
-        # 3. 焦点实体的时间线事件
+        # 2. 焦点实体的时间线事件（跨类型）
         if focus.type == UnitType.CHARACTER_ARC:
-            # 角色时间线：所有关联场景按故事时间排序
-            char_scenes = view.by_character.get(focus.unit_name, [])
-            for ts in char_scenes[:num_events]:
-                ws.entity_timeline.append({
-                    "story_ordinal": ts.ordinal,
-                    "time_label": ts.label,
-                    "event": ts.unit_name,
-                    "location": ts.location,
-                    "source_type": "chapter",
-                    "node_id": ts.unit_id,
-                })
-        elif focus.type == UnitType.SCENE:
-            # 场景本身就在时间线里，取前后相邻场景
-            pos = ledger.get_scene_order(view, focus.id)
-            if pos >= 0:
-                start = max(0, pos - 2)
-                end = min(len(view.scenes), pos + 3)
-                for ts in view.scenes[start:end]:
-                    ws.entity_timeline.append({
-                        "story_ordinal": ts.ordinal,
-                        "time_label": ts.label,
-                        "event": ts.unit_name,
-                        "location": ts.location,
-                        "source_type": "chapter",
-                        "node_id": ts.unit_id,
-                        "is_focus": ts.unit_id == focus.id,
-                    })
-        elif focus.type == UnitType.WORLD_RULE:
-            # 地点/世界观时间线：按 content["地点"] 匹配场景
-            loc_name = focus.unit_name
-            for ts in view.scenes:
-                if ts.location == loc_name or loc_name in (ts.location or ""):
-                    ws.location_timeline.append({
-                        "story_ordinal": ts.ordinal,
-                        "time_label": ts.label,
-                        "event": ts.unit_name,
-                        "location": ts.location,
-                        "source_type": "chapter",
-                        "node_id": ts.unit_id,
-                    })
+            # 角色时间线：所有关联事件（scene + cultivation + plot + ...）
+            char_events = index.query().for_entity(focus_name).limit(num_events).all()
+            for e in char_events:
+                ws.entity_timeline.append(self._event_to_entity_dict(e))
 
-        # 4. 角色状态快照（CHARACTER_ARC 焦点）
-        if focus.type == UnitType.CHARACTER_ARC:
-            snapshots = ledger.get_snapshots(view, focus.unit_name)
+            # 角色状态快照（只从 scene_event 提取）
+            scene_events = index.query().for_entity(focus_name).by_type("scene_event").all()
             limit = config.get("snapshot_limit", 5)
-            for snap in snapshots[:limit]:
+            for e in scene_events[:limit]:
                 ws.character_snapshots.append({
-                    "character_name": snap.character_name,
-                    "chapter": snap.chapter,
-                    "story_ordinal": snap.story_ordinal,
-                    "location": snap.location,
-                    "status": snap.status,
-                    "source_scene_name": snap.source_scene_name,
+                    "character_name": focus_name,
+                    "chapter": e.chapter,
+                    "story_ordinal": e.ordinal,
+                    "location": e.location,
+                    "status": "",
+                    "source_scene_name": e.summary,
                 })
             # 自动推导角色演变摘要
-            if snapshots:
+            if scene_events:
                 parts = []
-                seen_statuses = set()
-                for s in snapshots:
-                    status_key = f"第{s.chapter}章"
-                    if s.location:
-                        status_key += f"·{s.location}"
-                    if status_key not in seen_statuses:
-                        seen_statuses.add(status_key)
+                seen_keys = set()
+                for e in scene_events:
+                    status_key = f"第{e.chapter}章"
+                    if e.location:
+                        status_key += f"·{e.location}"
+                    if status_key not in seen_keys:
+                        seen_keys.add(status_key)
                         parts.append(status_key)
                 if len(parts) >= 2:
-                    ws.character_evolution = f"{focus.unit_name}: {' → '.join(parts[:6])}"
+                    ws.character_evolution = f"{focus_name}: {' → '.join(parts[:6])}"
+
+        elif focus.type == UnitType.SCENE:
+            # 场景：取前后相邻事件（不限类型）
+            all_events = index._events
+            pos = next((i for i, e in enumerate(all_events) if e.source_id == focus.id), -1)
+            if pos >= 0:
+                ws.global_timeline_summary["focus_position"] = pos
+                if all_events[pos].ordinal is not None:
+                    ws.global_timeline_summary["focus_ordinal"] = all_events[pos].ordinal
+                    ws.story_ordinal = all_events[pos].ordinal
+                start = max(0, pos - 2)
+                end = min(len(all_events), pos + 3)
+                for e in all_events[start:end]:
+                    d = self._event_to_entity_dict(e)
+                    d["is_focus"] = e.source_id == focus.id
+                    ws.entity_timeline.append(d)
+
+        elif focus.type == UnitType.WORLD_RULE:
+            # 地点/世界观时间线：按事件 location 字段匹配
+            loc_name = focus_name
+            for e in index._events:
+                if e.location == loc_name or (loc_name and loc_name in (e.location or "")):
+                    ws.location_timeline.append(self._event_to_entity_dict(e))
+
+        elif focus.type == UnitType.PLOT_THREAD:
+            # 情节线时间线：该 source 的事件
+            plot_events = index.query().from_source(focus.id).limit(num_events).all()
+            for e in plot_events:
+                ws.entity_timeline.append(self._event_to_entity_dict(e))
+
+    @staticmethod
+    def _event_to_entity_dict(e) -> Dict[str, Any]:
+        """将 TemporalEvent 转为 entity_timeline / location_timeline 的 dict 格式。"""
+        return {
+            "story_ordinal": e.ordinal if e.ordinal is not None else 0,
+            "time_label": e.time_label,
+            "event": f"[{e.event_type}] {e.summary}" if e.event_type != "scene_event" else e.summary,
+            "location": e.location,
+            "source_type": e.source_type,
+            "node_id": e.source_id,
+        }
 
     # ════════════════════════════════════════════════
     # 关系图数据加载
@@ -1321,12 +1313,26 @@ class WorkspaceBuilder:
     def _detect_missing_references(self, ws: Workspace, config: Dict[str, Any]):
         """
         遍历已加载的场景和焦点场景，检核 content 中引用的实体是否在 graph 中存在。
-        将精确的缺失引用消息添加到 ws.missing_gaps，供 LLM 判断重要性。
+
+        使用 TypeRegistry fact_fields 中 type=entity_reference 的声明
+        取代 hardcoded 字段名。新增事实字段自动获得引用检测。
         """
+        from type_registry import TypeRegistry
+
         # 构建已有实体名索引
         existing_chars = {e["unit_name"] for e in ws.character_arcs}
         existing_worlds = {e["unit_name"] for e in ws.world_rules}
         existing_plots = {e["unit_name"] for e in ws.plot_threads}
+        _TARGET_MAP = {
+            "character_arc": existing_chars,
+            "world_rule": existing_worlds,
+            "plot_thread": existing_plots,
+        }
+        _TARGET_LABEL = {
+            "character_arc": "CHARACTER_ARC",
+            "world_rule": "WORLD_RULE",
+            "plot_thread": "PLOT_THREAD",
+        }
 
         # 收集所有需要检核的场景：已加载的场景 + 焦点本身（如果它是 SCENE）
         scene_ids_to_check = set()
@@ -1337,6 +1343,8 @@ class WorkspaceBuilder:
         if ws.focus_unit and ws.focus_unit.type == UnitType.SCENE:
             scene_ids_to_check.add(ws.focus_unit.id)
 
+        registry = TypeRegistry.get_global()
+
         for sid in scene_ids_to_check:
             scene = self.store.get_unit(sid)
             if not scene:
@@ -1346,9 +1354,9 @@ class WorkspaceBuilder:
                 continue
 
             scene_name = scene.unit_name or "?"
-            scene_type = content.get("子类型", "")
-            scene_pov = content.get("POV角色", "")
-            scene_summary = content.get("一句话概要", "")
+            scene_type = content.get("subtype", "")
+            scene_pov = content.get("pov_character", "")
+            scene_summary = content.get("one_line_summary", "")
             ctx_parts = []
             if scene_type:
                 ctx_parts.append(scene_type)
@@ -1356,34 +1364,30 @@ class WorkspaceBuilder:
                 ctx_parts.append(f"POV:{scene_pov}")
             ctx_str = "，".join(ctx_parts)
 
-            # 检核出场角色
-            for char_ref in (content.get("出场角色") or []):
-                name = ""
-                if isinstance(char_ref, str):
-                    name = char_ref
-                elif isinstance(char_ref, dict):
-                    name = char_ref.get("角色名", "")
-                if name and name not in existing_chars:
-                    gap = f"场景「{scene_name}」（{ctx_str}）中角色「{name}」出场但 graph 无对应 CHARACTER_ARC 单元"
-                    if scene_summary:
-                        gap += f"。场景概要：{scene_summary}"
-                    if gap not in ws.missing_gaps:
-                        ws.missing_gaps.append(gap)
+            # 从 TypeRegistry 读取该类型的所有 fact_fields（entity_reference 类型）
+            type_name = scene.type.value if hasattr(scene.type, "value") else str(scene.type)
+            td = registry.get_type(type_name)
+            ref_fields = [f for f in (td.fact_fields if td else [])
+                          if f.type == "entity_reference"]
 
-            # 检核地点
-            loc = content.get("地点", "")
-            if loc and loc not in existing_worlds:
-                gap = f"场景「{scene_name}」（{ctx_str}）中地点「{loc}」未找到对应 WORLD_RULE 单元"
-                if gap not in ws.missing_gaps:
-                    ws.missing_gaps.append(gap)
+            for ff in ref_fields:
+                target = ff.target_type or ""
+                existing_set = _TARGET_MAP.get(target)
+                label = _TARGET_LABEL.get(target, target.upper())
+                if existing_set is None:
+                    continue
 
-            # 检核关联情节线
-            for plot_ref in (content.get("关联情节线") or []):
-                pname = plot_ref if isinstance(plot_ref, str) else ""
-                if pname and pname not in existing_plots:
-                    gap = f"场景「{scene_name}」（{ctx_str}）引用了情节线「{pname}」但 graph 无对应 PLOT_THREAD 单元"
-                    if gap not in ws.missing_gaps:
-                        ws.missing_gaps.append(gap)
+                # 用 extract_facts 按路径提取值
+                facts = registry.extract_facts(type_name, content)
+                values = facts.get(ff.name, [])
+
+                for val in values:
+                    if val and isinstance(val, str) and val not in existing_set:
+                        gap = f"场景「{scene_name}」（{ctx_str}）引用了「{val}」（{ff.description or ff.name}）但 graph 无对应 {label} 单元"
+                        if scene_summary:
+                            gap += f"。场景概要：{scene_summary}"
+                        if gap not in ws.missing_gaps:
+                            ws.missing_gaps.append(gap)
 
     def _extract_scene_context(self, ws: Workspace, scene_unit: NarrativeUnit, scene_order: int = 0):
         """从 SCENE 单元提取场景上下文到工作空间（供 SCENE/CHUNK 焦点共用）
@@ -1395,11 +1399,11 @@ class WorkspaceBuilder:
         if not content:
             return
         
-        # 同步 content["时间"] → extra.time（弥补 crafter 只写 content 不写 extra 的断层）
+        # 同步 content["time_text"] → extra.time（弥补 crafter 只写 content 不写 extra 的断层）
         self._sync_time_to_extra(scene_unit, content)
         
         # 提取场景信息（多次调用时累加，避免最后一条覆盖前面）
-        t = content.get("时间", "")
+        t = content.get("time_text", "")
         if t:
             raw = f"{ws.story_time.raw}；{t}" if ws.story_time else t
             existing_ordinal = ws.story_time.ordinal if ws.story_time else None
@@ -1409,12 +1413,12 @@ class WorkspaceBuilder:
             if not ws.story_time:
                 ws.story_time = StoryTimeInfo()
         
-        loc = content.get("地点", "")
+        loc = content.get("location", "")
         if loc:
             ws.location = f"{ws.location}；{loc}" if ws.location else loc
         
         # 场域核心信息（多次调用时累加）
-        func = content.get("核心冲突", content.get("一句话概要", ""))
+        func = content.get("core_conflict", content.get("one_line_summary", ""))
         if func:
             ws.scene_function = f"{ws.scene_function}；{func}" if ws.scene_function else func
         
@@ -1430,14 +1434,14 @@ class WorkspaceBuilder:
                 ws.story_time.precision = precision
         
         # 角色状态（构建 CharacterStateEntry 对象）
-        characters = content.get("出场角色", [])
+        characters = content.get("cast", [])
         if isinstance(characters, list):
             for c in characters:
                 if isinstance(c, dict):
                     ws.character_states.append(CharacterStateEntry(
-                        name=c.get("角色名", ""),
-                        status=c.get("状态", ""),
-                        description=c.get("场景作用", ""),
+                        name=c.get("name", ""),
+                        status=c.get("role_status", ""),
+                        description=c.get("role_in_scene", ""),
                         scene_id=scene_unit.id,
                         scene_name=scene_unit.unit_name or "",
                         scene_order=scene_order,
@@ -1452,21 +1456,21 @@ class WorkspaceBuilder:
                     ))
         
         # 写作指引
-        scene_type = content.get("子类型", "")
+        scene_type = content.get("subtype", "")
         if scene_type:
             ws.writing_guides.append(f"场域功能：{scene_type}")
-        summary = content.get("一句话概要", "")
+        summary = content.get("one_line_summary", "")
         if summary:
             ws.writing_guides.append(f"场景概要：{summary}")
 
     @staticmethod
     def _sync_time_to_extra(scene_unit: NarrativeUnit, content: dict):
         """
-        单次同步 content["时间"] → extra["time"]。
-        仅在 extra["time"] 为空且 content["时间"] 非空时写入。
+        单次同步 content["time_text"] → extra["time"]。
+        仅在 extra["time"] 为空且 content["time_text"] 非空时写入。
         extra["time"].ordinal 不清空——Ledger 的自动序数可能已写入。
         """
-        if not content.get("时间"):
+        if not content.get("time_text"):
             return
         extra = scene_unit.extra or {}
         if extra.get("time") is not None:
@@ -1474,8 +1478,8 @@ class WorkspaceBuilder:
         from time_utils import STORY_TIME_KEY
         if STORY_TIME_KEY not in extra:
             extra[STORY_TIME_KEY] = {
-                "label": content["时间"],
-                "ordinal": content.get("时间序数"),
+                "label": content["time_text"],
+                "ordinal": content.get("time_ordinal"),
                 "precision": "vague",
             }
     

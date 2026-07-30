@@ -1,10 +1,32 @@
 unit_type: world_rule
 description: "世界观规则：世界运行的核心法则"
 
+subtype:
+  field: sub_type
+  alt_fields: []
+  required: true
+  options: [世界观总览, 规则, 力量体系, 势力, 地点, 历史, 文化, 经济体系, 政治体系, 社会阶层, 纪年事件]
+  value_labels:
+    地点: location
+    势力: faction
+    规则: rule
+    力量体系: power_system
+    纪年事件: chronicle_event
+  value_colors:
+    地点: { bg: "rgba(0,176,240,0.2)", text: "#5BD" }
+    势力: { bg: "rgba(237,125,49,0.2)", text: "#ED7D31" }
+    纪年事件: { bg: "rgba(180,167,214,0.2)", text: "#8E7CC3" }
+  behaviors:
+    纪年事件:
+      type: timeline_event
+      time_field: "时间"
+      event_field: "事件"
+
 content_schema:
   sub_type:
     type: string
-    enum: ["势力", "地点", "境界", "物品", "功法", "历史事件", "文化", "经济", "政治", "社会", "种族", "自然法则"]
+    required: true
+    enum: [世界观总览, 规则, 力量体系, 势力, 地点, 历史, 文化, 经济体系, 政治体系, 社会阶层, 纪年事件]
     description: "规则子类型"
   description:
     type: string
@@ -17,6 +39,18 @@ content_schema:
     type: string
     nullable: true
     description: "力量层级"
+  sub_type_detail:
+    type: string
+    nullable: true
+    description: "子类型的细化分类"
+  event_location:
+    type: string
+    nullable: true
+    description: "事件发生的地理位置（纪年事件推荐填写）"
+  event_volume:
+    type: number
+    nullable: true
+    description: "事件发生的卷号（纪年事件推荐填写）"
 
 fact_fields:
   - name: "hierarchy_ref"

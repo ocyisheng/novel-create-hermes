@@ -94,7 +94,7 @@ def tmp_project():
         "项目类型": "测试",
         "活跃风格": "通俗网文风",
         "架构": "v2",
-        "状态": "进行中",
+        "role_status": "进行中",
         "创建时间": "2026-01-01",
         "最后编辑": "2026-01-01",
     }
@@ -121,11 +121,11 @@ def sample_units(tmp_project):
     c2 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="陈峰",
                            content='{"角色":"主角","职业":"CEO"}', tags=["主角", "商战"], actor="test")
     sc = store.create_unit(type=UnitType.SCENE, unit_name="后山拔剑",
-                           content='{"地点":"落云宗"}', tags=["关键场景"], actor="test")
+                           content='{"location":"落云宗"}', tags=["关键场景"], actor="test")
     pt = store.create_unit(type=UnitType.PLOT_THREAD, unit_name="主线-剑道之争",
                            content='{"类型":"主线"}', tags=["主线"], actor="test")
     wr = store.create_unit(type=UnitType.WORLD_RULE, unit_name="落云宗",
-                           content='{"子类型":"势力"}', tags=["宗门"], actor="test")
+                           content='{"subtype":"势力"}', tags=["宗门"], actor="test")
     nt = store.create_unit(type=UnitType.NOTE, unit_name="测试笔记",
                            content='{"note":"备忘"}', actor="test")
     from graph_schema import RelationType

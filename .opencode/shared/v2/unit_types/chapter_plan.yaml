@@ -26,8 +26,45 @@ content_schema:
     description: "节奏描述"
   synopsis:
     type: string
-    nullable: true
+    required: true
     description: "章概"
+  chapter_number:
+    type: number
+    required: true
+    description: "章节号"
+  chapter_title:
+    type: string
+    nullable: true
+    description: "章节名称"
+  chapter_function:
+    type: string
+    required: true
+    enum: [开篇, 推进, 冲突, 转折, 展示, 过渡, 收束]
+    description: "本章在全书的叙事定位"
+  scene_sequence:
+    type: array
+    required: true
+    description: "场景有序列表"
+  info_release_plan:
+    type: array
+    nullable: true
+    description: "本章需要释放给读者的信息片段"
+  word_count_allocation:
+    type: object
+    nullable: true
+    description: "字数分配方案"
+  transition_note:
+    type: string
+    nullable: true
+    description: "如何衔接上一章"
+  notes:
+    type: string
+    nullable: true
+
+subtype:
+  field: chapter_function
+  required: true
+  options: [开篇, 推进, 冲突, 转折, 展示, 过渡, 收束]
 
 fact_fields:
   - name: "scene_refs"

@@ -41,7 +41,7 @@ def _make_unit(name="测试", type=UnitType.SCENE, content='{"test": true}') -> 
 class TestAutoSyncStoryTime:
     def test_sync_time_and_ordinal(self):
         """content 中有 '时间' 和 '时间序数'，应同步到 extra.time"""
-        u = _make_unit(content=json.dumps({"时间": "第三日黄昏", "时间序数": 15000.5}))
+        u = _make_unit(content=json.dumps({"time_text": "第三日黄昏", "time_ordinal": 15000.5}))
         changed = auto_sync_story_time(u)
         assert changed is True
         st = get_story_time(u)
@@ -51,7 +51,7 @@ class TestAutoSyncStoryTime:
 
     def test_sync_time_only_no_ordinal(self):
         """content 中只有 '时间' 无 '时间序数'"""
-        u = _make_unit(content=json.dumps({"时间": "清晨", "地点": "后山"}))
+        u = _make_unit(content=json.dumps({"time_text": "清晨", "location": "后山"}))
         changed = auto_sync_story_time(u)
         assert changed is True
         st = get_story_time(u)
@@ -61,14 +61,14 @@ class TestAutoSyncStoryTime:
 
     def test_skip_when_no_time_field(self):
         """content 中无时间字段，返回 False"""
-        u = _make_unit(content=json.dumps({"地点": "后山"}))
+        u = _make_unit(content=json.dumps({"location": "后山"}))
         changed = auto_sync_story_time(u)
         assert changed is False
         assert get_story_time(u) is None
 
     def test_skip_when_extra_time_exists(self):
         """extra.time 已存在，不覆盖"""
-        u = _make_unit(content=json.dumps({"时间": "新时间", "时间序数": 99.0}))
+        u = _make_unit(content=json.dumps({"time_text": "新时间", "time_ordinal": 99.0}))
         u.extra[STORY_TIME_KEY] = {"label": "已有", "ordinal": 10.0, "precision": "exact"}
         changed = auto_sync_story_time(u)
         assert changed is False
@@ -82,7 +82,7 @@ class TestAutoSyncStoryTime:
 
     def test_ordinal_none_in_content(self):
         """时间序数为 null 时转为 None"""
-        u = _make_unit(content=json.dumps({"时间": "中午", "时间序数": None}))
+        u = _make_unit(content=json.dumps({"time_text": "中午", "time_ordinal": None}))
         changed = auto_sync_story_time(u)
         assert changed is True
         st = get_story_time(u)
@@ -100,7 +100,7 @@ class TestGraphStoreAutoSync:
         """create_unit 应自动同步 content 中的时间字段"""
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="测试场景",
-            content=json.dumps({"时间": "黄昏", "时间序数": 15000.5}),
+            content=json.dumps({"time_text": "黄昏", "time_ordinal": 15000.5}),
             chapter_number=3, actor="test",
         )
         st = get_story_time(u)
@@ -112,7 +112,7 @@ class TestGraphStoreAutoSync:
         """content 中无时间字段，不写 extra.time"""
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="无时间场景",
-            content=json.dumps({"地点": "后山"}),
+            content=json.dumps({"location": "后山"}),
             actor="test",
         )
         assert get_story_time(u) is None
@@ -121,7 +121,7 @@ class TestGraphStoreAutoSync:
         """update_unit 更新 content 时应自动同步时间"""
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="初始",
-            content=json.dumps({"地点": "后山"}),
+            content=json.dumps({"location": "后山"}),
             actor="test",
         )
         assert get_story_time(u) is None
@@ -129,7 +129,7 @@ class TestGraphStoreAutoSync:
         # 更新 content，加上时间
         updated = store.update_unit(
             u.id,
-            content=json.dumps({"时间": "黎明", "地点": "后山"}),
+            content=json.dumps({"time_text": "黎明", "location": "后山"}),
             actor="test",
         )
         assert updated is not None
@@ -141,13 +141,13 @@ class TestGraphStoreAutoSync:
         """已有 extra.time，更新 content 不覆盖"""
         u = store.create_unit(
             type=UnitType.SCENE, unit_name="已有时间",
-            content=json.dumps({"时间": "早晨", "时间序数": 100.0}),
+            content=json.dumps({"time_text": "早晨", "time_ordinal": 100.0}),
             actor="test",
         )
         assert get_story_ordinal(u) == 100.0
 
         # 更新一个不涉及时间的字段
-        store.update_unit(u.id, content=json.dumps({"时间": "早晨", "地点": "新地点"}), actor="test")
+        store.update_unit(u.id, content=json.dumps({"time_text": "早晨", "location": "新地点"}), actor="test")
         # content 中的 '时间序数' 没写，但 extra.time 已有不会被清除
         st = get_story_time(u)
         assert st is not None
@@ -183,7 +183,7 @@ class TestWorkspaceDataClass:
         # 创建带时间线的场景
         sc = store.create_unit(
             type=UnitType.SCENE, unit_name="新场景",
-            content=json.dumps({"时间": "正午", "地点": "大厅", "出场角色": [{"角色名": "林渊"}]}),
+            content=json.dumps({"time_text": "正午", "location": "大厅", "cast": [{"name": "林渊"}]}),
             chapter_number=1, actor="test",
         )
         store.add_relation(_units["林渊"].id, sc.id, RelationType.PARTICIPATES_IN, actor="test")
@@ -219,9 +219,9 @@ class TestLoadTimelineData:
                 type=UnitType.SCENE,
                 unit_name="场景%d" % (i + 1),
                 content=json.dumps({
-                    "时间": "第%d日" % (i + 1),
-                    "地点": "地点%d" % (i + 1),
-                    "出场角色": [{"角色名": "林昭"}],
+                    "time_text": "第%d日" % (i + 1),
+                    "location": "地点%d" % (i + 1),
+                    "cast": [{"name": "林昭"}],
                 }),
                 chapter_number=i + 1,
                 actor="test",
@@ -260,7 +260,7 @@ class TestLoadTimelineData:
             sc = store.create_unit(
                 type=UnitType.SCENE,
                 unit_name="场景%d" % (i + 1),
-                content=json.dumps({"时间": "第%d日" % (i + 1), "地点": "L%d" % (i + 1)}),
+                content=json.dumps({"time_text": "第%d日" % (i + 1), "location": "L%d" % (i + 1)}),
                 chapter_number=i + 1,
                 actor="test",
             )
@@ -292,7 +292,7 @@ class TestLoadTimelineData:
         )
         sc = store.create_unit(
             type=UnitType.SCENE, unit_name="场景",
-            content=json.dumps({"时间": "某日", "出场角色": [{"角色名": "角色"}]}),
+            content=json.dumps({"time_text": "某日", "cast": [{"name": "角色"}]}),
             chapter_number=1, actor="test",
         )
         store.add_relation(sc.id, char.id, RelationType.PARTICIPATES_IN, actor="test")
@@ -308,14 +308,14 @@ class TestLoadTimelineData:
         """地点焦点应加载地点时间线"""
         loc = store.create_unit(
             type=UnitType.WORLD_RULE, unit_name="青云宗",
-            content=json.dumps({"子类型": "地点"}),
+            content=json.dumps({"subtype": "地点"}),
             actor="test",
         )
         for i in range(2):
             store.create_unit(
                 type=UnitType.SCENE,
                 unit_name="后山事件%d" % (i + 1),
-                content=json.dumps({"时间": "第%d次" % (i + 1), "地点": "青云宗"}),
+                content=json.dumps({"time_text": "第%d次" % (i + 1), "location": "青云宗"}),
                 chapter_number=i + 1,
                 actor="test",
             )
@@ -391,14 +391,14 @@ class TestToPromptBlock:
         """warm 预热应包含时间轴段落"""
         char = store.create_unit(
             type=UnitType.CHARACTER_ARC, unit_name="测试角色",
-            content=json.dumps({"角色名": "测试角色"}),
+            content=json.dumps({"name": "测试角色"}),
             actor="test",
         )
         for i in range(2):
             sc = store.create_unit(
                 type=UnitType.SCENE, unit_name="测试场景%d" % (i + 1),
-                content=json.dumps({"时间": "第%d日" % (i + 1), "地点": "某地",
-                                    "出场角色": [{"角色名": "测试角色"}]}),
+                content=json.dumps({"time_text": "第%d日" % (i + 1), "location": "某地",
+                                    "cast": [{"name": "测试角色"}]}),
                 chapter_number=i + 1, actor="test",
             )
             store.add_relation(sc.id, char.id, RelationType.PARTICIPATES_IN, actor="test")
@@ -422,7 +422,7 @@ class TestToPromptBlock:
         )
         sc = store.create_unit(
             type=UnitType.SCENE, unit_name="场景",
-            content=json.dumps({"时间": "某日", "出场角色": [{"角色名": "角色A"}]}),
+            content=json.dumps({"time_text": "某日", "cast": [{"name": "角色A"}]}),
             chapter_number=1, actor="test",
         )
         store.add_relation(sc.id, char.id, RelationType.PARTICIPATES_IN, actor="test")
@@ -456,7 +456,7 @@ class TestToPromptBlock:
             sc = store.create_unit(
                 type=UnitType.SCENE,
                 unit_name="场景%d" % (i + 1),
-                content=json.dumps({"时间": "第%d日" % (i + 1), "地点": "L%d" % (i + 1)}),
+                content=json.dumps({"time_text": "第%d日" % (i + 1), "location": "L%d" % (i + 1)}),
                 chapter_number=i + 1,
                 actor="test",
             )
@@ -475,15 +475,15 @@ class TestToPromptBlock:
         """角色演变摘要应在 prompt 中"""
         char = store.create_unit(
             type=UnitType.CHARACTER_ARC, unit_name="主角",
-            content=json.dumps({"角色名": "主角"}),
+            content=json.dumps({"name": "主角"}),
             actor="test",
         )
         for i in range(2):
             sc = store.create_unit(
                 type=UnitType.SCENE,
                 unit_name="章%d" % (i + 1),
-                content=json.dumps({"时间": "时刻%d" % (i + 1), "地点": "L%d" % (i + 1),
-                                    "出场角色": [{"角色名": "主角"}]}),
+                content=json.dumps({"time_text": "时刻%d" % (i + 1), "location": "L%d" % (i + 1),
+                                    "cast": [{"name": "主角"}]}),
                 chapter_number=i + 1,
                 actor="test",
             )

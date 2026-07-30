@@ -4,6 +4,7 @@ description: "部大纲：跨卷级规划（覆盖部/篇两种命名约定）"
 content_schema:
   arc_number:
     type: number
+    required: true
     description: "部序号"
   title:
     type: string
@@ -21,6 +22,43 @@ content_schema:
     type: string
     nullable: true
     description: "部核心冲突"
+  naming_convention:
+    type: string
+    required: true
+    enum: [部, 篇]
+    description: "命名规范（部/篇）"
+  core_theme:
+    type: string
+    required: true
+    description: "部的核心主题"
+  coverage:
+    type: string
+    required: true
+    description: "覆盖哪些卷，如'第1-3卷'"
+  arc_start_state:
+    type: string
+    required: true
+    description: "部起点状态"
+  arc_end_state:
+    type: string
+    required: true
+    description: "部终点状态"
+  mood_curve_overview:
+    type: array
+    nullable: true
+    description: "贯穿各卷的情绪走向"
+  cross_volume_foreshadowing:
+    type: array
+    nullable: true
+    description: "跨卷的伏笔计划"
+  notes:
+    type: string
+    nullable: true
+
+subtype:
+  field: naming_convention
+  required: true
+  options: [部, 篇]
 
 fact_fields: []
 

@@ -4,6 +4,7 @@ description: "创作笔记：作者/Agent 的备忘和灵感"
 content_schema:
   note:
     type: string
+    required: true
     description: "笔记内容"
   category:
     type: string
@@ -14,6 +15,16 @@ content_schema:
     nullable: true
     items: { type: string }
     description: "关联的单元 ID 列表"
+  subtype:
+    type: string
+    required: false
+    enum: [灵感, 笔记]
+    description: "笔记分类"
+
+subtype:
+  field: subtype
+  required: false
+  options: [灵感, 笔记]
 
 fact_fields: []
 

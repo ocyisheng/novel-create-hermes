@@ -414,7 +414,7 @@ class SearchEngine:
             except (json.JSONDecodeError, ValueError):
                 continue
             # 优先检查 正文分片
-            slice_info = content_dict.get("正文分片")
+            slice_info = content_dict.get("slice_info")
             if slice_info:
                 slice_path = slice_info.get("文件", "")
                 if slice_path and not (project_root / slice_path).exists():
@@ -425,9 +425,9 @@ class SearchEngine:
                         description=f"CHUNK『{unit.unit_name}』的分片文件不存在: {slice_path}",
                         units_involved=[unit.id],
                     ))
-                continue  # 有 正文分片 就不检查 正文路径
-            # 回退到 正文路径
-            source_path = content_dict.get("正文路径", "")
+                continue  # 有 slice_info 就不检查 file_path
+            # 回退到 file_path
+            source_path = content_dict.get("file_path", "")
             if not source_path:
                 continue
             if not (project_root / source_path).exists():
@@ -456,7 +456,7 @@ class SearchEngine:
             if not get_unit_chapter(unit) and unit.content:
                 try:
                     content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
-                    if content_dict.get("章节号") is not None:
+                    if content_dict.get("chapter_number") is not None:
                         count += 1
                         names.append(unit.unit_name)
                 except (json.JSONDecodeError, ValueError):
@@ -501,7 +501,7 @@ class SearchEngine:
                     content = _json.loads(content)
                 except (_json.JSONDecodeError, ValueError):
                     content = {}
-            loc = content.get("地点", "") if isinstance(content, dict) else ""
+            loc = content.get("location", "") if isinstance(content, dict) else ""
             ordinal = get_story_ordinal(unit)
             ch = get_unit_chapter(unit) or 0
             scene_info[unit.id] = (loc, ordinal, ch, unit.unit_name or "?")

@@ -4,14 +4,38 @@ description: "正文片段：已写成的文字块"
 content_schema:
   text:
     type: string
+    required: true
     description: "正文内容"
   word_count:
     type: number
+    required: true
     description: "字数"
   chapter_number:
     type: number
     nullable: true
     description: "所属章节号"
+  subtype:
+    type: string
+    required: true
+    enum: [v1, v2, v3]
+    description: "正文版本"
+  chapter_title:
+    type: string
+    nullable: true
+    description: "章节名称"
+  file_path:
+    type: string
+    nullable: true
+    description: "正文文件路径"
+  slice_info:
+    type: object
+    nullable: true
+    description: "正文分片信息"
+
+subtype:
+  field: subtype
+  required: true
+  options: [v1, v2, v3]
 
 fact_fields: []
 

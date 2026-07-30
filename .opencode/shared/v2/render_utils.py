@@ -18,22 +18,22 @@ SPECIAL_RENDER_MAP: Dict[str, str] = {
     # 字段名 → 强制渲染方式
     "描述": "textblock",
     "核心特质": "tagcloud",
-    "关键事件": "timeline",
-    "角色弧线": "group",
+    "key_events": "timeline",
+    "character_arc_detail": "group",
     "等级划分": "timeline",
-    "出场角色": "tagcloud",
-    "关联情节线": "tagcloud",
+    "cast": "tagcloud",
+    "related_plotlines": "tagcloud",
     "主要成员": "tagcloud",
     "角色参与": "tagcloud",
     "涉及角色": "tagcloud",
-    "二级类型": "tag",
-    "章节号": "tag",
-    "字数": "tag",
-    "正文路径": "tag",
+    "sub_type_detail": "tag",
+    "chapter_number": "tag",
+    "word_count": "tag",
+    "file_path": "tag",
     "章节类型": "tag",
     "类型": "tag",
-    "冲突核心": "textblock",
-    "终局设计": "textblock",
+    "core_conflict": "textblock",
+    "ending_design": "textblock",
 }
 
 # 自动注册 subtype 字段到特殊渲染映射
@@ -43,7 +43,7 @@ for _f in get_subtype_field_names():
         SPECIAL_RENDER_MAP[_f] = "tag"
 
 ENTITY_REF_FIELDS = {
-    "出场角色", "关联情节线", "主要成员", "角色参与", "涉及角色",
+    "cast", "related_plotlines", "主要成员", "角色参与", "涉及角色",
 }
 
 
@@ -57,7 +57,7 @@ def _is_string_list(val: Any) -> bool:
 def _is_event_list(val: Any) -> bool:
     return (isinstance(val, list) and len(val) > 0
             and isinstance(val[0], dict)
-            and ("事件" in val[0] or "event" in val[0]))
+            and ("event" in val[0]))
 
 
 def _is_relation_list(val: Any) -> bool:
@@ -250,8 +250,8 @@ def _render_to_html(key: str, value: Any, mode: str) -> str:
         parts = []
         for i, item in enumerate(items[:15]):
             if isinstance(item, dict):
-                evt = item.get("事件") or item.get("event") or str(item)
-                t = item.get("时间") or item.get("time") or ""
+                evt = item.get("event") or str(item)
+                t = item.get("time") or item.get("time_text") or ""
                 time_str = f'<span class="tl-time">{_escape_html(t)}</span> ' if t else ""
                 parts.append(f'<div class="tl-item">{time_str}<span class="tl-event">{_escape_html(str(evt)[:100])}</span></div>')
             else:

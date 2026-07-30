@@ -99,7 +99,7 @@ if __name__ == "__main__":
     check("infer_render_mode string[] → tagcloud",
          infer_render_mode("优点", ["隐忍", "聪慧"]) == "tagcloud")
     check("infer_render_mode 事件列表 → timeline",
-         infer_render_mode("关键事件", [{"事件": "离家学医", "时间": "8岁"}]) == "timeline")
+         infer_render_mode("关键事件", [{"event": "离家学医", "time_text": "8岁"}]) == "timeline")
     check("infer_render_mode 关系列表 → relationlist",
          infer_render_mode("社会关系", [{"目标": "韩松", "关系": "族叔"}]) == "relationlist")
     check("infer_render_mode dict → group",
@@ -132,8 +132,8 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": ["以医入道", "坚韧"]},
         "能力设定": {"修为": "化神期", "功法": "五行轮转经", "阵营": "正道"},
-        "角色弧线": {"起始状态": "凡人", "最终状态": "化神飞升"},
-        "关键事件": [{"事件": "离家学医", "时间": "8岁"}],
+        "character_arc_detail": {"arc_start_state": "凡人", "arc_end_state": "化神飞升"},
+        "key_events": [{"event": "离家学医", "time_text": "8岁"}],
     }
     rendered = render_content(sample_character)
     check("render_content 返回列表", isinstance(rendered, list))
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "以医入道，坚韧不拔", "优点": ["隐忍"]},
         "能力设定": {"修为": "化神期", "功法": "五行轮转经", "灵根": "五行灵根", "阵营": "正道"},
-        "角色弧线": {"起始状态": "凡人", "最终状态": "化神飞升"},
+        "character_arc_detail": {"arc_start_state": "凡人", "arc_end_state": "化神飞升"},
     }
     rx = render_content(xianxia_char)
     modes_x = set(r["mode"] for r in rx)
@@ -182,7 +182,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "果断敏锐", "优点": ["商业嗅觉"]},
         "能力设定": {"职业": "CEO", "公司": "天恒集团", "资产": "百亿"},
-        "角色弧线": {"起始状态": "创业失败", "最终状态": "商业帝国"},
+        "character_arc_detail": {"arc_start_state": "创业失败", "arc_end_state": "商业帝国"},
     }
     ru = render_content(urban_char)
     check("都市: 职业 在内容中",
@@ -199,7 +199,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "雄才大略", "政治立场": "革新派"},
         "能力设定": {"官职": "车骑将军", "势力": "蜀汉", "谋略": ["军事战略", "政治权衡"]},
-        "角色弧线": {"起始状态": "穿越者", "最终状态": "一代权臣"},
+        "character_arc_detail": {"arc_start_state": "穿越者", "arc_end_state": "一代权臣"},
     }
     rh = render_content(hist_char)
     check("历史: 官职 在内容中",
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         "性格": {"核心特质": "敏锐细致", "直觉": "极强"},
         "背景": {"职业": "法医", "就职": "市公安局"},
         "能力设定": {"破案技能": ["痕迹检验", "犯罪心理分析", "法医病理学"], "破案数": 47},
-        "角色弧线": {"起始状态": "新人法医", "最终状态": "破案神话"},
+        "character_arc_detail": {"arc_start_state": "新人法医", "arc_end_state": "破案神话"},
     }
     rsus = render_content(sus_char)
     check("悬疑: 破案技能 → tagcloud",
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "理性冷静", "优点": ["逻辑思维"]},
         "能力设定": {"超能力等级": "S级", "机甲": "天行者-X9", "基因改造": "第三代强化", "所属舰队": "猎户座远征军"},
-        "角色弧线": {"起始状态": "废弃殖民星孤儿", "最终状态": "人类联邦统帅"},
+        "character_arc_detail": {"arc_start_state": "废弃殖民星孤儿", "arc_end_state": "人类联邦统帅"},
     }
     rsci = render_content(sci_char)
     check("科幻: 超能力等级 → tag",
@@ -247,7 +247,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "勇敢正义"},
         "能力设定": {"种族": "精灵", "职业": "游侠", "魔法等级": "大法师", "阵营": "守序善良", "武器": ["精灵长弓", "双刃剑"]},
-        "角色弧线": {"起始状态": "森林守护者", "最终状态": "光明同盟领袖"},
+        "character_arc_detail": {"arc_start_state": "森林守护者", "arc_end_state": "光明同盟领袖"},
     }
     rfantasy = render_content(fantasy_char)
     check("奇幻: 种族 → tag",
@@ -265,7 +265,7 @@ if __name__ == "__main__":
         "性格": {"核心特质": "温柔坚强", "情感状态": "暗恋中"},
         "背景": {"家庭": "书香门第", "学历": "清大美术系"},
         "能力设定": {"职业": "独立设计师", "工作室": "云想设计", "代表作": ["《星空》系列", "《浮生》绘本"]},
-        "角色弧线": {"起始状态": "为情所困的文艺青年", "最终状态": "找到自我价值的独立女性"},
+        "character_arc_detail": {"arc_start_state": "为情所困的文艺青年", "arc_end_state": "找到自我价值的独立女性"},
     }
     rromance = render_content(romance_char)
     check("言情: 情感状态 → tag",
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         "角色类型": "反派",
         "性格": {"核心特质": "嗜血好战"},
         "能力设定": {"游戏ID": "暗影屠夫", "段位": "最强王者", "职业": "打野", "公会": "血色联盟", "胜率": "78%"},
-        "角色弧线": {"起始状态": "路人玩家", "最终状态": "职业联赛冠军"},
+        "character_arc_detail": {"arc_start_state": "路人玩家", "arc_end_state": "职业联赛冠军"},
     }
     rgame = render_content(game_char)
     check("电竞: 游戏ID → tag",
@@ -297,7 +297,7 @@ if __name__ == "__main__":
         "角色类型": "主角",
         "性格": {"核心特质": "铁血忠诚", "战术风格": "闪电突袭"},
         "能力设定": {"军衔": "上校", "部队": "利刃特种大队", "装备": ["95式突击步枪", "战术叉首"], "战术": ["斩首行动", "围点打援"]},
-        "角色弧线": {"起始状态": "新兵", "最终状态": "战区司令"},
+        "character_arc_detail": {"arc_start_state": "新兵", "arc_end_state": "战区司令"},
     }
     rmil = render_content(military_char)
     check("军事: 军衔 → tag",
@@ -318,13 +318,13 @@ if __name__ == "__main__":
 
     # 3.11 SCENE 渲染
     scene = {
-        "子类型": "推进",
-        "POV角色": "林渊",
-        "地点": "落云宗后山练剑坪",
-        "时间": "午后",
-        "一句话概要": "林渊练剑被阻",
-        "出场角色": ["林渊", "苏长老"],
-        "关联情节线": ["主线·剑道之争"],
+        "subtype": "推进",
+        "pov_character": "林渊",
+        "location": "落云宗后山练剑坪",
+        "time_text": "午后",
+        "one_line_summary": "林渊练剑被阻",
+        "cast": ["林渊", "苏长老"],
+        "related_plotlines": ["主线·剑道之争"],
     }
     rs = render_content(scene)
     check("SCENE: 出场角色 → tagcloud",
@@ -332,10 +332,10 @@ if __name__ == "__main__":
 
     # 3.12 WORLD_RULE 渲染
     world = {
-        "子类型": "地点",
-        "二级类型": "海域",
+        "subtype": "地点",
+        "sub_type_detail": "海域",
         "描述": "人界最北端的极寒海域，北极元光可炙炼法宝至人界巅峰品质。",
-        "位置": "人界最北端",
+        "position": "人界最北端",
         "重要场所": ["冰凤遗迹", "海眼"],
         "物产": ["北极元光", "玄冥水脉"],
     }
@@ -357,28 +357,28 @@ if __name__ == "__main__":
 
     # 4.1 CHARACTER_ARC 验证
     valid_char = {
-        "子类型": "主角",
+        "subtype": "主角",
         "性格": {"核心特质": ["坚韧"], "优点": ["隐忍"], "缺点": ["固执"]},
-        "角色弧线": {"起始状态": "凡人", "最终状态": "飞升"},
+        "character_arc_detail": {"arc_start_state": "凡人", "arc_end_state": "飞升"},
     }
     check("CHARACTER_ARC 有效数据通过验证",
          len(validate_content(UnitType.CHARACTER_ARC, valid_char)) == 0)
 
     # 缺少必填字段
-    missing_char = {"子类型": "主角"}
+    missing_char = {"subtype": "主角"}
     check("CHARACTER_ARC 缺性格 → 报错",
          len(validate_content(UnitType.CHARACTER_ARC, missing_char)) > 0)
 
     # 角色类型枚举
-    invalid_role = {"子类型": "路人", "性格": {"核心特质": "a"}, "角色弧线": {"起始": "a", "终": "b"}}
+    invalid_role = {"subtype": "路人", "性格": {"核心特质": "a"}, "character_arc_detail": {"起始": "a", "终": "b"}}
     errs = validate_content(UnitType.CHARACTER_ARC, invalid_role)
     check("CHARACTER_ARC 无效子类型 → 报错", len(errs) > 0)
 
     # 流派适配字段不被 schema 校验
     with_genre = {
-        "子类型": "主角",
+        "subtype": "主角",
         "性格": {"核心特质": ["坚韧"], "优点": ["隐忍"], "缺点": ["固执"]},
-        "角色弧线": {"起始状态": "凡人", "最终状态": "飞升"},
+        "character_arc_detail": {"arc_start_state": "凡人", "arc_end_state": "飞升"},
         "能力设定": {"修为": "化神期"},  # 不在 schema 中，不应触发错误
     }
     check("CHARACTER_ARC 流派字段不触发错误",
@@ -386,32 +386,32 @@ if __name__ == "__main__":
 
     # 4.2 SCENE 验证
     valid_scene = {
-        "子类型": "推进",
-        "POV角色": "林渊",
-        "地点": "落云宗后山练剑坪",
-        "时间": "午后",
-        "一句话概要": "林渊练剑被阻",
-        "出场角色": ["林渊", "苏长老"],
-        "关联情节线": ["主线·剑道之争"],
+        "subtype": "推进",
+        "pov_character": "林渊",
+        "location": "落云宗后山练剑坪",
+        "time_text": "午后",
+        "one_line_summary": "林渊练剑被阻",
+        "cast": ["林渊", "苏长老"],
+        "related_plotlines": ["主线·剑道之争"],
     }
     check("SCENE 有效数据通过验证",
          len(validate_content(UnitType.SCENE, valid_scene)) == 0)
 
     check("SCENE 缺POV角色 → 报错",
-         len(validate_content(UnitType.SCENE, {"子类型": "推进", "地点": "x", "一句话概要": "x"})) > 0)
+         len(validate_content(UnitType.SCENE, {"subtype": "推进", "location": "x", "one_line_summary": "x"})) > 0)
 
     # 4.3 PLOT_THREAD 验证
-    valid_plot = {"子类型": "主线", "冲突核心": "灵气污染"}
+    valid_plot = {"subtype": "主线", "core_conflict": "灵气污染"}
     check("PLOT_THREAD 有效数据通过验证",
          len(validate_content(UnitType.PLOT_THREAD, valid_plot)) == 0)
 
     # 4.4 WORLD_RULE 验证
-    valid_world = {"子类型": "地点"}
+    valid_world = {"subtype": "地点"}
     check("WORLD_RULE 有效数据通过验证",
          len(validate_content(UnitType.WORLD_RULE, valid_world)) == 0)
 
     # 4.5 CHUNK 验证
-    valid_chunk = {"子类型": "v1", "章节号": 3, "正文": "林渊握紧了剑柄"}
+    valid_chunk = {"subtype": "v1", "chapter_number": 3, "正文": "林渊握紧了剑柄"}
     check("CHUNK 有效数据通过验证",
          len(validate_content(UnitType.CHUNK, valid_chunk)) == 0)
     check("CHUNK 缺章节号 → 报错",
@@ -427,8 +427,8 @@ if __name__ == "__main__":
 
     content_with_refs = {
         "角色类型": "主角",
-        "出场角色": ["林渊", "苏长老"],
-        "关联情节线": ["主线\xb7剑道之争"],
+        "cast": ["林渊", "苏长老"],
+        "related_plotlines": ["主线\xb7剑道之争"],
         "性格": {"核心特质": "坚韧"},
     }
     refs = extract_entity_refs(content_with_refs)
@@ -441,7 +441,7 @@ if __name__ == "__main__":
     # 嵌套 dict 中的 entity_ref
     nested_refs = {
         "结构规划": {"开篇": {"方式": "动作开场"}},
-        "关联情节线": ["主线A", "主线B"],
+        "related_plotlines": ["主线A", "主线B"],
     }
     refs2 = extract_entity_refs(nested_refs)
     check("entity_refs 嵌套提取", "主线A" in refs2 and "主线B" in refs2)
@@ -476,7 +476,7 @@ if __name__ == "__main__":
     store.create_unit(
         type=UnitType.SCENE,
         unit_name="后山拔剑",
-        content=json.dumps({"章节类型": "推进", "出场角色": ["林渊"]}, ensure_ascii=False),
+        content=json.dumps({"章节类型": "推进", "cast": ["林渊"]}, ensure_ascii=False),
         actor="test",
     )
     store.flush()
@@ -537,11 +537,11 @@ if __name__ == "__main__":
     old_data = {
         "角色类型": "主角",
         "性格": {"核心特质": "坚韧"},
-        "角色弧线": {"起始": "A", "终": "B"},
+        "character_arc_detail": {"起始": "A", "终": "B"},
         "_display": {
             "修为": "化神期",
             "核心特质": ["以医入道", "绝灵根"],
-            "关键事件": [{"事件": "离家学医", "时间": "8岁"}],
+            "key_events": [{"event": "离家学医", "time_text": "8岁"}],
         },
     }
     rendered_old = render_content(old_data)

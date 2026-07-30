@@ -196,10 +196,10 @@ class LegacyFileAdapter:
         if existing and existing.type == UnitType.CHUNK and existing.status != UnitStatus.ARCHIVED:
             # 已有同名活跃 CHUNK：更新元数据，不创建新单元
             content_meta = json.dumps({
-                "章节号": chapter_number,
-                "正文路径": file_path,
-                "子类型": version_label,
-                "字数": len(chapter_text),
+                "chapter_number": chapter_number,
+                "file_path": file_path,
+                "subtype": version_label,
+                "word_count": len(chapter_text),
             }, ensure_ascii=False)
             self.store.update_unit(
                 existing.id,
@@ -210,10 +210,10 @@ class LegacyFileAdapter:
             chunk_id = existing.id
         else:
             content_meta = json.dumps({
-                "章节号": chapter_number,
-                "正文路径": file_path,
-                "子类型": version_label,
-                "字数": len(chapter_text),
+                "chapter_number": chapter_number,
+                "file_path": file_path,
+                "subtype": version_label,
+                "word_count": len(chapter_text),
             }, ensure_ascii=False)
             chunk_unit = self.store.create_unit(
                 type=UnitType.CHUNK,
@@ -419,8 +419,8 @@ class LegacyFileAdapter:
                     volume = idx["所属分卷"]
                 # 将嵌套的旧子类型提升到 content 顶层，供 normalize_subtype_fields 统一处理
                 legacy_subtype = idx.get("实体子类型", "")
-                if legacy_subtype and "子类型" not in data:
-                    data["子类型"] = legacy_subtype
+                if legacy_subtype and "subtype" not in data:
+                    data["subtype"] = legacy_subtype
             
             content = json.dumps(data, ensure_ascii=False)
         

@@ -4,9 +4,11 @@ description: "总纲：全书级结构设计（本体论、七面观照、模式
 content_schema:
   title:
     type: string
+    required: true
     description: "作品名称"
   genre:
     type: string
+    required: true
     description: "类型"
   premise:
     type: string
@@ -25,6 +27,31 @@ content_schema:
     nullable: true
     enum: ["三幕", "五幕", "七幕", "起承转合", "升级流", "单元剧"]
     description: "叙事结构类型"
+  mode:
+    type: string
+    nullable: true
+    enum: [沙漏, 长链, 螺旋, 环状, 多线交织]
+    description: "全书层面的叙事模式"
+  ontology:
+    type: string
+    nullable: true
+    description: "故事的本质是什么？为什么这个故事只能以这种方式存在？"
+  aesthetic_promise:
+    type: string
+    nullable: true
+    description: "向读者承诺的美学体验——爽快/沉思/悬疑/悲壮……"
+  seven_facets:
+    type: object
+    nullable: true
+    description: "对故事七个侧面的自我审视"
+  notes:
+    type: string
+    nullable: true
+
+subtype:
+  field: mode
+  required: false
+  options: [沙漏, 长链, 螺旋, 环状, 多线交织]
 
 fact_fields: []
 

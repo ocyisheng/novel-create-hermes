@@ -1,6 +1,11 @@
 ﻿unit_type: character_arc
 description: "角色弧线：角色跨章节的成长轨迹"
 
+subtype:
+  field: subtype
+  required: true
+  options: [主角, 重要配角, 反派, 关键配角, 群像, 功能性角色]
+
 content_schema:
   events:
     type: array
@@ -29,6 +34,25 @@ content_schema:
     type: string
     nullable: true
     description: "背景设定"
+  subtype:
+    type: string
+    required: true
+    enum: [主角, 重要配角, 反派, 关键配角, 群像, 功能性角色]
+    description: "角色子类型"
+  goals_conflicts:
+    type: object
+    nullable: true
+    description: "角色当前目标和面临的冲突"
+  character_arc_detail:
+    type: object
+    nullable: true
+    fields:
+      arc_start_state:
+        type: string
+        description: "角色弧线起始状态"
+      arc_end_state:
+        type: string
+        description: "角色弧线最终状态"
 
 fact_fields:
   - name: "age_events"

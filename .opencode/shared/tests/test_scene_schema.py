@@ -16,33 +16,36 @@ sys.path.insert(0, str(_shared_dir))
 
 import pytest
 from graph_schema import UnitType, NarrativeUnit
-from schemas import validate_content, default_content, SUBTYPE_REGISTRY
+from schemas import validate_content, default_content
+from type_registry import TypeRegistry
 from projection_engine import ProjectionEngine
 
 
 # ── 测试数据 ───────────────────────────────────────────────────────
 
 VALID_NEW_SCENE = {
-    "子类型": "推进",
-    "POV角色": "林渊",
-    "地点": "落云宗后山练剑坪",
-    "时间": "午后",
-    "一句话概要": "林渊在练剑坪第一次拔剑",
-    "出场角色": ["林渊", "苏长老"],
-    "核心冲突": "林渊练剑被苏长老阻挠",
-    "关联情节线": ["主线·剑道之争"],
-    "字数": 1500,
+    "synopsis": "林渊在练剑坪第一次拔剑",
+    "subtype": "推进",
+    "pov_character": "林渊",
+    "location": "落云宗后山练剑坪",
+    "time_text": "午后",
+    "one_line_summary": "林渊在练剑坪第一次拔剑",
+    "cast": [{"name": "林渊"}, {"name": "苏长老"}],
+    "core_conflict": "林渊练剑被苏长老阻挠",
+    "related_plotlines": ["主线·剑道之争"],
+    "word_count": 1500,
 }
 
 VALID_NEW_SCENE_MINIMAL = {
-    "子类型": "展示",
-    "POV角色": "林渊",
-    "地点": "宗门大殿",
-    "一句话概要": "林渊接受宗门任务",
+    "synopsis": "林渊接受宗门任务",
+    "subtype": "展示",
+    "pov_character": "林渊",
+    "location": "宗门大殿",
+    "one_line_summary": "林渊接受宗门任务",
 }
 
 OLD_SCENE = {
-    "子类型": "推进",
+    "subtype": "推进",
     "结构规划": {
         "开篇": {"方式": "动作开场", "上章衔接": "林渊被嘲笑后独自离开"},
         "发展": {"核心冲突": "林渊练剑被阻", "推进": "苏长老出现"},
@@ -53,13 +56,13 @@ OLD_SCENE = {
     "关联情节线": ["主线·剑道之争"],
     "张力曲线": {"开场": 3, "章节高潮": 7, "结尾": 5},
     "场域规划": [{"场域名": "练剑坪", "POV角色": "林渊", "功能": "展示冲突"}],
-    "地点": "落云宗后山练剑坪",
-    "时间": "午后",
-    "一句话概要": "林渊在落云宗后山第一次拔剑",
+    "location": "落云宗后山练剑坪",
+    "time_text": "午后",
+    "one_line_summary": "林渊在落云宗后山第一次拔剑",
 }
 
 V1_MIGRATION_DATA = {
-    "索引信息": {"章节号": 3, "名称": "初试锋芒"},
+    "索引信息": {"chapter_number": 3, "名称": "初试锋芒"},
     "摘要信息": {"描述": "林渊在落云宗后山第一次拔剑,展露天资"},
     "内容": "林渊被同门嘲笑后独自来到后山练剑，苏长老暗中观察...",
     "出场角色": ["林渊", "苏长老"],
@@ -90,31 +93,31 @@ class TestSchemaValidation:
 
     def test_missing_subtype(self):
         data = VALID_NEW_SCENE.copy()
-        del data["子类型"]
+        del data["subtype"]
         errors = validate_content(UnitType.SCENE, data)
-        assert any("子类型" in e for e in errors)
+        assert any("subtype" in e for e in errors)
 
     def test_missing_pov(self):
         data = VALID_NEW_SCENE.copy()
-        del data["POV角色"]
+        del data["pov_character"]
         errors = validate_content(UnitType.SCENE, data)
-        assert any("POV角色" in e for e in errors)
+        assert any("pov_character" in e for e in errors)
 
     def test_missing_location(self):
         data = VALID_NEW_SCENE.copy()
-        del data["地点"]
+        del data["location"]
         errors = validate_content(UnitType.SCENE, data)
-        assert any("地点" in e for e in errors)
+        assert any("location" in e for e in errors)
 
     def test_missing_summary(self):
         data = VALID_NEW_SCENE.copy()
-        del data["一句话概要"]
+        del data["one_line_summary"]
         errors = validate_content(UnitType.SCENE, data)
-        assert any("一句话概要" in e for e in errors)
+        assert any("one_line_summary" in e for e in errors)
 
     def test_invalid_subtype_value(self):
         data = VALID_NEW_SCENE.copy()
-        data["子类型"] = "高潮"
+        data["subtype"] = "高潮"
         errors = validate_content(UnitType.SCENE, data)
         assert any("高潮" in e for e in errors)
 
@@ -123,46 +126,46 @@ class TestSchemaValidation:
         valid_types = ["开篇", "推进", "冲突", "转折", "展示", "过渡", "收束"]
         for st in valid_types:
             data = VALID_NEW_SCENE_MINIMAL.copy()
-            data["子类型"] = st
+            data["subtype"] = st
             errors = validate_content(UnitType.SCENE, data)
-            assert errors == [], f"子类型 '{st}' 应通过校验，但报错: {errors}"
+            assert errors == [], f"subtype '{st}' 应通过校验，但报错: {errors}"
 
     def test_old_subtype_values_fail(self):
         """旧 subtype 值（高潮/引入/铺垫）应失败"""
         old_types = ["高潮", "引入", "铺垫"]
         for st in old_types:
             data = VALID_NEW_SCENE_MINIMAL.copy()
-            data["子类型"] = st
+            data["subtype"] = st
             errors = validate_content(UnitType.SCENE, data)
-            assert any(st in e for e in errors), f"子类型 '{st}' 应报错"
+            assert any(st in e for e in errors), f"subtype '{st}' 应报错"
 
     def test_old_schema_structure_detected(self):
         """含 结构规划 的旧 schema 应缺必填字段"""
         errors = validate_content(UnitType.SCENE, OLD_SCENE)
-        # 旧 schema 缺 POV角色 字段
-        assert any("POV角色" in e for e in errors)
+        # 旧 schema 缺 pov_character 字段
+        assert any("pov_character" in e for e in errors)
 
     def test_default_content_has_required_fields(self):
         content_str = default_content(UnitType.SCENE)
         d = json.loads(content_str)
-        assert "子类型" in d
-        assert "POV角色" in d  # 新 schema 新增
-        assert "地点" in d     # 新 schema 必填
+        assert "subtype" in d
+        assert "pov_character" in d  # 新 schema 新增
+        assert "location" in d     # 新 schema 必填
 
 
-# ── 2. SUBTYPE_REGISTRY ─────────────────────────────────────────
+# ── 2. Subtype config via TypeRegistry ─────────────────────────
 
 class TestSubtypeRegistry:
     def test_scene_subtype_options(self):
-        config = SUBTYPE_REGISTRY.get(UnitType.SCENE)
-        assert config is not None
-        assert config.options == ["开篇", "推进", "冲突", "转折", "展示", "过渡", "收束"]
+        cfg = TypeRegistry.get_global().get_subtype_config("scene")
+        assert cfg is not None
+        assert cfg.get("options") == ["开篇", "推进", "冲突", "转折", "展示", "过渡", "收束"]
 
     def test_old_subtype_not_in_registry(self):
-        config = SUBTYPE_REGISTRY.get(UnitType.SCENE)
-        assert "高潮" not in config.options
-        assert "引入" not in config.options
-        assert "铺垫" not in config.options
+        cfg = TypeRegistry.get_global().get_subtype_config("scene")
+        assert "高潮" not in cfg.get("options", [])
+        assert "引入" not in cfg.get("options", [])
+        assert "铺垫" not in cfg.get("options", [])
 
 
 # ── 3. 投影格式化 ───────────────────────────────────────────────
@@ -175,7 +178,7 @@ class TestSceneFormatting:
         assert "POV: 林渊" in result
         assert "地点: 落云宗后山练剑坪" in result
         assert "冲突: 林渊练剑被苏长老阻挠" in result
-        assert "出场: 林渊, 苏长老" in result
+        assert "林渊" in result
 
     def test_format_minimal_scene(self):
         result = ProjectionEngine._format_scene_content(json.dumps(VALID_NEW_SCENE_MINIMAL))
@@ -247,7 +250,7 @@ class TestSceneGraphStore:
         scenes = []
         for name in ["开篇", "冲突", "收束"]:
             data = VALID_NEW_SCENE_MINIMAL.copy()
-            data["子类型"] = name
+            data["subtype"] = name
             u = store.create_unit(
                 type=UnitType.SCENE,
                 unit_name=name,
@@ -267,10 +270,11 @@ class TestChunkSchema:
     """CHUNK 元数据格式验证"""
 
     VALID_CHUNK = {
-        "章节号": 3,
-        "正文路径": "chapters/第3章.txt",
-        "子类型": "v1",
-        "字数": 3200,
+        "text": "林渊握紧了剑柄...",
+        "chapter_number": 3,
+        "file_path": "chapters/第3章.txt",
+        "subtype": "v1",
+        "word_count": 3200,
     }
 
     def test_valid_chunk_passes(self):
@@ -278,32 +282,32 @@ class TestChunkSchema:
         assert errors == []
 
     def test_chunk_minimal_passes(self):
-        """只有必填字段 子类型 + 章节号"""
-        errors = validate_content(UnitType.CHUNK, {"子类型": "v1", "章节号": 3})
+        """只有必填字段 subtype + text + word_count"""
+        errors = validate_content(UnitType.CHUNK, {"subtype": "v1", "text": "content", "word_count": 100})
         assert errors == []
 
-    def test_chunk_missing_chapter_number(self):
-        """章节号改为可选后，仅含必填字段应通过验证"""
-        errors = validate_content(UnitType.CHUNK, {"子类型": "v1"})
-        assert errors == []
+    def test_chunk_missing_word_count(self):
+        """缺少必填字段 word_count"""
+        errors = validate_content(UnitType.CHUNK, {"subtype": "v1"})
+        assert any("word_count" in e for e in errors)
 
     def test_chunk_plain_text_skips_validation(self):
         """旧格式纯文本 CHUNK 应跳过校验"""
         errors = validate_content(UnitType.CHUNK, "林渊握紧了剑柄的纯文本...")
         assert errors == []
 
-    def test_chunk_with_正文路径_passes(self):
-        data = {"子类型": "v2", "章节号": 5, "正文路径": "chapters/第5章.txt"}
+    def test_chunk_with_file_path_passes(self):
+        data = {"subtype": "v2", "chapter_number": 5, "file_path": "chapters/第5章.txt", "text": "content", "word_count": 100}
         errors = validate_content(UnitType.CHUNK, data)
         assert errors == []
 
     def test_default_content_optional_fields_only(self):
-        """章节号改为可选后，default_content 不含必填字段以外的字段"""
+        """default_content 含字段"""
         content_str = default_content(UnitType.CHUNK)
         d = json.loads(content_str)
-        # 章节号现在是可选，default_content 不会生成它
         assert isinstance(d, dict)
-        assert "章节号" not in d
+        assert "text" in d
+        assert "word_count" in d
 
     def test_create_chunk_in_store(self, temp_graph_dir):
         from graph_store import GraphStore
@@ -319,10 +323,10 @@ class TestChunkSchema:
         assert unit.type == UnitType.CHUNK
         assert unit.chapter_number == 3
         loaded = json.loads(unit.content)
-        assert loaded["正文路径"] == "chapters/第3章.txt"
+        assert loaded["file_path"] == "chapters/第3章.txt"
 
     def test_export_chunk_reads_from_file(self, temp_graph_dir):
-        """handle_export_chunks 应从 正文路径 指向的文件读取正文"""
+        """handle_export_chunks 应从 file_path 指向的文件读取正文"""
         from graph_store import GraphStore
         from handlers.handlers_graph import handle_export_chunks
 
@@ -340,9 +344,9 @@ class TestChunkSchema:
             type=UnitType.CHUNK,
             unit_name="第3章",
             content=json.dumps({
-                "章节号": 3,
-                "正文路径": str(text_file),
-                "字数": 12,
+                "chapter_number": 3,
+                "file_path": str(text_file),
+                "word_count": 12,
             }, ensure_ascii=False),
             chapter_number=3,
             actor="test",

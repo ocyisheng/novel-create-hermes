@@ -123,7 +123,7 @@ def handle_session_info(project_root: str) -> dict:
                         if c.content:
                             try:
                                 meta = json.loads(c.content) if isinstance(c.content, str) else c.content
-                                p = meta.get("正文路径", "")
+                                p = meta.get("file_path", "")
                                 if p:
                                     full = os.path.join(project, p)
                                     paths.append(full)

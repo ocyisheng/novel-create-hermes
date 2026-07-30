@@ -1,9 +1,15 @@
 ﻿unit_type: scene
 description: "场景：一个时间×地点×人物组的叙事切片"
 
+subtype:
+  field: subtype
+  required: true
+  options: [开篇, 推进, 冲突, 转折, 展示, 过渡, 收束]
+
 content_schema:
   synopsis:
     type: string
+    required: true
     description: "场景概要"
   mood:
     type: string
@@ -17,11 +23,60 @@ content_schema:
   location:
     type: string
     nullable: true
+    required: true
     description: "场景地点"
   time_label:
     type: string
     nullable: true
     description: "时间标签（如'第三日清晨'）"
+  subtype:
+    type: string
+    required: true
+    enum: [开篇, 推进, 冲突, 转折, 展示, 过渡, 收束]
+    description: "场景子类型"
+  pov_character:
+    type: string
+    required: true
+    description: "视角角色名"
+  time_text:
+    type: string
+    nullable: true
+    description: "人类可读时间表达，如'第三日黄昏'"
+  time_ordinal:
+    type: number
+    nullable: true
+    description: "故事时间坐标"
+  one_line_summary:
+    type: string
+    required: true
+    description: "场景一句话概要"
+  cast:
+    type: array
+    nullable: true
+    description: "参与本场景的角色列表"
+    items:
+      type: object
+      properties:
+        name:
+          type: string
+          required: true
+          description: "角色名称"
+        role_status:
+          type: string
+          nullable: true
+          description: "角色在该场景的状态"
+        role_in_scene:
+          type: string
+          nullable: true
+          description: "角色在本场景的叙事功能"
+        chapter_end_state:
+          type: object
+          nullable: true
+          description: "角色在本章结束时的状态"
+  related_plotlines:
+    type: array
+    nullable: true
+    description: "关联的情节线列表"
 
 fact_fields:
   - name: "location_ref"

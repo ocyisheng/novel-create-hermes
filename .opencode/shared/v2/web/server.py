@@ -155,22 +155,20 @@ def create_app(project_root: str = "") -> FastAPI:
         if not unit_type:
             return {"error": "缺少 unit_type 参数"}
         from graph_schema import UnitType
-        from schemas import SCHEMA_REGISTRY
+        from type_registry import TypeRegistry
         try:
             ut = UnitType[unit_type.upper()]
         except KeyError:
             return {"error": f"未知单元类型: {unit_type}"}
-        schema = SCHEMA_REGISTRY.get(ut, {})
+        registry = TypeRegistry.get_global()
+        schema = registry.get_content_schema(ut.value)
         # 转成可 JSON 序列化的格式
         def _serialize_type(t):
-            if t is str: return "string"
-            if t is int: return "int"
-            if t is float: return "float"
-            if t is bool: return "boolean"
-            if t is list: return "array"
-            if t is dict: return "object"
-            if isinstance(t, list):
-                return [_serialize_type(x) for x in t]
+            if t == "string": return "string"
+            if t == "number": return "int"
+            if t == "boolean": return "boolean"
+            if t == "array": return "array"
+            if t == "object": return "object"
             return str(t)
         fields = {}
         for field_name, rules in schema.items():
@@ -178,16 +176,32 @@ def create_app(project_root: str = "") -> FastAPI:
                 "type": _serialize_type(rules.get("type", "string")),
                 "required": rules.get("required", False),
             }
-            if "options" in rules:
-                item["options"] = rules["options"]
+            if "enum" in rules:
+                item["options"] = rules["enum"]
             if "description" in rules:
                 item["description"] = rules["description"]
             if "fields" in rules:
                 item["fields"] = {k: _serialize_type(v.get("type", "string")) for k, v in rules["fields"].items()}
-            if "item_fields" in rules:
-                item["item_fields"] = {k: _serialize_type(v.get("type", "string")) for k, v in rules["item_fields"].items()}
+            # items.properties → item_fields (兼容前端现有格式)
+            items_schema = rules.get("items")
+            if isinstance(items_schema, dict) and "properties" in items_schema:
+                item["item_fields"] = {k: _serialize_type(v.get("type", "string")) for k, v in items_schema["properties"].items()}
+            elif "item_fields" in rules:
+                item["item_fields"] = rules["item_fields"]
             fields[field_name] = item
         return {"unit_type": unit_type, "fields": fields}
+
+    @app.get("/api/project/subtype-config")
+    def get_subtype_config(unit_type: str = ""):
+        """返回指定类型的子类型配置（颜色/标签/行为等）"""
+        if not unit_type:
+            return {"error": "缺少 unit_type 参数"}
+        from type_registry import TypeRegistry
+        registry = TypeRegistry.get_global()
+        cfg = registry.get_subtype_config(unit_type)
+        if not cfg:
+            return {"unit_type": unit_type, "subtype": None}
+        return {"unit_type": unit_type, "subtype": cfg}
 
     if project_root:
         _init_store(app, project_root)

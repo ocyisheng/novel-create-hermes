@@ -121,8 +121,8 @@ def auto_sync_story_time(unit: NarrativeUnit) -> bool:
     if not isinstance(content_dict, dict):
         return False
 
-    label = content_dict.get("时间", "") or ""
-    ordinal = content_dict.get("时间序数")
+    label = content_dict.get("time_text", "") or ""
+    ordinal = content_dict.get("time_ordinal")
 
     if not label and ordinal is None:
         return False  # content 中没有时间信息
@@ -183,7 +183,7 @@ def backfill_story_time(unit: NarrativeUnit) -> bool:
         label = content.get("时间", "") or ""
 
         # 序数提取
-        ordinal = content.get("时间序数")
+        ordinal = content.get("time_ordinal")
         if ordinal is not None:
             ordinal = float(ordinal)
             precision = "exact"
@@ -194,12 +194,12 @@ def backfill_story_time(unit: NarrativeUnit) -> bool:
 
         # PLOT_THREAD：从关键事件推断时间
         if not label:
-            events = content.get("关键事件", [])
+            events = content.get("key_events", [])
             if isinstance(events, list) and events:
                 first = events[0]
                 if isinstance(first, dict):
-                    evt_label = first.get("事件", "") or ""
-                    evt_ch = first.get("章节")
+                    evt_label = first.get("event", "") or ""
+                    evt_ch = first.get("chapter_number")
                     if evt_label:
                         label = evt_label
                     if evt_ch is not None:
@@ -208,9 +208,9 @@ def backfill_story_time(unit: NarrativeUnit) -> bool:
 
         # CHARACTER_ARC：角色弧线描述可能含时间信息
         if not label:
-            arc = content.get("角色弧线", {})
+            arc = content.get("character_arc_detail", {})
             if isinstance(arc, dict):
-                start_state = arc.get("起始状态", "")
+                start_state = arc.get("arc_start_state", "")
                 if start_state:
                     label = start_state
 

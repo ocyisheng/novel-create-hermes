@@ -1,10 +1,16 @@
 unit_type: plot_thread
 description: "情节线：一条完整的故事脉络"
 
+subtype:
+  field: type
+  required: true
+  options: [主线, 支线, 暗线, 感情线, 成长线, 世界观线]
+
 content_schema:
   type:
     type: string
-    enum: ["主线", "支线", "暗线", "感情线"]
+    required: true
+    enum: [主线, 支线, 暗线, 感情线, 成长线, 世界观线]
     description: "情节线分类"
   summary:
     type: string
@@ -22,6 +28,27 @@ content_schema:
     type: string
     nullable: true
     description: "故事弧线（三幕/五幕/七幕等）"
+  core_conflict:
+    type: string
+    required: true
+    description: "核心冲突"
+  key_events:
+    type: array
+    nullable: true
+    description: "关键事件序列"
+    items:
+      type: object
+      properties:
+        chapter_number:
+          type: number
+          description: "事件发生章节"
+        event:
+          type: string
+          description: "事件描述"
+  ending_design:
+    type: string
+    nullable: true
+    description: "情节线的终局设计"
 
 fact_fields: []
 

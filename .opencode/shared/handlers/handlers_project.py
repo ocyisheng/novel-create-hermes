@@ -318,7 +318,7 @@ def _vol_name(unit) -> str:
     try:
         if unit.content and unit.content.startswith("{"):
             c = json.loads(unit.content)
-            return str(c.get("卷名称", ""))
+            return str(c.get("volume_title", ""))
     except (json.JSONDecodeError, TypeError, AttributeError):
         pass
     return ""

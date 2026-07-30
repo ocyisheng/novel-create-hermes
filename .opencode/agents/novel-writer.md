@@ -128,7 +128,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 
 **NOVELS_ROOT 发现**：`NOVELS_ROOT` 环境变量 → CWD（含 config.yaml 的子目录）→ CWD 父目录 → 工具根目录。
 
-**未指定项目**：读 `.omo/notepads/novel-context.md` 的 `__CURRENT_PROJECT__`；为空则扫描 NOVELS_ROOT 列出项目，询问用户。
+**未指定项目**：读 `.context/novel-context.md` 的 `__CURRENT_PROJECT__`；为空则扫描 NOVELS_ROOT 列出项目，询问用户。
 
 ## 三、V2 路由与需求发现
 

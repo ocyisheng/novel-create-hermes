@@ -32,18 +32,14 @@ Thumbs.db
 *.njsproj
 *.sln
 
-# ----- 开发者本地工具 -----
-.opencode/agents/novel-writer-develop.md
-scripts/build-release.py
-.omo/analysis/
 
 # ----- 其他 -----
 .omo/run-continuation/
 .omo/plans/
-.omo/notepads/novel-context.md
-.omo/notepads/novel-issues.md
-.omo/notepads/novel-learnings.md
-.omo/notepads/projects/
+.context/novel-context.md
+.context/novel-issues.md
+.context/novel-learnings.md
+.context/projects/
 .engine
 docs/
 novels/

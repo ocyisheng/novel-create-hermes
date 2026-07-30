@@ -349,7 +349,7 @@ def handle_project_switch(name: str, dry_run: bool = False) -> dict:
 
     # 写入 novel-context.md
     tool_root = os.path.abspath(os.path.join(_SHARED_DIR, "..", ".."))
-    ctx_dir = os.path.join(tool_root, ".omo", "notepads")
+    ctx_dir = os.path.join(tool_root, ".context")
     os.makedirs(ctx_dir, exist_ok=True)
     ctx_path = os.path.join(ctx_dir, "novel-context.md")
 

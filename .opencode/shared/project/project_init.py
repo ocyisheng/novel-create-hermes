@@ -71,15 +71,15 @@ def save_config(name: str, config: dict):
     print(f"  ✅ config.yaml 已更新")
 
 
-def get_omo_context_path(project_name: str) -> str:
+def get_context_path(project_name: str) -> str:
     """获取 novel-context.md 中对应项目的持久化上下文路径"""
-    return os.path.join(NOVELS_ROOT, project_name, ".omo", "notepads", "novel-context.md")
+    return os.path.join(NOVELS_ROOT, project_name, ".context", "novel-context.md")
 
 
-def omo_context_exists() -> str:
+def global_context_path() -> str:
     """获取当前 novel-context.md 路径（工具根目录下的全局上下文）"""
     tool_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    return os.path.join(tool_root, ".omo", "notepads", "novel-context.md")
+    return os.path.join(tool_root, ".context", "novel-context.md")
 
 
 # ── 子命令：新建项目 ──────────────────────────────────────────────────────
@@ -375,7 +375,7 @@ def cmd_switch(args):
         print(f"❌ 项目不存在: {name}")
         sys.exit(1)
 
-    ctx_path = omo_context_exists()
+    ctx_path = global_context_path()
     if not os.path.exists(os.path.dirname(ctx_path)):
         os.makedirs(os.path.dirname(ctx_path), exist_ok=True)
 

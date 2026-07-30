@@ -18,6 +18,8 @@ Thumbs.db
 *.swp
 *.swo
 .codegraph
+.omo
+
 # ----- OpenCode -----
 .opencode/node_modules/
 .opencode/package.json
@@ -34,17 +36,11 @@ Thumbs.db
 
 
 # ----- 其他 -----
-.omo/run-continuation/
-.omo/plans/
-.context/novel-context.md
-.context/novel-issues.md
-.context/novel-learnings.md
-.context/projects/
-.engine
-docs/
 novels/
-knowledge/
-oh-my-openagent/
+.context
+.engine
+knowledge
+docs
 AGENTS.md
 # ----- 测试和覆盖率 -----
 .pytest_cache

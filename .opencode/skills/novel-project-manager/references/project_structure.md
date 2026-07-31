@@ -24,7 +24,7 @@ V2 项目使用 `graph/` 作为**单一真相源**，全部创作数据通过 no
 > .engine/
 > ├── analysis/            # 改进清单（如 clues_aggregated.md）
 > ├── daemon/              # daemon 运行日志
-> ├── telemetry/           # 工具调用遥测（按月分片 ndjson）
+> ├── telemetry/           # 工具调用遥测（按天分片 ndjson）
 > ├── subagents/           # 子 Agent 调度摘要
 > ├── summaries/           # 会话总结
 > └── web-server/          # Web 服务日志与状态

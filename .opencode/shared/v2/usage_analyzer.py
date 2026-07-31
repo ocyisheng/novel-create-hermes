@@ -27,6 +27,7 @@ for _d in [_SHARED_DIR, _V2_DIR]:
 
 from graph_store import is_v2_project
 from telemetry import project_basename
+from engine_log import resolve_engine_root
 
 
 def _resolve_project(project: str) -> str:
@@ -43,12 +44,8 @@ def _resolve_project(project: str) -> str:
 
 
 def _resolve_engine_root() -> str:
-    """解析 .engine/ 目录路径。"""
-    current = Path(__file__).resolve().parent  # v2/
-    shared = current.parent                      # shared/
-    opencode = shared.parent                     # .opencode/
-    tool_root = opencode.parent                  # novel-create-hermes/
-    return str(tool_root / ".engine")
+    """解析 .engine/ 目录路径。委托给 engine_log 唯一实现（避免第三份重复）。"""
+    return resolve_engine_root()
 
 
 def _collect_subagent_traces(project: str = "") -> dict:

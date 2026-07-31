@@ -1,7 +1,7 @@
 """
 telemetry.py — 工具调用遥测记录模块。
 
-自动记录每次 novel-tool 调用的元数据到 .engine/telemetry/{YYYY-MM}.ndjson。
+自动记录每次 novel-tool 调用的元数据到 .engine/telemetry/{YYYY-MM-DD}.ndjson。
 
 记录的字段：
 - ts: 时间戳
@@ -17,10 +17,9 @@ telemetry.py — 工具调用遥测记录模块。
 - unit_count: 影响/返回的单元数
 - relation_count: 影响/返回的关系数
 
-自动去重合并同类错误，避免日志爆炸。
-
 存储架构：
-- .engine/telemetry/{YYYY-MM}.ndjson  — 按月分片，跨项目统一存储
+- .engine/telemetry/{YYYY-MM-DD}.ndjson — 按天分片，跨项目统一存储
+  （与 daemon 事件日志共用 EngineLogWriter 写入机制，文件保持分离）
 - 旧数据（{project}/graph/telemetry.ndjson）仍可读取，作为回退
 """
 
@@ -28,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 import traceback
 from datetime import datetime, timezone
@@ -35,39 +35,27 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from collections import Counter, defaultdict
 
+from engine_log import EngineLogWriter, resolve_engine_root
+
 
 def _resolve_engine_root() -> str:
-    """解析 .engine/ 目录路径（工具根目录下）。"""
-    # 从当前文件向上查找工具根目录
-    # telemetry.py 在 shared/v2/ 下，工具根目录在 ../../../ 
-    current = Path(__file__).resolve().parent  # v2/
-    shared = current.parent                      # shared/
-    opencode = shared.parent                     # .opencode/
-    tool_root = opencode.parent                  # novel-create-hermes/
-    engine_root = tool_root / ".engine"
-    engine_root.mkdir(parents=True, exist_ok=True)
-    return str(engine_root)
+    """解析 .engine/ 目录路径（工具根目录下）。委托给 engine_log 唯一实现。"""
+    return resolve_engine_root()
 
 
-class TelemetryRecorder:
+class TelemetryRecorder(EngineLogWriter):
     """
     工具调用遥测记录器（全局单例）。
     
-    每次调用记录一条 NDJSON 行到 .engine/telemetry/{YYYY-MM}.ndjson。
+    每次调用记录一条 NDJSON 行到 .engine/telemetry/{YYYY-MM-DD}.ndjson。
     跨项目统一存储，每条记录自带 project 字段。
+    写入机制复用 EngineLogWriter（按天分片、惰性创建、线程安全）。
     """
     
     def __init__(self):
-        self._engine_root = _resolve_engine_root()
-        self._log_dir = os.path.join(self._engine_root, "telemetry")
+        super().__init__(subdir="telemetry", prefix="", ext=".ndjson")
         self._buffer: List[dict] = []
         self._flush_threshold = 1   # 每条立即刷盘，避免进程退出时丢失
-    
-    def _log_path(self) -> str:
-        """当前月份的分片文件路径。"""
-        month_key = datetime.now(timezone.utc).strftime("%Y-%m")
-        os.makedirs(self._log_dir, exist_ok=True)
-        return os.path.join(self._log_dir, f"{month_key}.ndjson")
     
     def record(
         self,
@@ -109,10 +97,11 @@ class TelemetryRecorder:
         if not success and error_info:
             entry["error"] = error_info
         
-        self._buffer.append(entry)
-        
-        if len(self._buffer) >= self._flush_threshold:
-            self.flush()
+        # 线程安全：daemon 线程池并发 record/flush，append 与刷盘需原子
+        with self._lock:
+            self._buffer.append(entry)
+            if len(self._buffer) >= self._flush_threshold:
+                self.flush()
     
     def record_error(
         self,
@@ -139,33 +128,36 @@ class TelemetryRecorder:
         )
     
     def flush(self):
-        """将缓冲区写入磁盘。"""
-        if not self._buffer:
-            return
-        try:
-            log_path = self._log_path()
-            with open(log_path, "a", encoding="utf-8") as f:
+        """将缓冲区写入磁盘（委托 EngineLogWriter.write，自动按天轮转）。"""
+        with self._lock:
+            if not self._buffer:
+                return
+            try:
                 for entry in self._buffer:
-                    f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
-            self._buffer.clear()
-        except Exception:
-            pass  # 遥测失败不影响主流程
+                    self.write(entry)
+                self._buffer.clear()
+            except Exception:
+                pass  # 遥测失败不影响主流程
     
     def close(self):
-        """关闭时刷盘。"""
+        """关闭时刷盘并关闭日志文件。"""
         self.flush()
+        super().close()
 
 
 # ── 全局单例 ──────────────────────────────────────────────────────────────
 
 _recorder: Optional[TelemetryRecorder] = None
+_recorder_lock = threading.Lock()
 
 
 def get_recorder() -> TelemetryRecorder:
-    """获取全局遥测记录器单例。"""
+    """获取全局遥测记录器单例（线程安全：daemon 线程池并发调用）。"""
     global _recorder
     if _recorder is None:
-        _recorder = TelemetryRecorder()
+        with _recorder_lock:
+            if _recorder is None:
+                _recorder = TelemetryRecorder()
     return _recorder
 
 

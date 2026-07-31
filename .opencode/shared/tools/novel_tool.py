@@ -26,70 +26,27 @@ for _d in [_SHARED_DIR, _V2_DIR]:
     if _d not in sys.path:
         sys.path.insert(0, _d)
 
+from engine_log import EngineLogWriter  # noqa: E402  (sys.path 设置后导入)
+
 
 # ── 守护进程日志 ─────────────────────────────────────────────────────
 
-class _DaemonLogger:
-    """守护进程结构化日志，按天新建文件。"""
+class _DaemonLogger(EngineLogWriter):
+    """守护进程结构化日志，按天新建文件（复用 EngineLogWriter 写入机制）。"""
 
     def __init__(self):
-        self._log_file = None
-        self._log_dir = None
-        self._current_date = None
-
-    def _ensure_dir(self):
-        if self._log_dir:
-            return self._log_dir
-        _tool_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        self._log_dir = os.path.join(_tool_root, ".engine", "daemon")
-        os.makedirs(self._log_dir, exist_ok=True)
-        return self._log_dir
-
-    def _date_stamped_path(self) -> tuple[str, str]:
-        """返回 (日志目录, YYYY-MM-DD) 和对应文件路径。"""
-        d = self._ensure_dir()
-        today = datetime.now().strftime("%Y-%m-%d")
-        return today, os.path.join(d, f"daemon-{today}.log")
+        super().__init__(subdir="daemon", prefix="daemon-", ext=".log")
 
     def open(self, graph_dir: str):
-        _ = self._ensure_dir()
-        today, path = self._date_stamped_path()
-        self._current_date = today
-        try:
-            self._log_file = open(path, "a", encoding="utf-8")
-        except OSError:
-            self._log_file = None
+        """惰性打开今日日志文件（graph_dir 兼容旧签名；路径由 engine root 解析）。"""
+        today, _ = self._date_stamped_path()
+        if today != self._current_date or not self._log_file:
+            self._rotate(today)
 
     def log(self, event: str, **fields):
-        today, _ = self._date_stamped_path()
-        if today != self._current_date:
-            self._rotate(today)
-        if not self._log_file:
-            return
+        """写入一条事件记录（跨天自动轮转，失败静默）。"""
         entry = {"ts": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
-        try:
-            self._log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            self._log_file.flush()
-        except Exception:
-            pass
-
-    def _rotate(self, new_date: str):
-        """跨天时关闭旧文件，打开新文件。"""
-        self.close()
-        self._current_date = new_date
-        _, path = self._date_stamped_path()
-        try:
-            self._log_file = open(path, "a", encoding="utf-8")
-        except OSError:
-            self._log_file = None
-
-    def close(self):
-        if self._log_file:
-            try:
-                self._log_file.close()
-            except Exception:
-                pass
-            self._log_file = None
+        self.write(entry)
 
 
 _DAEMON_LOG = _DaemonLogger()
@@ -434,31 +391,46 @@ def _get_store_cached(project_root: str):
 
 def _daemon_handle_request(request: dict) -> str:
     """守护进程版的 handle_request：复用 _build_canonical_params 和 run_operation，
-       但由 _get_store_cached 提供 GraphStore 缓存。"""
+       但由 _get_store_cached 提供 GraphStore 缓存。
+       与 handle_request 一致记录遥测（修复 daemon 模式请求缺失遥测数据的缺口）。"""
+    import time as _time
+    _start = _time.time()
+    project = request.get("project", "")
+    # Lazy open daemon log when project becomes known
+    if project and not _DAEMON_LOG._log_file:
+        resolved = _resolve_project(project)
+        graph_dir = os.path.join(resolved, "graph")
+        if os.path.isdir(graph_dir):
+            _DAEMON_LOG.open(graph_dir)
+
+    op = request.get("operation", "")
+    # caller 标识：与 handle_request 一致（caller 优先，其次 actor，默认 orchestrator）
+    caller = request.get("caller") or request.get("actor") or "orchestrator"
+    proj_name = _project_basename(project)
+    canonical = {}
+
     try:
-        # Lazy open daemon log when project becomes known
-        project = request.get("project", "")
-        if project and not _DAEMON_LOG._log_file:
-            resolved = _resolve_project(project)
-            graph_dir = os.path.join(resolved, "graph")
-            if os.path.isdir(graph_dir):
-                _DAEMON_LOG.open(graph_dir)
-        
-        op = request.get("operation", "")
         if not op:
             return _err("缺少 operation 字段")
-        
+
         canonical = _build_canonical_params(op, request)
-        
+
         from handlers import run_operation
         result = run_operation(op, **canonical)
-        
+
+        duration_ms = (_time.time() - _start) * 1000
+
         if "error" in result:
+            _record_failure(proj_name, caller, op, canonical, duration_ms, result["error"])
             return _err(result["error"])
+
+        _record_success(proj_name, caller, op, canonical, duration_ms, result)
         return _ok(result)
-    
+
     except Exception as e:
         import traceback
+        duration_ms = (_time.time() - _start) * 1000
+        _record_failure(proj_name, caller, op, canonical, duration_ms, f"{e}\n{traceback.format_exc()}")
         return _err(f"{e}\n{traceback.format_exc()}")
 
 

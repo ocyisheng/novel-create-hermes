@@ -171,8 +171,12 @@ class TestCollectSubagentTraces:
 class TestAnalyzeTelemetryPassthrough:
     def test_project_filter_reaches_handler(self, tmp_path, monkeypatch):
         """analyze.telemetry 的 project 参数透传到 handler 并过滤。"""
+        import engine_log
         import telemetry
+        from telemetry import close_all
         from novel_tool import handle_request
+        close_all()  # 重置遥测单例，避免缓存旧 engine root
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
         monkeypatch.setattr(telemetry, "_resolve_engine_root", lambda: str(tmp_path))
         _write_ndjson(os.path.join(str(tmp_path), "telemetry", "2026-07.ndjson"), [
             _mk_record("凡人之诡影重重"),
@@ -188,8 +192,12 @@ class TestAnalyzeTelemetryPassthrough:
         assert data["failure_count"] == 1
 
     def test_no_project_returns_all(self, tmp_path, monkeypatch):
+        import engine_log
         import telemetry
+        from telemetry import close_all
         from novel_tool import handle_request
+        close_all()  # 重置遥测单例，避免缓存旧 engine root
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
         monkeypatch.setattr(telemetry, "_resolve_engine_root", lambda: str(tmp_path))
         _write_ndjson(os.path.join(str(tmp_path), "telemetry", "2026-07.ndjson"), [
             _mk_record("项目A"),
@@ -200,3 +208,110 @@ class TestAnalyzeTelemetryPassthrough:
         res = json.loads(raw)
         assert_success(res)
         assert res["data"]["total_calls"] == 2
+
+
+# ============================================================================
+# 6. 按天分片（EngineLogWriter 统一写入机制）
+# ============================================================================
+
+class TestDailySharding:
+    def test_recorder_writes_daily_shard(self, tmp_path, monkeypatch):
+        """遥测写入 {YYYY-MM-DD}.ndjson 而非月度文件。"""
+        import engine_log
+        from telemetry import TelemetryRecorder
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
+        rec = TelemetryRecorder()
+        try:
+            rec.record(operation="graph.stats", params={"project": "项目A"},
+                       success=True, duration_ms=5.0, project="项目A", caller="orchestrator")
+        finally:
+            rec.close()
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        path = os.path.join(str(tmp_path), "telemetry", f"{today}.ndjson")
+        assert os.path.isfile(path), f"应按天分片: {path}"
+        with open(path, encoding="utf-8") as f:
+            line = f.readline().strip()
+        assert line, "应写入一条记录"
+        entry = json.loads(line)
+        assert entry["op"] == "graph.stats"
+        assert entry["project"] == "项目A"
+        assert entry["success"] is True
+
+    def test_legacy_monthly_files_still_readable(self, tmp_path, monkeypatch):
+        """历史月度分片文件仍可被读取（消费端兼容）。"""
+        import telemetry
+        monkeypatch.setattr(telemetry, "_resolve_engine_root", lambda: str(tmp_path))
+        _write_ndjson(os.path.join(str(tmp_path), "telemetry", "2026-06.ndjson"), [
+            _mk_record("项目A", ts="2026-06-01T00:00:00+00:00"),
+        ])
+        _write_ndjson(os.path.join(str(tmp_path), "telemetry", "2026-07.ndjson"), [
+            _mk_record("项目B", ts="2026-07-01T00:00:00+00:00"),
+        ])
+
+        entries = telemetry._read_engine_telemetry()
+        assert len(entries) == 2
+        projects = {e["project"] for e in entries}
+        assert projects == {"项目A", "项目B"}
+
+
+# ============================================================================
+# 7. daemon 模式遥测缺口修复（_daemon_handle_request 记录遥测）
+# ============================================================================
+
+class TestDaemonRecordsTelemetry:
+    def test_daemon_success_records_telemetry(self, tmp_path, monkeypatch):
+        """daemon 成功请求也写入遥测（修复缺口）。"""
+        import engine_log
+        import handlers
+        from telemetry import close_all
+        from novel_tool import _daemon_handle_request
+        close_all()  # 重置单例，确保新 recorder 使用 tmp_path
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
+        monkeypatch.setattr(handlers, "run_operation",
+                            lambda op, **kw: {"ok": True, "data": "x"})
+
+        try:
+            raw = _daemon_handle_request(json_request("graph.stats", project="凡人之诡影重重"))
+            res = json.loads(raw)
+            assert res["success"] is True
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            path = os.path.join(str(tmp_path), "telemetry", f"{today}.ndjson")
+            assert os.path.isfile(path), f"daemon 请求应写入遥测: {path}"
+            with open(path, encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
+            assert lines, "应至少有一条遥测记录"
+            entry = json.loads(lines[-1])
+            assert entry["op"] == "graph.stats"
+            assert entry["success"] is True
+            assert entry["project"] == "凡人之诡影重重"
+        finally:
+            close_all()  # 关闭文件句柄，避免 Windows tmp 清理失败
+
+    def test_daemon_failure_records_telemetry(self, tmp_path, monkeypatch):
+        """daemon 失败请求也写入遥测（错误归因）。"""
+        import engine_log
+        import handlers
+        from telemetry import close_all
+        from novel_tool import _daemon_handle_request
+        close_all()
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
+        monkeypatch.setattr(handlers, "run_operation",
+                            lambda op, **kw: {"error": "boom"})
+
+        try:
+            raw = _daemon_handle_request(json_request("graph.stats", project="项目X"))
+            res = json.loads(raw)
+            assert res["success"] is False
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            path = os.path.join(str(tmp_path), "telemetry", f"{today}.ndjson")
+            with open(path, encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
+            entry = json.loads(lines[-1])
+            assert entry["op"] == "graph.stats"
+            assert entry["success"] is False
+            assert entry["error"]["type"] == "runtime_error"
+        finally:
+            close_all()

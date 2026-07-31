@@ -30,10 +30,10 @@ Grill **不做持久化存储**。确认的需求清单通过编排层直接传�
 | `FOCUS NAME` | 目标叙事单元名称（可选，为空表示新建） |
 
 Grill 在追问过程中自行通过 novel-tool 查询需要的 graph 数据：
-- `novel-tool --operation graph.search --project <PROJECT> --keyword <关键词>` — 搜索已有设定
-- `novel-tool --operation graph.list_units --project <PROJECT> --unit_type <TYPE>` — 按类型列举
-- `novel-tool --operation graph.get_unit --project <PROJECT> --name <名称>` — 查单个单元
-- `novel-tool --operation graph.stats --project <PROJECT>` — 项目统计概览
+- `novel-tool(operation="graph.search", project="<PROJECT>", keyword="<关键词>")` — 搜索已有设定
+- `novel-tool(operation="graph.list_units", project="<PROJECT>", unit_type="<TYPE>")` — 按类型列举
+- `novel-tool(operation="graph.get_unit", project="<PROJECT>", name="<名称>")` — 查单个单元
+- `novel-tool(operation="graph.stats", project="<PROJECT>")` — 项目统计概览
 
 ## 模式调度
 

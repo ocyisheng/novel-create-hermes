@@ -395,7 +395,7 @@ CHUNK 是章节正文的**元数据单元**，不包含实际文本。正文写�
                                   └─CAUSED_BY──→ [另一事件]
 ```
 
-创建、编辑、删除均通过标准的 `graph.create_unit` / `graph.update_unit` / `graph.archive_unit` 操作，不新增 API。
+创建、编辑、删除均通过标准的 `novel-tool(operation="graph.create_unit")` / `novel-tool(operation="graph.update_unit")` / `novel-tool(operation="graph.archive_unit")` 操作，不新增 API。
 
 ### 存量数据兼容
 

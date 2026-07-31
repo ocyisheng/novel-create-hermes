@@ -76,43 +76,43 @@ PREHEAT LEVEL: cold | warm | hot
 
 ```
 # 按名称查找叙事单元 ID
-novel-tool --operation graph.find_unit --project {PROJECT} --name "{名称}"
+novel-tool(operation="graph.find_unit", project="{PROJECT}", name="{名称}")
 
 # 获取叙事单元详情
-novel-tool --operation graph.get_unit --project {PROJECT} --id {单元ID}
+novel-tool(operation="graph.get_unit", project="{PROJECT}", id="{单元ID}")
 
 # 查询单元的关联关系（1-hop 邻居，可按关系类型过滤）
-novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID}
-novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --rel_type contains
-novel-tool --operation graph.get_neighbors --project {PROJECT} --id {单元ID} --rel_type member_of
+novel-tool(operation="graph.get_neighbors", project="{PROJECT}", id="{单元ID}")
+novel-tool(operation="graph.get_neighbors", project="{PROJECT}", id="{单元ID}", rel_type="contains")
+novel-tool(operation="graph.get_neighbors", project="{PROJECT}", id="{单元ID}", rel_type="member_of")
 
 # 列出所有可用关系类型
-novel-tool --operation graph.list_relation_types
+novel-tool(operation="graph.list_relation_types")
 
-# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN / NARRATIVE_VOICE，支持--limit）
-novel-tool --operation graph.list_units --project {PROJECT} --unit_type SCENE
-novel-tool --operation graph.list_units --project {PROJECT} --unit_type WORLD_RULE --limit 10
+# 按类型列出叙事单元（SCENE / CHARACTER_ARC / PLOT_THREAD / WORLD_RULE / NOTE / CHUNK / OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN / NARRATIVE_VOICE，支持 limit 参数）
+novel-tool(operation="graph.list_units", project="{PROJECT}", unit_type="SCENE")
+novel-tool(operation="graph.list_units", project="{PROJECT}", unit_type="WORLD_RULE", limit=10)
 
 # 项目统计
-novel-tool --operation graph.stats --project {PROJECT}
+novel-tool(operation="graph.stats", project="{PROJECT}")
 
 # 最近事件
-novel-tool --operation graph.recent_events --project {PROJECT}
+novel-tool(operation="graph.recent_events", project="{PROJECT}")
 
 # 查询单元间的具体关系（比 get_neighbors 更精确——按类型和方向过滤）
-novel-tool --operation graph.get_relations --project {PROJECT} --id {单元ID}
-novel-tool --operation graph.get_relations --project {PROJECT} --id {单元ID} --rel_type contains --direction outgoing
+novel-tool(operation="graph.get_relations", project="{PROJECT}", id="{单元ID}")
+novel-tool(operation="graph.get_relations", project="{PROJECT}", id="{单元ID}", rel_type="contains", direction="outgoing")
 
 # 层级结构遍历：子单元
-novel-tool --operation graph.find_descendants --project {PROJECT} --id {单元ID} [--max_depth 5]
+novel-tool(operation="graph.find_descendants", project="{PROJECT}", id="{单元ID}") [max_depth=5]
 
 # 层级结构遍历：父单元
-novel-tool --operation graph.find_ancestors --project {PROJECT} --id {单元ID}
+novel-tool(operation="graph.find_ancestors", project="{PROJECT}", id="{单元ID}")
 
 # 可视化（Web 交互式）
 启动 Web 服务后打开浏览器查看交互式关系图：
 ```bash
-novel-tool --operation web.start --project {PROJECT}
+novel-tool(operation="web.start", project="{PROJECT}")
 # 打开 http://localhost:8766
 ```
 
@@ -120,62 +120,62 @@ novel-tool --operation web.start --project {PROJECT}
 
 ```
 # 创建叙事单元
-novel-tool --operation graph.create_unit --project {PROJECT} --unit_type SCENE --name "{单元名}" --content "{内容}" --tags "标签1,标签2" --chapter 3
+novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="{单元名}", content="{内容}", tags="标签1,标签2", chapter=3)
 
 # 更新叙事单元（内容 / 名称 / 标签）
-novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --content "{新内容JSON}"
-novel-tool --operation graph.update_unit --project {PROJECT} --id {单元ID} --name "新名称" --tags "新标签"
+novel-tool(operation="graph.update_unit", project="{PROJECT}", id="{单元ID}", content="{新内容JSON}")
+novel-tool(operation="graph.update_unit", project="{PROJECT}", id="{单元ID}", name="新名称", tags="新标签")
 
 # ── 建立关系（关系走 edge，content 只存可读名称） ──
 # 场景 → 情节线：场景实现了哪条情节线
-novel-tool --operation graph.add_relation --project {PROJECT} --source {场景ID} --target {情节线ID} --rel_type implements
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{场景ID}", target="{情节线ID}", rel_type="implements")
 # 章纲 → 场景：章纲规划哪些场景（规划意图，非结构归属）
-novel-tool --operation graph.add_relation --project {PROJECT} --source {章纲ID} --target {场景ID} --rel_type plans
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{章纲ID}", target="{场景ID}", rel_type="plans")
 # 角色 → 场景：角色参与哪些场景
-novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target {场景ID} --rel_type participates_in
-# 成员/位置/同盟（--bidirectional 自动补反向）
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type member_of
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type located_at
-novel-tool --operation graph.add_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type allied_with --bidirectional
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{角色ID}", target="{场景ID}", rel_type="participates_in")
+# 成员/位置/同盟（bidirectional=true 自动补反向）
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="member_of")
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="located_at")
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="allied_with", bidirectional=true)
 
 # 补齐反向边
-novel-tool --operation graph.fix_asymmetry --project {PROJECT}
+novel-tool(operation="graph.fix_asymmetry", project="{PROJECT}")
 
 # 批量推断关系（新项目迁移后必做）
-novel-tool --operation graph.batch_infer --project {PROJECT}
+novel-tool(operation="graph.batch_infer", project="{PROJECT}")
 
 # ── 删除关系 ──
-novel-tool --operation graph.remove_relation --project {PROJECT} --id {关系ID}
-novel-tool --operation graph.remove_relation --project {PROJECT} --source {源ID} --target {目标ID} --rel_type implements
+novel-tool(operation="graph.remove_relation", project="{PROJECT}", id="{关系ID}")
+novel-tool(operation="graph.remove_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="implements")
 
 # ── 归档单元（软删除，单元移出活跃状态但保留数据） ──
-novel-tool --operation graph.archive_unit --project {PROJECT} --id {单元ID}
+novel-tool(operation="graph.archive_unit", project="{PROJECT}", id="{单元ID}")
 ```
 
 ### 3. 会话管理
 
 ```
 # 启动创作会话
-novel-tool --operation session.start --project {PROJECT} --focus_type SCENE --id {单元ID}
+novel-tool(operation="session.start", project="{PROJECT}", focus_type="SCENE", id="{单元ID}")
 
 # 构建工作空间上下文
-novel-tool --operation session.build_workspace --project {PROJECT} --id {焦点单元ID} --level warm
+novel-tool(operation="session.build_workspace", project="{PROJECT}", id="{焦点单元ID}", level="warm")
 
 # 持久化 graph
-novel-tool --operation graph.flush --project {PROJECT}
+novel-tool(operation="graph.flush", project="{PROJECT}")
 ```
 
 ### 4. 导出和迁移
 
 ```
 # V1→V2 迁移
-novel-tool --operation graph.migrate --project {PROJECT} --verify --report
+novel-tool(operation="graph.migrate", project="{PROJECT}", verify=true, report=true)
 
 # 导出结构化文档（Markdown，输出到 graph/export/）
-novel-tool --operation graph.export_docs --project {PROJECT}
+novel-tool(operation="graph.export_docs", project="{PROJECT}")
 
 # 导出章节 TXT 文件
-novel-tool --operation graph.export_chunks --project {PROJECT}
+novel-tool(operation="graph.export_chunks", project="{PROJECT}")
 ```
 
 ### 4. 时间事件（TEMPORAL_EVENT）
@@ -185,17 +185,15 @@ novel-tool --operation graph.export_chunks --project {PROJECT}
 **创建事件并关联到角色/地点/物品**：
 ```
 # 创建事件节点
-novel-tool --operation graph.create_unit --project {PROJECT} --unit_type temporal_event \
-  --name "结丹突破" \
-  --content '{"event_type":"cultivation","ordinal":4500,"precision":"exact","time_label":"第三日黄昏","summary":"吕明理突破至结丹中期","details":{"old_realm":"结丹初期","new_realm":"结丹中期"}}'
+novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="temporal_event", name="结丹突破", content='{"event_type":"cultivation","ordinal":4500,"precision":"exact","time_label":"第三日黄昏","summary":"吕明理突破至结丹中期","details":{"old_realm":"结丹初期","new_realm":"结丹中期"}}')
 
 → 返回 event_id: te_abc123
 
 # 关联到实体
-novel-tool --operation graph.add_relation --project {PROJECT} --source {角色ID} --target te_abc123 --rel_type has_event
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{角色ID}", target="te_abc123", rel_type="has_event")
 
 # 关联到地点
-novel-tool --operation graph.add_relation --project {PROJECT} --source te_abc123 --target {地点ID} --rel_type located_at
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="te_abc123", target="{地点ID}", rel_type="located_at")
 ```
 
 **查询统一时间线（跨类型）**：
@@ -272,9 +270,9 @@ Workspace 构建后，entity_timeline 自动包含该实体的所有事件类型
 ## 核心原则（HARD CONSTRAINTS）
 
 1. **graph 是真相源** — 所有创作数据优先写入 graph，投影到文件是次要的
-2. **关系走 edge，content 存可读名称** — content 里不写内部 ID（`sc_xxx` / `pt_xxx` 等）。`related_plotlines` 和 `cast[].name` 存的是可读名称用于快速查阅，真实关系通过 `graph.add_relation` 写入 edge。
+2. **关系走 edge，content 存可读名称** — content 里不写内部 ID（`sc_xxx` / `pt_xxx` 等）。`related_plotlines` 和 `cast[].name` 存的是可读名称用于快速查阅，真实关系通过 `novel-tool(operation="graph.add_relation")` 写入 edge。
 3. **按需查询，勿全量推送** — 使用 `novel-tool` 按需查询，不要一次性加载全部数据
-4. **写后 flush** — 每次 task() 完成后执行 `novel-tool --operation graph.flush` 确保持久化
+4. **写后 flush** — 每次 task() 完成后执行 `novel-tool(operation="graph.flush")` 确保持久化
 5. **记录 actor** — 所有 create/update 操作传入 `actor` 参数（如 `actor="novel-v2-crafter"`）
 6. **不要手工编辑 graph/ 下的 JSONL 文件** — 通过 GraphStore API 操作
 7. **通过 novel-tool 操作** — 所有数据读写通过 `novel-tool` tool 执行，不要直接调用 Python API 或编辑 JSONL 文件

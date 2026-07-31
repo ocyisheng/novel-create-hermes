@@ -14,7 +14,7 @@
 | A6: 时间线一致性 | warning | 纯 LLM 语义分析 |
 | A7: 情节线完成度 | info | 纯 LLM 语义分析 |
 
-> 规则 1-4（R1-R4）为 SearchEngine 机械检查，通过 `graph.check` 调用。
+> 规则 1-4（R1-R4）为 SearchEngine 机械检查，通过 `novel-tool(operation="graph.check")` 调用。
 > 规则 A5-A7 为 LLM 语义分析，SearchEngine 不做机械检查。
 > A5 扩展：`出场角色[].状态` 中的修为/能力变化（跨越境界、离线升级判断）作为 A5 的子案例。
 > 新增机械规则 R7（位置变化标记）、R9（事件顺序冲突）为 SearchEngine 新增规则，编号 R7-R9 独立于 A5-A7。
@@ -37,17 +37,17 @@ novel-tool 速查：
 
 ```
 # 快速一致性检查（规则 1-4）
-novel-tool --operation graph.check --project <PROJECT>
+novel-tool(operation="graph.check", project="<PROJECT>")
 
 # 获取原始数据供 LLM 分析
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"            # 实体搜索
-novel-tool --operation graph.search --project <PROJECT> --keyword "灵气" --unit_type CHUNK  # 关键词搜索
-novel-tool --operation graph.stats --project <PROJECT>                              # 统计
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")            # 实体搜索
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="灵气", unit_type="CHUNK")  # 关键词搜索
+novel-tool(operation="graph.stats", project="<PROJECT>")                              # 统计
 ```
 
 ---
 
-> 规则 1-4 已由 `SearchEngine.check_consistency()` 完全自动化，通过 `graph.check` 调用即可获取结果。仅当需要区分"闪回/单相思等合理场景"时才需 LLM 做二次判断。详细的检查逻辑和 V2 数据源参考 SearchEngine 源码。
+> 规则 1-4 已由 `SearchEngine.check_consistency()` 完全自动化，通过 `novel-tool(operation="graph.check")` 调用即可获取结果。仅当需要区分"闪回/单相思等合理场景"时才需 LLM 做二次判断。详细的检查逻辑和 V2 数据源参考 SearchEngine 源码。
 
 ---
 
@@ -63,8 +63,8 @@ novel-tool --operation graph.stats --project <PROJECT>                          
 
 **获取数据**：
 ```
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --unit_type CHUNK
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭", unit_type="CHUNK")
 ```
 
 **LLM 分析步骤**：
@@ -100,8 +100,8 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --uni
 
 **获取数据**：
 ```
-novel-tool --operation graph.search --project <PROJECT> --keyword "时间线" --unit_type NOTE
-novel-tool --operation graph.search --project <PROJECT> --unit_type CHUNK --limit 100
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="时间线", unit_type="NOTE")
+novel-tool(operation="graph.search", project="<PROJECT>", unit_type="CHUNK", limit=100)
 ```
 
 **LLM 分析**：比对时间线记录中的事件顺序 vs 按章节排序的正文内容。
@@ -122,8 +122,8 @@ novel-tool --operation graph.search --project <PROJECT> --unit_type CHUNK --limi
 
 **获取数据**：
 ```
-novel-tool --operation graph.list_units --project <PROJECT> --unit_type PLOT_THREAD
-novel-tool --operation graph.stats --project <PROJECT>
+novel-tool(operation="graph.list_units", project="<PROJECT>", unit_type="PLOT_THREAD")
+novel-tool(operation="graph.stats", project="<PROJECT>")
 ```
 
 **LLM 分析**：对每条情节线，提取关键事件列表，检查对应的场景或正文是否已写。

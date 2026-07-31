@@ -258,7 +258,7 @@ def handle_request(request: dict) -> str:
     _start = _time.time()
     op = request.get("operation", "")
     project = request.get("project", "")
-    # caller 标识：优先 caller 字段，其次 actor 字段（子 agent 已有 --actor 惯例）
+    # caller 标识：优先 caller 字段，其次 actor 字段（子 agent 提示词中统一传 actor="xxx"）
     # 均未传时默认 "orchestrator"（编排层直接调 tool 的常见路径），避免遥测归因丢失
     caller = request.get("caller") or request.get("actor") or "orchestrator"
     canonical = {}
@@ -272,8 +272,8 @@ def handle_request(request: dict) -> str:
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)
 
-        # 诊断：调用方显式传了 --actor orchestrator（旧 prompt 模式）→ 输出警告到 stderr
-        # 新 prompt 已改为「不需要传 --actor」，此警告帮助发现未更新的 prompt 或旧习惯
+        # 诊断：调用方显式传了 actor="orchestrator"（旧 prompt 模式）→ 输出警告到 stderr
+        # 新 prompt 已改为「不需要传 actor 参数」，此警告帮助发现未更新的 prompt 或旧习惯
         # 注意：仅对显式传入的 actor="orchestrator" 警告；caller 默认值 orchestrator 不触发
         if request.get("actor") == "orchestrator":
             import sys as _sys

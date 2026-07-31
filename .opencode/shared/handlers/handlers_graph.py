@@ -580,7 +580,7 @@ def handle_create_unit(
         return {
             "error": f"创建叙事单元失败: {e}",
             "hint": f"请检查 content JSON 是否包含 {ut.value} 类型的所有必填字段。"
-                    f"使用 novel-tool --operation graph.schema_info --unit_type {unit_type} 查看字段要求。",
+                    f"使用 novel-tool(operation=\"graph.schema_info\", unit_type=\"{unit_type}\") 查看字段要求。",
         }
 
     inferrer = RelationInferrer(store)

@@ -21,7 +21,7 @@ content JSON 的字段结构由 `schemas.py` 自动校验：
 
 > 写作时参照下文叙事密度指引控制节奏和字数。冲突不需要写在 content 里——每场景必有冲突，写出来就是证明。
 
-> `关联情节线` 和 `出场角色` 存可读名称（非内部 ID），真实关系通过 `graph.add_relation` 走 edge。
+> `关联情节线` 和 `出场角色` 存可读名称（非内部 ID），真实关系通过 `novel-tool(operation="graph.add_relation")` 走 edge。
 
 你不必记忆字段清单——脚本会提示。
 

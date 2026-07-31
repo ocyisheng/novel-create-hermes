@@ -34,7 +34,7 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 如果用户只是问"在哪里出现过"这种简单问题，不需要 LLM 分析——直接调 novel-tool：
 
 ```
-novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
 ```
 
 ### 分析类任务（需要 skill）
@@ -95,7 +95,7 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
 ④ 每个偏差项生成 suggested_changeset
 
 ⑤ 过滤已解决偏差：在 merge 前，加载已有偏差记录，排除已 resolved/retained 的
-   novel-tool --operation deviation.list --project <PROJECT>
+   novel-tool(operation="deviation.list", project="<PROJECT>")
    → 对比本次 findings 与历史状态
    → 已在 resolved/retained 状态的 (dimension, entity) 不重复提交
    → 除非有新的证据表明问题比之前评估的更严重（此时可附带说明重新提交）
@@ -174,7 +174,7 @@ updated_at 判断"哪个是被修正过的最新值"：
    deviation.stats → full_scan_version
 
 ② 获取自该版本以来的变更单元
-   novel-tool --operation graph.get_modified_units --project <PROJECT> --since_version <full_scan_version>
+   novel-tool(operation="graph.get_modified_units", project="<PROJECT>", since_version="<full_scan_version>")
    → 返回 version > full_scan_version 的非 ARCHIVED 单元
 
 ③ 只对变更单元运行 align + cross-ref + gap（增量分析）
@@ -184,7 +184,7 @@ updated_at 判断"哪个是被修正过的最新值"：
     - 创建新的单元（而不是只修改内容）
 
 ④ 过滤已解决偏差：在生成 findings 前，加载已有偏差状态去重
-   novel-tool --operation deviation.list --project <PROJECT>
+   novel-tool(operation="deviation.list", project="<PROJECT>")
    → 获取当前所有偏差记录
    → 标记为 resolved 或 retained 的偏差对应的 (dimension, entity)，不再重复生成
    → 如果发现当前变更又触发了同一问题，仅递增 detection_count（由 merge 处理），
@@ -194,7 +194,7 @@ updated_at 判断"哪个是被修正过的最新值"：
      不要再次报"设定有误"
 
 ⑤ 合并新偏差并更新扫描版本
-   novel-tool --operation deviation.merge --project <PROJECT> --findings '[...]' --full_scan_version <最大unit.version>
+   novel-tool(operation="deviation.merge", project="<PROJECT>", findings='[...]', full_scan_version="<最大unit.version>")
 ```
 
 ---
@@ -206,8 +206,8 @@ updated_at 判断"哪个是被修正过的最新值"：
 你（LLM）通过 `novel-tool` 获取原始数据：
 
 ```
-novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --limit 10
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭", limit=10)
 ```
 
 返回结果包含：`unit_id`、`unit_name`、`unit_type`、`content_preview`、`chapter`、`score`、`tags`、`status`、`version`、`neighbors` 等字段。
@@ -219,17 +219,17 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "林昭" --lim
 
 ```
 # 搜索
-novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
-novel-tool --operation graph.search --project <PROJECT> --keyword "林昭"
-novel-tool --operation graph.search --project <PROJECT> --pattern "筑基.*期" --regex
-novel-tool --operation graph.search --project <PROJECT> --keyword "剑" --scope SCENE --limit 10
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")
+novel-tool(operation="graph.search", project="<PROJECT>", pattern="筑基.*期", regex=true)
+novel-tool(operation="graph.search", project="<PROJECT>", keyword="剑", scope="SCENE", limit=10)
 
 # 一致性检查（输出供 LLM 分析的结构化数据）
-novel-tool --operation graph.check --project <PROJECT>
+novel-tool(operation="graph.check", project="<PROJECT>")
 # 输出：4 条规则的结构化数据
 
 # 项目统计 + gap 数据
-novel-tool --operation graph.stats --project <PROJECT>
+novel-tool(operation="graph.stats", project="<PROJECT>")
 ```
 
 ### 偏差持久化
@@ -238,25 +238,25 @@ novel-tool --operation graph.stats --project <PROJECT>
 
 ```
 # 合并新发现
-novel-tool --operation deviation.merge --project <PROJECT> --findings '[{"dimension":"character_trait","entity":"林昭","severity":"warning","summary":"角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'"}]'
+novel-tool(operation="deviation.merge", project="<PROJECT>", findings='[{"dimension":"character_trait","entity":"林昭","severity":"warning","summary":"角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'"}]')
 
 # 查看当前待处理偏差
-novel-tool --operation deviation.pending --project <PROJECT>
+novel-tool(operation="deviation.pending", project="<PROJECT>")
 
 # 查看全部偏差记录（含已解决/保留）
-novel-tool --operation deviation.list --project <PROJECT>
+novel-tool(operation="deviation.list", project="<PROJECT>")
 
 # 删除偏差条目（清理误报/撤销）
-novel-tool --operation deviation.delete --project <PROJECT> --id <偏差ID>
+novel-tool(operation="deviation.delete", project="<PROJECT>", id="<偏差ID>")
 
 # 标记为已解决
-novel-tool --operation deviation.resolve --project <PROJECT> --id <偏差ID>
+novel-tool(operation="deviation.resolve", project="<PROJECT>", id="<偏差ID>")
 
 # 标记为保留（正常设计）
-novel-tool --operation deviation.retain --project <PROJECT> --id <偏差ID>
+novel-tool(operation="deviation.retain", project="<PROJECT>", id="<偏差ID>")
 
 # 偏差统计
-novel-tool --operation deviation.stats --project <PROJECT>
+novel-tool(operation="deviation.stats", project="<PROJECT>")
 ```
 
 ---

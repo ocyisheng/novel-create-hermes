@@ -29,9 +29,9 @@ chmod +x .opencode/shared/env/setup_env.sh && ./.opencode/shared/env/setup_env.s
 
 ### 验证环境
 ```
-novel-tool --operation env.check       # 检查
-novel-tool --operation env.fix         # 修复缺失依赖
-novel-tool --operation env.force       # 强制重建 .venv
+novel-tool(operation="env.check")       # 检查
+novel-tool(operation="env.fix")         # 修复缺失依赖
+novel-tool(operation="env.force")       # 强制重建 .venv
 ```
 
 ## 流程

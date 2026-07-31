@@ -39,10 +39,10 @@ V2 项目使用 `graph/` 作为**单一真相源**，全部创作数据通过 no
 
 | 文件 | 内容 | 维护方式 |
 |------|------|---------|
-| `graph/nodes.jsonl` | 全部叙事单元（场景/角色弧线/情节线/世界观规则/笔记/正文片段/结构设计/叙述腔调/主题意象） | novel-tool --operation graph.* 自动维护 |
-| `graph/edges.jsonl` | 单元间关系（18 种类型 + 反向关系） | novel-tool --operation graph.* 自动维护 |
+| `graph/nodes.jsonl` | 全部叙事单元（场景/角色弧线/情节线/世界观规则/笔记/正文片段/结构设计/叙述腔调/主题意象） | novel-tool(operation="graph.*") 自动维护 |
+| `graph/edges.jsonl` | 单元间关系（18 种类型 + 反向关系） | novel-tool(operation="graph.*") 自动维护 |
 | `graph/events.olog` | 事件溯源日志（每次修改的记录） | graph.flush 时自动追加 |
-| `graph/snapshots/` | 时间点快照 | novel-tool --operation session.start 可触发 |
+| `graph/snapshots/` | 时间点快照 | novel-tool(operation="session.start") 可触发 |
 
 ## 核心原则
 

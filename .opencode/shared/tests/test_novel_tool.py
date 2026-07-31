@@ -132,6 +132,10 @@ class TestGraphRead:
         assert res["data"]["total"] >= 1
         names = [r["unit_name"] for r in res["data"]["results"]]
         assert "林渊" in names
+        # 每个结果都应携带创建/更新时间戳（供校验比对识别最新修正）
+        for r in res["data"]["results"]:
+            assert r.get("created_at"), f"缺少 created_at: {r}"
+            assert r.get("updated_at"), f"缺少 updated_at: {r}"
 
     def test_search_by_name(self, sample_units):
         proj_path, store, units = sample_units
@@ -176,6 +180,9 @@ class TestGraphRead:
         res = call_tool("graph.list_units", project=proj_path)
         assert_success(res)
         assert len(res["data"]["units"]) >= 5
+        for u in res["data"]["units"]:
+            assert u.get("created_at"), f"缺少 created_at: {u}"
+            assert u.get("updated_at"), f"缺少 updated_at: {u}"
 
     def test_list_units_by_type(self, sample_units):
         proj_path, store, units = sample_units
@@ -206,6 +213,9 @@ class TestGraphRead:
         assert_success(res)
         names = [n["name"] for n in res["data"]["neighbors"]]
         assert "后山拔剑" in names
+        for n in res["data"]["neighbors"]:
+            assert n.get("created_at"), f"缺少 created_at: {n}"
+            assert n.get("updated_at"), f"缺少 updated_at: {n}"
 
     def test_get_neighbors_no_id(self, tmp_project):
         proj_path, _ = tmp_project
@@ -249,6 +259,9 @@ class TestGraphRead:
         res = call_tool("graph.get_modified_units", project=proj_path, since_version=0)
         assert_success(res)
         assert len(res["data"]["units"]) >= 5
+        for u in res["data"]["units"]:
+            assert u.get("created_at"), f"缺少 created_at: {u}"
+            assert u.get("updated_at"), f"缺少 updated_at: {u}"
 
 
 # ============================================================================
@@ -264,6 +277,8 @@ class TestGraphWrite:
                         chapter=1, actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["id"].startswith("ca_")
+        assert res["data"].get("created_at"), f"缺少 created_at: {res['data']}"
+        assert res["data"].get("updated_at"), f"缺少 updated_at: {res['data']}"
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert_success(verify)
         assert verify["data"]["unit"]["name"] == "新角色"
@@ -292,6 +307,8 @@ class TestGraphWrite:
         assert res["data"]["name"] == "林渊改"
         assert res["data"]["version"] >= 2
         assert "更新" in res["data"]["tags"]
+        # 写操作响应也应携带时间戳（更新后立即可见新的 updated_at）
+        assert res["data"].get("updated_at"), f"缺少 updated_at: {res['data']}"
 
     def test_update_unit_not_found(self, tmp_project):
         proj_path, _ = tmp_project

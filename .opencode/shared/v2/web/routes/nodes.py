@@ -46,6 +46,8 @@ def _unit_to_out(u: NarrativeUnit) -> dict:
         "content": content_raw if len(content_raw) < 5000 else content_raw[:5000] + "...",
         "extra": extra,
         "version": u.version,
+        "created_at": str(u.created_at) if u.created_at else None,
+        "updated_at": str(u.updated_at) if u.updated_at else None,
     }
 
 
@@ -75,6 +77,8 @@ def _handler_unit_to_out(unit_dict: dict) -> dict:
         "content": content_raw if len(content_raw) < 5000 else content_raw[:5000] + "...",
         "extra": extra,
         "version": unit_dict.get("version", 0),
+        "created_at": unit_dict.get("created_at"),
+        "updated_at": unit_dict.get("updated_at"),
     }
 
 

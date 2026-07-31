@@ -373,6 +373,8 @@ def handle_find_unit(project_root: str, name: str = "", keyword: str = "") -> di
                 "unit_type": r.unit_type.value if hasattr(r.unit_type, "value") else str(r.unit_type),
                 "content_preview": r.content_preview[:120] + "..." if len(r.content_preview) > 120 else r.content_preview,
                 "score": r.score,
+                "created_at": r.created_at,
+                "updated_at": r.updated_at,
             })
         return {"id": None, "found": len(items) > 0, "candidates": items, "total": result.total,
                 "message": f"找到 {result.total} 个匹配结果，请指定精确 name 或从 candidates 中选择"}
@@ -415,6 +417,7 @@ def handle_search(
             "score": r.score, "tags": r.tags,
             "status": r.status.value if hasattr(r.status, "value") else str(r.status),
             "version": r.version, "neighbors": r.neighbors,
+            "created_at": r.created_at, "updated_at": r.updated_at,
         }
         if verbose:
             u = _store.get_unit(r.unit_id)
@@ -443,6 +446,8 @@ def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0, st
                 "id": u.id, "name": u.unit_name,
                 "type": u.type.value if hasattr(u.type, "value") else str(u.type),
                 "status": u.status.value if hasattr(u.status, "value") else str(u.status),
+                "created_at": str(u.created_at) if u.created_at else None,
+                "updated_at": str(u.updated_at) if u.updated_at else None,
             }
             for u in units
         ],
@@ -467,6 +472,8 @@ def handle_get_modified_units(project_root: str, since_version: int = 0) -> dict
                 "type": u.type.value if hasattr(u.type, "value") else str(u.type),
                 "version": u.version,
                 "status": u.status.value if hasattr(u.status, "value") else str(u.status),
+                "created_at": str(u.created_at) if u.created_at else None,
+                "updated_at": str(u.updated_at) if u.updated_at else None,
             }
             for u in changed
         ],
@@ -488,6 +495,8 @@ def handle_get_neighbors(project_root: str, id: str, rel_type: str = "", limit: 
             result.append({
                 "id": n.id, "name": n.unit_name,
                 "type": n.type.value if hasattr(n.type, "value") else str(n.type),
+                "created_at": str(n.created_at) if n.created_at else None,
+                "updated_at": str(n.updated_at) if n.updated_at else None,
             })
             count += 1
             if limit and count >= limit:
@@ -588,6 +597,8 @@ def handle_create_unit(
         "id": u.id,
         "name": u.unit_name,
         "type": ut.value,
+        "created_at": str(u.created_at) if u.created_at else None,
+        "updated_at": str(u.updated_at) if u.updated_at else None,
         "relations_created": created,
         "temporal_events_created": temporal_count,
         "schema_errors": schema_errors,
@@ -652,6 +663,8 @@ def handle_update_unit(
         "name": u.unit_name,
         "version": u.version,
         "tags": list(u.tags),
+        "created_at": str(u.created_at) if u.created_at else None,
+        "updated_at": str(u.updated_at) if u.updated_at else None,
         "relations_created": created,
         "temporal_events_created": temporal_count,
         "schema_errors": schema_errors,

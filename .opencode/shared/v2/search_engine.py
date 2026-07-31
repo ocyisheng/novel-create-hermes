@@ -47,6 +47,8 @@ class SearchResult:
     status: UnitStatus
     version: int
     neighbors: List[str] = field(default_factory=list)  # 关联单元名（供 LLM 后续分析）
+    created_at: Optional[str] = None   # 单元创建时间（UTC ISO）
+    updated_at: Optional[str] = None   # 单元最后修改时间（UTC ISO）
 
 
 @dataclass
@@ -617,6 +619,8 @@ class SearchEngine:
             tags=list(unit.tags),
             status=unit.status,
             version=unit.version,
+            created_at=str(unit.created_at) if unit.created_at else None,
+            updated_at=str(unit.updated_at) if unit.updated_at else None,
         )
 
     def _get_neighbor_names(self, unit_id: str) -> List[str]:

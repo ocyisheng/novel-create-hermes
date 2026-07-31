@@ -119,6 +119,8 @@ class SearchResultItem(BaseModel):
     tags: list[str] = []
     status: str = ""
     score: float = 0.0
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class SearchResults(BaseModel):

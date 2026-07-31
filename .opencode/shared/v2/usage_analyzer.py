@@ -26,6 +26,7 @@ for _d in [_SHARED_DIR, _V2_DIR]:
         sys.path.insert(0, _d)
 
 from graph_store import is_v2_project
+from telemetry import project_basename
 
 
 def _resolve_project(project: str) -> str:
@@ -59,6 +60,7 @@ def _collect_subagent_traces(project: str = "") -> dict:
     if not os.path.isdir(traces_dir):
         return {"total_traces": 0, "note": "无子 agent 调度数据"}
     
+    norm_project = project_basename(project)
     traces = []
     for fname in sorted(os.listdir(traces_dir)):
         if fname.endswith(".ndjson"):
@@ -69,7 +71,8 @@ def _collect_subagent_traces(project: str = "") -> dict:
                         line = line.strip()
                         if line:
                             entry = json.loads(line)
-                            if not project or entry.get("project") == project:
+                            entry["project"] = project_basename(entry.get("project", ""))
+                            if not norm_project or entry.get("project") == norm_project:
                                 traces.append(entry)
             except (json.JSONDecodeError, Exception):
                 pass

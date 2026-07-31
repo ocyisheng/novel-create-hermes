@@ -198,18 +198,36 @@ def classify_error(error_msg: str, stack_trace: str = "") -> str:
 
 # ── 分析函数 ─────────────────────────────────────────────────────────────
 
+def project_basename(project: str) -> str:
+    """从 project 值提取纯项目名（遥测归因用，唯一实现）。
+
+    兼容 Windows 反斜杠 / 正斜杠 / 尾斜杠 / 完整路径 / 空值。
+    历史数据曾把完整路径写入 project 字段，读时统一归一化，
+    使项目过滤对历史数据也生效。
+    """
+    if not project:
+        return ""
+    norm = project.replace("\\", "/").rstrip("/")
+    base = norm.rsplit("/", 1)[-1]
+    if base in ("", ".", "..", "novels", "graph"):
+        return ""
+    return base
+
+
 def _read_engine_telemetry(project: str = "") -> list[dict]:
     """
     读取 .engine/telemetry/ 下所有遥测数据。
     
     Args:
-        project: 可选，按项目名过滤
+        project: 可选，按项目名过滤（自动归一化为纯项目名，
+                 历史完整路径数据也能命中）
     
     Returns:
-        遥测条目列表
+        遥测条目列表（project 字段已归一化为纯项目名）
     """
     engine_root = _resolve_engine_root()
     telemetry_dir = os.path.join(engine_root, "telemetry")
+    norm_project = project_basename(project)
     
     entries = []
     if os.path.isdir(telemetry_dir):
@@ -222,7 +240,8 @@ def _read_engine_telemetry(project: str = "") -> list[dict]:
                         if line:
                             try:
                                 entry = json.loads(line)
-                                if not project or entry.get("project") == project:
+                                entry["project"] = project_basename(entry.get("project", ""))
+                                if not norm_project or entry.get("project") == norm_project:
                                     entries.append(entry)
                             except json.JSONDecodeError:
                                 pass
@@ -245,8 +264,8 @@ def _read_project_telemetry(project_root: str) -> list[dict]:
             if line:
                 try:
                     entry = json.loads(line)
-                    # 旧数据没有 project/caller 字段，补默认值
-                    entry.setdefault("project", os.path.basename(project_root))
+                    # 旧数据没有 project/caller 字段，补默认值；已有值也统一归一化
+                    entry["project"] = project_basename(entry.get("project") or os.path.basename(project_root))
                     entry.setdefault("caller", "unknown")
                     entries.append(entry)
                 except json.JSONDecodeError:

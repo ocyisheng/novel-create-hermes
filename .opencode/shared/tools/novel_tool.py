@@ -137,15 +137,10 @@ def _project_basename(project: str) -> str:
     """从 project 参数提取纯项目名（遥测记录用，避免存完整路径）。
 
     兼容：完整路径（含 Windows 反斜杠/正斜杠/尾斜杠）、项目名、空值。
+    实现委托给 telemetry.project_basename（唯一实现），避免两处漂移。
     """
-    if not project:
-        return ""
-    # 归一化分隔符（兼容 Windows 反斜杠路径）
-    norm = project.replace("\\", "/").rstrip("/")
-    base = norm.rsplit("/", 1)[-1]
-    if base in ("", ".", "..", "novels", "graph"):
-        return ""
-    return base
+    from telemetry import project_basename
+    return project_basename(project)
 
 
 # ── 参数适配：novel_tool 参数名 → 规范参数名 ────────────────────────────
@@ -280,9 +275,12 @@ def _build_canonical_params(op: str, request: dict) -> dict:
                 canonical[canonical_key] = request[src]
                 break
 
-    # 3. project_root：从 project 字段解析
+    # 3. project_root：从 project 字段解析；同时把规范化的项目名（纯 basename）
+    #    传给 handler —— analyze.* 等需要按项目过滤的操作依赖此参数
+    #    （_PARAM_MAP 不映射 project 原始值，避免完整路径污染遥测 params）
     if "project" in request:
         canonical["project_root"] = _resolve_project(request["project"])
+        canonical["project"] = _project_basename(request["project"])
 
     # 4. actor 默认值：未指定时用 "novel-tool"（在白名单中），避免 handler 默认 "orchestrator" 被拦截
     if "actor" not in canonical:

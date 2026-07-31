@@ -85,6 +85,13 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
    ├─ 对比实际内容 vs 期望
    └─ 每项打分 1-5，标注状态 ✅ / ⚠️ / ❌ / ❓
 
+③.5 多单元不一致归因（关键）：
+   ├─ 当同一设定分布在多个 unit 且内容不一致时，先比较各 unit 的 updated_at
+   ├─ updated_at 最新的 unit = 最近被修正/确认过 → 以它为准（权威值）
+   ├─ 其他 unit 的旧值 = 未同步（不是设定错误）
+   └─ 归因写法："unit B 的旧值未随 unit A 的修正同步更新"，
+      而非"unit A 的设定有误"——避免把已修正的单元重复报为偏差
+
 ④ 每个偏差项生成 suggested_changeset
 
 ⑤ 过滤已解决偏差：在 merge 前，加载已有偏差记录，排除已 resolved/retained 的
@@ -135,6 +142,12 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
   - 矛盾类型: error / warning / info
   - 涉及单元: [unit_id1, unit_id2]
   - 你的归因: "角色A在角色档案中性格写的是隐忍，但在第3章的行为显示冲动——可能是在创作过程中调整了设定但没有同步更新角色档案"
+
+时间戳辅助归因：当同一设定在多个单元间不一致时，先比较各单元
+updated_at 判断"哪个是被修正过的最新值"：
+  - 最新 updated_at 的单元 → 权威值（已修正/确认）
+  - 其他单元 → 旧值未同步，归因为"未同步"，不重复报错
+  - 若发现已修正单元之后又变回旧值 → 归因为"回退/覆盖"，需要人工确认
 ```
 
 ### 四、mode=gap — 使用率分析
@@ -176,6 +189,9 @@ novel-tool --operation graph.search --project <PROJECT> --keyword "天道宗"
    → 标记为 resolved 或 retained 的偏差对应的 (dimension, entity)，不再重复生成
    → 如果发现当前变更又触发了同一问题，仅递增 detection_count（由 merge 处理），
      不要在 findings 中重新提交已解决的条目
+   → 注意：若该 (dimension, entity) 的某个单元 updated_at 已更新（修正过），
+     视为"已处理"，除非其他单元仍持有旧值未同步——此时只报"未同步"，
+     不要再次报"设定有误"
 
 ⑤ 合并新偏差并更新扫描版本
    novel-tool --operation deviation.merge --project <PROJECT> --findings '[...]' --full_scan_version <最大unit.version>

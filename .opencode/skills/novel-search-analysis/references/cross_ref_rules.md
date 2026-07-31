@@ -19,6 +19,20 @@
 > A5 扩展：`出场角色[].状态` 中的修为/能力变化（跨越境界、离线升级判断）作为 A5 的子案例。
 > 新增机械规则 R7（位置变化标记）、R9（事件顺序冲突）为 SearchEngine 新增规则，编号 R7-R9 独立于 A5-A7。
 
+## 时间戳归因原则（所有语义规则共用）
+
+同一设定分布在多个单元且内容不一致时，`updated_at` 决定归因方向：
+
+- **`updated_at` 最新的单元 = 最近被修正/确认过的权威值**。修正动作会刷新
+  `updated_at`（graph.update_unit 每次实际变更都会更新），因此它代表"最新的处理结果"。
+- 其他持有旧值的单元归因为**"未同步"**：旧值没有被修正覆盖，是滞后副本，不是设定错误。
+- 已修正的单元**不要重复报错**——它正是其他单元应该同步到的目标。
+- 修正后又变回旧值（新 updated_at 但内容与权威值冲突）→ 归因为"回退/覆盖"，需要人工确认。
+
+所有 novel-tool 读取操作（graph.search / graph.get_unit / graph.list_units /
+graph.get_modified_units / graph.get_neighbors）都返回 `created_at` / `updated_at`，
+比对前先读取涉及单元的这两个字段。
+
 novel-tool 速查：
 
 ```

@@ -639,7 +639,9 @@ class GraphStore:
             return None
         
         changed_fields = {}
-        if content is not None:
+        # 每个字段先做值比较：仅在实际发生变化时才视为修改
+        # （空更新/同值更新不刷新 updated_at、不递增 version、不记录事件）
+        if content is not None and content != unit.content:
             # content 非空且在 create_unit 后可能第二次被更新
             # 此时 unit 的 type 已确定，进行 schema 校验
             try:
@@ -658,19 +660,19 @@ class GraphStore:
             # content 变更后自动同步时间字段 → extra.time
             from time_utils import auto_sync_story_time
             auto_sync_story_time(unit)
-        if status is not None:
+        if status is not None and status != unit.status:
             changed_fields["status"] = (unit.status.value, status.value)
             unit.status = status
-        if confidence is not None:
+        if confidence is not None and confidence != unit.confidence:
             changed_fields["confidence"] = (unit.confidence, confidence)
             unit.confidence = confidence
-        if tags is not None:
+        if tags is not None and tags != list(unit.tags):
             changed_fields["tags"] = (list(unit.tags), tags)
             unit.tags = tags
-        if extra is not None:
+        if extra is not None and extra != dict(unit.extra):
             changed_fields["extra"] = (dict(unit.extra), extra)
             unit.extra = extra
-        if unit_name is not None:
+        if unit_name is not None and unit_name != unit.unit_name:
             # 更新名称索引
             old_name = unit.unit_name
             if old_name in self._unit_by_name:
@@ -678,9 +680,13 @@ class GraphStore:
             changed_fields["unit_name"] = (unit.unit_name, unit_name)
             unit.unit_name = unit_name
             self._unit_by_name[unit.unit_name] = unit.id
-        if structure_path is not None:
+        if structure_path is not None and structure_path != unit.structure_path:
             changed_fields["structure_path"] = (unit.structure_path, structure_path)
             unit.structure_path = structure_path
+        
+        # 空更新：无字段实际变更 → 不触碰 updated_at/version，不记录事件、不标记脏
+        if not changed_fields:
+            return unit
         
         unit.updated_at = datetime.now(timezone.utc)
         unit.version += 1

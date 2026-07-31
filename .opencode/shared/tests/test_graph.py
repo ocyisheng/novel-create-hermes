@@ -85,6 +85,54 @@ def test_narrative_unit_lifecycle(store):
     print(" PASS")
 
 
+def test_update_unit_empty_update_no_touch(store):
+    """空更新/同值更新不应刷新 updated_at、递增 version 或标记脏数据。
+
+    updated_at 语义：只记录数据被实际修改的时间。
+    """
+    print("  [test] 空更新不触碰 updated_at/version...", end="")
+    
+    unit = store.create_unit(
+        type=UnitType.CHARACTER_ARC,
+        unit_name="林昭",
+        content='{"core_trait": "隐忍"}',
+        tags=["主角", "剑修"],
+        actor="test",
+    )
+    store.flush()  # 清空脏标记，隔离空更新对脏状态的影响
+    original_updated_at = unit.updated_at
+    original_version = unit.version
+    
+    # 1. 空更新：不传任何字段 → 不触碰
+    r = store.update_unit(unit.id, actor="test")
+    assert r is unit
+    assert unit.updated_at == original_updated_at
+    assert unit.version == original_version
+    assert not store._dirty_nodes
+    assert not store._dirty_unit_ids
+    
+    # 2. 同值更新：字段值均未变化 → 不触碰
+    r = store.update_unit(
+        unit.id,
+        content='{"core_trait": "隐忍"}',
+        tags=["主角", "剑修"],
+        status=UnitStatus.SPROUT,
+        confidence=0.5,
+        actor="test",
+    )
+    assert unit.updated_at == original_updated_at
+    assert unit.version == original_version
+    assert not store._dirty_nodes
+    
+    # 3. 真实变更：任一字段变化 → 正常刷新
+    r = store.update_unit(unit.id, confidence=0.9, actor="test")
+    assert unit.updated_at >= original_updated_at
+    assert unit.version == original_version + 1
+    assert store._dirty_nodes
+    
+    print(" PASS")
+
+
 def test_relations(store):
     """测试关系的建立和查询"""
     print("  [test] 关系操作...", end="")

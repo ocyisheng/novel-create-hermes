@@ -199,6 +199,10 @@ _PARAM_MAP = {
     "updated_units": "updated_units",
     "duration_estimate_ms": "duration_estimate_ms",
     "error_summary": "error_summary",
+    "user_intent": "user_intent",
+    # analyze
+    "mode": "mode",
+    "json_output": "json_output",
 }
 
 # 需要额外处理别名/兼容性的操作

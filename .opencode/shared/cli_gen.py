@@ -62,6 +62,28 @@ PARAM_OPTS = {
     "output": {"flags": ["--output"], "help": "输出路径"},
     "verbose": {"flags": ["--verbose"], "action": "store_true", "help": "详细模式"},
     "source_path": {"flags": ["--source-path"], "help": "导入源路径"},
+    # subagent
+    "task_id": {"flags": ["--task-id"], "help": "子 Agent 任务 ID"},
+    "subagent": {"flags": ["--subagent"], "help": "子 Agent 类型"},
+    "preheat_level": {"flags": ["--preheat-level"], "help": "预热级别"},
+    "humanize": {"flags": ["--humanize"], "action": "store_true", "help": "是否去 AI 味"},
+    "session_id": {"flags": ["--session-id"], "help": "关联的创作 session ID"},
+    "result": {"flags": ["--result"], "help": "结果状态 (success/partial/failed)"},
+    "prompt_summary": {"flags": ["--prompt-summary"], "help": "prompt 摘要"},
+    "result_summary": {"flags": ["--result-summary"], "help": "结果摘要"},
+    "new_units": {"flags": ["--new-units"], "type": int, "default": 0, "help": "新建单元数"},
+    "updated_units": {"flags": ["--updated-units"], "type": int, "default": 0, "help": "更新单元数"},
+    "duration_estimate_ms": {"flags": ["--duration-ms"], "type": int, "default": 0, "help": "预估耗时(ms)"},
+    "error_summary": {"flags": ["--error-summary"], "help": "错误摘要"},
+    "user_intent": {"flags": ["--user-intent"], "help": "用户原始输入摘要"},
+    "focus_name": {"flags": ["--focus-name"], "help": "焦点名称"},
+    # summary
+    "file": {"flags": ["--file"], "help": "总结文件名"},
+    "tag": {"flags": ["--tag"], "help": "按标签过滤"},
+    "project": {"flags": ["--project"], "help": "按项目名过滤"},
+    # analyze
+    "mode": {"flags": ["--mode"], "default": "full", "help": "分析模式 (quick/full)"},
+    "json_output": {"flags": ["--json"], "action": "store_true", "help": "输出 JSON"},
 }
 
 # 命令名 → 注册表操作名映射
@@ -94,7 +116,7 @@ def add_registry_commands(v2_subparsers):
     """为每个 registry 操作注册 CLI 子命令。"""
     for op_name in sorted(OPERATION_REGISTRY.keys()):
         domain = op_name.split(".")[0]
-        if domain not in ("graph", "session", "deviation", "knowledge"):
+        if domain not in ("graph", "session", "deviation", "knowledge", "subagent", "summary"):
             continue
         entry = OPERATION_REGISTRY[op_name]
         if "project_root" not in entry["params"]:

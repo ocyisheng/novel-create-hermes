@@ -40,7 +40,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | R13 | SHOULD | **六维冲突设计自动注入**：编排层在创建/编辑角色和情节线时，按 §3.7 自动注入判断表决定是否加载 `novel-six-dimensions`。对主角/重要反派/关键配角/主线情节，**不询问用户直接自动注入**缺省维度。只有当用户明确说"太扁平了""差了点味道"时，才走交互式选维流程 |
 
 <!-- DEV:telemetry-rule -->
-| T1 | MUST | 每次 `task()` 子 agent 返回后，调用 `novel-tool --operation subagent.save` 记录调度信息（见 §5.4） |
+| T1 | MUST | 每次 `task()` 子 agent 返回后，调用 `novel-tool(operation="subagent.save", ...)` 记录调度信息（见 §5.4） |
 <!-- /DEV -->
 
 **确认策略**：明确动作直接调度，模糊意图推荐后等待确认。
@@ -72,7 +72,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   └─ 查 session.info → cycle_type=refinement → PREHEAT=hot 走 V2 创作路由（HUMANIZE=true 注入 crafter prompt）
   ├─ 可视化（关系图/时间线/图谱）?
   │   ├─ 通知用户 "正在启动 web 可视化..."
-  │   ├─ novel-tool --operation web.start --project {PROJECT}
+  │   ├─ novel-tool(operation="web.start", project="{PROJECT}")
   │   └─ 告知用户 "Web 可视化已启动，打开 http://localhost:8766 查看交互式关系图"
   ├─ 快速状态查询? → 读 novel-context.md + graph 统计 → 直接报告
   ├─ 创意构思/灵感发散/方案生成（没想法/想不出/帮我想/给点灵感/丰富角色/加细节等）?
@@ -83,7 +83,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   └─ 用户拒绝方案 → 结束，等待新指令
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
   │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
-  │   │   `novel-tool --operation session.info --project {PROJECT}`
+  │   │   `novel-tool(operation="session.info", project="{PROJECT}")`
   │   │   ├─ 有活跃会话 → preheat 来自 SessionManager.recommend_preheat_level()
   │   │   │    （综合判断 cycle_type / 焦点类型 / 精力水平 / 循环次数）
   │   │   └─ 无活跃会话 → preheat 用路由表默认值
@@ -107,13 +107,13 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   <!-- DEV:analytics-branch -->
   ├─ 数据分析与会话总结?
   │   ├─ "收集使用数据"/"分析数据"?
-  │   │   └─ novel-tool --operation analyze.usage --project {PROJECT} → 输出量化报告
+  │   │   └─ novel-tool(operation="analyze.usage", project="{PROJECT}") → 输出量化报告
   │   ├─ "分析遥测数据"/"看故障模式"?
-  │   │   └─ novel-tool --operation analyze.telemetry --project {PROJECT} → 输出故障模式和优化建议
+  │   │   └─ novel-tool(operation="analyze.telemetry", project="{PROJECT}") → 输出故障模式和优化建议
   │   ├─ "记录这次会话的总结"/"记录总结"?
   │   │   └─ 见附录：会话总结流程（回顾→生成结构化总结→保存→确认）
   │   ├─ "查看会话总结"/"历史总结"?
-  │   │   └─ novel-tool --operation summary.list --project {PROJECT}
+  │   │   └─ novel-tool(operation="summary.list", project="{PROJECT}")
   │   ├─ "分析优化线索"/"综合分析"/"更新优化线索"?
   │   │   └─ 见附录：聚合分析流程（收集→聚类→排序→持久化 clues_aggregated.md）
   │   └─ "优化闭环"/"执行改进"?
@@ -524,8 +524,8 @@ crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型*
 | 角色/世界观设定 | 不变 |
 
 调用方式：
-```bash
-novel-tool --operation session.set_cycle --project {PROJECT} --cycle_type {类型}
+```text
+novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="{类型}")
 ```
 
 只更新有变化的字段，避免覆盖已经累积的状态。
@@ -534,8 +534,8 @@ novel-tool --operation session.set_cycle --project {PROJECT} --cycle_type {类�
 
 crafter 完成后，编排层应查询是否存在 pending 的偏差记录。正文写作时 WorkspaceBuilder 可能已检出场景 content 中引用的实体在 graph 中不存在（标记为 `stub_pending`），需要通过偏差检核确认它们是否已被处理。
 
-```bash
-novel-tool --operation deviation.pending --project {PROJECT}
+```text
+novel-tool(operation="deviation.pending", project="{PROJECT}")
 ```
 
 - **有 pending 偏差** → 通知用户"写作中创建了存根，需要补充内容"，等待用户指令（"补充存根"或"跳过"）。**不自动触发 crafter**——偏差处理由用户驱动，避免系统自动递归
@@ -615,7 +615,7 @@ CONTINUATION: {可选，上一轮 session_id}
 4. 纯知识查询（用户只想查书，不想写）不走此路径，走 `skill("book-knowledge")`
 
 ```
-novel-tool --operation knowledge.read --project {PROJECT_PATH} --slug fanren-xiuxian --topic power_system
+novel-tool(operation="knowledge.read", project="{PROJECT_PATH}", slug="fanren-xiuxian", topic="power_system")
 
 注入示例：
 ```markdown
@@ -710,7 +710,7 @@ todowrite([
 
 ### 可视化（Web 交互式）
 
-调 `novel-tool --operation web.start --project {PROJECT}` 启动 Web 服务，打开浏览器访问 `http://localhost:8766`：
+调 `novel-tool(operation="web.start", project="{PROJECT}")` 启动 Web 服务，打开浏览器访问 `http://localhost:8766`：
 
 - **关系图**：vis-network 交互式渲染，支持物理引擎拖动/缩放/筛选/搜索
 - **详情面板**：点击节点查看内容、标签、关联关系；支持编辑/删除
@@ -736,25 +736,24 @@ todowrite([
 **不存原始对话**——`background_output` 本身是运行时给的，凭 `id` 就能回溯。
 `subagent.save` 只存 review 后提取的摘要信息。
 
-```bash
-# 保存摘要
-novel-tool --operation subagent.save \
-  --project {PROJECT} \
-  --task_id {bg_xxx | ses_xxx} \
-  --subagent explore \
-  --focus_type chapter_plan \
-  --focus_name 第53章 \
-  --result success \
-  --prompt_summary "读第53-60章章纲" \
-  --result_summary "返回8个chapter_plan的完整content" \
-  --new_units 0 \
-  --updated_units 8 \
-  --duration_estimate_ms 3500 \
-  --user_intent "帮我看一下第53-60章章纲"  # 用户原始输入摘要，用于路由分歧检测
+```text
+# 保存摘要（tool 函数调用格式，勿用 PowerShell CLI）
+novel-tool(operation="subagent.save", project="{PROJECT}",
+  task_id="{bg_xxx | ses_xxx}",
+  subagent="explore",
+  focus_type="chapter_plan",
+  focus_name="第53章",
+  result="success",
+  prompt_summary="读第53-60章章纲",
+  result_summary="返回8个chapter_plan的完整content",
+  new_units=0,
+  updated_units=8,
+  duration_estimate_ms=3500,
+  user_intent="帮我看一下第53-60章章纲")   # 用户原始输入摘要，用于路由分歧检测
 
 # 查询摘要
-novel-tool --operation subagent.list --project {PROJECT} --limit 10
-novel-tool --operation subagent.list --subagent explore --result failed
+novel-tool(operation="subagent.list", project="{PROJECT}", limit=10)
+novel-tool(operation="subagent.list", subagent="explore", result="failed")
 ```
 <!-- /DEV -->
 
@@ -775,7 +774,7 @@ novel-tool --operation subagent.list --subagent explore --result failed
 skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 ```
 
-也可直接走 tool：`novel-tool --operation project.new --name "项目名" --genre "类型" --v2`
+也可直接走 tool：`novel-tool(operation="project.new", name="项目名", genre="类型", v2=true)`
 
 ## 七、状态维护
 
@@ -790,7 +789,7 @@ V2 中唯一需要持久化的状态是 graph（已由 novel-tool graph.flush �
 | 场景 | 行为 |
 |------|------|
 | graph 数据异常 | `store.restore_snapshot(snapshot_id)` 恢复到最近的快照 |
-| 迁移后文件与 graph 不一致 | `novel-tool --operation graph.export_docs` 重新导出 |
+| 迁移后文件与 graph 不一致 | `novel-tool(operation="graph.export_docs", project="{PROJECT}")` 重新导出 |
 | 子 Agent 返回不完整 | `Task(task_id="ses_...", prompt="fix: ...")` 继续会话 |
 | 用户要求回退 | 事件溯源找到变更事件，create_snapshot 后 restore 到之前的状态 |
 

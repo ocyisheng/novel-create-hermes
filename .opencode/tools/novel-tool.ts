@@ -330,6 +330,15 @@ export default tool({
         "deviation.merge", "deviation.list", "deviation.pending",
         "deviation.resolve", "deviation.retain", "deviation.delete", "deviation.stats", "deviation.summary",
         
+        // analyze
+        "analyze.usage", "analyze.telemetry",
+
+        // summary
+        "summary.save", "summary.list", "summary.read",
+
+        // subagent
+        "subagent.save", "subagent.list",
+
         // server
         "web.start", "web.stop", "web.restart",
       ])
@@ -373,6 +382,22 @@ export default tool({
     source_path: tool.schema.string().optional().describe("导入源路径"),
     dry_run: tool.schema.boolean().optional().describe("试运行"),
     focus_type: tool.schema.string().optional().describe("会话焦点类型 (scene/character_arc 等)"),
+    focus_name: tool.schema.string().optional().describe("焦点名称（单元名，如 第53章 / 韩致；多焦点用 multi）"),
+    session_id: tool.schema.string().optional().describe("关联的创作 session ID（如 ses_xxx）"),
+    user_intent: tool.schema.string().optional().describe("用户原始输入摘要（subagent.save 用，路由分歧检测）"),
+    mode: tool.schema.string().optional().describe("analyze.usage 模式 (quick/full，默认 full)"),
+    json_output: tool.schema.boolean().optional().describe("analyze.usage 是否输出 JSON（默认 false）"),
+    task_id: tool.schema.string().optional().describe("子 Agent 任务 ID（如 bg_xxx / ses_xxx）"),
+    subagent: tool.schema.string().optional().describe("子 Agent 类型（explore / novel-v2-crafter / novel-ideation 等）"),
+    preheat_level: tool.schema.string().optional().describe("预热级别 (cold/warm/hot)"),
+    humanize: tool.schema.boolean().optional().describe("是否去 AI 味"),
+    prompt_summary: tool.schema.string().optional().describe("子 Agent prompt 自然语言摘要"),
+    result_summary: tool.schema.string().optional().describe("子 Agent 结果自然语言摘要"),
+    new_units: tool.schema.number().optional().describe("新建单元数"),
+    updated_units: tool.schema.number().optional().describe("更新单元数"),
+    duration_estimate_ms: tool.schema.number().optional().describe("预估耗时（ms）"),
+    error_summary: tool.schema.string().optional().describe("错误摘要（如有）"),
+    result: tool.schema.string().optional().describe("结果状态 (success/partial/failed)"),
     scope: tool.schema.string().optional().describe("搜索范围（逗号分隔的类型）"),
     regex: tool.schema.boolean().optional().describe("启用正则搜索"),
     case_sensitive: tool.schema.boolean().optional().describe("区分大小写"),

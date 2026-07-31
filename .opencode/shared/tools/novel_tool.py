@@ -105,7 +105,7 @@ def _project_basename(project: str) -> str:
 # novel_tool.py 参数 → handler 规范参数名的映射表
 _PARAM_MAP = {
     # 通用
-    "id": "id", "name": "name",
+    "id": "id", "ids": "ids", "name": "name",
     "unit_type": "unit_type", "rel_type": "rel_type", "focus_type": "focus_type",
     "content": "content", "file": "file_path",
     "tags": "tags", "chapter": "chapter",

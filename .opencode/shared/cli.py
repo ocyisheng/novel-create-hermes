@@ -641,6 +641,7 @@ def _run_v2(args):
     def _purge_archived():
         result = handle_purge_archived(
             project_root=args.path, ids=getattr(args, 'ids', ''),
+            force=getattr(args, 'force', False),
             actor=getattr(args, 'actor', 'script'),
         )
         _err_exit(result)

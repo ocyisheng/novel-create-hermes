@@ -19,6 +19,7 @@ from handlers import OPERATION_REGISTRY
 PARAM_OPTS = {
     "project_root": {"flags": ["--path"], "help": "项目根目录"},
     "id": {"flags": ["--id"], "help": "单元 ID"},
+    "ids": {"flags": ["--ids"], "help": "单元 ID 列表（逗号分隔）"},
     "name": {"flags": ["--name"], "help": "名称"},
     "unit_type": {"flags": ["--unit-type"], "help": "单元类型"},
     "rel_type": {"flags": ["--rel-type"], "help": "关系类型"},

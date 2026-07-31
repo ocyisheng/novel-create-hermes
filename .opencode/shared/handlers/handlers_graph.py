@@ -684,15 +684,27 @@ def handle_archive_unit(project_root: str, id: str, actor: str = "orchestrator")
     return {"error": "归档失败：叙事单元不存在"}
 
 
-def handle_purge_archived(project_root: str, ids: str = "", actor: str = "orchestrator") -> dict:
+def handle_purge_archived(project_root: str, ids: str = "", force: bool = False, actor: str = "orchestrator") -> dict:
     """
     物理删除已归档的叙事单元及其关联边。
+
+    安全规则：
+    - 传 ids（逗号分隔）→ 只删除指定 ID
+    - 不传 ids → 默认报错（防止误删全部），仅当 force=true 时才允许删除全部已归档单元
     """
     blocked = _check_orchestrator_write(actor, "graph.purge_archived")
     if blocked:
         return blocked
     store = _get_store(project_root)
     id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
+    if id_list is None and not force:
+        return {
+            "error": (
+                "未指定 ids，默认不执行全量删除（防止误删）。"
+                "如需删除指定单元请传 ids='id1,id2'；"
+                "如确需删除全部已归档单元请传 force=true。"
+            )
+        }
     result = store.purge_archived(ids=id_list, actor=actor)
     store.flush()
     count = result["purged_units"]

@@ -329,6 +329,52 @@ class TestGraphWrite:
         res = call_tool("graph.archive_unit", project=proj_path, id="nonexistent", actor="novel-v2-crafter")
         assert_error(res, "不存在")
 
+    def test_purge_archived_empty_ids_errors(self, sample_units):
+        """空 ids 必须报错——防止误删全部已归档单元（历史缺陷回归测试）。"""
+        proj_path, store, units = sample_units
+        uid = units["林渊"].id
+        res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
+        assert_success(res, {"archived": True})
+        # 不带 ids、不带 force → 必须拒绝
+        res = call_tool("graph.purge_archived", project=proj_path, actor="novel-tool")
+        assert_error(res, "未指定 ids")
+        # 单元仍然存在（未被误删）
+        verify = call_tool("graph.get_unit", project=proj_path, id=uid)
+        assert_success(verify)
+
+    def test_purge_archived_by_ids(self, sample_units):
+        """指定 ids 时只删除目标单元，其余已归档单元保留。"""
+        proj_path, store, units = sample_units
+        uid1 = units["林渊"].id
+        uid2 = units["陈峰"].id
+        for uid in (uid1, uid2):
+            res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
+            assert_success(res, {"archived": True})
+        # 定向删除 uid1
+        res = call_tool("graph.purge_archived", project=proj_path, ids=uid1, actor="novel-tool")
+        assert_success(res)
+        assert res["data"]["purged"] == 1
+        # uid1 已物理删除
+        verify = call_tool("graph.get_unit", project=proj_path, id=uid1)
+        assert verify["data"].get("unit") is None
+        # uid2 保留
+        verify2 = call_tool("graph.get_unit", project=proj_path, id=uid2)
+        assert_success(verify2)
+
+    def test_purge_archived_all_with_force(self, sample_units):
+        """force=true + 空 ids 才允许全量删除。"""
+        proj_path, store, units = sample_units
+        uid1 = units["林渊"].id
+        uid2 = units["陈峰"].id
+        for uid in (uid1, uid2):
+            call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
+        res = call_tool("graph.purge_archived", project=proj_path, force=True, actor="novel-tool")
+        assert_success(res)
+        assert res["data"]["purged"] == 2
+        for uid in (uid1, uid2):
+            verify = call_tool("graph.get_unit", project=proj_path, id=uid)
+            assert verify["data"].get("unit") is None
+
     def test_add_relation(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("graph.add_relation", project=proj_path,

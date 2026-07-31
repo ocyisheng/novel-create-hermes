@@ -164,7 +164,7 @@ OPERATION_REGISTRY = {
     },
     "graph.purge_archived": {
         "handler": handle_purge_archived,
-        "params": {"project_root": {"required": True}, "ids": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "ids": {}, "force": {}, "actor": {}},
     },
     "graph.add_relation": {
         "handler": handle_add_relation,

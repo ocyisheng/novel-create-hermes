@@ -147,8 +147,16 @@ def handle_subagent_save(
     index_data["entries"].append(entry)
     index_data["total"] = len(index_data["entries"])
 
-    with open(index_path, "w", encoding="utf-8") as f:
-        json.dump(index_data, f, ensure_ascii=False, indent=2)
+    # 原子写：先写临时文件再替换，避免中断导致 index.json 损坏
+    tmp_path = index_path + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(index_data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, index_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
     return {"id": record_id, "index_total": index_data["total"]}
 

@@ -25,6 +25,8 @@ for _d in [_SHARED_DIR, _V2_DIR]:
     if _d not in sys.path:
         sys.path.insert(0, _d)
 
+from graph_store import is_v2_project
+
 
 def _resolve_project(project: str) -> str:
     if not project:
@@ -237,7 +239,7 @@ def collect_usage_data(project_root: str, telemetry_project: str = "") -> dict:
         telemetry_project: 遥测数据按项目名过滤（可选，不传则分析所有项目）
     """
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效或不是 V2 项目: {project_root}"}
 
     report = {

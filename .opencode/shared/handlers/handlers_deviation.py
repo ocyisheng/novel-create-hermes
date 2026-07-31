@@ -1,4 +1,4 @@
-"""
+﻿"""
 handlers_deviation.py — 偏差管理纯业务逻辑函数。
 
 涵盖 7 个操作：merge / list / pending / resolve / retain / delete / stats。
@@ -9,6 +9,8 @@ import json
 import os
 import sys
 from typing import Optional
+
+from graph_store import is_v2_project
 
 _SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _V2_DIR = os.path.join(_SHARED_DIR, "v2")
@@ -41,7 +43,7 @@ def handle_deviation_merge(
     from deviation_manager import DeviationManager, DeviationItem
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -83,7 +85,7 @@ def handle_deviation_list(project_root: str, status: str = "") -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -108,7 +110,7 @@ def handle_deviation_pending(project_root: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -132,7 +134,7 @@ def handle_deviation_resolve(project_root: str, id: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -148,7 +150,7 @@ def handle_deviation_retain(project_root: str, id: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -164,7 +166,7 @@ def handle_deviation_delete(project_root: str, id: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -180,7 +182,7 @@ def handle_deviation_stats(project_root: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
@@ -191,7 +193,7 @@ def handle_deviation_summary(project_root: str) -> dict:
     from deviation_manager import DeviationManager
 
     project = _resolve_project(project_root)
-    if not project or not os.path.isdir(os.path.join(project, "graph")):
+    if not project or not is_v2_project(project):
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)

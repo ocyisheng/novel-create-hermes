@@ -181,14 +181,15 @@ class LegacyFileAdapter:
         
         章节正文存为 TXT 文件（file_path），
         graph 中的 CHUNK 单元只存元数据 JSON。
-        file_path 为空时自动按约定生成：chapters/第{chapter_number}章_{version_label}.txt
+        file_path 为空时自动按约定生成：chapters/第{chapter_number}章.txt
+        （与 handle_export_chunks 输出命名保持一致，版本标签仅存于 graph 元数据）
         
         如果 scene_id 不为空，自动建立 CHUNK→SCENE 的 BELONGS_TO 关系。
         """
         import json
         
         if not file_path:
-            file_path = f"chapters/第{chapter_number}章_{version_label}.txt"
+            file_path = f"chapters/第{chapter_number}章.txt"
         
         # Step 1: 检测重复（同一章节+同一版本标签的 CHUNK）
         unit_name = f"第{chapter_number}章_{version_label}"

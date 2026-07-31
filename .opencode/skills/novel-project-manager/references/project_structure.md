@@ -1,6 +1,6 @@
 # V2 项目结构
 
-V2 项目使用 `graph/` 作为**单一真相源**，不再生成 `characters/`、`worldbuilding/`、`outline/`、`chapters/`、`ideation/` 目录。全部创作数据通过 novel-tool（底层 GraphStore API）读写。
+V2 项目使用 `graph/` 作为**单一真相源**，全部创作数据通过 novel-tool（底层 GraphStore API）读写。`chapters/`、`characters/`、`worldbuilding/`、`outline/分纲/` 目录由 ProjectionEngine 从 graph 自动投影生成（派生视图，按需重建，勿直接编辑）；`ideation/` 目录 V2 不再生成。
 
 ```
 {项目名}/
@@ -10,13 +10,22 @@ V2 项目使用 `graph/` 作为**单一真相源**，不再生成 `characters/`�
 │   ├── edges.jsonl          # 单元间关系
 │   ├── events.olog          # 事件溯源日志
 │   └── snapshots/           # 时间点快照
+├── chapters/                # 章节正文（投影生成，勿直接编辑）
+├── characters/              # 角色档案（投影生成，勿直接编辑）
+├── worldbuilding/           # 世界观设定（投影生成，勿直接编辑）
+├── outline/分纲/            # 分卷分纲（投影生成，勿直接编辑）
 ├── quality/                 # 质量检测报告（由 ProjectionEngine 投影生成）
 ├── styles/                  # 写作风格定义
-├── output/                  # 导出产物
-└── .omo/                    # OpenCode 运行时记忆
-    ├── notepads/
-    └── plans/
+└── output/                  # 导出产物
 ```
+
+> **注**：`.omo/`（OpenCode 运行时记忆）位于**工具根目录**（`novel-create-hermes/.omo/`），跨项目共享，不在各小说项目目录内。其子目录由编排层维护、代码层不读写：
+> ```
+> .omo/
+> ├── analysis/            # 改进清单（如 clues_aggregated.md）
+> ├── notepads/
+> └── plans/
+> ```
 
 ## graph 文件说明
 

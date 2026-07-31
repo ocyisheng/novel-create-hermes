@@ -82,7 +82,6 @@ class ProjectionEngine:
         self.project_root = Path(project_root)
         self.output_mode = output_mode
         self.projections_dir = self.project_root / "projections"
-        self._projection_cache: Dict[str, str] = {}  # path → content
         self._project_config: Optional[Dict[str, Any]] = None
         
         # 根据项目 config 动态调整 CHAPTER_OUTLINE 路径模板
@@ -372,13 +371,48 @@ class ProjectionEngine:
             )
         elif view in (ProjectionView.CHARACTER, ProjectionView.WORLDBUILDING,
                        ProjectionView.PLOT):
-            name = params.get("name", params.get("unit_id", "unknown"))
+            name = params.get("name")
+            unit_id = params.get("unit_id")
+            if name:
+                # 同名冲突消歧：多个活跃单元同名时追加短 ID，避免投影文件互相覆盖
+                name = self._disambiguate_projection_name(view, name, unit_id)
+            else:
+                name = unit_id or "unknown"
             return template.format(name=name)
         elif view == ProjectionView.TRACKING:
             name = params.get("name", "综合")
             return template.format(name=name)
         else:
             return template
+    
+    def _disambiguate_projection_name(self, view: ProjectionView,
+                                      name: str,
+                                      unit_id: Optional[str] = None) -> str:
+        """同名冲突消歧：若存在多个活跃单元共享同名，则追加短 ID 后缀避免投影文件互相覆盖。
+        
+        仅当真实存在同名单元时才加后缀（短 ID = 单元 ID 前 8 位）；
+        无冲突时原样返回，保证既有投影文件名稳定。
+        """
+        type_map = {
+            ProjectionView.CHARACTER: UnitType.CHARACTER_ARC,
+            ProjectionView.WORLDBUILDING: UnitType.WORLD_RULE,
+            ProjectionView.PLOT: UnitType.PLOT_THREAD,
+        }
+        unit_type = type_map.get(view)
+        if unit_type is None:
+            return name
+        try:
+            same_name_units = [
+                u for u in self.store.find_units(type=unit_type)
+                if u.unit_name == name
+            ]
+        except Exception:
+            return name  # 查询失败时保守返回原名，不阻塞投影
+        if len(same_name_units) <= 1:
+            return name
+        if unit_id:
+            return f"{name}_{unit_id[:8]}"
+        return f"{name}_{same_name_units[0].id[:8]}"
     
     # ── 通用工具方法 ─────────────────────────────────────────────────────
     

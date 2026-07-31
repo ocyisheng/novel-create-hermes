@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from graph_store import is_v2_project
+
 _SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 )
 _V2_DIR = os.path.join(_SHARED_DIR, "v2")
@@ -201,7 +203,7 @@ def handle_project_import(name: str, source_path: str) -> dict:
     shutil.copytree(source, proj_dir)
     return {
         "path": proj_dir,
-        "has_graph": os.path.isdir(os.path.join(proj_dir, "graph")),
+        "has_graph": is_v2_project(proj_dir),
     }
 
 
@@ -216,7 +218,7 @@ def handle_project_status(name: str, phase: str = "") -> dict:
         return {"error": "config.yaml 为空或格式错误"}
 
     proj = _project_path(name)
-    is_v2 = config.get("架构") == "v2" or os.path.isdir(os.path.join(proj, "graph"))
+    is_v2 = config.get("架构") == "v2" or is_v2_project(proj)
 
     result = {
         "name": name,
@@ -375,7 +377,7 @@ def handle_project_switch(name: str, dry_run: bool = False) -> dict:
         with open(ctx_path, "w", encoding="utf-8") as f:
             f.write(context)
 
-    has_graph = os.path.isdir(os.path.join(proj_path, "graph"))
+    has_graph = is_v2_project(proj_path)
     return {
         "ok": not dry_run,
         "dry_run": dry_run,

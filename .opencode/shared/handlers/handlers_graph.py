@@ -234,8 +234,11 @@ def _vol_name(unit) -> str:
     return ""
 
 
-def _read_chunk_text(c, project_root: str) -> str:
-    """从 CHUNK 单元读取正文文本。"""
+def _chunk_source_path(c, project_root: str) -> str:
+    """解析 CHUNK 单元正文的来源文件路径（用于去重与读取）。
+
+    优先取 正文分片.文件，回退到 file_path 元数据；无法解析时返回空串。
+    """
     try:
         cd = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
     except (json.JSONDecodeError, ValueError):
@@ -244,14 +247,18 @@ def _read_chunk_text(c, project_root: str) -> str:
     if slice_info:
         sp = slice_info.get("文件", "")
         if sp:
-            src = Path(project_root) / sp
-            if src.exists():
-                return src.read_text(encoding="utf-8")
+            return str(Path(project_root) / sp)
     source_path = cd.get("file_path", "")
     if source_path:
-        src = Path(project_root) / source_path
-        if src.exists():
-            return src.read_text(encoding="utf-8")
+        return str(Path(project_root) / source_path)
+    return ""
+
+
+def _read_chunk_text(c, project_root: str) -> str:
+    """从 CHUNK 单元读取正文文本。"""
+    src = _chunk_source_path(c, project_root)
+    if src and os.path.exists(src):
+        return Path(src).read_text(encoding="utf-8")
     return ""
 
 
@@ -929,7 +936,13 @@ def handle_export_chunks(project_root: str, out: str = "") -> dict:
 
         group.sort(key=_sort_key)
         parts = []
+        seen_sources: set = set()
         for c in group:
+            # 同章节多版本 CHUNK（v1/v2）指向同一文件时只读一次，避免重复拼接
+            src = _chunk_source_path(c, project_root)
+            if src in seen_sources:
+                continue
+            seen_sources.add(src)
             text = _read_chunk_text(c, project_root)
             if text:
                 parts.append(text)

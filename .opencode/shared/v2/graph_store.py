@@ -39,6 +39,47 @@ from graph_schema import (
 from schemas import validate_content, default_content
 
 
+def is_v2_project(project_root: str) -> bool:
+    """判定项目是否为已就绪的 V2 项目。
+
+    收紧判定：仅当 graph/nodes.jsonl 存在时才视为 V2。
+    半迁移项目（仅有空 graph/ 目录、无 nodes.jsonl）不会被误判。
+    兼容传入 graph 目录本身（自动归一化到项目根）。
+    """
+    if not project_root:
+        return False
+    root = Path(project_root)
+    # 兼容传入 {项目}/graph 而非项目根
+    if root.name == "graph":
+        root = root.parent
+    return (root / "graph" / "nodes.jsonl").is_file()
+
+
+def _normalize_project_root(project_root: str) -> Path:
+    """归一化项目根路径。
+
+    若传入的是 graph 子目录本身（如 {项目}/graph 或 {项目}/graph/graph），
+    自动逐级提升到项目根，避免产生 graph/graph 嵌套。
+    项目根以 config.yaml 为强标志（V1/V2 项目均必含）。
+    """
+    root = Path(project_root)
+    if root.name != "graph":
+        return root
+    current = root
+    for _ in range(5):  # 防御死循环，最多提升 5 级
+        parent = current.parent
+        if parent == current:
+            break
+        # 含 config.yaml 的目录即项目根
+        if (parent / "config.yaml").is_file():
+            return parent
+        # 只有 parent 仍是 graph 容器（含 graph 子目录）才继续提升
+        if not (parent / "graph").is_dir():
+            break
+        current = parent
+    return root
+
+
 class GraphStore:
     """
     Graph 存储引擎。
@@ -48,7 +89,7 @@ class GraphStore:
     """
     
     def __init__(self, project_root: str):
-        self.project_root = Path(project_root)
+        self.project_root = _normalize_project_root(project_root)
         self.graph_dir = self.project_root / "graph"
         self.nodes_path = self.graph_dir / "nodes.jsonl"
         self.edges_path = self.graph_dir / "edges.jsonl"

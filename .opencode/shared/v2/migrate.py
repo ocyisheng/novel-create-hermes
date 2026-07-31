@@ -897,11 +897,20 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
         out_lines.append(json.dumps(node, ensure_ascii=False))
 
     if not dry_run and stats["nodes_fixed"] > 0:
-        # 备份
+        # 备份（copy 而非 rename：保留原文件直到替换成功，避免中途失败导致 nodes.jsonl 丢失）
         backup_path = nodes_path.with_suffix(".jsonl.bak")
         if not backup_path.exists():
-            nodes_path.rename(backup_path)
-        nodes_path.write_text("\n".join(out_lines), encoding="utf-8")
+            import shutil
+            shutil.copy2(nodes_path, backup_path)
+        # 原子写：先写临时文件再替换
+        tmp = nodes_path.with_suffix(".jsonl.tmp")
+        try:
+            tmp.write_text("\n".join(out_lines), encoding="utf-8")
+            tmp.replace(nodes_path)
+        except Exception:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            raise
 
     stats["by_type"] = stats_by_type
     return stats

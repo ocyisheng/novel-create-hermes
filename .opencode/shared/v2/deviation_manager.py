@@ -29,6 +29,8 @@ from typing import Dict, List, Optional, Any
 
 import yaml
 
+from graph_store import _normalize_project_root
+
 
 # ── 数据类 ──────────────────────────────────────────────────────────────────
 
@@ -79,7 +81,8 @@ class DeviationManager:
     """
 
     def __init__(self, project_root: str):
-        self.state_path = os.path.join(project_root, "graph", "deviation_state.yaml")
+        self.project_root = str(_normalize_project_root(project_root))
+        self.state_path = os.path.join(self.project_root, "graph", "deviation_state.yaml")
         self._state = DeviationState()
         self._load()
 

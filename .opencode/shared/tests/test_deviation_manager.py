@@ -131,7 +131,7 @@ class TestMerge:
         assert len(mgr.list_all()) == 2
 
     def test_merge_resolved_comes_back(self, project_root):
-        """已解决的偏差再次出现 → 重置为 pending"""
+        """已解决的偏差再次出现 → 保持 resolved，仅更新检测计数"""
         mgr = DeviationManager(project_root)
         mgr.merge([_make_item(dimension="character_trait", entity="林昭")])
         mgr.resolve("dev_00000000")  # 假设的 ID，但实际上 ID 是生成的
@@ -141,9 +141,10 @@ class TestMerge:
         mgr.resolve(item.id)
         assert mgr.get(item.id).status == "resolved"
 
-        # 再次合并相同偏差 → 重置为 pending
+        # 再次合并相同偏差 → 尊重用户判断，不重置为 pending
         mgr.merge([_make_item(dimension="character_trait", entity="林昭", status="pending")])
-        assert mgr.get(item.id).status == "pending"
+        assert mgr.get(item.id).status == "resolved"
+        assert mgr.get(item.id).detection_count == 2
 
     def test_merge_batch(self, project_root):
         """批量合并多个偏差"""
@@ -325,7 +326,7 @@ class TestStats:
 
 class TestEdgeCases:
     def test_merge_after_resolve_restores_pending(self, project_root):
-        """resolved → merge same → pending"""
+        """resolved → merge same → 保持 resolved（尊重用户判断），仅更新检测计数"""
         mgr = DeviationManager(project_root)
         mgr.merge([_make_item(dimension="character_trait", entity="林昭")])
         item = mgr.list_all()[0]
@@ -333,7 +334,7 @@ class TestEdgeCases:
 
         # 再次合并
         mgr.merge([_make_item(dimension="character_trait", entity="林昭", status="pending")])
-        assert mgr.get(item.id).status == "pending"
+        assert mgr.get(item.id).status == "resolved"
         assert mgr.get(item.id).detection_count == 2
 
     def test_merge_updates_summary(self, project_root):

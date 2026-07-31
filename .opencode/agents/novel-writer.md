@@ -1030,15 +1030,11 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 novel-tool(operation="analysis.save", content="{改进清单全文}", sources={["{来源文件名1}", "{来源文件名2}"]})
 ```
 
-`sources` 传入本次聚合所读取的全部 summary 文件名（B.1 第 4 步记录），写入清单头部 YAML front-matter 作为证据链：
+`sources` 传入本次聚合所读取的全部 summary 文件名（B.1 第 4 步记录），写入清单头部 JSON front-matter 作为证据链（格式与 summary 存储一致）：
 
 ```markdown
 ---
-sources:
-  - 凡人之诡影重重_2026-07-27_025440.summary.md
-  - 凡人之诡影重重_2026-07-29_030746.summary.md
-aggregated_at: 2026-07-31T21:00:00+08:00
-total_summaries: 2
+{"sources": ["凡人之诡影重重_2026-07-27_025440.summary.md", "凡人之诡影重重_2026-07-29_030746.summary.md"], "aggregated_at": "2026-07-31T21:00:00+08:00", "total_summaries": 2}
 ---
 ```
 

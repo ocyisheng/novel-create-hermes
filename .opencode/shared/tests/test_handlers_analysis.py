@@ -127,7 +127,7 @@ def test_read_missing_file(engine_dir):
 # ── sources 来源元数据 ──────────────────────────────────────────────
 
 def test_save_with_sources_writes_frontmatter(engine_dir):
-    """带 sources 的 save 写入 YAML front-matter（sources/aggregated_at/total_summaries）。"""
+    """带 sources 的 save 写入 JSON front-matter（sources/aggregated_at/total_summaries）。"""
     res = handle_save_analysis(
         content="## 清单正文",
         sources=["项目A_2026-07-27_025440.summary.md", "项目A_2026-07-29_030746.summary.md"],
@@ -136,10 +136,13 @@ def test_save_with_sources_writes_frontmatter(engine_dir):
 
     raw = (engine_dir / "analysis" / "clues_aggregated.md").read_text(encoding="utf-8")
     assert raw.startswith("---\n")
-    assert "sources:" in raw
-    assert "项目A_2026-07-27_025440.summary.md" in raw
-    assert "total_summaries: 2" in raw
-    assert "aggregated_at:" in raw
+    # JSON front-matter：一行 JSON（与 summary 存储格式一致）
+    import json as _json
+    fm_line = raw.split("\n")[1]
+    meta = _json.loads(fm_line)
+    assert meta["sources"] == ["项目A_2026-07-27_025440.summary.md", "项目A_2026-07-29_030746.summary.md"]
+    assert meta["total_summaries"] == 2
+    assert "aggregated_at" in meta
     # 正文保留且 front-matter 剥离后仍完整
     assert raw.rstrip().endswith("## 清单正文")
 
@@ -214,6 +217,20 @@ def test_read_legacy_file_without_frontmatter(engine_dir):
     assert res["content"] == "## 旧清单（无元数据）\n1. 线索"
     assert res["sources"] == []
     assert res["total_summaries"] == 0
+
+
+def test_read_yaml_legacy_frontmatter(engine_dir):
+    """早期 YAML front-matter 文件仍可解析（向后兼容）。"""
+    analysis_dir = engine_dir / "analysis"
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    (analysis_dir / "clues_aggregated.md").write_text(
+        "---\nsources:\n- 旧版_2026-01-01_000000.summary.md\ntotal_summaries: 1\n---\n## YAML 旧版清单",
+        encoding="utf-8",
+    )
+    res = handle_read_analysis()
+    assert res["content"] == "## YAML 旧版清单"
+    assert res["sources"] == ["旧版_2026-01-01_000000.summary.md"]
+    assert res["total_summaries"] == 1
 
 
 def test_archive_preserves_frontmatter(engine_dir):

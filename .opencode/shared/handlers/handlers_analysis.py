@@ -8,13 +8,9 @@ handlers_analysis.py — 聚合分析改进清单持久化（版本化归档 + �
   .engine/analysis/clues_aggregated.md        — 当前改进清单（Markdown，原子写）
   .engine/analysis/history/clues_YYYYMMDD_HHMMSS.md — 历史版本归档（每次 save 前自动归档旧版）
 
-文件格式（YAML front-matter + Markdown 正文）：
+文件格式（JSON front-matter + Markdown 正文，与 summary 存储格式一致）：
   ---
-  sources:              # 本次清单聚合自哪些 summary 文件（证据链）
-    - 凡人之诡影重重_2026-07-27_025440.summary.md
-    - ...
-  aggregated_at: ...    # 聚合时间
-  total_summaries: 2    # 来源总结数
+  {"sources": ["凡人之诡影重重_2026-07-27_025440.summary.md"], "aggregated_at": "...", "total_summaries": 1}
   ---
   ## 优化线索聚合分析
   ...正文...
@@ -28,12 +24,11 @@ handlers_analysis.py — 聚合分析改进清单持久化（版本化归档 + �
 （区别于 subagents/summaries 的追加写模式）。
 """
 
+import json
 import os
 import re
 from datetime import datetime
 from pathlib import Path
-
-import yaml
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.S)
 _ARCHIVE_RE = re.compile(r"^clues_\d{8}_\d{6}_\d{3}\.md$")
@@ -86,16 +81,27 @@ def _archive_current(analysis_dir: str) -> str | None:
 
 def _split_frontmatter(raw: str) -> tuple[dict, str]:
     """
-    解析 YAML front-matter，返回 (meta_dict, 正文)。
+    解析 front-matter，返回 (meta_dict, 正文)。
 
-    无 front-matter 或解析失败时返回 ({}, 原文)，保证向后兼容旧文件。
+    优先按 JSON 解析（与 summary 存储格式一致）；失败时回退 YAML
+    （兼容早期 YAML 版本文件）；两者都失败或无 front-matter 时返回 ({}, 原文)。
     """
     m = _FRONTMATTER_RE.match(raw)
     if not m:
         return {}, raw
+    fm_text = m.group(1).strip()
+    # JSON 优先
     try:
-        meta = yaml.safe_load(m.group(1)) or {}
-    except yaml.YAMLError:
+        meta = json.loads(fm_text)
+        if isinstance(meta, dict):
+            return meta, raw[m.end():]
+    except json.JSONDecodeError:
+        pass
+    # YAML 回退（兼容旧格式）
+    try:
+        import yaml
+        meta = yaml.safe_load(fm_text) or {}
+    except Exception:
         return {}, raw
     if not isinstance(meta, dict):
         return {}, raw
@@ -125,7 +131,7 @@ def _normalize_sources(sources) -> list[str]:
 
 
 def _render_document(content: str, sources: list[str], timestamp: datetime) -> str:
-    """渲染 front-matter + 正文。sources 为空时不写 front-matter（向后兼容）。"""
+    """渲染 front-matter + 正文（JSON front-matter，与 summary 存储格式一致）。sources 为空时不写。"""
     if not sources:
         return content
     meta = {
@@ -133,7 +139,7 @@ def _render_document(content: str, sources: list[str], timestamp: datetime) -> s
         "aggregated_at": timestamp.isoformat(),
         "total_summaries": len(sources),
     }
-    front = "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n"
+    front = "---\n" + json.dumps(meta, ensure_ascii=False) + "\n---\n"
     return front + content
 
 

@@ -97,6 +97,7 @@ from .handlers_subagent import (
 from .handlers_analysis import (
     handle_save_analysis,
     handle_read_analysis,
+    handle_list_analysis,
 )
 
 from .handlers_server import (
@@ -374,6 +375,10 @@ OPERATION_REGISTRY = {
     },
     "analysis.read": {
         "handler": handle_read_analysis,
+        "params": {"version": {}},
+    },
+    "analysis.list": {
+        "handler": handle_list_analysis,
         "params": {},
     },
     # server

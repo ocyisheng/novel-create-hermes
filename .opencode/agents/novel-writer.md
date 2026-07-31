@@ -1029,12 +1029,16 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 novel-tool(operation="analysis.save", content="{改进清单全文}")
 ```
 
-写入后告知用户保存位置与时间。后续读取/覆盖同样走命令：
+写入后告知用户保存位置与时间。每次 save 是**版本化覆盖**——旧清单自动归档到 `.engine/analysis/history/clues_YYYYMMDD_HHMMSS_fff.md`（毫秒级防同秒冲突），当前文件始终是最新一轮：
 
 ```text
-novel-tool(operation="analysis.read")   # 读取当前改进清单
-novel-tool(operation="analysis.save", content="{新的改进清单}")   # 覆盖写入
+novel-tool(operation="analysis.read")                      # 读取当前改进清单
+novel-tool(operation="analysis.read", version="{文件名}")  # 读取指定历史版本
+novel-tool(operation="analysis.list")                      # 列出当前 + 全部历史版本
+novel-tool(operation="analysis.save", content="{新的改进清单}")   # 覆盖写入（旧版自动归档）
 ```
+
+版本化归档的意义：C.4 反馈验证时可以对比"上一轮清单"与"本轮清单"，区分**遗留未消除的线索**（两轮都出现）与**本轮新线索**（仅本轮出现），实现持续追踪。
 
 ---
 
@@ -1097,5 +1101,10 @@ novel-tool(operation="analysis.save", content="{新的改进清单}")   # 覆盖
 ### C.4 反馈验证
 
 - 改进任务执行后，可重新触发附录 B 聚合分析，确认对应线索的严重程度是否下降或消除
+- 重新分析会覆盖当前清单，旧清单自动归档到 history/。通过版本对比区分线索演进：
+  - `analysis.list` 查看历史版本 → `analysis.read(version=...)` 读取上一轮清单
+  - **遗留线索**：上轮与本轮都出现（未消除，继续追踪）
+  - **新线索**：仅本轮出现（本轮 DEV 流程新发现）
+  - **已消除线索**：仅上轮出现（改进生效）
 - 未消除的线索保留在聚类中，下次分析时继续追踪
 <!-- /DEV -->

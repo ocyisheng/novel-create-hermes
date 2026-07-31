@@ -147,6 +147,7 @@ _PARAM_MAP = {
     "scope": "scope", "regex": "regex",
     "case_sensitive": "case_sensitive",
     "since_version": "since_version",
+    "version": "version",
     "status": "status",
     "out": "out",
     "force": "force",

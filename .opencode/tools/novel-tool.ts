@@ -340,7 +340,7 @@ export default tool({
         "subagent.save", "subagent.list",
 
         // analysis
-        "analysis.save", "analysis.read",
+        "analysis.save", "analysis.read", "analysis.list",
 
         // server
         "web.start", "web.stop", "web.restart",

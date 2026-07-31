@@ -411,6 +411,8 @@ export default tool({
     verify: tool.schema.boolean().optional().describe("迁移时验证"),
     report: tool.schema.boolean().optional().describe("迁移时输出报告"),
     since_version: tool.schema.number().optional().describe("起始版本号"),
+    version: tool.schema.string().optional().describe("分析清单版本名（如 clues_20260731_134643_123.md）"),
+    sources: tool.schema.array(tool.schema.string()).optional().describe("来源 summary 文件名列表（证据链）"),
     findings: tool.schema.string().optional().describe("偏差发现列表(JSON数组)"),
     scan_version: tool.schema.number().optional().describe("扫描版本号"),
     full_scan_version: tool.schema.number().optional().describe("全量扫描版本号"),

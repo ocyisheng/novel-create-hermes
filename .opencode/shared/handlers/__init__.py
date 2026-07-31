@@ -371,7 +371,7 @@ OPERATION_REGISTRY = {
     # analysis
     "analysis.save": {
         "handler": handle_save_analysis,
-        "params": {"content": {}},
+        "params": {"content": {}, "sources": {}},
     },
     "analysis.read": {
         "handler": handle_read_analysis,

@@ -49,6 +49,7 @@ PARAM_OPTS = {
     "open_browser": {"flags": ["--open"], "action": "store_true", "help": "生成后打开浏览器"},
     "since_version": {"flags": ["--since-version"], "type": int, "help": "起始版本号"},
     "version": {"flags": ["--version"], "help": "分析清单版本名（如 clues_20260731_134643_123.md）"},
+    "sources": {"flags": ["--sources"], "help": "来源总结文件名（逗号分隔或 JSON 数组）"},
     "findings": {"flags": ["--findings"], "help": "偏差发现列表(JSON)"},
     "scan_version": {"flags": ["--scan-version"], "type": int, "help": "扫描版本号"},
     "full_scan_version": {"flags": ["--full-scan-version"], "type": int, "help": "全量扫描版本号"},

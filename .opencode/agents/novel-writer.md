@@ -942,6 +942,7 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 1. 调用 `novel-tool(operation="summary.list", project="{PROJECT}")` 获取全部总结索引
 2. 对每条索引调用 `novel-tool(operation="summary.read", project="{PROJECT}", file="{filename}")` 读取内容
 3. 从每份总结的 `### 优化线索` 段落中提取结构化线索行（格式 `[类型][严重程度] 组件：描述（证据：...）`）
+4. **记录来源文件名**：为每条提取的线索标记来源 `{filename}`，供 B.4 持久化时组装 `sources` 证据链
 
 ### B.1.5 路由分歧检测（新增）
 
@@ -1026,16 +1027,28 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 通过命令写入引擎级存储 `.engine/analysis/clues_aggregated.md`（跨项目共享），供附录 C 优化闭环读取：
 
 ```text
-novel-tool(operation="analysis.save", content="{改进清单全文}")
+novel-tool(operation="analysis.save", content="{改进清单全文}", sources={["{来源文件名1}", "{来源文件名2}"]})
+```
+
+`sources` 传入本次聚合所读取的全部 summary 文件名（B.1 第 4 步记录），写入清单头部 YAML front-matter 作为证据链：
+
+```markdown
+---
+sources:
+  - 凡人之诡影重重_2026-07-27_025440.summary.md
+  - 凡人之诡影重重_2026-07-29_030746.summary.md
+aggregated_at: 2026-07-31T21:00:00+08:00
+total_summaries: 2
+---
 ```
 
 写入后告知用户保存位置与时间。每次 save 是**版本化覆盖**——旧清单自动归档到 `.engine/analysis/history/clues_YYYYMMDD_HHMMSS_fff.md`（毫秒级防同秒冲突），当前文件始终是最新一轮：
 
 ```text
-novel-tool(operation="analysis.read")                      # 读取当前改进清单
+novel-tool(operation="analysis.read")                      # 读取当前改进清单（自动返回 sources 元数据）
 novel-tool(operation="analysis.read", version="{文件名}")  # 读取指定历史版本
-novel-tool(operation="analysis.list")                      # 列出当前 + 全部历史版本
-novel-tool(operation="analysis.save", content="{新的改进清单}")   # 覆盖写入（旧版自动归档）
+novel-tool(operation="analysis.list")                      # 列出当前 + 全部历史版本（含各自 sources）
+novel-tool(operation="analysis.save", content="{新的改进清单}", sources={["{新来源文件名}"]})   # 覆盖写入（旧版自动归档）
 ```
 
 版本化归档的意义：C.4 反馈验证时可以对比"上一轮清单"与"本轮清单"，区分**遗留未消除的线索**（两轮都出现）与**本轮新线索**（仅本轮出现），实现持续追踪。

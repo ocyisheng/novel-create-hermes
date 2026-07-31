@@ -148,6 +148,7 @@ _PARAM_MAP = {
     "case_sensitive": "case_sensitive",
     "since_version": "since_version",
     "version": "version",
+    "sources": "sources",
     "status": "status",
     "out": "out",
     "force": "force",

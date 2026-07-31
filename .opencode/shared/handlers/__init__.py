@@ -94,6 +94,11 @@ from .handlers_subagent import (
     handle_subagent_list,
 )
 
+from .handlers_analysis import (
+    handle_save_analysis,
+    handle_read_analysis,
+)
+
 from .handlers_server import (
     handle_server_start,
     handle_server_restart,
@@ -361,6 +366,15 @@ OPERATION_REGISTRY = {
     "subagent.list": {
         "handler": handle_subagent_list,
         "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
+    },
+    # analysis
+    "analysis.save": {
+        "handler": handle_save_analysis,
+        "params": {"content": {}},
+    },
+    "analysis.read": {
+        "handler": handle_read_analysis,
+        "params": {},
     },
     # server
     "web.start": {

@@ -116,15 +116,18 @@ def add_registry_commands(v2_subparsers):
     """为每个 registry 操作注册 CLI 子命令。"""
     for op_name in sorted(OPERATION_REGISTRY.keys()):
         domain = op_name.split(".")[0]
-        if domain not in ("graph", "session", "deviation", "knowledge", "subagent", "summary"):
+        if domain not in ("graph", "session", "deviation", "knowledge", "subagent", "summary", "analysis"):
             continue
         entry = OPERATION_REGISTRY[op_name]
-        if "project_root" not in entry["params"]:
+        has_project_root = "project_root" in entry["params"]
+        # analysis 域为引擎级操作（无 project_root），单独放行
+        if not has_project_root and domain != "analysis":
             continue
 
         cmd = _operation_to_command(op_name)
         p = v2_subparsers.add_parser(cmd, help=entry.get("help", ""))
-        p.add_argument("--path", required=True, help="项目根目录")
+        if has_project_root:
+            p.add_argument("--path", required=True, help="项目根目录")
 
         for param_name, param_config in entry["params"].items():
             if param_name == "project_root":

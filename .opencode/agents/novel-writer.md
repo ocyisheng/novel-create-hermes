@@ -1023,7 +1023,18 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 
 ### B.4 持久化分析结果
 
-将改进清单保存为 `.omo/analysis/clues_aggregated.md`，供附录 C 优化闭环读取。
+通过命令写入引擎级存储 `.engine/analysis/clues_aggregated.md`（跨项目共享），供附录 C 优化闭环读取：
+
+```text
+novel-tool(operation="analysis.save", content="{改进清单全文}")
+```
+
+写入后告知用户保存位置与时间。后续读取/覆盖同样走命令：
+
+```text
+novel-tool(operation="analysis.read")   # 读取当前改进清单
+novel-tool(operation="analysis.save", content="{新的改进清单}")   # 覆盖写入
+```
 
 ---
 
@@ -1046,7 +1057,7 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 
 ### C.2 生成改进任务清单
 
-编排层读取 `clues_aggregated.md` 后，将聚类线索转化为具体改进任务：
+编排层通过 `novel-tool(operation="analysis.read")` 读取改进清单后，将聚类线索转化为具体改进任务：
 
 ```markdown
 ## 改进任务清单（来自优化线索聚合分析）

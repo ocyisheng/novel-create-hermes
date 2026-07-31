@@ -19,13 +19,21 @@ V2 项目使用 `graph/` 作为**单一真相源**，全部创作数据通过 no
 └── output/                  # 导出产物
 ```
 
-> **注**：`.omo/`（OpenCode 运行时记忆）位于**工具根目录**（`novel-create-hermes/.omo/`），跨项目共享，不在各小说项目目录内。其子目录由编排层维护、代码层不读写：
+> **注**：`.engine/`（引擎级存储）与 `.omo/`（OpenCode 运行时记忆）均位于**工具根目录**（`novel-create-hermes/`），跨项目共享，不在各小说项目目录内：
 > ```
-> .omo/
+> .engine/
 > ├── analysis/            # 改进清单（如 clues_aggregated.md）
+> ├── daemon/              # daemon 运行日志
+> ├── telemetry/           # 工具调用遥测（按月分片 ndjson）
+> ├── subagents/           # 子 Agent 调度摘要
+> ├── summaries/           # 会话总结
+> └── web-server/          # Web 服务日志与状态
+>
+> .omo/
 > ├── notepads/
 > └── plans/
 > ```
+> `.engine/` 子目录由编排层维护、代码层不读写（`subagents/`/`summaries/` 除外——由 novel-tool 操作写入）。
 
 ## graph 文件说明
 

@@ -339,6 +339,9 @@ export default tool({
         // subagent
         "subagent.save", "subagent.list",
 
+        // analysis
+        "analysis.save", "analysis.read",
+
         // server
         "web.start", "web.stop", "web.restart",
       ])

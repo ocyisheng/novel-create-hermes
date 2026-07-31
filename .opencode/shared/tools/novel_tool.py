@@ -588,8 +588,8 @@ if __name__ == "__main__":
     else:
         # 从 stdin 读取（novel-tool.ts 通过 stdin 传入 JSON 避免 Windows 转义问题）
         raw = sys.stdin.read().strip()
-        # 去除 UTF-8 BOM（PowerShell 管道会带）
-        if raw and ord(raw[0]) == 0xFEFF:
+        # 去除 UTF-8 BOM（PowerShell 管道会带；循环处理单/双重 BOM）
+        while raw and ord(raw[0]) == 0xFEFF:
             raw = raw[1:].strip()
 
     request = None

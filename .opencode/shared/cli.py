@@ -755,7 +755,9 @@ def _auto_dispatch_v2(args):
         print(f"未知 v2 命令: {cmd}")
         sys.exit(1)
 
-    params = {"project_root": args.path}
+    params = {}
+    if "project_root" in entry["params"]:
+        params["project_root"] = args.path
     for pname in entry["params"]:
         if pname == "project_root":
             continue

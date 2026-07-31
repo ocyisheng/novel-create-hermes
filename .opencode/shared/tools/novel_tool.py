@@ -133,6 +133,21 @@ def _resolve_project(project: str) -> str:
     return os.path.abspath(project)
 
 
+def _project_basename(project: str) -> str:
+    """从 project 参数提取纯项目名（遥测记录用，避免存完整路径）。
+
+    兼容：完整路径（含 Windows 反斜杠/正斜杠/尾斜杠）、项目名、空值。
+    """
+    if not project:
+        return ""
+    # 归一化分隔符（兼容 Windows 反斜杠路径）
+    norm = project.replace("\\", "/").rstrip("/")
+    base = norm.rsplit("/", 1)[-1]
+    if base in ("", ".", "..", "novels", "graph"):
+        return ""
+    return base
+
+
 # ── 参数适配：novel_tool 参数名 → 规范参数名 ────────────────────────────
 
 # novel_tool.py 参数 → handler 规范参数名的映射表
@@ -289,10 +304,11 @@ def handle_request(request: dict) -> str:
     op = request.get("operation", "")
     project = request.get("project", "")
     # caller 标识：优先 caller 字段，其次 actor 字段（子 agent 已有 --actor 惯例）
-    caller = request.get("caller", request.get("actor", "unknown"))
+    # 均未传时默认 "orchestrator"（编排层直接调 tool 的常见路径），避免遥测归因丢失
+    caller = request.get("caller") or request.get("actor") or "orchestrator"
     canonical = {}
     proj_root = ""
-    proj_name = project  # 项目名（非完整路径），用于遥测记录
+    proj_name = _project_basename(project)  # 项目名（非完整路径），用于遥测记录
     
     try:
         if not op:
@@ -301,9 +317,10 @@ def handle_request(request: dict) -> str:
         canonical = _build_canonical_params(op, request)
         proj_root = canonical.get("project_root", "") or _resolve_project(project)
 
-        # 诊断：调用方传了 --actor orchestrator（旧 prompt 模式）→ 输出警告到 stderr
+        # 诊断：调用方显式传了 --actor orchestrator（旧 prompt 模式）→ 输出警告到 stderr
         # 新 prompt 已改为「不需要传 --actor」，此警告帮助发现未更新的 prompt 或旧习惯
-        if caller == "orchestrator" or request.get("actor") == "orchestrator":
+        # 注意：仅对显式传入的 actor="orchestrator" 警告；caller 默认值 orchestrator 不触发
+        if request.get("actor") == "orchestrator":
             import sys as _sys
             print(f"[actor-mismatch] caller={caller}, actor={canonical.get('actor')}: "
                   f"编排层传入了已废弃的 actor='orchestrator'。"

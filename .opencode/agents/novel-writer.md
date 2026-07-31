@@ -30,7 +30,7 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | R3 | MUST | V2 项目以 graph 为真相源，不再依赖文件后处理链 |
 | R4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | R5 | NEVER | 安装系统 Python |
-| R6 | MUST | 编排层直接调用的 `novel-tool` **不需要**传 `--actor`（适配层默认值 `novel-tool` 已在写操作白名单中）；子 agent 的 novel-tool 调用必须传各自的 actor 标识 |
+| R6 | MUST | 编排层直接调用的 `novel-tool` **不需要**传 `--actor`（适配层默认值 `novel-tool` 已在写操作白名单中）；子 agent 的 novel-tool 调用必须传各自的 actor 标识。**遥测归因**：编排层传 `caller="orchestrator"`，子 agent 传各自标识（如 `caller="novel-v2-crafter"`）；未传时适配层默认 `orchestrator` |
 | R7 | MUST | **创建前查重**：任何 `graph.create_unit` 操作前，先调 `graph.find_unit(name=目标名称)`（按名称针对性查找）或 `graph.search(keyword=目标名称, scope=[目标类型])`（精确搜索）检查是否已存在同名单元。**优先用 find_unit 而非 list_units**——后者全量拉取效率低，适用于批量浏览而非查重 |
 | R8 | MUST | **操作前确认设定**：讨论任意具体角色/设定前，先调 `graph.get_unit` 确认其 content 中的已有设定，**不得凭名称推测** |
 | R9 | MUST | **已有设计优先**：对已有完整 content 的 chapter_plan / scene 等单元执行设计操作前，先读取当前 content，确认已有设计后再基于现状微调，不得完全重新规划 |

@@ -1105,3 +1105,58 @@ class TestIntegration:
 
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ============================================================================
+# 13. 遥测归因：项目名规范化 + caller 默认值
+# ============================================================================
+
+class TestTelemetryAttribution:
+    def test_project_basename(self):
+        from novel_tool import _project_basename
+        # 纯项目名
+        assert _project_basename("凡人之诡影重重") == "凡人之诡影重重"
+        # Windows 反斜杠完整路径
+        assert _project_basename(r"C:\Users\Admin\novels\凡人之诡影重重") == "凡人之诡影重重"
+        # 正斜杠路径 + 尾斜杠
+        assert _project_basename("C:/Users/Admin/novels/凡人之诡影重重/") == "凡人之诡影重重"
+        # 空值 / 无意义值
+        assert _project_basename("") == ""
+        assert _project_basename("novels") == ""
+        assert _project_basename("graph") == ""
+
+    def test_caller_defaults_orchestrator(self, tmp_project):
+        """未传 caller/actor 时默认 orchestrator（编排层直接调 tool）。"""
+        proj_path, _ = tmp_project
+        with patch("novel_tool._record_success") as mock_record:
+            call_tool("graph.stats", project=proj_path)
+            args = mock_record.call_args.args
+            # args: (proj_name, caller, op, canonical, duration_ms, result)
+            assert args[1] == "orchestrator"
+
+    def test_caller_prefers_explicit(self, tmp_project):
+        """显式 caller 优先于 actor。"""
+        proj_path, _ = tmp_project
+        with patch("novel_tool._record_success") as mock_record:
+            call_tool("graph.stats", project=proj_path, caller="novel-v2-crafter")
+            args = mock_record.call_args.args
+            assert args[1] == "novel-v2-crafter"
+
+    def test_caller_falls_back_to_actor(self, tmp_project):
+        """无 caller 时回退 actor。"""
+        proj_path, _ = tmp_project
+        with patch("novel_tool._record_success") as mock_record:
+            call_tool("graph.stats", project=proj_path, actor="search-analysis")
+            args = mock_record.call_args.args
+            assert args[1] == "search-analysis"
+
+    def test_proj_name_is_basename(self, tmp_project):
+        """遥测记录的 project 是项目名而非完整路径（含尾斜杠路径也归一化）。"""
+        proj_path, _ = tmp_project
+        expected = os.path.basename(proj_path.rstrip(os.sep))
+        with patch("novel_tool._record_success") as mock_record:
+            call_tool("graph.stats", project=proj_path + os.sep)
+            args = mock_record.call_args.args
+            # args[0] = proj_name：应为纯项目名，不含路径分隔符
+            assert args[0] == expected
+            assert os.sep not in args[0].replace("\\", "/")

@@ -1,5 +1,7 @@
 # 会话总结流程（附录 A）
 
+**适用范围**：主 Agent 会话总结与子 Agent 调用总结使用**同一套流程**（回顾 → 生成 → 保存 → 确认，A.1-A.4），仅存储区分——主 Agent 存 `.engine/summaries/`（`record_type="main"`），子 Agent 存 `.engine/subagents/`（`record_type="subagent"`）。主 Agent 由用户触发（"记录这次会话的总结"）；子 Agent 由 T1 在每次 `task()` 返回后自动触发。以下流程两者通用，子 Agent 的回顾维度映射见 SKILL.md §1。
+
 用户说"记录这次会话的总结"/"记录总结"时，执行以下流程：
 
 ## A.1 回顾对话
@@ -39,8 +41,10 @@
 - novel-tool {操作名} × N → ...
 
 ### 子agent调用（如有）
-- {子agent类型}({焦点类型}:{焦点名称}) × N → {成功/失败/具体问题} [ses_{session_id}]
-- {子agent类型}({焦点类型}:{焦点名称}) × N → ...
+- {子agent类型}({焦点类型}:{焦点名称}) × N → {成功/失败/具体问题} → 详见 `subagents/{YYYY-MM}/{文件名}.subagent.md`
+- {子agent类型}({焦点类型}:{焦点名称}) × N → {成功/失败/具体问题} → 详见 `subagents/{YYYY-MM}/{文件名}.subagent.md`
+
+> **单一数据源**：子 Agent 调用的完整结构化总结（任务摘要/结果摘要/冲突决策/失败复盘/优化线索）由 T1 独立落盘到 `.engine/subagents/`，此处仅保留一行简引用于关联追溯，**不再内联完整摘要**（避免与 `subagent.md` 双写）。读取详情用 `summary.read(record_type="subagent")`。
 
 ### 冲突决策（如有）
 {选择题} → 用户选择 {X} → 依据：{用户给的理由或推断的理由}
@@ -99,7 +103,7 @@
 | 字段 | 可选值 | 说明 |
 |------|--------|------|
 | 类型 | `schema` / `prompt` / `handler` / `skill` / `workflow` / `tool` | 问题归属的改进维度 |
-| 严重程度 | `critical` / `medium` / `low` | 是否阻塞当前工作流 |
+| 严重程度 | `critical` / `high` / `medium` / `low` | 是否阻塞当前工作流 |
 | 组件 | 具体文件名或模块名 | 如 `graph_store.py`、`novel-v2 skill`、`handlers_graph.py` |
 | 描述 | 一句话说明问题 | 简洁、具体、可操作 |
 | 证据 | 来源说明 | 本次会话中哪个现象触发了这条线索 |
@@ -108,11 +112,23 @@
 
 ## A.3 保存总结
 
-通过 novel-tool tool 函数调用（**不要**使用 PowerShell CLI 格式）：
+通过 novel-tool tool 函数调用（**不要**使用 PowerShell CLI 格式）。保存形式按 Agent 类型区分（同一流程，`content` 都是正文，`record_type` 只决定存储路径）：
 
+**主 Agent（`record_type="main"`，存 `.engine/summaries/`）**：
 ```
 novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总结内容}", focus_type="{焦点类型}", focus_name="{焦点名称}", tags="{逗号分隔的标签}")
 ```
+
+**子 Agent（`record_type="subagent"`，存 `.engine/subagents/`）**：
+```
+novel-tool(operation="summary.save", project="{PROJECT}", record_type="subagent",
+  content="{生成的总结内容}",
+  task_id="{bg_xxx / ses_xxx}", subagent="{子agent类型}", focus_type="{焦点类型}", focus_name="{焦点名称}",
+  result="success", new_units="{新建单元数}", updated_units="{更新单元数}",
+  tags="{逗号分隔的标签}")
+```
+
+> `content` 对主/子 Agent 一视同仁（整篇 Markdown 正文）；结构化字段（`task_id`/`subagent`/`result`/`new_units`/...）是**元数据**，写入 frontmatter 供过滤与聚合分析，不参与正文组装。content 为空时子 Agent 回退用结构化字段组装分节（兼容旧调用）。
 
 **焦点字段获取规则**：
 - `focus_type`：当前操作涉及的主要叙事单元类型（如 `character_arc`、`scene`、`note`）。多焦点操作用 `multi`，纯查询无焦点用空字符串
@@ -127,9 +143,11 @@ novel-tool(operation="summary.save", project="{PROJECT}", content="{生成的总
 
 ## A.4 返回确认
 
-保存后回复用户：
+**仅主 Agent 场景执行**（用户主动请求的总结，需向用户确认）。保存后回复用户：
 ```
 ✅ 会话总结已保存（{累计条数} 条记录）
 焦点：{focus_type}:{focus_name}
 标签：{tags}
 ```
+
+**子 Agent 场景不执行本环节**：T1 在 task() 返回后自动触发，属静默保存——不回复用户、不打断创作对话。用户主动查看总结时，通过 `summary.list` / `summary.read` 汇报。

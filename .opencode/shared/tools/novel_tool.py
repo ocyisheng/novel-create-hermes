@@ -160,6 +160,7 @@ _PARAM_MAP = {
     "task_id": "task_id",
     "subagent": "subagent",
     "result": "result",
+    "record_type": "record_type",
     "preheat_level": "preheat_level",
     "humanize": "humanize",
     "prompt_summary": "prompt_summary",
@@ -169,6 +170,9 @@ _PARAM_MAP = {
     "duration_estimate_ms": "duration_estimate_ms",
     "error_summary": "error_summary",
     "user_intent": "user_intent",
+    "conflict_decision": "conflict_decision",
+    "failure_analysis": "failure_analysis",
+    "optimization_clue": "optimization_clue",
     # analyze
     "mode": "mode",
     "json_output": "json_output",
@@ -201,6 +205,9 @@ _PARAM_ALIASES = {
     "project.resume": {"name": ["project", "name"]},
     "project.switch": {"name": ["project", "name"]},
     "project.delete": {"name": ["project", "name"]},
+    # read 类操作：file 会被 _PARAM_MAP 误映射为 file_path，
+    # 需在别名层映射回 file，否则 run_operation 按注册的 file 过滤时丢失
+    "summary.read": {"file": ["file", "file_path"]},
 }
 
 

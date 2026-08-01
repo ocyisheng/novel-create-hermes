@@ -89,11 +89,6 @@ from .handlers_summary import (
     handle_read_summary,
 )
 
-from .handlers_subagent import (
-    handle_subagent_save,
-    handle_subagent_list,
-)
-
 from .handlers_analysis import (
     handle_save_analysis,
     handle_read_analysis,
@@ -341,32 +336,26 @@ OPERATION_REGISTRY = {
         "handler": handle_analyze_telemetry,
         "params": {"project_root": {}, "project": {}},
     },
-    # summary
+    # summary（统一脚本：主 Agent 会话 + 子 Agent 调用，record_type 区分，路径分流）
     "summary.save": {
         "handler": handle_save_summary,
-        "params": {"project_root": {"required": True}, "content": {"required": True},
-                    "session_id": {}, "focus_type": {}, "focus_name": {}, "tags": {}},
+        "params": {"project_root": {"required": True}, "content": {},
+                    "session_id": {}, "focus_type": {}, "focus_name": {}, "tags": {},
+                    "record_type": {},
+                    "task_id": {}, "subagent": {}, "result": {}, "preheat_level": {},
+                    "cycle_type": {}, "humanize": {}, "prompt_summary": {}, "result_summary": {},
+                    "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {},
+                    "user_intent": {}, "conflict_decision": {}, "failure_analysis": {},
+                    "optimization_clue": {}},
     },
     "summary.list": {
         "handler": handle_list_summaries,
-        "params": {"project_root": {"required": True}, "limit": {}, "tag": {}},
+        "params": {"project_root": {"required": True}, "limit": {}, "tag": {},
+                    "record_type": {}, "subagent": {}, "result": {}, "project": {}},
     },
     "summary.read": {
         "handler": handle_read_summary,
-        "params": {"project_root": {"required": True}, "file": {"required": True}},
-    },
-    # subagent
-    "subagent.save": {
-        "handler": handle_subagent_save,
-        "params": {"project_root": {}, "task_id": {}, "subagent": {}, "focus_type": {}, "focus_name": {},
-                    "preheat_level": {}, "cycle_type": {}, "humanize": {}, "session_id": {},
-                    "result": {}, "prompt_summary": {}, "result_summary": {},
-                    "new_units": {}, "updated_units": {}, "duration_estimate_ms": {}, "error_summary": {},
-                    "user_intent": {}},
-    },
-    "subagent.list": {
-        "handler": handle_subagent_list,
-        "params": {"project_root": {}, "limit": {}, "subagent": {}, "result": {}, "project": {}},
+        "params": {"project_root": {"required": True}, "file": {"required": True}, "record_type": {}},
     },
     # analysis
     "analysis.save": {

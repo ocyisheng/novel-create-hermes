@@ -4,20 +4,23 @@
 
 ## B.1 收集线索
 
-1. 调用 `novel-tool(operation="summary.list", project="{PROJECT}")` 获取全部总结索引
+1. 调用 `novel-tool(operation="summary.list", project="{PROJECT}")` 获取**主 Agent** 会话总结索引（默认只含 `record_type="main"`）
 2. 对每条索引调用 `novel-tool(operation="summary.read", project="{PROJECT}", file="{filename}")` 读取内容
-3. 从每份总结的 `### 优化线索` 段落中提取结构化线索行（格式 `[类型][严重程度] 组件：描述（证据：...）`）
-4. **记录来源文件名**：为每条提取的线索标记来源 `{filename}`，供 B.4 持久化时组装 `sources` 证据链
+3. 调用 `novel-tool(operation="summary.list", project="{PROJECT}", record_type="subagent")` 获取子 Agent 总结索引，对每条 `summary.read(record_type="subagent")` 读取内容——**子 Agent 的失败复盘与优化线索同样进聚合**（与主会话同构）
+4. 从每份总结的 `### 优化线索` 段落中提取结构化线索行（格式 `[类型][严重程度] 组件：描述（证据：...）`），主会话与子 Agent 同一提取规则
+5. **记录来源文件名**：为每条提取的线索标记来源 `{filename}`，供 B.4 持久化时组装 `sources` 证据链（子 Agent 来源为其 `.subagent.md` 文件名）
 
 ## B.1.5 路由分歧检测
 
-在同一项目的多个 summary 中，扫描 `### 意图与路由` 段落，检测同一意图类型是否走了不同路由路径：
+在同一项目的多份总结（主 Agent 的 `### 意图与路由` + 子 Agent 的 `## 用户意图`）中，检测同一意图类型是否走了不同路由路径：
 
 **判断逻辑**：
-1. 从每份 summary 提取 `用户意图`（`### 意图与路由` 段落的 `用户意图：{描述}`）和 `路由路径`（`路由路径：{分支名}`）
+1. 从每份总结提取用户意图与路由路径：
+   - 主 Agent 总结：`### 意图与路由` 段落的 `用户意图：{描述}` 与 `路由路径：{分支名}`
+   - 子 Agent 总结：`## 用户意图` 段落；路由路径取其 frontmatter/index 的 `subagent` 类型（explore / novel-v2-crafter / novel-ideation / novel-search-analysis）
 2. 对用户意图做模糊归类（按关键词分组，如含"检查"/"找找"归为搜索类，含"写第"/"写作"归为创作类）
-3. 同一类意图在不同 summary 中走了不同路由路径 → 标记为 `[workflow][auto] 路由分歧`
-4. 同一意图在不同 summary 中走了相同路径但结果不一致 → 标记为 `[workflow][auto] 执行不一致`
+3. 同一类意图在不同总结中走了不同路由路径 → 标记为 `[workflow][auto] 路由分歧`
+4. 同一意图在不同总结中走了相同路径但结果不一致 → 标记为 `[workflow][auto] 执行不一致`
 
 **自动生成的线索格式**：
 

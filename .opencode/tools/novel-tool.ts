@@ -336,9 +336,6 @@ export default tool({
         // summary
         "summary.save", "summary.list", "summary.read",
 
-        // subagent
-        "subagent.save", "subagent.list",
-
         // analysis
         "analysis.save", "analysis.read", "analysis.list",
 
@@ -388,7 +385,7 @@ export default tool({
     focus_type: tool.schema.string().optional().describe("会话焦点类型 (scene/character_arc 等)"),
     focus_name: tool.schema.string().optional().describe("焦点名称（单元名，如 第53章 / 韩致；多焦点用 multi）"),
     session_id: tool.schema.string().optional().describe("关联的创作 session ID（如 ses_xxx）"),
-    user_intent: tool.schema.string().optional().describe("用户原始输入摘要（subagent.save 用，路由分歧检测）"),
+    user_intent: tool.schema.string().optional().describe("用户原始输入摘要（summary.save record_type=subagent 用，路由分歧检测）"),
     mode: tool.schema.string().optional().describe("analyze.usage 模式 (quick/full，默认 full)"),
     json_output: tool.schema.boolean().optional().describe("analyze.usage 是否输出 JSON（默认 false）"),
     task_id: tool.schema.string().optional().describe("子 Agent 任务 ID（如 bg_xxx / ses_xxx）"),

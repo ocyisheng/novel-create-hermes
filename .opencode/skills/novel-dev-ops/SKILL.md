@@ -31,7 +31,7 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 ## §1 遥测记录（规则 T1）
 
-**每次 `task()` 返回后**，编排层自动执行**会话总结流程**——与 §3 A.1-A.4 完全一致（回顾 → 生成结构化总结 → 保存 → 确认），同一套 summary 脚本，仅存储区分（`record_type="subagent"`，路径 `subagents/`）：
+**主动发现`task()` 返回后**，执行**会话总结流程**——与 §3 A.1-A.4 完全一致（回顾 → 生成结构化总结 → 保存 → 确认），同一套 summary 脚本，仅存储区分（`record_type="subagent"`，路径 `subagents/`）：
 
 ```
 收到 task() 返回（同步结果 / background_output(id=bg_xxx)）

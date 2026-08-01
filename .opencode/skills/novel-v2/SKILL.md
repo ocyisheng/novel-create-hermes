@@ -64,6 +64,8 @@ SUBTYPE: {章节类型}  # 各类型对应的子类型值
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
+CYCLE TYPE: ideation | expansion | refinement | proofing | planning  # 活跃会话的循环类型（可空）
+SESSION ID: {session_id}  # 活跃会话 ID（可空）。已注入则 crafter 不得重复 session.start（会话归编排层拥有）
 ```
 
 ---
@@ -118,9 +120,11 @@ novel-tool(operation="web.start", project="{PROJECT}")
 
 ### 2. 写入 graph 数据
 
+**会话归因**：prompt 注入了 `SESSION ID`（活跃会话中）时，所有写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`，确保事件溯源归因到会话（供遥测/偏差分析）。会话由编排层开启与拥有，执行者不 `session.start`/`session.end`。
+
 ```
 # 创建叙事单元
-novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="{单元名}", content="{内容}", tags="标签1,标签2", chapter=3)
+novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="{单元名}", content="{内容}", tags="标签1,标签2", chapter=3, session_id="{SESSION_ID}")
 
 # 更新叙事单元（内容 / 名称 / 标签）
 novel-tool(operation="graph.update_unit", project="{PROJECT}", id="{单元ID}", content="{新内容JSON}")
@@ -154,9 +158,20 @@ novel-tool(operation="graph.archive_unit", project="{PROJECT}", id="{单元ID}")
 
 ### 3. 会话管理
 
+**会话由编排层（novel-writer）开启与拥有**：编排层调度 crafter 时通过 `SESSION ID` 注入活跃会话，执行者直接消费，不得重复 `session.start`。
+
 ```
-# 启动创作会话
+# 查询当前会话状态（返回 preheat/cycle_type/session_id/updated_at/focus 等）
+novel-tool(operation="session.info", project="{PROJECT}")
+
+# 启动创作会话（仅编排层使用，或 SESSION ID 为空时兜底）
 novel-tool(operation="session.start", project="{PROJECT}", focus_type="SCENE", id="{单元ID}")
+
+# 设置循环类型（编排层写后回写：expansion/refinement/proofing/planning/ideation）
+novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="expansion")
+
+# 设置会话阶段（ASSESS/EXECUTE/REVIEW/SETTLE）
+novel-tool(operation="session.set_phase", project="{PROJECT}", phase="EXECUTE")
 
 # 构建工作空间上下文
 novel-tool(operation="session.build_workspace", project="{PROJECT}", id="{焦点单元ID}", level="warm")

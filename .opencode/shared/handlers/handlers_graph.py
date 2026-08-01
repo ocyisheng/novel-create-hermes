@@ -530,6 +530,7 @@ def handle_recent_events(project_root: str, limit: int = 10) -> dict:
             {
                 "timestamp": str(e.timestamp), "actor": e.actor,
                 "event_type": e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type),
+                "session_id": getattr(e, "session_id", None),
             }
             for e in events
         ],
@@ -546,6 +547,7 @@ def handle_create_unit(
     chapter: Optional[int] = None,
     actor: str = "orchestrator",
     parent_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> dict:
     """创建叙事单元。"""
     blocked = _check_orchestrator_write(actor, "graph.create_unit")
@@ -570,26 +572,31 @@ def handle_create_unit(
         chapter = _auto_detect_chapter(content or "", name)
 
     store = _get_store(project_root)
+    store.set_session_context(session_id)
     try:
-        u = store.create_unit(
-            type=ut, unit_name=name, content=content,
-            tags=tags_list, chapter_number=chapter,
-            parent_id=parent_id, actor=actor,
-        )
-    except ValueError as e:
-        return {
-            "error": f"创建叙事单元失败: {e}",
-            "hint": f"请检查 content JSON 是否包含 {ut.value} 类型的所有必填字段。"
-                    f"使用 novel-tool(operation=\"graph.schema_info\", unit_type=\"{unit_type}\") 查看字段要求。",
-        }
+        try:
+            u = store.create_unit(
+                type=ut, unit_name=name, content=content,
+                tags=tags_list, chapter_number=chapter,
+                parent_id=parent_id, actor=actor,
+                session_id=session_id,
+            )
+        except ValueError as e:
+            return {
+                "error": f"创建叙事单元失败: {e}",
+                "hint": f"请检查 content JSON 是否包含 {ut.value} 类型的所有必填字段。"
+                        f"使用 novel-tool(operation=\"graph.schema_info\", unit_type=\"{unit_type}\") 查看字段要求。",
+            }
 
-    inferrer = RelationInferrer(store)
-    created = inferrer.infer_on_create(u)
+        inferrer = RelationInferrer(store)
+        created = inferrer.infer_on_create(u)
 
-    # 事件抽取：从 content 自动提取并创建 TEMPORAL_EVENT
-    temporal_count = _run_event_extractor(store, u, actor=actor)
+        # 事件抽取：从 content 自动提取并创建 TEMPORAL_EVENT
+        temporal_count = _run_event_extractor(store, u, actor=actor)
 
-    store.flush()
+        store.flush()
+    finally:
+        store.clear_session_context()
 
     schema_errors = _validate_content_schema(ut, content)
 
@@ -614,6 +621,7 @@ def handle_update_unit(
     tags: Optional[str] = None,
     status: Optional[str] = None,
     actor: str = "orchestrator",
+    session_id: Optional[str] = None,
 ) -> dict:
     """更新叙事单元。"""
     blocked = _check_orchestrator_write(actor, "graph.update_unit")
@@ -633,28 +641,32 @@ def handle_update_unit(
     status_obj = UnitStatus[status.upper()] if status else None
 
     store = _get_store(project_root)
+    store.set_session_context(session_id)
+    try:
+        # 预读取旧单元，判断内容是否有实际变更
+        old_unit = store.get_unit(id)
+        old_content = old_unit.content if old_unit else None
+        content_changed = (content is not None and content != old_content)
 
-    # 预读取旧单元，判断内容是否有实际变更
-    old_unit = store.get_unit(id)
-    old_content = old_unit.content if old_unit else None
-    content_changed = (content is not None and content != old_content)
+        u = store.update_unit(
+            unit_id=id, content=content,
+            unit_name=name if name else None,
+            tags=tags_list, status=status_obj, actor=actor,
+            session_id=session_id,
+        )
+        if not u:
+            return {"error": "更新失败：叙事单元不存在"}
 
-    u = store.update_unit(
-        unit_id=id, content=content,
-        unit_name=name if name else None,
-        tags=tags_list, status=status_obj, actor=actor,
-    )
-    if not u:
-        return {"error": "更新失败：叙事单元不存在"}
-
-    # 仅在内容实际变更时才运行关系推断和事件抽取（避免 O(n) 全量扫描）
-    created = 0
-    temporal_count = 0
-    if content_changed:
-        inferrer = RelationInferrer(store)
-        created = inferrer.infer_on_create(u)
-        temporal_count = _run_event_extractor(store, u, actor=actor, old_content=old_content)
-    store.flush()
+        # 仅在内容实际变更时才运行关系推断和事件抽取（避免 O(n) 全量扫描）
+        created = 0
+        temporal_count = 0
+        if content_changed:
+            inferrer = RelationInferrer(store)
+            created = inferrer.infer_on_create(u)
+            temporal_count = _run_event_extractor(store, u, actor=actor, old_content=old_content)
+        store.flush()
+    finally:
+        store.clear_session_context()
 
     schema_errors = _validate_content_schema(u.type, content) if content else []
 
@@ -742,6 +754,7 @@ def handle_add_relation(
     bidirectional: bool = False,
     label: str = "",
     actor: str = "orchestrator",
+    session_id: Optional[str] = None,
 ) -> dict:
     """建立关系。"""
     blocked = _check_orchestrator_write(actor, "graph.add_relation")
@@ -751,19 +764,23 @@ def handle_add_relation(
     rtype, fallback_label = _resolve_rel_type(rel_type)
     effective_label = label or fallback_label
     store = _get_store(project_root)
-    rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label)
-    if not rel:
-        return {"error": "关系建立失败"}
-    result = {"id": rel.id, "type": rtype.value}
-    if effective_label:
-        result["label"] = effective_label
-    if bidirectional:
-        inv = rtype.inverse
-        inv_label = effective_label  # 反向关系携带相同语义标签
-        inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label)
-        if inv_rel:
-            result["inverse_id"] = inv_rel.id
-    store.flush()
+    store.set_session_context(session_id)
+    try:
+        rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label, session_id=session_id)
+        if not rel:
+            return {"error": "关系建立失败"}
+        result = {"id": rel.id, "type": rtype.value}
+        if effective_label:
+            result["label"] = effective_label
+        if bidirectional:
+            inv = rtype.inverse
+            inv_label = effective_label  # 反向关系携带相同语义标签
+            inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label, session_id=session_id)
+            if inv_rel:
+                result["inverse_id"] = inv_rel.id
+        store.flush()
+    finally:
+        store.clear_session_context()
     return result
 
 

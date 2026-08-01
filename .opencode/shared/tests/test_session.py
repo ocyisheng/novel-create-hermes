@@ -11,6 +11,7 @@ import time
 V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "v2"))
 sys.path.insert(0, V2_DIR)
 
+from conftest import call_tool, assert_success
 from graph_schema import UnitType, UnitStatus, RelationType
 from graph_store import GraphStore
 from session import (
@@ -147,7 +148,11 @@ def test_intention_management():
 
 
 def test_user_state_persistence():
-    """测试用户状态持久化"""
+    """测试用户状态持久化（写 7 字段 → 读 7 字段，全对称）
+
+    修复前只断言 3 个字段（恰好是 load_user_state 恢复的那 3 个），
+    精确掩盖了"写 7 读 3"的半持久化不对称。
+    """
     print("  [test] 状态持久化...", end="")
     
     import tempfile
@@ -157,6 +162,10 @@ def test_user_state_persistence():
         mgr.user_state.recent_writing_days_last_7 = 4
         mgr.user_state.avg_session_minutes = 30
         mgr.user_state.current_cycle = 3
+        mgr.user_state.current_cycle_type = CycleType.REFINEMENT
+        mgr.user_state.focus = FocusTarget(type=UnitType.SCENE, unit_id="sc_001")
+        mgr.user_state.add_intention("想在第5章埋一把剑的伏笔")
+        mgr.user_state.active_session_id = "ses_abcdef123456"
         
         mgr.save_user_state()
         
@@ -167,10 +176,171 @@ def test_user_state_persistence():
         assert mgr2.user_state.recent_writing_days_last_7 == 4
         assert mgr2.user_state.avg_session_minutes == 30
         assert mgr2.user_state.current_cycle == 3
+        # 修复后：僵尸字段全部读回
+        assert mgr2.user_state.current_cycle_type == CycleType.REFINEMENT
+        assert mgr2.user_state.focus is not None
+        assert mgr2.user_state.focus.unit_id == "sc_001"
+        assert len(mgr2.user_state.expressed_intentions) == 1
+        assert mgr2.user_state.expressed_intentions[0]["intention"] == "想在第5章埋一把剑的伏笔"
+        assert mgr2.user_state.active_session_id == "ses_abcdef123456"
         
     finally:
         shutil.rmtree(tmpdir)
     
+    print(" PASS")
+
+
+def test_writing_session_serialization_roundtrip():
+    """WritingSession to_json/from_json 往返对称"""
+    print("  [test] 会话序列化往返...", end="")
+    import tempfile
+    tmpdir = tempfile.mkdtemp(prefix="v2_test_")
+    try:
+        mgr = SessionManager(tmpdir)
+        s = mgr.start_session(UnitType.SCENE, "sc_001", cycle_type=CycleType.EXPANSION)
+        action = s.start_action("write", "scene", "sc_001")
+        s.end_action(action, tokens=500, notes="写了第一个场景")
+        s.output_text = "正文内容"
+        s.new_unit_ids = ["u_001"]
+        s.new_relation_ids = ["r_001"]
+        s.cycle_number = 3
+
+        restored = WritingSession.from_json(s.to_json())
+        assert restored.id == s.id
+        assert restored.status == s.status
+        assert restored.phase == s.phase
+        assert restored.focus == s.focus
+        assert restored.cycle_type == s.cycle_type
+        assert restored.cycle_number == 3
+        assert restored.created_at == s.created_at
+        assert restored.updated_at == s.updated_at
+        assert restored.loaded_unit_ids == s.loaded_unit_ids
+        assert len(restored.timeline) == 1
+        assert restored.timeline[0].action == "write"
+        assert restored.timeline[0].tokens_generated == 500
+        assert restored.timeline[0].started_at == action.started_at
+        assert restored.output_text == "正文内容"
+        assert restored.new_unit_ids == ["u_001"]
+        assert restored.new_relation_ids == ["r_001"]
+    finally:
+        shutil.rmtree(tmpdir)
+    print(" PASS")
+
+
+def test_active_session_persists_across_managers():
+    """活跃会话跨 SessionManager 实例恢复（session.json 快照）"""
+    print("  [test] 活跃会话跨实例恢复...", end="")
+    import tempfile
+    tmpdir = tempfile.mkdtemp(prefix="v2_test_")
+    try:
+        mgr1 = SessionManager(tmpdir)
+        s1 = mgr1.start_session(UnitType.SCENE, "sc_001", cycle_type=CycleType.EXPANSION)
+        mgr1.save_user_state()
+
+        # 全新实例（模拟下一次 handler 调用）
+        mgr2 = SessionManager(tmpdir)
+        mgr2.load_user_state()
+        assert mgr2.active_session is not None
+        assert mgr2.active_session.id == s1.id
+        assert mgr2.active_session.focus.unit_id == "sc_001"
+        assert mgr2.user_state.active_session_id == s1.id
+        assert mgr2.user_state.focus.unit_id == "sc_001"
+
+        # 快照文件存在
+        snapshot = os.path.join(tmpdir, ".omo", "session.json")
+        assert os.path.exists(snapshot)
+
+        # end_session 清理快照
+        mgr2.end_session()
+        assert not os.path.exists(snapshot)
+    finally:
+        shutil.rmtree(tmpdir)
+    print(" PASS")
+
+
+def test_session_cross_call_persistence(tmp_project):
+    """跨独立调用持久化：模拟编排层真实流程（每次 handler 调用 = 全新 SessionManager）。
+
+    修复前：start 后新调用 info/set_cycle/set_phase 全部失败——
+    session 状态根本不跨调用持久化（'没有活跃会话'）。
+    """
+    print("  [test] 跨调用持久化（start→新调用→info/set_cycle）...", end="")
+    proj_path, _store = tmp_project
+
+    # A1. session.start（独立调用 #1）
+    r1 = call_tool("session.start", project=proj_path, focus_type="SCENE", id="sc_test001")
+    assert_success(r1)
+    session_id = r1["data"]["session_id"]
+    assert session_id.startswith("ses_")
+
+    # A2. session.info（独立调用 #2 —— 全新 SessionManager）
+    r2 = call_tool("session.info", project=proj_path)
+    assert_success(r2)
+    assert r2["data"]["has_session"] is True
+    assert r2["data"]["session_id"] == session_id
+    assert r2["data"]["updated_at"] is not None
+
+    # A3. session.set_cycle（独立调用 #3）
+    r3 = call_tool("session.set_cycle", project=proj_path, cycle_type="refinement")
+    assert_success(r3)
+    assert r3["data"]["cycle_type"] == "refinement"
+
+    # A4. session.set_phase（独立调用 #4）
+    r4 = call_tool("session.set_phase", project=proj_path, phase="execute")
+    assert_success(r4)
+    assert r4["data"]["phase"] == "execute"
+
+    # A5. 状态确实持久化（再次 info 读到 cycle_type/phase）
+    r5 = call_tool("session.info", project=proj_path)
+    assert_success(r5)
+    assert r5["data"]["has_session"] is True
+    assert r5["data"]["cycle_type"] == "refinement"
+    assert r5["data"]["session_phase"] == "execute"
+
+    # A6. user_state.yaml 中 cycle_type/active_session_id 已写入（不再只写 3 字段）
+    import yaml
+    with open(os.path.join(proj_path, ".omo", "user_state.yaml"), encoding="utf-8") as f:
+        y = yaml.safe_load(f)
+    assert y["current_cycle_type"] == "refinement"
+    assert y["active_session_id"] == session_id
+
+    print(" PASS")
+
+
+def test_session_id_flows_to_graph_events(tmp_project):
+    """session_id 贯穿 graph 写操作 → 事件归因（遥测链 session 分组的数据基础）"""
+    print("  [test] session_id 贯穿写链路...", end="")
+    proj_path, _store = tmp_project
+    sid = "ses_testchain1234"
+
+    r = call_tool("graph.create_unit", project=proj_path, unit_type="SCENE",
+                  name="测试场景", content='{"synopsis":"测试"}',
+                  actor="novel-v2-crafter", session_id=sid)
+    assert_success(r)
+    scene_id = r["data"]["id"]
+
+    r2 = call_tool("graph.create_unit", project=proj_path, unit_type="CHARACTER_ARC",
+                   name="测试角色", content='{"角色":"主角"}',
+                   actor="novel-v2-crafter", session_id=sid)
+    assert_success(r2)
+    char_id = r2["data"]["id"]
+
+    r3 = call_tool("graph.update_unit", project=proj_path, id=scene_id,
+                   content='{"synopsis":"测试2"}', actor="novel-v2-crafter", session_id=sid)
+    assert_success(r3)
+
+    r4 = call_tool("graph.add_relation", project=proj_path, source=char_id, target=scene_id,
+                   rel_type="participates_in", actor="novel-v2-crafter", session_id=sid)
+    assert_success(r4)
+
+    r5 = call_tool("graph.recent_events", project=proj_path, limit=10)
+    assert_success(r5)
+    events = r5["data"]["events"]
+    write_events = [e for e in events
+                    if e["event_type"] in ("unit_created", "unit_updated", "relation_added")]
+    assert len(write_events) >= 4, f"expected >=4 write events, got {len(write_events)}"
+    assert all(e.get("session_id") == sid for e in write_events)
+
     print(" PASS")
 
 
@@ -338,6 +508,10 @@ def run_all_tests():
         test_focus_shift,
         test_intention_management,
         test_user_state_persistence,
+        test_writing_session_serialization_roundtrip,
+        test_active_session_persists_across_managers,
+        test_session_cross_call_persistence,
+        test_session_id_flows_to_graph_events,
         test_workspace_builder_with_store,
         test_workspace_with_character_focus,
         test_preheat_recommendation,

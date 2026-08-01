@@ -180,6 +180,7 @@ class UserState:
                 {k: v for k, v in i.items() if k != "resolved"}
                 for i in self.expressed_intentions if not i.get("resolved")
             ],
+            "active_session_id": self.active_session_id,
         }
 
     def to_yaml_persistable(self) -> str:
@@ -285,6 +286,57 @@ class WritingSession:
             "new_unit_ids": self.new_unit_ids,
         }
 
+    def to_json(self) -> dict:
+        """序列化为可持久化的 dict（与 from_json 对称，供 .omo/session.json 快照）。"""
+        return {
+            "id": self.id,
+            "status": self.status.value,
+            "phase": self.phase.value,
+            "focus": self.focus.to_dict() if self.focus else None,
+            "cycle_type": self.cycle_type.value,
+            "cycle_number": self.cycle_number,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "loaded_unit_ids": self.loaded_unit_ids,
+            "timeline": [a.to_dict() for a in self.timeline],
+            "output_text": self.output_text,
+            "new_unit_ids": self.new_unit_ids,
+            "new_relation_ids": self.new_relation_ids,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "WritingSession":
+        """从 to_json() 的 dict 恢复会话对象（反序列化 .omo/session.json）。"""
+        s = cls(id=data["id"])
+        s.status = SessionStatus(data["status"])
+        s.phase = SessionPhase(data["phase"])
+        if data.get("focus"):
+            f = data["focus"]
+            s.focus = FocusTarget(
+                type=UnitType[f["type"].upper()],
+                unit_id=f["unit_id"],
+                sub_target=f.get("sub_target"),
+            )
+        s.cycle_type = CycleType(data["cycle_type"])
+        s.cycle_number = data.get("cycle_number", 1)
+        s.created_at = datetime.fromisoformat(data["created_at"])
+        s.updated_at = datetime.fromisoformat(data["updated_at"])
+        s.loaded_unit_ids = data.get("loaded_unit_ids", [])
+        s.timeline = [
+            SessionAction(
+                **{
+                    **a,
+                    "started_at": datetime.fromisoformat(a["started_at"]),
+                    "ended_at": datetime.fromisoformat(a["ended_at"]) if a.get("ended_at") else None,
+                }
+            )
+            for a in data.get("timeline", [])
+        ]
+        s.output_text = data.get("output_text", "")
+        s.new_unit_ids = data.get("new_unit_ids", [])
+        s.new_relation_ids = data.get("new_relation_ids", [])
+        return s
+
 
 # ── 会话管理器 ────────────────────────────────────────────────────────────
 
@@ -347,6 +399,7 @@ class SessionManager:
 
         self._trigger_hooks("session_end", self.active_session)
         self.active_session = None
+        self._remove_session_snapshot()
 
     def pause_session(self):
         """暂停当前会话"""
@@ -469,28 +522,97 @@ class SessionManager:
     # ── 持久化 ───────────────────────────────────────────────────────────
 
     def save_user_state(self):
-        """将用户状态写入 .omo/user_state.yaml"""
+        """将用户状态写入 .omo/user_state.yaml；活跃会话快照原子写入 .omo/session.json。
+
+        修复半持久化不对称：写 7 字段 → 读 7 字段（focus/cycle_type/energy/
+        intentions/active_session_id 全部可恢复，energy 重新推断）。
+        session.json 采用临时文件 + rename 原子写，与 GraphStore 写 JSONL 同机制——
+        多章并行写时串行排队，杜绝半写文件。
+        """
         state_dir = self.project_root / ".omo"
         state_dir.mkdir(parents=True, exist_ok=True)
         state_path = state_dir / "user_state.yaml"
         with open(state_path, "w", encoding="utf-8") as f:
             f.write(self.user_state.to_yaml_persistable())
 
+        if self.active_session:
+            self._write_session_snapshot()
+        else:
+            self._remove_session_snapshot()
+
     def load_user_state(self):
-        """从 .omo/user_state.yaml 加载用户状态"""
+        """从 .omo/user_state.yaml 加载用户状态；从 .omo/session.json 恢复活跃会话。"""
         state_path = self.project_root / ".omo" / "user_state.yaml"
         if not state_path.exists():
+            # YAML 缺失时仍尝试恢复会话快照（快照独立于用户状态）
+            self._load_session_snapshot()
             return
         import yaml
         with open(state_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if data:
-            if data.get("recent_writing_days_last_7"):
+            if data.get("recent_writing_days_last_7") is not None:
                 self.user_state.recent_writing_days_last_7 = data["recent_writing_days_last_7"]
-            if data.get("avg_session_minutes"):
+            if data.get("avg_session_minutes") is not None:
                 self.user_state.avg_session_minutes = data["avg_session_minutes"]
-            if data.get("current_cycle"):
+            if data.get("current_cycle") is not None:
                 self.user_state.current_cycle = data["current_cycle"]
+            if data.get("current_cycle_type"):
+                self.user_state.current_cycle_type = CycleType(data["current_cycle_type"])
+            if data.get("expressed_intentions"):
+                self.user_state.expressed_intentions = data["expressed_intentions"]
+            if data.get("focus"):
+                f = data["focus"]
+                self.user_state.focus = FocusTarget(
+                    type=UnitType[f["type"].upper()],
+                    unit_id=f["unit_id"],
+                    sub_target=f.get("sub_target"),
+                )
+            if data.get("active_session_id"):
+                self.user_state.active_session_id = data["active_session_id"]
+        # 恢复活跃会话（session.json 为准，覆盖 YAML 中的指针）
+        self._load_session_snapshot()
+
+    def _write_session_snapshot(self):
+        """原子写入活跃会话快照到 .omo/session.json（临时文件 + rename）。"""
+        state_dir = self.project_root / ".omo"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        session_path = state_dir / "session.json"
+        tmp = session_path.with_suffix(".json.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self.active_session.to_json(), f, ensure_ascii=False, indent=2)
+            tmp.replace(session_path)
+        except Exception:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            raise
+
+    def _remove_session_snapshot(self):
+        """清理 .omo/session.json（会话结束/归档时）。"""
+        session_path = self.project_root / ".omo" / "session.json"
+        if session_path.exists():
+            session_path.unlink(missing_ok=True)
+
+    def _load_session_snapshot(self):
+        """从 .omo/session.json 恢复活跃会话（跨调用持久化的关键）。
+
+        快照损坏/字段缺失时降级为无会话并清理快照，不阻塞主流程。
+        """
+        session_path = self.project_root / ".omo" / "session.json"
+        if not session_path.exists():
+            return
+        try:
+            with open(session_path, "r", encoding="utf-8") as f:
+                sess_data = json.load(f)
+            if sess_data.get("id"):
+                self.active_session = WritingSession.from_json(sess_data)
+                self.user_state.active_session_id = sess_data["id"]
+                if self.active_session.focus:
+                    self.user_state.focus = self.active_session.focus
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+            self.active_session = None
+            self._remove_session_snapshot()
 
     # ── 统计 ─────────────────────────────────────────────────────────────
 
@@ -519,3 +641,6 @@ class SessionManager:
         ):
             self.active_session.complete()
             self._session_history.append(self.active_session)
+        if self.active_session:
+            # 旧会话归档后清理快照（新会话会重新写入）
+            self._remove_session_snapshot()

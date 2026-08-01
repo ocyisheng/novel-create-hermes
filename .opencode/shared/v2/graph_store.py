@@ -119,6 +119,10 @@ class GraphStore:
         # post_flush 回调链（约束引擎等通过此钩子注册）
         self._post_flush_hooks: List[Callable[["GraphStore"], None]] = []
         
+        # 会话上下文：一次 handler 写操作链（create→推断→抽取）内所有事件
+        # 继承该 session_id（遥测归因）。由 handler 层 set/clear，finally 清理。
+        self._session_context: Optional[str] = None
+        
         # 是否已初始化
         self._initialized = False
     
@@ -475,7 +479,13 @@ class GraphStore:
         session_id: Optional[str] = None,
         parent_event_id: Optional[str] = None,
     ) -> Event:
-        """记录一条事件"""
+        """记录一条事件
+
+        未显式传 session_id 时，回退到本 store 的 _session_context
+        （一次 handler 写操作链内的推断/抽取事件自动继承发起会话的归因）。
+        """
+        if session_id is None:
+            session_id = self._session_context
         event = Event(
             event_id=create_event_id(),
             timestamp=datetime.now(timezone.utc),
@@ -490,6 +500,18 @@ class GraphStore:
         self._events.append(event)
         self._dirty_events = True
         return event
+
+    def set_session_context(self, session_id: Optional[str]):
+        """设置会话上下文：本次写操作链内所有事件继承该 session_id。
+
+        调用方（handler 层）必须在操作完成后 finally 调用 clear_session_context()，
+        防止 daemon 模式下缓存 store 的上下文泄漏到后续请求。
+        """
+        self._session_context = session_id
+
+    def clear_session_context(self):
+        """清理会话上下文。"""
+        self._session_context = None
     
     # ── 叙事单元操作 ────────────────────────────────────────────────────
     
@@ -506,6 +528,7 @@ class GraphStore:
         structure_path: Optional[List[Any]] = None,
         parent_id: Optional[str] = None,
         chapter_number: Optional[int] = None,
+        session_id: Optional[str] = None,
     ) -> NarrativeUnit:
         """创建一个新的叙事单元
         
@@ -513,6 +536,7 @@ class GraphStore:
             parent_id: 可选的父级单元 ID。若提供且有效，自动创建
                        parent_id CONTAINS 新单元关系。
             chapter_number: 精确章节号（CONTAINS 边关系下的真实标号）。
+            session_id: 关联的创作会话 ID（遥测归因，写入事件）。
         """
         # 校验 content 结构（如果是 JSON）— 必填字段缺失直接拒绝
         try:
@@ -564,6 +588,7 @@ class GraphStore:
                 description=f"create_unit with parent_id={parent_id}",
                 actor=actor,
                 record_event=True,
+                session_id=session_id,
             )
         
         # 自动同步 content 时间字段 → extra.time（让 TimelineLedger / Matcher 能读到标准化时间）
@@ -576,6 +601,7 @@ class GraphStore:
             target_type="unit",
             target_ids=[unit.id],
             payload={"type": type.value, "name": unit_name},
+            session_id=session_id,
         )
         self._dirty_nodes = True
         self._dirty_unit_ids.add(unit.id)
@@ -632,8 +658,13 @@ class GraphStore:
         unit_name: Optional[str] = None,
         actor: str = "script",
         structure_path: Optional[List[Any]] = None,
+        session_id: Optional[str] = None,
     ) -> Optional[NarrativeUnit]:
-        """更新叙事单元（仅修改提供的字段）"""
+        """更新叙事单元（仅修改提供的字段）
+
+        Args:
+            session_id: 关联的创作会话 ID（遥测归因，写入事件）。
+        """
         unit = self._units.get(unit_id)
         if not unit:
             return None
@@ -697,6 +728,7 @@ class GraphStore:
             target_type="unit",
             target_ids=[unit_id],
             payload={"changed_fields": list(changed_fields.keys())},
+            session_id=session_id,
         )
         self._dirty_nodes = True
         self._dirty_unit_ids.add(unit_id)
@@ -880,8 +912,13 @@ class GraphStore:
         label: str = "",
         actor: str = "script",
         record_event: bool = True,
+        session_id: Optional[str] = None,
     ) -> Optional[Relation]:
-        """在两个叙事单元之间建立关系"""
+        """在两个叙事单元之间建立关系
+
+        Args:
+            session_id: 关联的创作会话 ID（遥测归因，写入事件）。
+        """
         if source_id not in self._units or target_id not in self._units:
             return None
         
@@ -921,6 +958,7 @@ class GraphStore:
                     "relation_type": relation_type.value,
                     "relations_affected": [rel.id],
                 },
+                session_id=session_id,
             )
         self._dirty_edges = True
         self._dirty_relation_ids.add(rel.id)

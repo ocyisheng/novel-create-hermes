@@ -76,11 +76,16 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
   │   ├─ grill/ideation 后 → 用户确认方向 → 按 §3.6 后续路由调度 crafter
   │   └─ 用户拒绝方案 → 结束，等待新指令
   ├─ V2 创作动作（章节/角色/世界观/情节/总纲/大纲/编辑/质检/导出/灵感）? 
-  │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id）
+  │   ├─ 先调 session.info 获取当前会话状态（preheat/cycle_type/session_id/updated_at）
   │   │   `novel-tool(operation="session.info", project="{PROJECT}")`
-  │   │   ├─ 有活跃会话 → preheat 来自 SessionManager.recommend_preheat_level()
-  │   │   │    （综合判断 cycle_type / 焦点类型 / 精力水平 / 循环次数）
-  │   │   └─ 无活跃会话 → preheat 用路由表默认值
+  │   │   ├─ 有活跃会话 →
+  │   │   │   ├─ `updated_at` 距今 **> 24h** → 视为**新会话**：不延续旧会话，
+  │   │   │   │   调度 crafter 走新会话流程（crafter 重新 `session.start` 会经
+  │   │   │   │   `_save_current_session_if_active` 自动归档旧会话，无需显式 end）
+  │   │   │   └─ `updated_at` 距今 **≤ 24h** → 延续会话：preheat 来自
+  │   │   │       session.info 返回的 preheat（代码层 recommend_preheat_level()
+  │   │   │       综合判断 cycle_type / 焦点类型 / 精力水平 / 循环次数）
+  │   │   └─ 无活跃会话 → preheat 用路由表兜底值（§3.2「兜底预热（仅无活跃会话）」列）
   │   ├─ 判断是否需要主动注入六维冲突设计（见 §3.7 自动注入判断表）
   │   │   ├─ 需要注入 → load_skills 追加 "novel-six-dimensions" + 注入对应维度参考
   │   │   └─ 不需要 → 正常调度
@@ -169,24 +174,24 @@ skill("novel-grill", user_message="{grill_focus_type}:{FOCUS NAME}")
 - 场景（SCENE）设计单个场域：时间×地点×POV 叙事切片
 - 正文（CHUNK）写出实际文字：关联到所属场景
 
-创作操作按用户意图映射到焦点类型：
+创作操作按用户意图映射到焦点类型。**预热级别**：有活跃会话时一律以 `session.info` 返回的 `preheat` 为准（由代码层 `recommend_preheat_level()` 综合 cycle_type/焦点类型/精力/循环次数计算，见 §二主循环）；下表「兜底预热」列仅作为**无活跃会话**时的默认值：
 
-| 用户意图 | 焦点类型 | 预热级别(默认) | 推荐前置 grill | 备注 |
+| 用户意图 | 焦点类型 | 兜底预热（仅无活跃会话） | 推荐前置 grill | 备注 |
 |----------|---------|---------------|---------------|------|
-| 章纲/分纲（规划整章骨架） | chapter_plan | session推荐/warm | ✅ 模糊时推荐 | 本章功能=开篇/推进/冲突/转折/展示/过渡/收束，定场景序列/节奏密度/字数分配 |
-| 设计场域（规划单个叙事切片） | scene | session推荐/warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
-| 写第N章正文（写出实际文字） | chunk | session.info preheat | ❌ chunk 跳过 | 新写→preheat=warm, 子类型=v1；精修→preheat=hot, 子类型递增。意象/闲笔单元是写后对表工具，编排层不在 task prompt 中逐条注入其内容 |
-| 创建/编辑角色 | character_arc | session推荐/warm | ✅ 模糊时推荐 | |
-| 世界观设定 | world_rule | session推荐/warm | ✅ 模糊时推荐 | |
-| 情节/伏笔设计 | plot_thread | session推荐/warm | ✅ 模糊时推荐 | |
-| 总纲 | outline | session推荐/warm | ✅ 模糊时推荐 | 模式选择=沙漏/长链/螺旋/环状/多线交织，七面观照生成全书结构 |
-| 部大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 命名规范=部，设计部弧线/跨卷节奏 |
-| 篇大纲 | arc_plan | session推荐/warm | ✅ 模糊时推荐 | 命名规范=篇，设计篇弧线/跨卷节奏 |
-| 卷大纲 | volume_plan | session推荐/warm | ✅ 模糊时推荐 | 卷号=分类，设计卷弧线/节奏密度/过渡 |
-| 叙述腔调设计 | narrative_voice | session推荐/warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
-| 主题意象设计 | thematic_motif | session推荐/warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
-| 编辑修改 | 根据目标类型推断 | session推荐/warm | ✅ 仅模糊修改请求 | |
-| 记录灵感 | note | session推荐/cold | ❌ | |
+| 章纲/分纲（规划整章骨架） | chapter_plan | warm | ✅ 模糊时推荐 | 本章功能=开篇/推进/冲突/转折/展示/过渡/收束，定场景序列/节奏密度/字数分配 |
+| 设计场域（规划单个叙事切片） | scene | warm | ✅ 模糊时推荐 | 子类型=开篇/推进/冲突/转折/展示/过渡/收束 |
+| 写第N章正文（写出实际文字） | chunk | warm | ❌ chunk 跳过 | 新写→子类型=v1；精修→子类型递增。意象/闲笔单元是写后对表工具，编排层不在 task prompt 中逐条注入其内容 |
+| 创建/编辑角色 | character_arc | warm | ✅ 模糊时推荐 | |
+| 世界观设定 | world_rule | warm | ✅ 模糊时推荐 | |
+| 情节/伏笔设计 | plot_thread | warm | ✅ 模糊时推荐 | |
+| 总纲 | outline | warm | ✅ 模糊时推荐 | 模式选择=沙漏/长链/螺旋/环状/多线交织，七面观照生成全书结构 |
+| 部大纲 | arc_plan | warm | ✅ 模糊时推荐 | 命名规范=部，设计部弧线/跨卷节奏 |
+| 篇大纲 | arc_plan | warm | ✅ 模糊时推荐 | 命名规范=篇，设计篇弧线/跨卷节奏 |
+| 卷大纲 | volume_plan | warm | ✅ 模糊时推荐 | 卷号=分类，设计卷弧线/节奏密度/过渡 |
+| 叙述腔调设计 | narrative_voice | warm | ✅ 模糊时推荐 | 决定腔调谱系、视角、笔法约定 |
+| 主题意象设计 | thematic_motif | warm | ✅ 模糊时推荐 | 创建/追踪反复出现的象征性意象动机 |
+| 编辑修改 | 根据目标类型推断 | warm | ✅ 仅模糊修改请求 | |
+| 记录灵感 | note | cold | ❌ | |
 | 导出 | — | — | ❌ | |
 | 可视化/关系图/时间线 | — | — | ❌ | 调 web.start → 打开 http://localhost:8766 交互式 Web UI |
 
@@ -383,7 +388,7 @@ FOCUS ID: —
 FOCUS NAME: {目标名称}
 PREHEAT LEVEL: {session推荐 | warm}
 CYCLE TYPE: {session cycle_type | 空}
-SESSION ID: {session_id | 空}
+SESSION ID: {session_id | 空}  # 已注入则 crafter 不得重复 session.start（会话由编排层拥有）
 TASK: {用户确认的创作请求}
 
 ### 创作需求（来自 grill）
@@ -493,23 +498,22 @@ Task(
 
 ### 4.1 写后状态回写
 
-crafter 完成后，编排层应根据 crafter 执行的**实际写操作类型**更新 session 的 cycle_type：
+crafter 完成任务时在结果中自报 `WRITE TYPE: {循环类型}`——**只有执行者知道实际写了什么**，编排层不再根据"推测的写操作类型"查表映射（那是猜，不是事实）。编排层只做机械执行：
 
-| 写操作类型 | 设置 cycle_type |
-|-----------|----------------|
-| 发散构思（ideation 方案生成） | `ideation` |
-| 首次正文写作（v1） | `expansion` |
-| 精修润色（v2/v3） | `refinement` |
-| 校对质检 | `proofing` |
-| 规划/分纲（章纲/卷纲/总纲） | `planning` |
-| 角色/世界观设定 | 不变 |
-
-调用方式：
+1. 从 crafter 任务报告读取 `WRITE TYPE` 字段
+2. 机械回写：
 ```text
-novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="{类型}")
+novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="{WRITE TYPE}")
 ```
 
-只更新有变化的字段，避免覆盖已经累积的状态。
+`WRITE TYPE` 取值（由 crafter 报告，见 novel-v2-crafter.md §六 完成报告）：
+- `expansion` — 首次正文写作/新增内容
+- `refinement` — 精修润色/去AI味
+- `proofing` — 校对质检
+- `planning` — 规划/分纲（章纲/卷纲/总纲/场景设计）
+- `ideation` — 发散构思（方案生成）
+
+**无 graph 写操作的任务**（纯查询/只读质检）→ crafter 不报告 `WRITE TYPE`，编排层**不调用 `set_cycle`**，避免覆盖已累积的状态。只更新有变化的字段。
 
 ### 4.2 写后偏差检核（只读通知）
 
@@ -541,9 +545,9 @@ FOCUS TYPE: {焦点类型}
 SUBTYPE: {子类型值}  # SCENE:开篇/推进/冲突/转折/展示/过渡/收束 | CHUNK:v1/v2/v3 | 结构类用路由表 focus type 区分
 FOCUS ID: {叙事单元ID（空则新建）}
 FOCUS NAME: {目标名称（如章节号/角色名）}
-PREHEAT LEVEL: {session推荐值 | 路由表默认值}
+PREHEAT LEVEL: {session推荐值 | 路由表兜底值}
 CYCLE TYPE: {session cycle_type | 空}  # 活跃会话的循环类型，供 crafter 调整写作策略
-SESSION ID: {session_id | 空}
+SESSION ID: {session_id | 空}  # 已注入则 crafter 不得重复 session.start（会话由编排层拥有，执行者只消费）
 HUMANIZE: {true|false}  # 去AI味时设 true，其余 false
 
 TASK: {用户请求的具体描述}"

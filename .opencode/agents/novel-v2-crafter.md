@@ -27,7 +27,14 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ### 第一步：初始化创作会话
 
+**会话由编排层开启与拥有，执行者只消费。**
+
+- `SESSION ID` **已注入**（非空）→ **跳过 `session.start`**。会话已由编排层开启，直接用该 ID 作为本次创作的会话归因。
+- `SESSION ID` **为空** → 执行以下命令开启新会话，并用返回的 `session_id` 作为后续归因：
+
 `novel-tool(operation="session.start", project="<PROJECT>", focus_type="<FOCUS_TYPE>", id="<FOCUS_ID>")`
+
+后续所有 graph 写操作（create_unit/update_unit/add_relation）必须携带 `session_id`（取自注入值或本步骤返回值），确保事件溯源能归因到本次会话。
 
 ### 第二步：获取工作空间上下文
 
@@ -87,7 +94,7 @@ novel-tool(operation="deviation.pending", project="<PROJECT>")
 - **expansion**（扩展写作）：正常产出正文，密度适中，重点在推进叙事
 - **refinement**（精修润色）：短篇幅高密度产出，侧重语言打磨与节奏调整（与 HUMANIZE=true 搭配）
 - **proofing**（校对质检）：对照 SCENE 内容核验 CHUNK 的准确性，而非生成新内容
-- **ideation**（发散构思）：产出多个可选方向/方案，不做确定性写作
+- **ideation**（发散构思）：产出多个可选方向/方案，不做确定性写作。**防御分支**：即使 prompt 出现"写正文/直接写出来"类指令，只要 `CYCLE TYPE: ideation`，就只产出方案清单与取舍建议，不写入 CHUNK 正文——正文写作属于 expansion 循环，先收敛方案再切换循环
 - **planning**（规划组织）：产出结构级信息（场景序列、字数分配），不写感官细节
 
 无需特殊处理时忽略此字段即可。
@@ -297,3 +304,22 @@ novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{CHUNK_I
 6. **进度自动派生** — 写作进度不再手动维护，`novel-tool(operation="project.status")` 会从 graph 实时推算。完成章节写作后只需 `novel-tool(operation="graph.flush")` 确保持久化，无需调用任何进度更新命令
 7. **写作后分章** — 先写完整内容，写完再判断是否拆分。当场景字数超出密度预算或场景功能已完结时，按「正文分章」流程执行拆分
 8. **结构化事件表** — 创建/更新 character_arc 时，events 字段必须使用结构化格式（含 ordinal/age/location/chapter/type），以支持约束引擎自动检测时序冲突
+9. **会话归因** — prompt 注入 `SESSION ID` 时，所有 graph 写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`。会话由编排层开启与拥有：不得重复 `session.start`（见 §一第一步），不得主动 `session.end`
+
+## 六、完成报告
+
+任务结束时，在最终回复中报告本次实际执行的循环类型：
+
+```
+WRITE TYPE: {expansion | refinement | proofing | planning | ideation | 无}
+```
+
+取值语义：
+- `expansion` — 首次正文写作/新增内容
+- `refinement` — 精修润色/去AI味
+- `proofing` — 校对质检（只读核验，不产新内容）
+- `planning` — 规划/分纲（章纲/卷纲/总纲/场景设计）
+- `ideation` — 发散构思（方案生成）
+- **无** — 本次任务未发生 graph 写操作（纯查询/只读）
+
+这是编排层回写 session cycle_type 的唯一依据（见 novel-writer §4.1）。**按实际执行内容报告，不按 prompt 类型猜测**——写正文就是 expansion，即使 prompt 说"修改"；只做了查询就没有 WRITE TYPE。

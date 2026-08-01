@@ -147,11 +147,11 @@ OPERATION_REGISTRY = {
     # graph writes
     "graph.create_unit": {
         "handler": handle_create_unit,
-        "params": {"project_root": {"required": True}, "unit_type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "actor": {}, "session_id": {}},
     },
     "graph.update_unit": {
         "handler": handle_update_unit,
-        "params": {"project_root": {"required": True}, "id": {"required": True}, "content": {}, "file_path": {}, "name": {}, "tags": {}, "status": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "content": {}, "file_path": {}, "name": {}, "tags": {}, "status": {}, "actor": {}, "session_id": {}},
     },
     "graph.archive_unit": {
         "handler": handle_archive_unit,
@@ -163,7 +163,7 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "actor": {}, "session_id": {}},
     },
     "graph.flush": {
         "handler": handle_flush,

@@ -44,7 +44,7 @@ def _validate_project(project_root: str) -> bool:
 def handle_session_start(project_root: str, focus_type: str, id: str) -> dict:
     """启动/恢复创作会话。"""
     from graph_schema import UnitType
-    from session import SessionManager
+    from session import SessionManager, SessionStatus
 
     project = _resolve_project(project_root)
     if not _validate_project(project):
@@ -53,7 +53,10 @@ def handle_session_start(project_root: str, focus_type: str, id: str) -> dict:
     mgr = SessionManager(project)
     mgr.load_user_state()
 
-    if mgr.active_session:
+    # 仅当恢复的会话处于 PAUSING 时才续接；否则视为新会话——
+    # start_session 内部经 _save_current_session_if_active 自动归档旧活跃会话。
+    # （修复：恢复的 DRAFTING/WARMING_UP 会话若走 resume_session() 会返回 None → 崩溃）
+    if mgr.active_session and mgr.active_session.status == SessionStatus.PAUSING:
         s = mgr.resume_session()
     else:
         ft = UnitType[focus_type.upper()]
@@ -97,6 +100,7 @@ def handle_session_info(project_root: str) -> dict:
             "iteration_count": 0,
             "exist_chunks": [],
             "preheat": "cold",
+            "updated_at": None,
         }
 
     s = mgr.active_session
@@ -151,6 +155,7 @@ def handle_session_info(project_root: str) -> dict:
         "iteration_count": iteration_count,
         "exist_chunks": exist_chunks,
         "preheat": mgr.recommend_preheat_level(),
+        "updated_at": s.updated_at.isoformat() if hasattr(s, 'updated_at') and s.updated_at else None,
     }
 
 

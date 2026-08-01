@@ -374,7 +374,15 @@ def _get_store_cached(project_root: str):
     from graph_store import GraphStore
     store = GraphStore(project_root)
     store.initialize()
-    
+
+    # 与非 daemon 路径（handlers_graph._get_store）保持一致：
+    # 注册约束引擎到 post_flush 钩子，使 flush 后自动运行约束检查并持久化偏差
+    try:
+        from handlers.handlers_graph import _register_constraint_engine
+        _register_constraint_engine(store)
+    except Exception:
+        pass  # 约束引擎注册失败不影响核心功能
+
     with _STORE_LOCK:
         # double-check：可能在初始化期间被另一个线程抢先创建
         if project_root in _STORES:

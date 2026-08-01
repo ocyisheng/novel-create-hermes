@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/小说项目-可移植-3b82f6?style=flat-square" alt="Portable">
   <img src="https://img.shields.io/badge/架构-V2_叙事单元网络-8b5cf6?style=flat-square" alt="Architecture">
   <img src="https://img.shields.io/badge/导出格式-5种-ec4899?style=flat-square" alt="Export Formats">
-  <img src="https://img.shields.io/badge/内置风格-22-f59e0b?style=flat-square" alt="Styles">
+  <img src="https://img.shields.io/badge/叙述腔调-可定制-f59e0b?style=flat-square" alt="Styles">
   <img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License">
 </p>
 
@@ -36,7 +36,7 @@ Hermes 把这个过程变成了对话——你说"新建项目'龙渊'，类型�
 | **👤 角色创建** | 角色档案、性格弧线、成长轨迹 | `创建主角林渊` |
 | **📋 总纲与情节** | 故事框架、主线/支线、伏笔设计 | `设计故事大纲` / `设计主线` |
 | **📑 分纲与章节** | 分卷大纲到逐章分纲，再到正文写作 | `写分纲` / `写第1章` |
-| **🎨 风格切换** | 22 种内置风格，也可从参考文本提取 | `用凡人修仙风写` |
+| **🎨 叙述腔调** | 腔调谱系、叙事视角、笔法约定可定制，也可从参考文本提取 | `用凡人修仙风写` |
 | **🔍 质量检测** | AI味、情节逻辑、角色一致性、世界观漏洞 | `检测AI味` / `看看写得怎么样` |
 | **📚 知识库** | 导入参考书籍，写作时直接引用 | `把凡人修仙传加入知识库` |
 | **✏️ 编辑修改** | 润色章节、调整角色、修改设定 | `把主角改得更果断一些` |
@@ -187,7 +187,7 @@ V2 把"风格"做成了可定义的叙事策略——腔调谱系、叙事视角
 把整个 `novel-create-hermes` 文件夹拷走就行。所有数据都在这个目录里：
 - `novels/` — 你的小说项目和全部章节
 - `knowledge/` — 导入的知识库
-- `.omo/` — 写作状态和上下文
+- `.context/` — 写作状态和上下文（历史 `.omo/` 已迁移至此）
 
 拷到新电脑上装好 OpenCode 重新打开，直接续写。
 </details>
@@ -217,18 +217,21 @@ GPT 是对话窗口，每次都要手动粘贴上下文；Hermes 是**结构化�
 V2 基于**叙事单元网络**，取代了传统的线性阶段和离散 YAML 文件体系。
 
 ```
-novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现
+novel-writer（编排层）→ 意图识别 + 焦点映射 + 需求发现
         │
         ├─ novel-v2-crafter      ← V2 统一创作（章节/角色/世界观/质检/导出）
         ├─ novel-ideation        ← 创意方案生成（grill 后可选）
         └─ novel-search-analysis ← 深度诊断（只读，偏差检测）
         │
         ▼
-shared/v2/ → GraphStore + SearchEngine + DeviationManager + WorkspaceBuilder
-        │ JSONL 持久化 + 事件溯源 + 快照
+shared/v2/ → GraphStore + SearchEngine + ConstraintEngine + DeviationManager
+             + WorkspaceBuilder + EventExtractor + TemporalIndex + Session
+        │ JSONL 持久化 + 事件溯源 + 快照 + 遥测
         ▼
 graph/ → nodes.jsonl + edges.jsonl + events.olog
 ```
+
+全部 Python 实现位于 `.opencode/shared/`：`handlers/`（业务逻辑 + OPERATION_REGISTRY 路由）、`v2/`（核心引擎 + matchers 约束 + FastAPI 可视化）、`tools/`（novel-tool 薄适配层）、`tests/`（pytest）。
 
 详细的架构说明见 [DEVELOPER.md](DEVELOPER.md)。
 

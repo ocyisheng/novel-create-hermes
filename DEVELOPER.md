@@ -17,6 +17,13 @@ V2 认为写作的基本单位不是"文档"而是**叙事单元**：
 | `thematic_motif` | 主题意象：反复出现的象征性元素 | — |
 | `note` | 创作笔记：备忘和灵感 | ideation/ |
 | `chunk` | 正文片段：已写成的文字 | 章节.txt |
+| `narrative_voice` | 叙述腔调：腔调谱系、视角、笔法约定 | 风格.yaml |
+| `outline` | 总纲：故事整体框架 | 大纲.yaml |
+| `arc_plan` / `volume_plan` / `chapter_plan` | 分卷/分章计划 | 分纲.yaml |
+| `structure` | 结构节点（废弃兼容，归一化为 outline/arc_plan 等） | — |
+| `temporal_event` | 时间事件：从焦点内容自动抽取的时序事件 | — |
+
+> 单元类型定义集中在 `v2/unit_types/*.yaml`，由 `TypeRegistry` 加载校验。内容字段 schema 由 `schemas.py` 门面从类型定义读取。
 
 ### 架构层次
 
@@ -33,19 +40,61 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现（g
 ┌─────────────────────────────────────────────┐
 │          shared/v2/（数据层）                 │
 │                                              │
-│  GraphStore     — 节点/关系 CRUD + 事件溯源   │
-│  SearchEngine   — 关键词/正则/实体搜索        │
-│                   + 一致性检查（R1-R4）        │
-│  DeviationMgr   — 偏差状态持久化（YAML）       │
-│  Workspace      — 焦点预热 + 上下文构建        │
-│  Projection     — graph → 文件系统投影         │
-│  RelationInf    — 自动关系推断                  │
-│  Session        — 会话管理 + 用户状态           │
+│  GraphStore      — 节点/关系 CRUD + 事件溯源  │
+│  SearchEngine    — 关键词/正则/实体搜索       │
+│                    + 一致性检查               │
+│  ConstraintEngine— 约束匹配器编排（6 类）     │
+│  DeviationMgr    — 偏差状态持久化（YAML）     │
+│  Workspace       — 焦点预热 + 上下文构建      │
+│  Projection      — graph → 文件系统投影       │
+│  RelationInf     — 自动关系推断               │
+│  Session         — 会话管理 + 用户状态        │
+│  EventExtractor  — 焦点内容→时间事件抽取      │
+│  TemporalIndex   — 全类型时间线派生视图       │
+│  Telemetry       — 调用级遥测 + 按天分片      │
 └──────────────────────┬──────────────────────┘
                        │ JSONL 持久化 + 事件溯源
                        ▼
           graph/（存储层）→ nodes.jsonl + edges.jsonl + events.olog
 ```
+
+### 代码组织（shared/）
+
+所有 Python 实现位于 `.opencode/shared/`，按职责分层：
+
+| 目录 | 职责 |
+|------|------|
+| `handlers/` | 纯业务逻辑，每域一个文件（graph/project/env/session/deviation/knowledge/analyze/summary/server），经 `OPERATION_REGISTRY` + `run_operation()` 路由 |
+| `v2/` | 核心引擎：数据模型、存储、搜索、约束、投影、会话、遥测等 |
+| `v2/matchers/` | 6 个 `PatternMatcher` 实现：temporal / referential_integrity / cardinality / boundary / state_conservation / pattern |
+| `v2/web/` | FastAPI 可视化服务（graph/edges/nodes/search/stats/pages 路由） |
+| `tools/` | `novel_tool.py` 薄 JSON 适配层（参数映射 → run_operation → JSON 输出），零业务逻辑 |
+| `env/` | `.venv` 发现 + 依赖检查/修复 |
+| `project/` | 项目脚手架（旧桥接，委托给 handlers） |
+| `tests/` | pytest 测试套件 + conftest 共享夹具 |
+
+### 数据层核心模块
+
+| 模块 | 职责 |
+|------|------|
+| `graph_schema.py` | NarrativeUnit / Relation / Event dataclass + 枚举定义 |
+| `graph_store.py` | JSONL 持久化 CRUD + 事件溯源 + 快照 |
+| `search_engine.py` | 纯机械关键词/正则/实体搜索（无 LLM）+ 一致性检查 |
+| `constraint_engine.py` | 基于类型自描述编排 matchers，flush 后自动检查并持久化偏差 |
+| `deviation_manager.py` | 偏差状态 YAML 持久化（LLM 跨 session 分析存储） |
+| `workspace.py` | 按焦点构建最小必要上下文 + 预热 |
+| `projection_engine.py` | graph → 文件系统视图投影（文件非真相源） |
+| `relation_inferrer.py` | 写作时从单元内容自动提取关系 |
+| `session.py` | 创作会话 + UserState（嵌套循环创作模型） |
+| `event_extractor.py` | 焦点内容 → TEMPORAL_EVENT 结构化事件抽取 |
+| `temporal_index.py` | 全类型时间线派生视图（read-time 计算） |
+| `telemetry.py` | 工具调用遥测 → `.engine/telemetry/{date}.ndjson` |
+| `usage_analyzer.py` | 使用数据收集与分析报告 |
+| `engine_log.py` | 遥测/daemon 共用的按天分片日志写入基类 |
+| `type_registry.py` | UnitType YAML 模式加载/校验 |
+| `character_timeline.py` | 角色时间线账本 |
+| `time_utils.py` | 统一 story time 读写（`extra["time"]`） |
+| `migrate.py` | V1 项目 → graph 迁移工具 |
 
 ### 子 Agent 体系
 
@@ -53,11 +102,14 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现（g
 
 | 子 Agent | 职责 | 权限 |
 |---------|------|------|
+| `novel-writer` | 编排层：意图识别、焦点映射、需求发现（grill）、子 Agent 调度决策 | 读 prompt 文件 + `task()` 调度 |
 | `novel-v2-crafter` | 全部创作任务：章节写作、角色管理、世界观建设、情节设计、质检、导出 | `edit`, `bash`, `read`, `write`, `novel-tool` |
 | `novel-ideation` | 创意方案生成：在 grill 收敛需求后生成可选方案 | `edit`, `bash`, `read`, `write`, `novel-tool` |
 | `novel-search-analysis` | 深度诊断：完整性扫描、意图对齐、交叉引用、Gap 分析（只读） | `read`, `novel-tool` **仅** |
 
 子 Agent 不走链式调用，编排层收到结果后直接决策下一步。
+
+> **开发模式（OMODE 非 release）**：novel-writer 按需加载 `novel-dev-ops` 技能，承载遥测记录、数据分析、会话总结、聚合分析、优化闭环。所有工具调用自动记录到 `.engine/telemetry/`。
 
 ### 编排层路由
 

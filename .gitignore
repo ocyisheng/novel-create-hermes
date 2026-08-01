@@ -41,6 +41,7 @@ novels/
 .engine
 knowledge
 docs
+scripts
 AGENTS.md
 # ----- 测试和覆盖率 -----
 .pytest_cache

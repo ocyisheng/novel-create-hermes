@@ -37,6 +37,7 @@ tags: ["novel", "v2", "graph"]
 | `chapter_plan` | `references/structure.md` | 章纲 | 章纲→场景规划+字数分配+密度预算 |
 | `narrative_voice` | `references/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
 | `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
+| `（横切）关系操作` | `references/relation_guide.md` | 全部 26 种关系类型 + 开放标签规则 | 建边前必查：结构类/叙事类/角色势力事件类 + 自反vs配对决定 bidirectional 行为 |
 
 ### 脚本 vs 提示词的分工
 
@@ -140,7 +141,8 @@ novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{角色I
 # 成员/位置/同盟（bidirectional=true 自动补反向）
 novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="member_of")
 novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="located_at")
-novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="allied_with", bidirectional=true)
+# 角色通用关系（师徒/同盟等具体语义放 label；26 种类型速查见 references/relation_guide.md）
+novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{源ID}", target="{目标ID}", rel_type="relates_to", label="同盟", bidirectional=true)
 
 # 补齐反向边
 novel-tool(operation="graph.fix_asymmetry", project="{PROJECT}")

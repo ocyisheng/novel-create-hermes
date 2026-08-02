@@ -140,10 +140,14 @@ class RelationType(str, Enum):
     def inverse(self) -> "RelationType":
         """返回逆关系类型。
 
-        所有类型的逆关系定义遵循以下原则：
-        - 方向性由 edge.direction 表达，不依赖独立逆类型
-        - CONTAINS ↔ BELONGS_TO、PLANS ↔ PLANNED_BY 等配对是唯一的例外
-        - 其余类型的逆就是自身（"allied_with"之类自反类型）
+        架构说明：系统采用「物化逆边」——bidirectional 创建与 fix_asymmetry
+        补齐时，会在图上物理写入反向边；方向由 source_id/target_id 表达，
+        Relation 数据类没有独立 direction 字段。
+
+        - 配对类型（CONTAINS↔BELONGS_TO、PLANS↔PLANNED_BY、POSSESSES↔POSSESSED_BY 等）
+          有独立的逆类型
+        - 自反类型（CAUSES、RELATES_TO、PARTICIPATES_IN 等）逆 = 自身，
+          双向边以同类型物化（R2 不对称检查期望此类关系双向存在）
         """
         inverses = {
             "causes": "causes",
@@ -178,6 +182,20 @@ class RelationType(str, Enum):
             return RelationType(name)
         except ValueError:
             return self
+
+    @property
+    def is_symmetric(self) -> bool:
+        """自反类型：逆 = 自身，双向边以同类型物化（如 CAUSES、RELATES_TO）。"""
+        return self.inverse == self
+
+    @property
+    def is_acyclic(self) -> bool:
+        """是否为无环层级类型：加入此类边会受环检测约束。
+
+        当前仅 CONTAINS / BELONGS_TO（互为逆的层级对）为无环类型。
+        添加时需防止在同一层级森林中形成环。
+        """
+        return self in (RelationType.CONTAINS, RelationType.BELONGS_TO)
 
     @classmethod
     def label(cls, rt: "RelationType") -> str:

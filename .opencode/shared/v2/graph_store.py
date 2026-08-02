@@ -58,6 +58,15 @@ def is_v2_project(project_root: str) -> bool:
     return (root / "graph" / "nodes.jsonl").is_file()
 
 
+def _match_label(label: Optional[str], query: str, substring: bool = False) -> bool:
+    """label 过滤匹配：默认精确匹配；substring=True 时包含匹配。"""
+    if label is None:
+        return False
+    if substring:
+        return query in label
+    return label == query
+
+
 def _normalize_project_root(project_root: str) -> Path:
     """归一化项目根路径。
 
@@ -989,9 +998,9 @@ class GraphStore:
                     and rel.relation_type == relation_type):
                 return rel
         
-        # CONTAINS 环检测：A CONTAINS B 时，检查 B 是否已是 A 的祖先
-        if relation_type == RelationType.CONTAINS:
-            if self._would_create_cycle(source_id, target_id, RelationType.CONTAINS):
+        # 无环层级类型环检测：CONTAINS/BELONGS_TO 互为逆对，均需防环
+        if relation_type.is_acyclic:
+            if self._would_create_cycle(source_id, target_id, relation_type):
                 return None
         
         rel = Relation(
@@ -1028,21 +1037,41 @@ class GraphStore:
     def _would_create_cycle(
         self, source_id: str, target_id: str, rel_type: RelationType
     ) -> bool:
+        """检查添加 source→target 的 rel_type 边是否会引入层级环。
+
+        用于 CONTAINS / BELONGS_TO（互为逆的无环层级对）：
+        - CONTAINS 边 A→B 表示「A 包含 B」，有向语义为 父→子
+        - BELONGS_TO 边 A→B 表示「B 包含 A」，有向语义为 子→父
+        统一以 CONTAINS 方向（父→子）判断有向环：
+        从新边的「头部」出发沿父→子方向 BFS（outgoing CONTAINS + incoming BELONGS_TO），
+        若能到达「尾部」则成环。
         """
-        检查在 source_id 和 target_id 之间添加 rel_type 类型的关系
-        是否会引入环（BFS 从 target 出发是否能到达 source）。
-        用于 CONTAINS / BELONGS_TO 等严格无环的关系类型。
-        """
-        visited: Set[str] = {target_id}
-        queue = [target_id]
+        if rel_type == RelationType.BELONGS_TO:
+            # BELONGS_TO 有向语义为 target→source（target 包含 source）
+            head, tail = source_id, target_id
+        else:
+            # CONTAINS 有向语义为 source→target（source 包含 target）
+            head, tail = target_id, source_id
+
+        visited: Set[str] = {head}
+        queue = [head]
         while queue:
             current = queue.pop(0)
-            for rel in self.get_relations(current, relation_type=rel_type, direction="outgoing"):
-                if rel.target_id == source_id:
+            # 父→子 有向边：current 的 outgoing CONTAINS + incoming BELONGS_TO
+            for rel in self.get_relations(current, relation_type=RelationType.CONTAINS, direction="outgoing"):
+                nxt = rel.target_id
+                if nxt == tail:
                     return True
-                if rel.target_id not in visited:
-                    visited.add(rel.target_id)
-                    queue.append(rel.target_id)
+                if nxt not in visited:
+                    visited.add(nxt)
+                    queue.append(nxt)
+            for rel in self.get_relations(current, relation_type=RelationType.BELONGS_TO, direction="incoming"):
+                nxt = rel.source_id
+                if nxt == tail:
+                    return True
+                if nxt not in visited:
+                    visited.add(nxt)
+                    queue.append(nxt)
         return False
     
     def remove_relation(self, relation_id: str, actor: str = "script") -> bool:
@@ -1167,13 +1196,21 @@ class GraphStore:
         unit_id: Optional[str] = None,
         relation_type: Optional[RelationType] = None,
         direction: str = "both",  # "outgoing" | "incoming" | "both"
+        label: Optional[str] = None,
+        label_substring: bool = False,
     ) -> List[Relation]:
-        """查询一个叙事单元的关系"""
+        """查询一个叙事单元的关系
+
+        label: 按语义标签精确过滤（None 表示不过滤）；
+        label_substring: True 时 label 改为包含匹配（用于"师徒"等降级标签查询）。
+        """
         if not unit_id:
             # 返回所有关系（可筛选类型）
             results = list(self._relations.values())
             if relation_type:
                 results = [r for r in results if r.relation_type == relation_type]
+            if label is not None:
+                results = [r for r in results if _match_label(r.label, label, label_substring)]
             return results
         
         rel_ids = []
@@ -1185,6 +1222,8 @@ class GraphStore:
         results = [self._relations[rid] for rid in rel_ids if rid in self._relations]
         if relation_type:
             results = [r for r in results if r.relation_type == relation_type]
+        if label is not None:
+            results = [r for r in results if _match_label(r.label, label, label_substring)]
         return results
     
     def get_relation(self, relation_id: str) -> Optional[Relation]:
@@ -1234,14 +1273,19 @@ class GraphStore:
         source_id: Optional[str] = None,
         target_id: Optional[str] = None,
         payload_filter: Optional[Dict[str, Any]] = None,
+        label: Optional[str] = None,
+        label_substring: bool = False,
     ) -> List[Relation]:
-        """查询边，支持按类型、源/目标类型、payload 字段过滤。
+        """查询边，支持按类型、源/目标类型、payload 字段、label 过滤。
         
         payload_filter 示例：
           {"acquired_at.ordinal": {"$gt": 5}}     # ordinal > 5
           {"upgrades": {"$exists": True}}           # 有升级记录
           {"lost_at": None}                         # 未丢失
           {"acquired_at.chapter": 5}                # 精确匹配
+
+        label: 按语义标签过滤（"师徒"等降级标签可直接查询）；
+        label_substring: True 时 label 包含匹配。
         """
         results = []
         for rel in self._relations.values():
@@ -1250,6 +1294,8 @@ class GraphStore:
             if source_id and rel.source_id != source_id:
                 continue
             if target_id and rel.target_id != target_id:
+                continue
+            if label is not None and not _match_label(rel.label, label, label_substring):
                 continue
             if source_type:
                 src = self._units.get(rel.source_id)

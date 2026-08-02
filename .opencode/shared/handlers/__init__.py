@@ -22,6 +22,7 @@ from .handlers_graph import (
     handle_archive_unit,
     handle_purge_archived,
     handle_add_relation,
+    handle_update_relation,
     handle_flush,
     handle_fix_asymmetry,
     handle_get_relations,
@@ -163,7 +164,11 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "actor": {}, "session_id": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "weight": {}, "actor": {}, "session_id": {}},
+    },
+    "graph.update_relation": {
+        "handler": handle_update_relation,
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "label": {}, "weight": {}, "description": {}, "payload": {}, "actor": {}},
     },
     "graph.flush": {
         "handler": handle_flush,
@@ -179,7 +184,7 @@ OPERATION_REGISTRY = {
     },
     "graph.get_relations": {
         "handler": handle_get_relations,
-        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}},
     },
     "graph.remove_relation": {
         "handler": handle_remove_relation,

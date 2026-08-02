@@ -784,11 +784,14 @@
       `<option value="${esc(id)}">${esc(n.label || id)}</option>`
     ).join('');
 
+    // 与 graph_schema.py RelationType 枚举一致（26 种）
     const typeOptions = [
-      'participates_in', 'causes', 'precedes', 'contradicts', 'implements',
-      'belongs_to', 'references', 'implies', 'parallel', 'inspires',
-      'refines', 'located_at', 'relates_to', 'contains', 'controls',
-      'member_of', 'has_member', 'location_of', 'controlled_by',
+      'causes', 'precedes', 'contradicts', 'implements', 'inspires',
+      'refines', 'belongs_to', 'references', 'implies', 'parallel',
+      'plans', 'planned_by', 'participates_in', 'located_at', 'relates_to',
+      'possesses', 'possessed_by', 'contains', 'controls', 'member_of',
+      'has_member', 'location_of', 'controlled_by', 'has_event', 'event_of',
+      'involves',
     ].map(t => `<option value="${t}">${t}</option>`).join('');
 
     modal.innerHTML = `

@@ -2,10 +2,14 @@
 routes/edges.py — 关系 CRUD API
 
 GET    /api/edges       → 关系列表（支持 ?type=&source=&target=&limit=）
+GET    /api/edges/{id}  → 单条关系详情
 POST   /api/edges       → 创建关系
+PUT    /api/edges/{id}  → 更新关系（label/weight/description/payload）
 DELETE /api/edges/{id}  → 删除关系
 
-统一通过 _get_store / run_operation 调用 handlers 层。
+读写分工：写操作（POST/PUT/DELETE）统一通过 run_operation 调 handlers 层
+（保证 actor 审计 + 事件溯源 + 脏边增量标记）；只读操作（GET）直接走
+_get_store 读取。
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,8 +18,8 @@ from graph_schema import RelationType
 from web.deps import get_project_root
 from handlers import run_operation
 from handlers.handlers_graph import _get_store
-from datetime import datetime, timezone
 from web.models import EdgeCreate, EdgeUpdate
+import json
 
 router = APIRouter(prefix="/api/edges", tags=["edges"])
 
@@ -87,18 +91,27 @@ def get_edge(id: str, project_root: str = Depends(get_project_root)):
 
 @router.put("/{id}")
 def update_edge(id: str, body: EdgeUpdate, project_root: str = Depends(get_project_root)):
-    """更新关系（修改 label 等）。直接操作 store 层。"""
+    """更新关系（label/weight/description/payload）。通过 run_operation 调 handlers 层。"""
+    result = run_operation(
+        "graph.update_relation",
+        project_root=project_root,
+        id=id,
+        label=body.label or "",
+        weight=body.weight,
+        description=body.description or "",
+        payload=json.dumps(body.payload, ensure_ascii=False) if body.payload is not None else None,
+        actor=body.actor or "web-ui",
+    )
+    if "error" in result:
+        status = 404 if "不存在" in result["error"] else 400
+        raise HTTPException(status_code=status, detail=result["error"])
+
+    # 回读完整关系数据（handler 返回格式较简）
     store = _get_store(project_root)
     rel = store._relations.get(id)
-    if not rel:
-        raise HTTPException(status_code=404, detail=f"关系不存在: {id}")
-
-    if body.label is not None:
-        rel.label = body.label
-    rel.updated_at = datetime.now(timezone.utc)
-    store._dirty_edges = True
-    store.flush()
-    return {"edge": _rel_to_out(rel)}
+    if rel:
+        return {"edge": _rel_to_out(rel)}
+    return {"updated": True, "id": id}
 
 
 # ── POST /api/edges ───────────────────────────────────────────────
@@ -121,6 +134,7 @@ def create_edge(body: EdgeCreate, project_root: str = Depends(get_project_root))
         target=body.target,
         rel_type=body.rel_type,
         label=body.label or "",
+        weight=body.weight,
         bidirectional=body.bidirectional or False,
         actor=body.actor or "web-ui",
     )

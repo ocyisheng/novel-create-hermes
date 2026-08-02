@@ -122,6 +122,18 @@ graph（持久化）
 
 ---
 
+## 模式 C 产出后的关系落盘（桥接到 graph）
+
+使用**模式 C（维度对立）**确认对立关系后，由执行者（crafter/ideation）用 novel-tool 把对立结构落盘到 graph，供后续写作与 R2 一致性检查引用：
+
+- 对立双方为角色 → `graph.add_relation(source="{角色A}", target="{角色B}", rel_type="relates_to", label="维度对立", bidirectional=true)`
+- 冲突已实体化为具体事件/设定 → 追加 `rel_type="contradicts"` 边
+- 派系层面（对立升级为阵营冲突）→ `member_of` / `controls` 边
+
+> 关系类型选用与开放标签规则见 `novel-v2/references/relation_guide.md`。
+
+---
+
 ## 快速设计流程
 
 ```

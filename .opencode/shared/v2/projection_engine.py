@@ -1029,6 +1029,23 @@ class ProjectionEngine:
                 lines.append(preview)
             lines.append(f"")
 
+        # 势力/组织关系摘要（CONTROLS / MEMBER_OF / CONTAINS 边）
+        org_types = {RelationType.CONTROLS, RelationType.MEMBER_OF, RelationType.CONTAINS}
+        org_rels = [r for r in self.store.get_relations() if r.relation_type in org_types]
+        if org_rels:
+            lines.append(f"---")
+            lines.append(f"")
+            lines.append(f"## 势力/组织关系")
+            lines.append(f"")
+            for r in org_rels:
+                source = self.store.get_unit(r.source_id)
+                target = self.store.get_unit(r.target_id)
+                if not source or not target:
+                    continue
+                desc = f" ({r.label})" if r.label else ""
+                lines.append(f"- {source.unit_name} {r.relation_type.value} {target.unit_name}{desc}")
+            lines.append(f"")
+
         content = "\n".join(lines)
         path = export_dir / "worldbuilding.md"
         path.write_text(content, encoding="utf-8")
@@ -1156,6 +1173,20 @@ class ProjectionEngine:
                     lines.append(f"")
                     lines.append(n.content[:500])
                 lines.append(f"")
+
+        # 事件关系（PRECEDES / CAUSES 边，A → B 列表）
+        event_types = {RelationType.PRECEDES, RelationType.CAUSES}
+        event_rels = [r for r in self.store.get_relations() if r.relation_type in event_types]
+        if event_rels:
+            lines.append(f"")
+            lines.append(f"## 事件关系")
+            lines.append(f"")
+            for r in event_rels:
+                source = self.store.get_unit(r.source_id)
+                target = self.store.get_unit(r.target_id)
+                if not source or not target:
+                    continue
+                lines.append(f"- {source.unit_name} → {target.unit_name}  [{r.relation_type.value}]")
 
         content = "\n".join(lines)
         path = export_dir / "timeline.md"

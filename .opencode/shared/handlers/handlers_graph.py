@@ -754,6 +754,7 @@ def handle_add_relation(
     rel_type: str,
     bidirectional: bool = False,
     label: str = "",
+    weight: Optional[float] = None,
     actor: str = "orchestrator",
     session_id: Optional[str] = None,
 ) -> dict:
@@ -767,22 +768,92 @@ def handle_add_relation(
     store = _get_store(project_root)
     store.set_session_context(session_id)
     try:
-        rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label, session_id=session_id)
+        rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label,
+                                 weight=weight if weight is not None else 0.5,
+                                 session_id=session_id)
         if not rel:
             return {"error": "关系建立失败"}
         result = {"id": rel.id, "type": rtype.value}
         if effective_label:
             result["label"] = effective_label
         if bidirectional:
+            # 自反类型（relates_to 等）逆 = 自身，反向边为同类型物理物化（R2 检查依赖物化反向边）；
+            # add_relation 按 (source, target, type) 三元组去重，若该反向边已存在则自动跳过不重复创建
             inv = rtype.inverse
             inv_label = effective_label  # 反向关系携带相同语义标签
-            inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label, session_id=session_id)
+            inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label,
+                                         weight=weight if weight is not None else 0.5,
+                                         session_id=session_id)
             if inv_rel:
                 result["inverse_id"] = inv_rel.id
         store.flush()
     finally:
         store.clear_session_context()
     return result
+
+
+def handle_update_relation(
+    project_root: str,
+    id: str,
+    label: str = "",
+    weight: Optional[float] = None,
+    description: str = "",
+    payload: Optional[str] = None,
+    actor: str = "orchestrator",
+) -> dict:
+    """更新单条关系（label/weight/description/payload）。
+
+    统一走 store 的事件记录 + 脏边标记，保证 RELATION_UPDATED 事件
+    与 _dirty_relation_ids 增量检查不缺失（Web PUT 此前直改 store 绕过此处）。
+    """
+    from datetime import datetime, timezone
+    from graph_schema import EventType
+    blocked = _check_orchestrator_write(actor, "graph.update_relation")
+    if blocked:
+        return blocked
+    store = _get_store(project_root)
+    rel = store.get_relation(id)
+    if not rel:
+        return {"error": f"关系不存在: {id}"}
+
+    changed = False
+    if label and label != rel.label:
+        rel.label = label
+        changed = True
+    if weight is not None and weight != rel.weight:
+        rel.weight = weight
+        changed = True
+    if description and description != rel.description:
+        rel.description = description
+        changed = True
+    if payload is not None:
+        try:
+            payload_dict = json.loads(payload) if isinstance(payload, str) else payload
+        except json.JSONDecodeError:
+            return {"error": f"payload 不是合法 JSON: {payload}"}
+        if not isinstance(payload_dict, dict):
+            return {"error": "payload 必须是 JSON 对象"}
+        if payload_dict != rel.payload:
+            # update_relation_payload 内部完成事件 + 脏标记
+            store.update_relation_payload(id, payload_dict, actor=actor)
+            changed = True
+
+    if changed:
+        rel.updated_at = datetime.now(timezone.utc)
+        store._dirty_edges = True
+        store._record_event(
+            EventType.RELATION_UPDATED,
+            actor=actor,
+            target_type="relation",
+            target_ids=[id],
+            payload={
+                "relation_type": rel.relation_type.value,
+                "source_id": rel.source_id,
+                "target_id": rel.target_id,
+            },
+        )
+        store.flush()
+    return {"id": id, "updated": changed}
 
 
 def handle_flush(project_root: str, skip_constraint_check: bool = False) -> dict:
@@ -832,13 +903,20 @@ def handle_constraint_check(project_root: str, full: bool = False) -> dict:
 
 
 def handle_fix_asymmetry(project_root: str) -> dict:
-    """补齐所有对称关系类型的缺失反向边。"""
+    """补齐所有对称关系类型的缺失反向边。
+
+    无环配对类型（CONTAINS/BELONGS_TO）跳过：补齐反向边可能制造环，
+    交由 R2 检查提示而非自动修复。
+    """
     from graph_schema import RelationType
     store = _get_store(project_root)
     created = 0
     skipped = 0
     for rel in list(store._relations.values()):
         rtype = rel.relation_type
+        if rtype.is_acyclic:
+            skipped += 1
+            continue
         inv = rtype.inverse
         rev_source, rev_target = rel.target_id, rel.source_id
         rev_type = inv if inv != rtype else rtype
@@ -863,12 +941,15 @@ def handle_get_relations(
     id: str = "",
     rel_type: str = "",
     direction: str = "both",
+    label: str = "",
+    label_substring: bool = False,
 ) -> dict:
     """获取关系列表。"""
     from graph_schema import RelationType
     store = _get_store(project_root)
     rt = RelationType[rel_type.upper()] if rel_type else None
-    relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction)
+    relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction,
+                                    label=label or None, label_substring=label_substring)
     return {
         "relations": [
             {

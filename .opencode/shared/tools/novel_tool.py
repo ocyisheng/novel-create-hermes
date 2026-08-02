@@ -125,6 +125,10 @@ _PARAM_MAP = {
     "source": "source", "target": "target",
     "bidirectional": "bidirectional",
     "label": "label",
+    "label_substring": "label_substring",
+    "weight": "weight",
+    "description": "description",
+    "payload": "payload",
     "direction": "direction",
     # 可视化
     "character": "character", "timeline": "timeline",

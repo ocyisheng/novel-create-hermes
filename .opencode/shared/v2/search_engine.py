@@ -330,10 +330,6 @@ class SearchEngine:
                 if rel2.target_id == src.id and rel2.relation_type == rel.relation_type.inverse:
                     has_inverse = True
                     break
-            for rel2 in self.store.get_relations(tgt.id, direction="incoming"):
-                if rel2.source_id == src.id and rel2.relation_type == rel.relation_type:
-                    # 检查是否有相反方向的关系
-                    pass
 
             if not has_inverse:
                 results.append(CheckResult(

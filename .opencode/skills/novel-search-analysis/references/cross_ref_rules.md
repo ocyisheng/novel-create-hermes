@@ -7,7 +7,7 @@
 | 规则 | 严重级别 | 实现方式 |
 |------|---------|---------|
 | R1: 已故角色仍在出场 | error | SearchEngine.check_consistency() 自动 |
-| R2: 角色关系不对称 | warning | SearchEngine.check_consistency() 自动 |
+| R2: 角色关系不对称（边级） | warning | SearchEngine.check_consistency() 自动 |
 | R3: 孤立单元 | info | SearchEngine.check_consistency() 自动 |
 | R4: 归档单元仍有活跃关系 | warning | SearchEngine.check_consistency() 自动 |
 | A5: 能力边界一致性（含修为变化） | warning | 纯 LLM 语义分析 |
@@ -18,6 +18,21 @@
 > 规则 A5-A7 为 LLM 语义分析，SearchEngine 不做机械检查。
 > A5 扩展：`出场角色[].状态` 中的修为/能力变化（跨越境界、离线升级判断）作为 A5 的子案例。
 > 新增机械规则 R7（位置变化标记）、R9（事件顺序冲突）为 SearchEngine 新增规则，编号 R7-R9 独立于 A5-A7。
+
+## R2 精确语义（边级结构对称，非内容级）
+
+**严重级别**：warning
+
+**代码检查**（`SearchEngine._check_asymmetric_relations`）：
+
+- 仅检查 CHARACTER_ARC ↔ CHARACTER_ARC 且双方未归档的边
+- A→B 存在 `rel_type` 边时，B→A 必须存在 `rel_type.inverse` 边
+  - 自反类型（relates_to 等，`inverse == 自身`）：需同类型反向边
+  - 配对类型（possesses/possessed_by 等）：需对应逆类型边
+- 无环配对类型（CONTAINS/BELONGS_TO）不在此列——层级结构反向边由迁移/修复显式维护
+
+**注意**：检查的是 graph 边结构（边级），不是 content 中角色列表的互相提及（内容级）。
+"闪回、单相思等合理场景"若造成 R2 命中，属于合理的结构性不对称，由 LLM 二次判断放行。
 
 ## 时间戳归因原则（所有语义规则共用）
 

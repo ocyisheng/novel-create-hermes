@@ -64,12 +64,16 @@ class EdgeCreate(BaseModel):
     target: str
     rel_type: str = Field(alias="type")
     label: Optional[str] = None
+    weight: Optional[float] = None
     bidirectional: bool = False
     actor: str = "web-ui"
 
 
 class EdgeUpdate(BaseModel):
     label: Optional[str] = None
+    weight: Optional[float] = None
+    description: Optional[str] = None
+    payload: Optional[Any] = None
     actor: str = "web-ui"
 
 

@@ -70,11 +70,11 @@ def create_app(project_root: str = "") -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS — 本地开发全部放行
+    # CORS — 仅放行本机来源（SPA 由本服务同源托管；不允许任意网站跨域读写本地数据）
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

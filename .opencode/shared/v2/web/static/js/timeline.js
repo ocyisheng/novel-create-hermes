@@ -153,7 +153,7 @@
       var shown = s.characters.slice(0, 5);
       var extra = s.characters.length > 5 ? s.characters.length - 5 : 0;
       charHtml = shown.map(function(c) {
-        return '<span class="tl-char-tag" onclick="TIMELINE.filterByCharacter(\'' + esc(c) + '\')">' + esc(c) + '</span>';
+        return '<span class="tl-char-tag" onclick="TIMELINE.filterByCharacter(\'' + jsStr(c) + '\')">' + esc(c) + '</span>';
       }).join('');
       if (extra > 0) {
         charHtml += '<span class="tl-char-tag tl-char-more" title="' + esc(s.characters.slice(5).join(', ')) + '">+' + extra + '</span>';
@@ -166,7 +166,7 @@
           '<div class="tl-dot' + (s.precision === 'same' ? ' tl-dot-parallel' : '') + '"></div>' +
           (!isLast ? '<div class="tl-line"></div>' : '') +
         '</div>' +
-        '<div class="tl-scene-card" onclick="TIMELINE.focusScene(\'' + esc(s.unit_id || '') + '\')">' +
+        '<div class="tl-scene-card" onclick="TIMELINE.focusScene(\'' + jsStr(s.unit_id || '') + '\')">' +
           '<div class="tl-scene-header">' +
             '<span class="tl-scene-name">' + esc(s.unit_name || '') + '</span>' +
             ordinal +
@@ -238,6 +238,18 @@
 
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // 用于内联 onclick="TIMELINE.fn('...')" 中的 JS 字符串字面量。
+  // esc() 不转义单引号，在属性上下文会被 HTML 解码回原字符导致 JS 注入。
+  function jsStr(s) {
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\x22')
+      .replace(/&/g, '\\x26')
+      .replace(/</g, '\\x3c')
+      .replace(/>/g, '\\x3e');
   }
 
   // ── 在 detail panel 中渲染角色时间线 ─────────────────────

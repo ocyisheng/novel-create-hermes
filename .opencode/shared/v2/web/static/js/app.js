@@ -131,7 +131,7 @@
       console.error('初始化失败:', err);
       document.getElementById('network').innerHTML =
         '<div style="text-align:center;padding:80px 20px;color:#888"><h2>加载失败</h2><p>' +
-        err.message + '</p></div>';
+        esc(err.message) + '</p></div>';
     }
   }
 
@@ -290,9 +290,9 @@
     if (!node || !node._info) return;
     const n = node._info;
     const tip = document.getElementById('tooltip');
-    tip.innerHTML = '<div class="tt-name">' + (n.label || '') + '</div>' +
-      '<div class="tt-type">' + (n.type_label || n.type || '') + '</div>' +
-      '<div class="tt-meta">状态: ' + (n.status || '?') + ' · 确信度: ' + (n.confidence || '?') + '</div>';
+    tip.innerHTML = '<div class="tt-name">' + esc(n.label || '') + '</div>' +
+      '<div class="tt-type">' + esc(n.type_label || n.type || '') + '</div>' +
+      '<div class="tt-meta">状态: ' + esc(n.status || '?') + ' · 确信度: ' + esc(n.confidence || '?') + '</div>';
     tip.style.display = 'block';
   }
 
@@ -323,8 +323,8 @@
     title.textContent = n.label || id;
     const status = n.status || 'sprout';
     const statusLabels = { sprout:'萌芽', growing:'生长中', mature:'成熟', frozen:'冻结', archived:'已归档' };
-    meta.innerHTML = (n.type_label || n.type || '') +
-      ' · <span class="status-badge status-' + status + '" onclick="APP.editStatus(\'' + id + '\', this)">' + (statusLabels[status] || status) + '</span>' +
+    meta.innerHTML = esc(n.type_label || n.type || '') +
+      ' · <span class="status-badge status-' + esc(status) + '" onclick="APP.editStatus(\'' + jsStr(id) + '\', this)">' + esc(statusLabels[status] || status) + '</span>' +
       ' · 确信度 ' + renderConfidence(n.confidence);
 
     // 渲染内容
@@ -366,11 +366,11 @@
           const c = getTypeColor(r.type);
           html += '<div class="rel-item">' +
             '<span class="rel-dot" style="background:' + c + '"></span>' +
-            '<span class="rel-name" onclick="APP.focusNode(\'' + r.id + '\')" style="cursor:pointer">' + esc(r.name) + '</span>' +
+            '<span class="rel-name" onclick="APP.focusNode(\'' + jsStr(r.id) + '\')" style="cursor:pointer">' + esc(r.name) + '</span>' +
             '<span class="rel-label">' + esc(r.rel) + '</span>' +
             '<span style="margin-left:auto;font-size:11px;display:flex;gap:2px">' +
-            '<span onclick="APP.editEdge(\'' + r.edgeId + '\')" style="cursor:pointer;color:var(--accent);padding:0 4px" title="编辑关系">✎</span>' +
-            '<span onclick="APP.deleteEdge(\'' + r.edgeId + '\')" style="cursor:pointer;color:var(--danger);padding:0 4px" title="删除关系">✕</span>' +
+            '<span onclick="APP.editEdge(\'' + jsStr(r.edgeId) + '\')" style="cursor:pointer;color:var(--accent);padding:0 4px" title="编辑关系">✎</span>' +
+            '<span onclick="APP.deleteEdge(\'' + jsStr(r.edgeId) + '\')" style="cursor:pointer;color:var(--danger);padding:0 4px" title="删除关系">✕</span>' +
             '</span></div>';
         });
         html += '</div>';
@@ -386,8 +386,8 @@
 
     // 操作按钮
     html += '<div class="dp-actions">' +
-      '<button onclick="APP.editNode(\'' + id + '\')">✏️ 编辑</button>' +
-      '<button onclick="APP.deleteNode(\'' + id + '\')" class="btn-danger">🗑️ 删除</button>' +
+      '<button onclick="APP.editNode(\'' + jsStr(id) + '\')">✏️ 编辑</button>' +
+      '<button onclick="APP.deleteNode(\'' + jsStr(id) + '\')" class="btn-danger">🗑️ 删除</button>' +
       '</div>';
 
     body.innerHTML = html;
@@ -499,6 +499,19 @@
 
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // 用于内联 onclick="APP.fn('...')" 中的 JS 字符串字面量。
+  // 不能只用 esc()——单引号在 HTML 属性内会被解码回原字符，导致 JS 注入。
+  // 反斜杠须最先转义，防止 \x27 二次注入。
+  function jsStr(s) {
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\x22')
+      .replace(/&/g, '\\x26')
+      .replace(/</g, '\\x3c')
+      .replace(/>/g, '\\x3e');
   }
 
   // ── 结构化字段渲染（编辑用） ──────────────────────────────
@@ -625,7 +638,7 @@
 
     const scope = await API.searchScope().catch(() => ({ types: [{ value: 'scene', label: '场景' }] }));
     const typeOptions = (scope.types || []).map(t =>
-      `<option value="${t.value}"${t.value === defaults.unit_type ? ' selected' : ''}>${t.label}</option>`
+      `<option value="${esc(t.value)}"${t.value === defaults.unit_type ? ' selected' : ''}>${esc(t.label)}</option>`
     ).join('');
 
     var statusOpts = Object.entries(STATUS_LABELS).map(function(e) {
@@ -768,7 +781,7 @@
   window.showAddEdgeModal = function() {
     const modal = document.getElementById('modalContent');
     const nodeOptions = Object.entries(nodeData).map(([id, n]) =>
-      `<option value="${id}">${esc(n.label || id)}</option>`
+      `<option value="${esc(id)}">${esc(n.label || id)}</option>`
     ).join('');
 
     const typeOptions = [
@@ -941,7 +954,7 @@
       kvHtml += '<div class="kv-entries" id="kvEntries_' + key + '">';
       kvHtml += renderKvRow(key, 0);
       kvHtml += '</div>';
-      kvHtml += '<button type="button" onclick="window.addKvItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加字段</button>';
+      kvHtml += '<button type="button" onclick="window.addKvItem(\'' + jsStr(key) + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加字段</button>';
       kvHtml += '</div>';
       return desc + kvHtml;
     }
@@ -954,7 +967,7 @@
       // 初始一行空模板
       html += renderArrayItemRow(key, schema.item_fields, 0);
       html += '</div>';
-      html += '<button type="button" onclick="window.addArrayItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:4px 10px">＋ 添加条目</button>';
+      html += '<button type="button" onclick="window.addArrayItem(\'' + jsStr(key) + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:4px 10px">＋ 添加条目</button>';
       html += '</div>';
       return html;
     }
@@ -966,7 +979,7 @@
       arrHtml += '<div class="plain-array-items" id="plainArrayItems_' + key + '">';
       arrHtml += renderPlainArrayRow(key, 0);
       arrHtml += '</div>';
-      arrHtml += '<button type="button" onclick="window.addPlainArrayItem(\'' + key + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加</button>';
+      arrHtml += '<button type="button" onclick="window.addPlainArrayItem(\'' + jsStr(key) + '\')" style="font-size:12px;margin-top:4px;cursor:pointer;color:var(--accent);background:none;border:1px dashed var(--border);border-radius:4px;padding:2px 8px">＋ 添加</button>';
       arrHtml += '</div>';
       return desc + arrHtml;
     }
@@ -1010,7 +1023,7 @@
     var rowId = 'arrayRow_' + key + '_' + index;
     return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:2px;padding:4px 0;border-bottom:1px solid var(--border)">' +
       fieldsHtml +
-      '<span onclick="window.removeArrayItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:2px 6px" title="删除">&times;</span>' +
+      '<span onclick="window.removeArrayItem(\'' + jsStr(key) + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:2px 6px" title="删除">&times;</span>' +
       '</div>';
   }
 
@@ -1020,7 +1033,7 @@
     var rowId = 'plainArrayRow_' + key + '_' + index;
     return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:4px;padding:3px 0">' +
       '<input class="inline-edit" name="' + fname + '" style="flex:1;min-width:80px" />' +
-      '<span onclick="window.removePlainArrayItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
+      '<span onclick="window.removePlainArrayItem(\'' + jsStr(key) + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
       '</div>';
   }
 
@@ -1032,7 +1045,7 @@
     return '<div id="' + rowId + '" style="display:flex;align-items:center;gap:4px;padding:3px 0">' +
       '<input class="inline-edit" name="' + kName + '" placeholder="key" style="width:100px;font-size:12px" />' +
       '<input class="inline-edit" name="' + vName + '" placeholder="value" style="flex:1;min-width:80px;font-size:12px" />' +
-      '<span onclick="window.removeKvItem(\'' + key + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
+      '<span onclick="window.removeKvItem(\'' + jsStr(key) + '\',' + index + ')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" title="删除">&times;</span>' +
       '</div>';
   }
 
@@ -1230,7 +1243,7 @@
     var newRow = document.getElementById(tempId);
     if (newRow) {
       var delBtn = newRow.querySelector('[onclick*="removeArrayItem"]');
-      if (delBtn) delBtn.setAttribute('onclick', 'window.removeArrayItem(\'' + key + '\',' + idx + ')');
+      if (delBtn) delBtn.setAttribute('onclick', 'window.removeArrayItem(\'' + jsStr(key) + '\',' + idx + ')');
     }
   };
 

@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Dict, List, Optional, Set, Any, Callable
 
@@ -28,6 +29,8 @@ from graph_schema import NarrativeUnit, Relation, RelationType
 from type_registry import TypeRegistry, ConstraintDef, PayloadConstraintDef
 from matchers import MATCHERS
 from matchers.base import CheckResult
+
+logger = logging.getLogger(__name__)
 
 
 class ConstraintEngine:
@@ -140,8 +143,13 @@ class ConstraintEngine:
                     result = matcher.check(constraint, unit, facts, self.store, registry=self.registry)
                     if result:
                         results.append(result)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "state_conservation 约束检查失败 (unit=%s, rule=%s): %s",
+                        getattr(unit, "id", "?"),
+                        getattr(constraint, "rule_id", "?"),
+                        e,
+                    )
         return results
 
     def _check_unit(self, unit: NarrativeUnit, type_def) -> List[CheckResult]:
@@ -167,9 +175,14 @@ class ConstraintEngine:
                 result = matcher.check(constraint, unit, facts, self.store, registry=self.registry)
                 if result:
                     results.append(result)
-            except Exception:
-                # 单条约束失败不影响其他
-                pass
+            except Exception as e:
+                logger.warning(
+                    "约束检查失败 (unit=%s, rule=%s, category=%s): %s",
+                    getattr(unit, "id", "?"),
+                    getattr(constraint, "rule_id", "?"),
+                    getattr(constraint, "category", "?"),
+                    e,
+                )
 
         # 3. 校验边的合法性
         relation_results = self._validate_relations(unit, type_def)
@@ -326,8 +339,13 @@ class ConstraintEngine:
                 result = self._check_single_payload_constraint(pc, rel, source)
                 if result:
                     results.append(result)
-            except Exception:
-                pass  # 单条约束失败不影响其他
+            except Exception as e:
+                logger.warning(
+                    "payload 约束检查失败 (rel=%s, rule=%s): %s",
+                    getattr(rel, "id", "?"),
+                    getattr(pc, "rule_id", "?"),
+                    e,
+                )
 
         return results
 
@@ -476,7 +494,6 @@ class ConstraintEngine:
             dm = DeviationManager(project_root)
             dm.merge_from_check_results(results)
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "ConstraintEngine._persist_results 失败: %s", e
             )

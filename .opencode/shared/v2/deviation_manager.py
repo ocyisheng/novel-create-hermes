@@ -19,6 +19,7 @@ DeviationManager — LLM 跨 session 分析的状态存储。
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import copy
@@ -30,6 +31,8 @@ from typing import Dict, List, Optional, Any
 import yaml
 
 from graph_store import _normalize_project_root
+
+logger = logging.getLogger(__name__)
 
 
 # ── 数据类 ──────────────────────────────────────────────────────────────────
@@ -131,7 +134,11 @@ class DeviationManager:
                     source=d.get("source", "llm_analysis"),
                 )
                 self._state.deviations[item.id] = item
-        except Exception:
+        except Exception as e:
+            # 损坏的 YAML 无法恢复——重置状态但明确告警，防止静默丢失偏差记录
+            logger.warning(
+                "偏差状态文件损坏，已重置为空状态（原数据将被覆盖）: %s", e
+            )
             self._state = DeviationState()
 
     def save(self):

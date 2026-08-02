@@ -297,6 +297,7 @@ class WritingSession:
             "cycle_number": self.cycle_number,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "paused_at": self.paused_at.isoformat() if self.paused_at else None,
             "loaded_unit_ids": self.loaded_unit_ids,
             "timeline": [a.to_dict() for a in self.timeline],
             "output_text": self.output_text,
@@ -321,6 +322,8 @@ class WritingSession:
         s.cycle_number = data.get("cycle_number", 1)
         s.created_at = datetime.fromisoformat(data["created_at"])
         s.updated_at = datetime.fromisoformat(data["updated_at"])
+        if data.get("paused_at"):
+            s.paused_at = datetime.fromisoformat(data["paused_at"])
         s.loaded_unit_ids = data.get("loaded_unit_ids", [])
         s.timeline = [
             SessionAction(

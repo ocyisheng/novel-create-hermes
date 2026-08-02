@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Callable
@@ -29,6 +31,8 @@ from graph_schema import (
 )
 from graph_store import GraphStore
 from deviation_manager import DeviationManager
+
+logger = logging.getLogger(__name__)
 
 
 class BlockedByDeviationError(Exception):
@@ -132,7 +136,8 @@ class ProjectionEngine:
                     "detail": d.detail,
                 })
             return blocking
-        except Exception:
+        except Exception as e:
+            logger.warning("DeviationManager 不可用，阻断检查降级为不阻断: %s", e)
             return []  # DeviationManager 不可用时降级为不阻断
 
     def assert_no_blocking_deviations(
@@ -312,6 +317,26 @@ class ProjectionEngine:
         return str(self.projections_dir / path)
     
     @staticmethod
+    def _safe_segment(value: Any) -> str:
+        """将任意路径段消毒为安全的文件名段。
+
+        处理三种风险：
+        - Windows/Unix 非法字符（\\ / : * ? " < > |）→ 替换为下划线
+        - 路径穿越（.. 或包含路径分隔符）→ 中和为安全形式
+        - 空白/空段 → 回退为 "unknown"
+        """
+        text = str(value).strip()
+        if not text:
+            return "unknown"
+        # 非法文件名字符 → 下划线
+        text = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", text)
+        # 中和路径穿越：任何 ".." 形式的段改为 "_"
+        text = re.sub(r"\.\.+", "_", text)
+        # 去除首尾空格/点，避免 Windows 尾随点/空格问题
+        text = text.strip(" .")
+        return text or "unknown"
+
+    @staticmethod
     def _build_structure_path(structure_path: List[Any]) -> str:
         """
         将任意深度的 structure_path 列表转为文件系统路径。
@@ -330,9 +355,9 @@ class ProjectionEngine:
             if isinstance(item, int):
                 segments.append(f"第{item}章")
             elif isinstance(item, str):
-                segments.append(item)
+                segments.append(ProjectionEngine._safe_segment(item))
             else:
-                segments.append(str(item))
+                segments.append(ProjectionEngine._safe_segment(str(item)))
         return "/".join(segments)
     
     def _build_outline_title(self, structure_path: List[Any]) -> str:
@@ -365,7 +390,7 @@ class ProjectionEngine:
                 return f"outline/分纲/{path}.md"
             # 回退到旧版 params 模板
             return template.format(
-                part=params.get("part", "default"),
+                part=ProjectionEngine._safe_segment(params.get("part", "default")),
                 volume=params.get("volume", 1),
                 chapter=params.get("chapter", 1),
             )
@@ -378,10 +403,10 @@ class ProjectionEngine:
                 name = self._disambiguate_projection_name(view, name, unit_id)
             else:
                 name = unit_id or "unknown"
-            return template.format(name=name)
+            return template.format(name=ProjectionEngine._safe_segment(name))
         elif view == ProjectionView.TRACKING:
             name = params.get("name", "综合")
-            return template.format(name=name)
+            return template.format(name=ProjectionEngine._safe_segment(name))
         else:
             return template
     

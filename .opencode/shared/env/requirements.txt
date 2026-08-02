@@ -1,5 +1,15 @@
 # novel-create-hermes Python 依赖
 # 安装: pip install -r requirements.txt
 
+# 核心
 PyYAML>=6.0
 json-repair
+
+# V2 Web 可视化（FastAPI）
+fastapi>=0.140
+uvicorn>=0.51
+pydantic>=2.0
+
+# 测试
+pytest>=8.0
+pytest-cov>=5.0

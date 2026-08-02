@@ -32,7 +32,7 @@ from pathlib import Path
 
 # .venv 位于小说项目的父目录，多个小说项目共享
 # 例: novels/.venv  (novels/小说1, novels/小说2 共用)
-SKILL_DIR = Path(__file__).resolve().parent.parent  # novel-env-setup
+SKILL_DIR = Path(__file__).resolve().parent.parent  # shared/
 _TOOL_ROOT = SKILL_DIR.parent.parent.parent  # novel-create-hermes 工具根目录
 
 # 自动发现 .venv：按优先级搜索
@@ -57,7 +57,7 @@ def _discover_venv() -> Path:
     return _TOOL_ROOT / ".venv"
 
 VENV_DIR = _discover_venv()
-REQUIREMENTS = SKILL_DIR / "scripts" / "requirements.txt"
+REQUIREMENTS = SKILL_DIR / "env" / "requirements.txt"
 
 MIN_PYTHON = (3, 8)
 
@@ -91,8 +91,17 @@ def get_venv_python() -> Path:
 
 
 def check_dependencies(venv_python: Path) -> tuple:
-    """检查核心依赖是否已安装。返回 (是否全部安装, 缺失列表)。"""
-    required = [("PyYAML", "yaml")]
+    """检查核心依赖是否已安装。返回 (是否全部安装, 缺失列表)。
+
+    与 env/requirements.txt 保持一致；json-repair 缺失时 JSON 容错解析降级但核心功能可用。
+    """
+    required = [
+        ("PyYAML", "yaml"),
+        ("fastapi", "fastapi"),
+        ("uvicorn", "uvicorn"),
+        ("pydantic", "pydantic"),
+        ("json-repair", "json_repair"),
+    ]
     missing = []
 
     for name, import_name in required:

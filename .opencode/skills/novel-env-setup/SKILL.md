@@ -38,7 +38,7 @@ novel-tool(operation="env.force")       # 强制重建 .venv
 
 1. 检测 `python --version` / `conda --version`
 2. 两者皆无 → 提示用户安装，终止
-3. 有任一 → 执行 `.bat`/`.sh` 创建 `.venv` + 安装 PyYAML 依赖
+3. 有任一 → 执行 `.bat`/`.sh` 创建 `.venv` + 按 `env/requirements.txt` 安装全部依赖（PyYAML/fastapi/uvicorn/pydantic/json-repair 等）
 4. `env_setup.py` 验证通过 → 环境就绪
 
 ## HARD CONSTRAINTS

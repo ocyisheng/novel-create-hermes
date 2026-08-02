@@ -151,7 +151,8 @@ def _validate_content_schema(unit_type, content: str) -> list:
         if not isinstance(content_dict, dict):
             return []
         return validate_content(unit_type, content_dict)
-    except Exception:
+    except Exception as e:
+        logger.warning("content schema 校验异常（按无错误处理）: %s", e)
         return []
 
 
@@ -804,7 +805,8 @@ def handle_flush(project_root: str, skip_constraint_check: bool = False) -> dict
                 "by_status": stats.get("by_status", {}),
             }
         }
-    except Exception:
+    except Exception as e:
+        logger.warning("flush 后约束检查概要收集失败: %s", e)
         return {"ok": True, "constraint_check": None}
 
 

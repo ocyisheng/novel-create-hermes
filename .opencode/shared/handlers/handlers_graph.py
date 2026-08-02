@@ -743,8 +743,8 @@ def _resolve_rel_type(rel_type: str):
             rtype = RelationType(rel_type.lower())
             return rtype, ""
         except ValueError:
-            # 非枚举值（如"师徒""母子"）→ 降级为 REFERENCES，原始输入存为语义标签
-            return RelationType.REFERENCES, rel_type
+            # 非枚举值（如"师徒""母子"）→ 降级为 RELATES_TO（关联容器），原始输入存为语义标签
+            return RelationType.RELATES_TO, rel_type
 
 
 def handle_add_relation(
@@ -754,11 +754,23 @@ def handle_add_relation(
     rel_type: str,
     bidirectional: bool = False,
     label: str = "",
+    source_role: str = "",
+    target_role: str = "",
     weight: Optional[float] = None,
     actor: str = "orchestrator",
     session_id: Optional[str] = None,
+    payload: Optional[str] = None,
 ) -> dict:
-    """建立关系。"""
+    """建立关系。
+
+    bidirectional 按 auto_reverse 三态处理：
+    - always（对称/配对）：建正向即物化反向边
+    - optional（层级）：显式 bidirectional=True 时允许物化
+    - never（单向断言）：忽略 bidirectional，不建反向（返回警告）
+
+    证据锚点：payload 合并 source 通道（crafter → llm，其余 → manual），
+    再与调用方传入的 payload（JSON 字符串，可选）合并。
+    """
     blocked = _check_orchestrator_write(actor, "graph.add_relation")
     if blocked:
         return blocked
@@ -767,25 +779,47 @@ def handle_add_relation(
     effective_label = label or fallback_label
     store = _get_store(project_root)
     store.set_session_context(session_id)
+    # 证据锚点：按 actor 判定来源通道
+    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else "manual"
+    payload_dict = {}
+    if payload:
+        try:
+            parsed = json.loads(payload) if isinstance(payload, str) else payload
+            if isinstance(parsed, dict):
+                payload_dict = parsed
+        except json.JSONDecodeError:
+            payload_dict = {}
+    payload_dict.setdefault("source", source_channel)
     try:
         rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label,
+                                 source_role=source_role or "", target_role=target_role or "",
                                  weight=weight if weight is not None else 0.5,
-                                 session_id=session_id)
+                                 session_id=session_id, payload=payload_dict)
         if not rel:
             return {"error": "关系建立失败"}
         result = {"id": rel.id, "type": rtype.value}
         if effective_label:
             result["label"] = effective_label
-        if bidirectional:
-            # 自反类型（relates_to 等）逆 = 自身，反向边为同类型物理物化（R2 检查依赖物化反向边）；
-            # add_relation 按 (source, target, type) 三元组去重，若该反向边已存在则自动跳过不重复创建
+        if source_role:
+            result["source_role"] = source_role
+        if target_role:
+            result["target_role"] = target_role
+        if payload_dict:
+            result["payload"] = payload_dict
+
+        if bidirectional and rtype.auto_reverse != "never":
+            # 统一翻转规则：交换端点 + 类型 inverse + role 跟随端点 + label 保持
             inv = rtype.inverse
-            inv_label = effective_label  # 反向关系携带相同语义标签
-            inv_rel = store.add_relation(target, source, inv, actor=actor, label=inv_label,
+            inv_rel = store.add_relation(target, source, inv, actor=actor, label=effective_label,
+                                         source_role=target_role or "", target_role=source_role or "",
                                          weight=weight if weight is not None else 0.5,
-                                         session_id=session_id)
+                                         session_id=session_id, payload=payload_dict)
             if inv_rel:
                 result["inverse_id"] = inv_rel.id
+        elif bidirectional and rtype.auto_reverse == "never":
+            result["warning"] = (
+                f"关系类型 {rtype.value} 为单向断言（auto_reverse=never），未创建反向边"
+            )
         store.flush()
     finally:
         store.clear_session_context()
@@ -799,9 +833,11 @@ def handle_update_relation(
     weight: Optional[float] = None,
     description: str = "",
     payload: Optional[str] = None,
+    source_role: str = "",
+    target_role: str = "",
     actor: str = "orchestrator",
 ) -> dict:
-    """更新单条关系（label/weight/description/payload）。
+    """更新单条关系（label/weight/description/payload/source_role/target_role）。
 
     统一走 store 的事件记录 + 脏边标记，保证 RELATION_UPDATED 事件
     与 _dirty_relation_ids 增量检查不缺失（Web PUT 此前直改 store 绕过此处）。
@@ -825,6 +861,12 @@ def handle_update_relation(
         changed = True
     if description and description != rel.description:
         rel.description = description
+        changed = True
+    if source_role and source_role != rel.source_role:
+        rel.source_role = source_role
+        changed = True
+    if target_role and target_role != rel.target_role:
+        rel.target_role = target_role
         changed = True
     if payload is not None:
         try:
@@ -903,10 +945,12 @@ def handle_constraint_check(project_root: str, full: bool = False) -> dict:
 
 
 def handle_fix_asymmetry(project_root: str) -> dict:
-    """补齐所有对称关系类型的缺失反向边。
+    """补齐 auto_reverse=always 类型的缺失反向边。
 
-    无环配对类型（CONTAINS/BELONGS_TO）跳过：补齐反向边可能制造环，
-    交由 R2 检查提示而非自动修复。
+    三态过滤：
+    - always（对称/配对）：补齐缺失反向边（inverse 类型）
+    - optional（层级 CONTAINS/BELONGS_TO）：跳过——层级一条边足够，补反向可能制造环
+    - never（单向断言 CAUSES/PRECEDES 等）：跳过——A→B 不蕴含 B→A，补反向是语义错误
     """
     from graph_schema import RelationType
     store = _get_store(project_root)
@@ -914,7 +958,7 @@ def handle_fix_asymmetry(project_root: str) -> dict:
     skipped = 0
     for rel in list(store._relations.values()):
         rtype = rel.relation_type
-        if rtype.is_acyclic:
+        if rtype.auto_reverse != "always":
             skipped += 1
             continue
         inv = rtype.inverse
@@ -927,9 +971,12 @@ def handle_fix_asymmetry(project_root: str) -> dict:
         if exists:
             skipped += 1
             continue
+        # role 跟随端点：反向边的 source_role 取原边 target_role，target_role 取原边 source_role
         r = store.add_relation(rev_source, rev_target, rev_type,
                                weight=rel.weight, description="auto-filled reverse",
-                               actor="fix-asymmetry")
+                               source_role=rel.target_role or "", target_role=rel.source_role or "",
+                               actor="fix-asymmetry",
+                               payload={"source": "auto", "auto_filled_reverse": True})
         if r:
             created += 1
     store.flush()
@@ -943,13 +990,19 @@ def handle_get_relations(
     direction: str = "both",
     label: str = "",
     label_substring: bool = False,
+    role: str = "",
+    role_substring: bool = False,
+    min_weight: Optional[float] = None,
+    max_weight: Optional[float] = None,
 ) -> dict:
     """获取关系列表。"""
     from graph_schema import RelationType
     store = _get_store(project_root)
     rt = RelationType[rel_type.upper()] if rel_type else None
     relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction,
-                                    label=label or None, label_substring=label_substring)
+                                    label=label or None, label_substring=label_substring,
+                                    role=role or None, role_substring=role_substring,
+                                    min_weight=min_weight, max_weight=max_weight)
     return {
         "relations": [
             {
@@ -958,6 +1011,9 @@ def handle_get_relations(
                 "type": r.relation_type.value,
                 "weight": r.weight, "description": r.description,
                 "label": r.label,
+                "source_role": r.source_role,
+                "target_role": r.target_role,
+                "payload": r.payload or {},
             }
             for r in relations
         ],

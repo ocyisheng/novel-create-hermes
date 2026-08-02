@@ -197,6 +197,54 @@ class RelationType(str, Enum):
         """
         return self in (RelationType.CONTAINS, RelationType.BELONGS_TO)
 
+    @property
+    def auto_reverse(self) -> str:
+        """自动补反向策略（三态）。
+
+        决定 bidirectional / fix_asymmetry 是否自动物化反向边：
+
+        - "always"  ：对称语义或配对类型 → 建正向即物化反向。
+                      A 类（同类型自翻）：CONTRADICTS/PARALLEL/RELATES_TO/PARTICIPATES_IN/INVOLVES
+                      B 类（inverse 类型自翻）：MEMBER_OF/POSSESSES/CONTROLS/LOCATED_AT/HAS_EVENT/PLANS
+                      及其配对反向类型
+        - "optional"：默认不自动补反向，但显式 bidirectional=True 时允许（层级 CONTAINS/BELONGS_TO）
+        - "never"   ：单向断言 → 禁止自动补反向（CAUSES/PRECEDES/IMPLEMENTS/REFERENCES/IMPLIES/
+                      INSPIRES/REFINES），避免制造语义错误边
+        """
+        policies = {
+            # A 类：对称语义，同类型自翻
+            "contradicts": "always",
+            "parallel": "always",
+            "relates_to": "always",
+            "participates_in": "always",
+            "involves": "always",
+            # B 类：配对类型，inverse 类型自翻（含反向类型本身）
+            "member_of": "always",
+            "has_member": "always",
+            "possesses": "always",
+            "possessed_by": "always",
+            "controls": "always",
+            "controlled_by": "always",
+            "located_at": "always",
+            "location_of": "always",
+            "has_event": "always",
+            "event_of": "always",
+            "plans": "always",
+            "planned_by": "always",
+            # 层级：一条边足够，默认不自动补
+            "contains": "optional",
+            "belongs_to": "optional",
+            # C 类：单向断言，禁止自翻
+            "causes": "never",
+            "precedes": "never",
+            "implements": "never",
+            "references": "never",
+            "implies": "never",
+            "inspires": "never",
+            "refines": "never",
+        }
+        return policies.get(self.value, "never")
+
     @classmethod
     def label(cls, rt: "RelationType") -> str:
         """返回关系类型的中文显示标签。"""
@@ -407,6 +455,10 @@ class Relation:
     
     第二阶段扩展：metadata → payload 重命名，payload 带 schema 校验。
     to_dict() 同时写入 payload 和 metadata 字段以保证向后兼容。
+    
+    payload 约定键（约定而非新字段，无 schema 强制，写入时自由合并）：
+    - 时态演化：start_chapter / end_chapter / resolve_chapter（关系生效/结束/伏笔回收章节）
+    - 证据锚点：source（"auto"|"llm"|"manual"，边的产生通道）+ chapter（出处章节）
     """
     id: str                               # UUID
     source_id: str                        # 源单元 ID
@@ -415,9 +467,40 @@ class Relation:
     weight: float = 0.5                   # 0.0-1.0，关系强度
     description: str = ""                 # 可选的关系描述
     label: str = ""                       # 关系语义标签（如"师徒""母子"），自由文本，不限枚举
+    source_role: str = ""                 # 源端点在关系中的角色（如"师傅"），跟随端点不跟随边
+    target_role: str = ""                 # 目标端点在关系中的角色（如"徒弟"），跟随端点不跟随边
     payload: Dict[str, Any] = field(default_factory=dict)  # 结构化载荷（含 schema 校验）
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    # ── 时态演化（payload 约定键，非数据类字段）──────────────────────
+    def set_temporal_scope(self, start_chapter=None, end_chapter=None,
+                           resolve_chapter=None) -> None:
+        """写入关系时态范围（payload 约定键，非新字段）。
+
+        仅更新非 None 的键；置 None 的键从 payload 中移除（可传空串清除）。
+        """
+        for key, val in (("start_chapter", start_chapter),
+                         ("end_chapter", end_chapter),
+                         ("resolve_chapter", resolve_chapter)):
+            if val is None:
+                continue
+            if val == "":
+                self.payload.pop(key, None)
+            else:
+                self.payload[key] = val
+
+    def get_temporal_scope(self) -> dict:
+        """读取关系时态范围（缺失键返回 None）。"""
+        return {
+            "start_chapter": self.payload.get("start_chapter"),
+            "end_chapter": self.payload.get("end_chapter"),
+            "resolve_chapter": self.payload.get("resolve_chapter"),
+        }
+
+    def get_source_channel(self) -> str:
+        """读取关系证据来源通道（缺失默认 manual）。"""
+        return self.payload.get("source", "manual")
     
     def to_dict(self) -> Dict[str, Any]:
         result = asdict(self)

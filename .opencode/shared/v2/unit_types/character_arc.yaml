@@ -70,6 +70,7 @@ fact_fields:
     type: entity_reference
     target_type: world_rule
     match_field: unit_name
+    rel_type: located_at
     description: "事件地点引用"
   - name: "ending_state"
     path: "end_state"

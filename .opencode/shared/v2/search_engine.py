@@ -323,6 +323,11 @@ class SearchEngine:
                 continue
             if src.status == UnitStatus.ARCHIVED or tgt.status == UnitStatus.ARCHIVED:
                 continue  # 已归档角色的关系不对称是预期行为
+            # 三态对齐：仅 always 类型期望反向存在。
+            # never（单向断言 CAUSES/PRECEDES 等）不期望反向，反向存在反而是异常；
+            # optional（层级 CONTAINS/BELONGS_TO）一条边足够。
+            if rel.relation_type.auto_reverse != "always":
+                continue
 
             # 检查反向关系是否存在
             has_inverse = False

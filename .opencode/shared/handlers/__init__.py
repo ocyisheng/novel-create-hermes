@@ -164,11 +164,11 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "weight": {}, "actor": {}, "session_id": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "source_role": {}, "target_role": {}, "weight": {}, "actor": {}, "session_id": {}, "payload": {}},
     },
     "graph.update_relation": {
         "handler": handle_update_relation,
-        "params": {"project_root": {"required": True}, "id": {"required": True}, "label": {}, "weight": {}, "description": {}, "payload": {}, "actor": {}},
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "label": {}, "weight": {}, "description": {}, "payload": {}, "source_role": {}, "target_role": {}, "actor": {}},
     },
     "graph.flush": {
         "handler": handle_flush,
@@ -184,7 +184,7 @@ OPERATION_REGISTRY = {
     },
     "graph.get_relations": {
         "handler": handle_get_relations,
-        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}, "role": {}, "role_substring": {}, "min_weight": {}, "max_weight": {}},
     },
     "graph.remove_relation": {
         "handler": handle_remove_relation,

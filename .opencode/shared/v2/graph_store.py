@@ -67,6 +67,19 @@ def _match_label(label: Optional[str], query: str, substring: bool = False) -> b
     return label == query
 
 
+def _match_role(rel: "Relation", role: str, substring: bool = False) -> bool:
+    """role 过滤匹配：命中 source_role 或 target_role 即视为匹配。
+
+    role 是端点角色（跟随端点），查询时不区分方向——"师傅"既能命中
+    source_role=师傅 也能命中 target_role=师傅 的边。
+    """
+    if not role:
+        return False
+    if substring:
+        return role in rel.source_role or role in rel.target_role
+    return rel.source_role == role or rel.target_role == role
+
+
 def _normalize_project_root(project_root: str) -> Path:
     """归一化项目根路径。
 
@@ -980,14 +993,20 @@ class GraphStore:
         weight: float = 0.5,
         description: str = "",
         label: str = "",
+        source_role: str = "",
+        target_role: str = "",
         actor: str = "script",
         record_event: bool = True,
         session_id: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
     ) -> Optional[Relation]:
         """在两个叙事单元之间建立关系
 
         Args:
+            source_role: 源端点在关系中的角色（如"师傅"），跟随端点不跟随边。
+            target_role: 目标端点在关系中的角色（如"徒弟"），跟随端点不跟随边。
             session_id: 关联的创作会话 ID（遥测归因，写入事件）。
+            payload: 关系结构化载荷（证据锚点/时态约定写入处）。
         """
         if source_id not in self._units or target_id not in self._units:
             return None
@@ -1011,6 +1030,9 @@ class GraphStore:
             weight=weight,
             description=description,
             label=label,
+            source_role=source_role,
+            target_role=target_role,
+            payload=payload or {},
         )
         self._relations[rel.id] = rel
         self._outgoing_edges[source_id].append(rel.id)
@@ -1198,11 +1220,18 @@ class GraphStore:
         direction: str = "both",  # "outgoing" | "incoming" | "both"
         label: Optional[str] = None,
         label_substring: bool = False,
+        role: Optional[str] = None,
+        role_substring: bool = False,
+        min_weight: Optional[float] = None,
+        max_weight: Optional[float] = None,
     ) -> List[Relation]:
         """查询一个叙事单元的关系
 
         label: 按语义标签精确过滤（None 表示不过滤）；
         label_substring: True 时 label 改为包含匹配（用于"师徒"等降级标签查询）。
+        role: 按端点角色过滤（None 表示不过滤），命中 source_role 或 target_role 均视为匹配；
+        role_substring: True 时 role 改为包含匹配。
+        min_weight/max_weight: 按关系强度过滤（含边界），None 表示不限制。
         """
         if not unit_id:
             # 返回所有关系（可筛选类型）
@@ -1211,6 +1240,12 @@ class GraphStore:
                 results = [r for r in results if r.relation_type == relation_type]
             if label is not None:
                 results = [r for r in results if _match_label(r.label, label, label_substring)]
+            if role is not None:
+                results = [r for r in results if _match_role(r, role, role_substring)]
+            if min_weight is not None:
+                results = [r for r in results if r.weight >= min_weight]
+            if max_weight is not None:
+                results = [r for r in results if r.weight <= max_weight]
             return results
         
         rel_ids = []
@@ -1224,6 +1259,12 @@ class GraphStore:
             results = [r for r in results if r.relation_type == relation_type]
         if label is not None:
             results = [r for r in results if _match_label(r.label, label, label_substring)]
+        if role is not None:
+            results = [r for r in results if _match_role(r, role, role_substring)]
+        if min_weight is not None:
+            results = [r for r in results if r.weight >= min_weight]
+        if max_weight is not None:
+            results = [r for r in results if r.weight <= max_weight]
         return results
     
     def get_relation(self, relation_id: str) -> Optional[Relation]:

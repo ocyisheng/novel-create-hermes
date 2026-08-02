@@ -1,6 +1,6 @@
 # 关系类型选用速查（26 种）
 
-> 与 `graph_schema.py` 的 `RelationType` 枚举严格一致。关系方向由 `source`/`target` 表达（无独立 direction 字段）；`bidirectional=true` 或 `graph.fix_asymmetry` 会**物化**反向边（物理写入，非虚拟推导）。
+> 与 `graph_schema.py` 的 `RelationType` 枚举严格一致。关系方向由 `source`/`target` 表达（无独立 direction 字段）；反向边的物化由 **auto_reverse 三态** 决定（见下），`bidirectional=true` 或 `graph.fix_asymmetry` 仅对 `always`/`optional` 类型物理写入反向边（never 类不建反向）。每条边可带 `source_role`/`target_role`（端点角色，跟随端点不跟随边）与 `payload`（证据锚点 `source: auto|llm|manual` + 时态约定键）。
 
 ## 结构类（骨架：层级 / 归属）
 
@@ -37,31 +37,49 @@
 ## 开放标签规则（重要）
 
 - **具体语义**（师徒/母子/欠人情/同盟）→ 类型选最接近枚举 + `label` 字段承载语义。
-  例：`rel_type="relates_to", label="同盟", bidirectional=true`
+  例：`rel_type="relates_to", label="同盟", source_role="盟主", target_role="盟友", bidirectional=true`
 - **通用角色关系** → `RELATES_TO` + `label`。
-- **非枚举输入自动降级**：代码层 `_resolve_rel_type` 会把未知字符串（如 `"师徒"`）降级为 `REFERENCES` + `label`，不会报错；查询时可用 `graph.get_relations(label="师徒")` 按语义找回（P2-6 新增 label 过滤，支持 `label_substring=true` 包含匹配）。
+- **非枚举输入自动降级**：代码层 `_resolve_rel_type` 会把未知字符串（如 `"师徒"`）降级为 `RELATES_TO` + `label`（**P0 起由原 REFERENCES 改为 RELATES_TO**），不会报错；查询时可用 `graph.get_relations(label="师徒")` 按语义找回（支持 `label_substring=true` 包含匹配）。
 
-## 自反 vs 配对（决定 bidirectional 行为）
+## auto_reverse 三态（决定反向边物化）
+
+每条关系类型有 `auto_reverse` 属性，决定 `bidirectional=true` 与 `graph.fix_asymmetry` 的行为：
+
+| 状态 | 含义 | 类型 |
+|------|------|------|
+| `always` | 对称/配对语义，双向成立 → 物化反向边 | 自反对称：RELATES_TO、CONTRADICTS、PARALLEL、PARTICIPATES_IN、INVOLVES；配对：POSSESSES↔POSSESSED_BY、CONTROLS↔CONTROLLED_BY、MEMBER_OF↔HAS_MEMBER、LOCATED_AT↔LOCATION_OF、HAS_EVENT↔EVENT_OF、PLANS↔PLANNED_BY |
+| `optional` | 层级包含，一条边足够 → 默认不补，显式 `bidirectional=true` 才物化 | CONTAINS↔BELONGS_TO |
+| `never` | 单向断言，A→B 不蕴含 B→A → 永不建反向（`bidirectional=true` 返回 warning） | CAUSES、PRECEDES、IMPLEMENTS、REFERENCES、IMPLIES、INSPIRES、REFINES |
+
+**反向边翻转规则**（always/optional 物化时）：交换端点 + 类型取 `inverse`（自反类型不变）+ **role 跟随端点**（反向边 `source_role`=原 `target_role`，`target_role`=原 `source_role`）+ label/weight 保持。
 
 - **自反类型**（`inverse == 自身`）：RELATES_TO、CAUSES、CONTRADICTS、REFERENCES、IMPLIES、PARALLEL、INSPIRES、REFINES、PRECEDES、PARTICIPATES_IN、INVOLVES、PLANS 等 → 反向边为同类型，`add_relation` 自动去重。
 - **配对类型**（有独立逆类型）：CONTAINS↔BELONGS_TO、POSSESSES↔POSSESSED_BY、CONTROLS↔CONTROLLED_BY、MEMBER_OF↔HAS_MEMBER、LOCATED_AT↔LOCATION_OF、HAS_EVENT↔EVENT_OF、PLANS↔PLANNED_BY → `bidirectional=true` 会物理写入逆类型边。
-- **无环配对**（CONTAINS/BELONGS_TO）：`add_relation` 会做环检测拒绝成环；`fix_asymmetry` 跳过此类，避免自动制造环（由 R2 检查提示）。
+- **无环配对**（CONTAINS/BELONGS_TO，optional）：`add_relation` 会做环检测拒绝成环；`fix_asymmetry` 跳过此类，避免自动制造环（由 R2 检查提示）。
+
+## 证据锚点与时态（payload 约定键，P2 起）
+
+- **证据锚点**：自动边（relation_inferrer / fix_asymmetry）写入 `payload.source="auto"` + 出处 `chapter`；`handle_add_relation` 按 actor 判定 `source="llm"`（crafter）或 `"manual"`（script/web-ui）。可用 `graph.get_relations` 读回 `payload` 溯源。
+- **时态约定**（约定而非新字段）：`payload.start_chapter` / `end_chapter` / `resolve_chapter` 表达关系生效/结束/伏笔回收章节。`Relation.set_temporal_scope()` / `get_temporal_scope()` 为读写入口。
 
 ## 常用操作
 
 ```
-# 建边（含双向物化）
-novel-tool(operation="graph.add_relation", project="{P}", source="{A}", target="{B}", rel_type="relates_to", label="同盟", bidirectional=true, weight=0.8)
+# 建边（含双向物化 + 角色 + 证据通道自动标记）
+novel-tool(operation="graph.add_relation", project="{P}", source="{A}", target="{B}", rel_type="relates_to", label="同盟", source_role="盟主", target_role="盟友", bidirectional=true, weight=0.8)
 
-# 按语义标签查边（P2-6 新增）
+# 按语义标签查边
 novel-tool(operation="graph.get_relations", project="{P}", label="师徒", label_substring=true)
 
-# 补齐反向边（跳过无环配对类型）
+# 按强度过滤查边（P2 新增）
+novel-tool(operation="graph.get_relations", project="{P}", id="{A}", min_weight=0.5, max_weight=0.9)
+
+# 补齐反向边（仅 always 类型；never/optional 跳过）
 novel-tool(operation="graph.fix_asymmetry", project="{P}")
 
 # 批量推断（新项目迁移后必做）
 novel-tool(operation="graph.batch_infer", project="{P}")
 
-# 更新单条边
-novel-tool(operation="graph.update_relation", project="{P}", id="{关系ID}", label="新标签", weight=0.9, payload='{"status":"敌对"}')
+# 更新单条边（label/weight/role/payload）
+novel-tool(operation="graph.update_relation", project="{P}", id="{关系ID}", label="新标签", weight=0.9, payload='{"start_chapter":1,"resolve_chapter":50}')
 ```

@@ -35,6 +35,7 @@ class FactFieldDef:
     ordering: Optional[str] = None  # 时序字段的序数路径
     target_type: Optional[str] = None  # entity_reference 的目标类型
     match_field: Optional[str] = None  # entity_reference 的匹配字段
+    rel_type: str = "references"    # entity_reference 自动建边的关系类型（默认 references）
     description: str = ""
 
 
@@ -273,6 +274,7 @@ class TypeRegistry:
                 ordering=ff.get("ordering"),
                 target_type=ff.get("target_type"),
                 match_field=ff.get("match_field"),
+                rel_type=ff.get("rel_type", "references"),
                 description=ff.get("description", ""),
             ))
 

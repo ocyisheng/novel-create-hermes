@@ -84,6 +84,7 @@ fact_fields:
     type: entity_reference
     target_type: world_rule
     match_field: unit_name
+    rel_type: located_at
     description: "场景地点引用"
 
 constraints:

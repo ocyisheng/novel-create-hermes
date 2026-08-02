@@ -79,15 +79,11 @@ INFER_RULES: list[tuple[UnitType, UnitType, RelationType, str, float]] = [
     # 世界观 → 世界观（地域层级）：地区包含子地区
     (UnitType.WORLD_RULE, UnitType.WORLD_RULE, RelationType.CONTAINS,
      "source_to_target", 0.5),
-    # 世界观 → 世界观（势力管辖）：势力控制地域
-    (UnitType.WORLD_RULE, UnitType.WORLD_RULE, RelationType.CONTROLS,
-     "source_to_target", 0.4),
     # 角色 → 角色：关联关系（通用容器，具体语义见 label）
     (UnitType.CHARACTER_ARC, UnitType.CHARACTER_ARC, RelationType.RELATES_TO,
      "source_to_target", 0.3),
-    # 角色 → 世界观（势力）：角色属于势力
-    (UnitType.CHARACTER_ARC, UnitType.WORLD_RULE, RelationType.MEMBER_OF,
-     "source_to_target", 0.5),
+    # NOTE: CONTROLS / MEMBER_OF 不做子串推断——子串出现≠存在控制/归属关系。
+    # 强语义关系由显式字段（character_arc.affiliation / world_rule 声明）或 LLM 建边承载。
     # ── OUTLINE / ARC_PLAN / VOLUME_PLAN / CHAPTER_PLAN 推断规则 ─────
     (UnitType.OUTLINE, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
     (UnitType.ARC_PLAN, UnitType.PLOT_THREAD, RelationType.IMPLEMENTS, "source_to_target", 0.5),
@@ -140,12 +136,15 @@ class RelationInferrer:
         返回本次新建的关系数。
         """
         count = 0
-        # 0. 从 entity_ref 语义字段提取结构化引用
+        # 0. 声明驱动实体引用建边：
+        #    TypeRegistry entity_reference fact_fields（含 rel_type）为优先通道，
+        #    硬编码 ENTITY_REF_FIELDS 字段名作为兜底（无声明或声明遗漏时）。
         if unit.content:
             try:
                 import json
                 content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
                 if isinstance(content_dict, dict):
+                    count += self._infer_declared_refs(unit, content_dict)
                     ref_names = extract_entity_refs(content_dict)
                     for ref_name in ref_names:
                         target = self.store.get_unit_by_name(ref_name)
@@ -203,6 +202,71 @@ class RelationInferrer:
         return total
 
     # ── 内部方法 ────────────────────────────────────────────────────
+
+    def _infer_declared_refs(self, unit: NarrativeUnit, content_dict: dict) -> int:
+        """
+        声明驱动实体引用建边。
+
+        遍历 TypeRegistry 中该单元类型的 entity_reference fact_fields：
+        - 按 path 提取引用值（extract_facts）
+        - 按 match_field 解析目标单元（id → get_unit，unit_name → get_unit_by_name）
+        - 按声明的 rel_type 建立关系（默认 references）
+        返回新建的关系数。
+        """
+        from type_registry import TypeRegistry
+        count = 0
+        type_name = unit.type.value if hasattr(unit.type, "value") else str(unit.type)
+        registry = TypeRegistry.get_global()
+        td = registry.get_type(type_name)
+        if not td:
+            return count
+        ref_fields = [f for f in td.fact_fields if f.type == "entity_reference"]
+        if not ref_fields:
+            return count
+
+        facts = registry.extract_facts(type_name, content_dict)
+        for ff in ref_fields:
+            rel_type = self._resolve_declared_rel_type(ff.rel_type)
+            if rel_type is None:
+                continue
+            for val in facts.get(ff.name, []) or []:
+                if not val or not isinstance(val, str):
+                    continue
+                target = self._resolve_ref_target(val, ff.match_field, ff.target_type)
+                if target and target.id != unit.id:
+                    if self._create_rel(unit.id, target.id, rel_type, 0.5):
+                        count += 1
+        return count
+
+    def _resolve_ref_target(self, val: str, match_field: Optional[str],
+                            target_type: Optional[str]) -> Optional[NarrativeUnit]:
+        """按 match_field 解析实体引用值到目标单元。
+
+        - id → GraphStore.get_unit（如章纲 scene_refs 引场景 ID）
+        - unit_name / None → GraphStore.get_unit_by_name（如 location_ref 引地点名）
+        返回目标单元；不存在或类型不符返回 None。
+        """
+        target = None
+        if match_field == "id":
+            target = self.store.get_unit(val)
+        else:
+            target = self.store.get_unit_by_name(val)
+        if target is None:
+            return None
+        if target_type:
+            type_name = target.type.value if hasattr(target.type, "value") else str(target.type)
+            allowed = target_type if isinstance(target_type, list) else [target_type]
+            if type_name not in allowed:
+                return None
+        return target
+
+    @staticmethod
+    def _resolve_declared_rel_type(rel_type: str) -> Optional[RelationType]:
+        """将声明的 rel_type 字符串解析为 RelationType；非法时返回 None。"""
+        try:
+            return RelationType(rel_type.lower())
+        except (ValueError, AttributeError):
+            return None
 
     def _infer_same_chapter(self, scene: NarrativeUnit) -> int:
         """同章节角色自动参与场景（规则引擎），支持 structure_path 回退"""
@@ -452,8 +516,15 @@ class RelationInferrer:
         """
         创建一条关系。已存在则跳过。
         批量模式下不产生独立事件。
+        证据锚点：payload 写入 source=auto + 出处章节（若有）。
         """
         actor = "relation_inferrer"
+        payload: dict = {"source": "auto"}
+        src_unit = self.store.get_unit(source_id)
+        if src_unit is not None:
+            ch = get_unit_chapter(src_unit)
+            if ch:
+                payload["chapter"] = ch
         rel = self.store.add_relation(
             source_id=source_id,
             target_id=target_id,
@@ -463,6 +534,7 @@ class RelationInferrer:
             label=label,
             actor=actor,
             record_event=not self._batch_mode,
+            payload=payload,
         )
         if rel:
             self._stats["created"] += 1

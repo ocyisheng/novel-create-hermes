@@ -72,6 +72,7 @@ fact_fields:
     type: entity_reference
     target_type: scene
     match_field: id
+    rel_type: plans
     description: "章纲中引用的场景 ID"
   - name: "ending_state"
     path: "end_state"

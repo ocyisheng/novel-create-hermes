@@ -394,12 +394,12 @@ class TestGraphWrite:
 
     def test_add_relation_invalid_type(self, sample_units):
         proj_path, store, units = sample_units
-        # 非法关系类型不再报错——降级为 REFERENCES，原始输入存为 label
+        # 非法关系类型不再报错——降级为 RELATES_TO（关联容器），原始输入存为 label
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
                         type="NOT_A_TYPE", actor="novel-v2-crafter")
         assert_success(res)
-        assert res["data"]["type"] == "references"
+        assert res["data"]["type"] == "relates_to"
         assert res["data"].get("label") == "NOT_A_TYPE"
 
     def test_flush(self, tmp_project):

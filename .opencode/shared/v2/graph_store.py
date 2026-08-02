@@ -15,6 +15,7 @@ Graph 存储引擎。
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -37,6 +38,8 @@ from graph_schema import (
     get_unit_chapter,
 )
 from schemas import validate_content, default_content
+
+logger = logging.getLogger(__name__)
 
 
 def is_v2_project(project_root: str) -> bool:
@@ -153,33 +156,66 @@ class GraphStore:
         if not self.nodes_path.exists():
             return
         with open(self.nodes_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for lineno, line in enumerate(f, start=1):
                 line = line.strip()
-                if line:
+                if not line:
+                    continue
+                try:
                     data = json.loads(line)
                     unit = NarrativeUnit.from_dict(data)
-                    self._units[unit.id] = unit
+                except (json.JSONDecodeError, TypeError, ValueError, KeyError):
+                    # 崩溃/中断可能留下半行——跳过该行，避免整个项目无法加载
+                    logger.warning(
+                        "%s 第 %d 行解析失败，已跳过: %.80r",
+                        self.nodes_path, lineno, line,
+                    )
+                    continue
+                if unit.type is None:
+                    # 未知 UnitType 枚举值 → type=None，后续 to_dict 会崩 AttributeError
+                    logger.warning(
+                        "%s 第 %d 行未知单元类型，已跳过: %.80r",
+                        self.nodes_path, lineno, line,
+                    )
+                    continue
+                self._units[unit.id] = unit
     
     def _load_edges(self):
         """从 JSONL 加载关系"""
         if not self.edges_path.exists():
             return
         with open(self.edges_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for lineno, line in enumerate(f, start=1):
                 line = line.strip()
-                if line:
+                if not line:
+                    continue
+                try:
                     data = json.loads(line)
                     rel = Relation.from_dict(data)
-                    self._relations[rel.id] = rel
+                except (json.JSONDecodeError, TypeError, ValueError, KeyError):
+                    # 崩溃/中断可能留下半行——跳过该行，避免整个项目无法加载
+                    logger.warning(
+                        "%s 第 %d 行解析失败，已跳过: %.80r",
+                        self.edges_path, lineno, line,
+                    )
+                    continue
+                if rel.relation_type is None:
+                    logger.warning(
+                        "%s 第 %d 行未知关系类型，已跳过: %.80r",
+                        self.edges_path, lineno, line,
+                    )
+                    continue
+                self._relations[rel.id] = rel
     
     def _load_events(self):
         """从 olog 文件加载事件"""
         if not self.events_path.exists():
             return
         with open(self.events_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for lineno, line in enumerate(f, start=1):
                 line = line.strip()
-                if line:
+                if not line:
+                    continue
+                try:
                     data = json.loads(line)
                     event = Event(
                         event_id=data["event_id"],
@@ -192,7 +228,14 @@ class GraphStore:
                         session_id=data.get("session_id"),
                         parent_event_id=data.get("parent_event_id"),
                     )
-                    self._events.append(event)
+                except (json.JSONDecodeError, TypeError, ValueError, KeyError):
+                    # 崩溃/中断可能留下半行——跳过该行，避免整个项目无法加载
+                    logger.warning(
+                        "%s 第 %d 行解析失败，已跳过: %.80r",
+                        self.events_path, lineno, line,
+                    )
+                    continue
+                self._events.append(event)
         # 标记所有已加载事件为"已刷新"，防止下次 flush 时重复追加
         self._last_flushed_event = len(self._events)
     
@@ -236,10 +279,10 @@ class GraphStore:
                 "units": {uid: u.to_dict() for uid, u in self._units.items()},
                 "relations": {rid: r.to_dict() for rid, r in self._relations.items()},
             }
-            tmp = self._index_path.with_suffix(".index.json.tmp")
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(cache, f, ensure_ascii=False, default=str)
-            tmp.replace(self._index_path)
+            self._atomic_write(
+                self._index_path,
+                lambda f: json.dump(cache, f, ensure_ascii=False, default=str),
+            )
         except Exception:
             # 缓存写失败不阻塞业务流程——下次 flush 会重试
             pass
@@ -279,6 +322,27 @@ class GraphStore:
         self._rebuild_indices()
         return True
     
+    def _atomic_write(self, target: Path, writer: Callable) -> None:
+        """原子写入文件：唯一 tmp 名 + fsync + rename。
+
+        - 唯一 tmp 名（pid + uuid）避免多进程并发写同一 tmp 文件的竞态
+        - fsync 确保数据落盘后才 rename，防崩溃丢数据
+        - 失败时清理 tmp 并抛出，由调用方决定回退策略
+        """
+        tmp = target.with_name(
+            f"{target.stem}.{os.getpid()}.{uuid.uuid4().hex[:6]}.tmp"
+        )
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                writer(f)
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(target)
+        except Exception:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            raise
+
     def _flush_nodes(self):
         """将叙事单元写回 JSONL（支持增量 + 全量两种模式）。
         
@@ -329,43 +393,34 @@ class GraphStore:
                 # 过滤掉被删除的空行
                 lines = [l for l in lines if l]
                 
-                tmp = self.nodes_path.with_suffix(".jsonl.tmp")
-                with open(tmp, "w", encoding="utf-8") as f:
-                    f.writelines(lines)
-                tmp.replace(self.nodes_path)
+                self._atomic_write(self.nodes_path, lambda f: f.writelines(lines))
             except Exception:
                 # 增量失败回退到全量
                 use_incremental = False
         
         if not use_incremental:
             # ── 全量模式：原子写入全部单元 ──
-            tmp = self.nodes_path.with_suffix(".jsonl.tmp")
-            try:
-                with open(tmp, "w", encoding="utf-8") as f:
-                    for unit in self._units.values():
-                        f.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
-                tmp.replace(self.nodes_path)
-            except Exception:
-                if tmp.exists():
-                    tmp.unlink(missing_ok=True)
-                raise
+            self._atomic_write(
+                self.nodes_path,
+                lambda f: f.writelines(
+                    json.dumps(unit.to_dict(), ensure_ascii=False) + "\n"
+                    for unit in self._units.values()
+                ),
+            )
         
         self._dirty_nodes = False
         self._dirty_unit_ids.clear()
     
     def _flush_edges(self):
         """将内存中的关系写回 JSONL（原子写入）"""
-        tmp = self.edges_path.with_suffix(".jsonl.tmp")
-        try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                for rel in self._relations.values():
-                    f.write(json.dumps(rel.to_dict(), ensure_ascii=False) + "\n")
-            tmp.replace(self.edges_path)
-            self._dirty_edges = False
-        except Exception:
-            if tmp.exists():
-                tmp.unlink(missing_ok=True)
-            raise
+        self._atomic_write(
+            self.edges_path,
+            lambda f: f.writelines(
+                json.dumps(rel.to_dict(), ensure_ascii=False) + "\n"
+                for rel in self._relations.values()
+            ),
+        )
+        self._dirty_edges = False
     
     def _flush_events(self):
         """将新增事件追加到 olog（只写未持久化的新事件）"""
@@ -427,8 +482,8 @@ class GraphStore:
         if self._flush_counter >= self._cache_write_interval:
             try:
                 self._save_cache()
-            except Exception:
-                pass  # 缓存写失败不阻塞业务
+            except Exception as e:
+                logger.warning("缓存写入失败（不影响本次 flush）: %s", e)
             self._flush_counter = 0
         
         # post_flush：执行已注册的回调链（失败不影响写）
@@ -436,8 +491,8 @@ class GraphStore:
             for hook in self._post_flush_hooks:
                 try:
                     hook(self)
-                except Exception:
-                    pass  # 回调失败不阻塞业务
+                except Exception as e:
+                    logger.warning("post_flush 钩子执行失败: %s", e)
     
     def register_post_flush_hook(self, hook: Callable[["GraphStore"], None]):
         """注册 flush 后回调钩子。
@@ -563,8 +618,14 @@ class GraphStore:
                 if chapter_number is not None:
                     structure_path.append(chapter_number)
         
+        # 短码 ID（uuid4().hex[:8]）在单元量大时存在碰撞可能——碰撞时重新生成，
+        # 避免静默覆盖已有单元
+        unit_id = create_unit_id(type)
+        while unit_id in self._units:
+            unit_id = create_unit_id(type)
+
         unit = NarrativeUnit(
-            id=create_unit_id(type),
+            id=unit_id,
             type=type,
             unit_name=unit_name,
             content=content,
@@ -1453,15 +1514,7 @@ class GraphStore:
         self._units = {u["id"]: NarrativeUnit.from_dict(u) for u in data["units"]}
         self._relations = {}
         for r in data["relations"]:
-            rel = Relation(
-                id=r["id"],
-                source_id=r["source_id"],
-                target_id=r["target_id"],
-                relation_type=RelationType(r["relation_type"]),
-                weight=r.get("weight", 0.5),
-                description=r.get("description", ""),
-                metadata=r.get("metadata", {}),
-            )
+            rel = Relation.from_dict(r)
             self._relations[rel.id] = rel
         
         self._rebuild_indices()

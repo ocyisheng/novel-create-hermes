@@ -113,17 +113,21 @@ class PatternMatcher(BaseMatcher):
         """
         多步异边路径遍历。
 
-        按 steps 顺序依次扩展 frontier：
-          step[0]: {start} → 按边类型/方向/label 过滤 → frontier[1]
-          step[1]: frontier[1] → ... → frontier[2]
+        按 steps 顺序依次扩展 frontier（steps 中的每一步 = 一跳）：
+          hop 0: {start} → 按 step[0] 边类型/方向/label 过滤 → frontier[1]
+          hop 1: frontier[1] → step[1] → frontier[2]
+        总跳数受 max_depth 限制（取 min(max_depth, len(steps))）。
         返回最终 frontier 及路径记录。
         """
+        if max_depth < 1:
+            max_depth = 1
+
         # frontier: {node_id: path_from_start}
         frontier: Dict[str, List[str]] = {start_id: [start_id]}
         result = TraverseResult()
-        global_visited: Set[str] = set()
 
-        for step_idx, step in enumerate(steps):
+        for step_idx in range(min(max_depth, len(steps))):
+            step = steps[step_idx]
             try:
                 rel_type = RelationType(step.edge_type.lower())
             except (ValueError, AttributeError):
@@ -132,10 +136,6 @@ class PatternMatcher(BaseMatcher):
             next_frontier: Dict[str, List[str]] = {}
 
             for node_id, path in frontier.items():
-                if node_id in global_visited and step_idx > 0:
-                    continue
-                global_visited.add(node_id)
-
                 for rel in store.get_relations(node_id, direction=step.direction):
                     if rel.relation_type != rel_type:
                         continue
@@ -151,7 +151,11 @@ class PatternMatcher(BaseMatcher):
                         neighbor = rel.source_id if rel.source_id != node_id else rel.target_id
 
                     if neighbor == start_id:
+                        # 回到起点 → 环路（记录完整环路路径）
                         result.cycled = True
+                        result.paths.append(path + [start_id])
+                        continue
+
                     if neighbor not in path:
                         new_path = path + [neighbor]
                         next_frontier[neighbor] = new_path
@@ -257,16 +261,60 @@ class PatternMatcher(BaseMatcher):
         if not edge_type:
             return None
         direction = match.get("direction", "outgoing")
-        max_depth = match.get("max_depth", 10)
+        try:
+            max_depth = int(match.get("max_depth", 10))
+        except (TypeError, ValueError):
+            max_depth = 10
+        if max_depth < 1:
+            max_depth = 1
 
-        step = TraverseStep(edge_type=edge_type, direction=direction)
-        result = self._traverse(store, unit.id, [step], max_depth)
+        try:
+            rel_type = RelationType(edge_type.lower())
+        except (ValueError, AttributeError):
+            return None
 
-        if not result.cycled:
+        start_id = unit.id
+        # 沿同一边类型重复扩展，最多 max_depth 跳；
+        # visited 只阻止"回到本路径内已访问节点"的再扩展，防止指数爆炸，
+        # 但仍允许不同路径间的节点复用，从而能发现 A→B→A 这类多节点环路。
+        frontier: Dict[str, List[str]] = {start_id: [start_id]}
+        visited: Set[str] = set()
+        cycle_paths: List[List[str]] = []
+
+        for _ in range(max_depth):
+            next_frontier: Dict[str, List[str]] = {}
+            for node_id, path in frontier.items():
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+
+                for rel in store.get_relations(node_id, direction=direction):
+                    if rel.relation_type != rel_type:
+                        continue
+
+                    # 确定邻居 ID
+                    if direction == "incoming":
+                        neighbor = rel.source_id
+                    elif direction == "outgoing":
+                        neighbor = rel.target_id
+                    else:  # both
+                        neighbor = rel.source_id if rel.source_id != node_id else rel.target_id
+
+                    if neighbor == start_id:
+                        # 回到起点 → 环路
+                        cycle_paths.append(path + [start_id])
+                        continue
+                    if neighbor not in path:
+                        next_frontier[neighbor] = path + [neighbor]
+
+            frontier = next_frontier
+            if not frontier:
+                break
+
+        if not cycle_paths:
             return None
 
         # 找到具体环路路径
-        cycle_paths = [p for p in result.paths if len(p) >= 2 and p[-1] == unit.id]
         detail_parts = []
         for p in cycle_paths[:3]:
             names = []

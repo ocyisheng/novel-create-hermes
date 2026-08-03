@@ -42,6 +42,21 @@ def _find_novels_root() -> str:
 NOVELS_ROOT = _find_novels_root()
 
 
+# ── 运行时模式 (MODE) ──────────────────────────────────────────────────
+# 运行时模式写入 novel-context.md 的 __MODE__ 字段（project.switch 时生成）。
+# 与 .opencode/agents/novel-writer.md「运行时模式」保持一致：
+#   release（默认）→ 仅使用正式内容，不加载开发模式技能（novel-dev-ops）
+#   其他值（如 dev）→ 加载开发模式工具集（遥测/数据分析/会话总结/优化闭环）
+# 默认值在此硬编码为 release，可用环境变量 OMODE 覆盖。
+DEFAULT_MODE = "release"
+
+
+def get_runtime_mode() -> str:
+    """获取运行时模式：环境变量 OMODE 覆盖，未设置/空值时硬编码默认 release。"""
+    raw = os.environ.get("OMODE", DEFAULT_MODE)
+    return (raw or DEFAULT_MODE).strip().lower() or DEFAULT_MODE
+
+
 def _project_path(name: str) -> str:
     return os.path.join(NOVELS_ROOT, name)
 
@@ -355,8 +370,10 @@ def handle_project_switch(name: str, dry_run: bool = False) -> dict:
     os.makedirs(ctx_dir, exist_ok=True)
     ctx_path = os.path.join(ctx_dir, "novel-context.md")
 
+    mode = get_runtime_mode()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     context = f"""__CURRENT_PROJECT__: {name}
+__MODE__: {mode}
 
 # 项目上下文: {name}
 
@@ -369,6 +386,7 @@ def handle_project_switch(name: str, dry_run: bool = False) -> dict:
 - 环境已初始化：True
 
 ## 当前状态
+- 运行时模式：{mode}
 - 活跃风格：{style}
 - 切换时间：{now}
 """
@@ -385,6 +403,7 @@ def handle_project_switch(name: str, dry_run: bool = False) -> dict:
         "path": proj_path,
         "genre": genre,
         "style": style,
+        "mode": mode,
         "has_graph": has_graph,
     }
 

@@ -760,6 +760,50 @@ class TestProject:
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    def test_get_runtime_mode_default_release(self):
+        """get_runtime_mode 默认 release；OMODE 覆盖且归一化。"""
+        from handlers.handlers_project import get_runtime_mode
+
+        saved = os.environ.get("OMODE")
+        os.environ.pop("OMODE", None)
+        try:
+            assert get_runtime_mode() == "release"
+        finally:
+            if saved is not None:
+                os.environ["OMODE"] = saved
+
+        with patch.dict(os.environ, {"OMODE": "dev"}):
+            assert get_runtime_mode() == "dev"
+        with patch.dict(os.environ, {"OMODE": "RELEASE"}):
+            assert get_runtime_mode() == "release"
+        with patch.dict(os.environ, {"OMODE": "  "}):
+            assert get_runtime_mode() == "release"
+
+    def test_project_switch_writes_mode(self, tmp_project):
+        """project.switch 将运行时模式写入 novel-context.md，默认 release。"""
+        proj_path, store = tmp_project
+        import tempfile, shutil
+        tmpdir = tempfile.mkdtemp(prefix="proj_test_")
+        try:
+            proj_name = "切换模式测试"
+            dst = os.path.join(tmpdir, proj_name)
+            shutil.copytree(proj_path, dst)
+            # _SHARED_DIR 经 abspath(join(X, "..", "..")) 计算 tool_root，
+            # 需两级嵌套使 tool_root 落在 tmpdir
+            fake_shared = os.path.join(tmpdir, "shared", "nested")
+            with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir), \
+                 patch("handlers.handlers_project._SHARED_DIR", fake_shared):
+                res = call_tool("project.switch", name=proj_name)
+                assert_success(res)
+                assert res["data"]["mode"] == "release"
+                ctx_path = os.path.join(tmpdir, ".context", "novel-context.md")
+                with open(ctx_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                assert "__MODE__: release" in content
+                assert "运行时模式：release" in content
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
     def test_project_switch_dry_run(self):
         import tempfile, shutil
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")

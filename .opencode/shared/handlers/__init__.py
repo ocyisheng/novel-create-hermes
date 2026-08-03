@@ -148,7 +148,7 @@ OPERATION_REGISTRY = {
     # graph writes
     "graph.create_unit": {
         "handler": handle_create_unit,
-        "params": {"project_root": {"required": True}, "unit_type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "parent_id": {}, "actor": {}, "session_id": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {"required": True}, "name": {"required": True}, "content": {}, "file_path": {}, "tags": {}, "chapter": {}, "parent_id": {}, "actor": {}, "session_id": {}, "if_exists": {}},
     },
     "graph.update_unit": {
         "handler": handle_update_unit,

@@ -549,12 +549,21 @@ def handle_create_unit(
     actor: str = "orchestrator",
     parent_id: Optional[str] = None,
     session_id: Optional[str] = None,
+    if_exists: Optional[str] = None,
 ) -> dict:
-    """创建叙事单元。"""
+    """创建叙事单元。
+
+    Args:
+        if_exists: 单元已存在时的处理策略（防重复创建的硬保障，透传给
+                   GraphStore.create_unit）：
+            - 不传 / "error"（默认）: 同名同类型单元已存在 → 返回错误，拒绝重复创建
+            - "skip": 已存在 → 幂等返回已有单元（不重新建边/抽事件）
+            - "create": 强制新建（旧行为，通常仅内部流程用）
+    """
     blocked = _check_orchestrator_write(actor, "graph.create_unit")
     if blocked:
         return blocked
-    from graph_schema import UnitType
+    from graph_schema import UnitType, UnitStatus
     from relation_inferrer import RelationInferrer
 
     ut = UnitType[unit_type.upper()]
@@ -575,25 +584,48 @@ def handle_create_unit(
     store = _get_store(project_root)
     store.set_session_context(session_id)
     try:
+        # skip 模式前置查重：已存在（非归档）则直接返回已有单元，跳过关系推断/事件抽取
+        if_exists_effective = if_exists or "error"
+        if if_exists_effective == "skip":
+            existing = store.get_unit_by_name(name)
+            if (existing is not None and existing.type == ut
+                    and existing.status != UnitStatus.ARCHIVED):
+                return {
+                    "id": existing.id,
+                    "name": existing.unit_name,
+                    "unit_name": existing.unit_name,
+                    "type": ut.value,
+                    "created_at": str(existing.created_at) if existing.created_at else None,
+                    "updated_at": str(existing.updated_at) if existing.updated_at else None,
+                    "duplicated": True,
+                    "skipped": True,
+                    "relations_created": 0,
+                    "temporal_events_created": 0,
+                    "schema_errors": [],
+                    "hint": "单元已存在，if_exists=skip 幂等返回已有单元，未重复创建",
+                }
+
         try:
             u = store.create_unit(
                 type=ut, unit_name=name, content=content,
                 tags=tags_list, chapter_number=chapter,
                 parent_id=parent_id, actor=actor,
                 session_id=session_id,
+                if_exists=if_exists_effective,
             )
         except ValueError as e:
             return {
                 "error": f"创建叙事单元失败: {e}",
-                "hint": f"请检查 content JSON 是否包含 {ut.value} 类型的所有必填字段。"
-                        f"使用 novel-tool(operation=\"graph.schema_info\", unit_type=\"{unit_type}\") 查看字段要求。",
+                "hint": f"单元「{name}」可能已存在。请使用 novel-tool(operation=\"graph.find_unit\", name=\"{name}\") "
+                        f"确认，改用 graph.update_unit 修改，或显式传 if_exists=create / if_exists=skip。",
             }
 
         inferrer = RelationInferrer(store)
         created = inferrer.infer_on_create(u)
 
         # 事件抽取：从 content 自动提取并创建 TEMPORAL_EVENT
-        temporal_count = _run_event_extractor(store, u, actor=actor)
+        # （内部建 te_ 单元统一用 if_exists=skip，杜绝重复事件）
+        temporal_count = _run_event_extractor(store, u, actor=actor, if_exists="skip")
 
         store.flush()
     finally:
@@ -604,6 +636,7 @@ def handle_create_unit(
     return {
         "id": u.id,
         "name": u.unit_name,
+        "unit_name": u.unit_name,
         "type": ut.value,
         "created_at": str(u.created_at) if u.created_at else None,
         "updated_at": str(u.updated_at) if u.updated_at else None,
@@ -1301,6 +1334,7 @@ def _run_event_extractor(
     unit,
     actor: str = "orchestrator",
     old_content: Any = None,
+    if_exists: str = "skip",
 ) -> int:
     """
     对刚写入的单元运行事件抽取，自动创建 TEMPORAL_EVENT 节点和 HAS_EVENT 边。
@@ -1342,12 +1376,13 @@ def _run_event_extractor(
     created_count = 0
     for evt in events:
         try:
-            # 1. 创建 TEMPORAL_EVENT 节点
+            # 1. 创建 TEMPORAL_EVENT 节点（if_exists=skip 幂等：同一事件重复抽取不重建）
             event_unit = store.create_unit(
                 type=UnitType.TEMPORAL_EVENT,
                 unit_name=evt.summary[:80],  # 截断过长的名称
                 content=json.dumps(evt.to_temporal_content(), ensure_ascii=False),
                 actor=actor,
+                if_exists=if_exists,
             )
             if not event_unit:
                 continue

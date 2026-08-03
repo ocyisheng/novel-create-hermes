@@ -297,6 +297,69 @@ class TestGraphWrite:
                         type="INVALID_TYPE", name="坏单元", actor="novel-v2-crafter")
         assert_error(res)
 
+    def test_create_unit_duplicate_error_by_default(self, tmp_project):
+        """handler 默认 if_exists=error：同名同类型重复创建被拒绝。"""
+        proj_path, _ = tmp_project
+        res1 = call_tool("graph.create_unit", project=proj_path,
+                         type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
+        assert_success(res1)
+        res2 = call_tool("graph.create_unit", project=proj_path,
+                         type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
+        assert_error(res2)
+        assert "同名" in res2["error"] or "已存在" in res2["error"]
+        # 库中只有一个林渊
+        units = call_tool("graph.list_units", project=proj_path,
+                          unit_type="CHARACTER_ARC", actor="novel-v2-crafter")
+        names = [u["name"] for u in units["data"]["units"]]
+        assert names.count("林渊") == 1
+
+    def test_create_unit_if_exists_skip_idempotent(self, tmp_project):
+        """handler if_exists=skip：幂等返回已有单元，不重复创建。"""
+        proj_path, _ = tmp_project
+        r1 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="幂等角色", content="{}", actor="novel-v2-crafter")
+        assert_success(r1)
+        r2 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="幂等角色", content="{}",
+                       actor="novel-v2-crafter", if_exists="skip")
+        assert_success(r2)
+        assert r2["data"]["id"] == r1["data"]["id"]
+        assert r2["data"].get("skipped") is True
+        units = call_tool("graph.list_units", project=proj_path,
+                         unit_type="CHARACTER_ARC", actor="novel-v2-crafter")
+        names = [u["name"] for u in units["data"]["units"]]
+        assert names.count("幂等角色") == 1
+
+    def test_create_unit_if_exists_create_force(self, tmp_project):
+        """handler if_exists=create：强制新建，产生不同 id。"""
+        proj_path, _ = tmp_project
+        r1 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="强制角色", content="{}", actor="novel-v2-crafter")
+        assert_success(r1)
+        r2 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="强制角色", content="{}",
+                       actor="novel-v2-crafter", if_exists="create")
+        assert_success(r2)
+        assert r2["data"]["id"] != r1["data"]["id"]
+
+    def test_create_unit_if_exists_skip_archived_creates_new(self, tmp_project):
+        """handler if_exists=skip：已归档单元不阻塞，允许新建。"""
+        proj_path, _ = tmp_project
+        r1 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="归档角色", content="{}", actor="novel-v2-crafter")
+        assert_success(r1)
+        # 归档原单元
+        arc = call_tool("graph.archive_unit", project=proj_path,
+                        id=r1["data"]["id"], actor="novel-v2-crafter")
+        assert_success(arc)
+        # skip 应新建（归档不算活跃重复）
+        r2 = call_tool("graph.create_unit", project=proj_path,
+                       type="CHARACTER_ARC", name="归档角色", content="{}",
+                       actor="novel-v2-crafter", if_exists="skip")
+        assert_success(r2)
+        assert r2["data"]["id"] != r1["data"]["id"]
+        assert r2["data"].get("skipped") is not True
+
     def test_update_unit(self, sample_units):
         proj_path, store, units = sample_units
         uid = units["林渊"].id

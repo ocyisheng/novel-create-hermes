@@ -398,6 +398,67 @@ def test_migration(store, project_root):
     print(" PASS")
 
 
+# ── if_exists 幂等/防重测试（脚本层硬保障） ──────────────────────────────
+
+def test_create_unit_if_exists_error_explicit(store):
+    """if_exists=error（显式）：同名同类型重复创建应拒绝。"""
+    u1 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", content="{}", actor="test")
+    assert u1 is not None
+    try:
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", content="{}", actor="test", if_exists="error")
+        assert False, "应抛出 ValueError 拒绝重复创建"
+    except ValueError as e:
+        assert "同名同类型" in str(e)
+    # 拒绝后不产生脏节点（未写入）
+    assert store.get_unit_by_name("林渊").id == u1.id
+
+
+def test_create_unit_default_create_backward_compat(store):
+    """store 层默认 if_exists=create：保持旧行为，允许多个同名同类型。"""
+    u1 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", content="{}", actor="test")
+    u2 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", content="{}", actor="test")
+    assert u1.id != u2.id
+
+
+def test_create_unit_if_exists_skip_idempotent(store):
+    """if_exists=skip：幂等返回已有单元，不新建、不覆盖。"""
+    u1 = store.create_unit(
+        type=UnitType.CHARACTER_ARC, unit_name="林渊",
+        content='{"core_trait": "隐忍"}', actor="test",
+    )
+    u2 = store.create_unit(
+        type=UnitType.CHARACTER_ARC, unit_name="林渊",
+        content='{"core_trait": "被覆盖"}', actor="test", if_exists="skip",
+    )
+    assert u2.id == u1.id
+    # 内容未被覆盖
+    assert store.get_unit(u1.id).content == '{"core_trait": "隐忍"}'
+    # 单元总数不增长
+    assert len(store.find_units(type=UnitType.CHARACTER_ARC)) == 1
+
+
+def test_create_unit_if_exists_create_force(store):
+    """if_exists=create：强制新建（旧行为），允许同名同类型共存。"""
+    u1 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", actor="test")
+    u2 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="林渊", actor="test", if_exists="create")
+    assert u1.id != u2.id
+
+
+def test_create_unit_same_name_different_type_allowed(store):
+    """同名不同类型允许共存（SCENE '第1章' 与 CHAPTER_PLAN '第1章'）。"""
+    s1 = store.create_unit(type=UnitType.SCENE, unit_name="第1章", actor="test")
+    s2 = store.create_unit(type=UnitType.CHAPTER_PLAN, unit_name="第1章", actor="test")
+    assert s1.id != s2.id
+
+
+def test_create_unit_if_exists_skip_archived_creates_new(store):
+    """同名但原单元已归档：if_exists=skip 应新建（归档不算活跃重复）。"""
+    u1 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="已故角色", actor="test")
+    store.archive_unit(u1.id, actor="test")
+    u2 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="已故角色", actor="test", if_exists="skip")
+    assert u2.id != u1.id
+
+
 def run_all_tests():
     """运行所有测试"""
     print("=" * 60)

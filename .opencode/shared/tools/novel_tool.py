@@ -121,6 +121,7 @@ _PARAM_MAP = {
     "force": "force",
     "dry_run": "dry_run",
     "parent_id": "parent_id",
+    "if_exists": "if_exists",
     # 关系
     "source": "source", "target": "target",
     "bidirectional": "bidirectional",

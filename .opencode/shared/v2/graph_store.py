@@ -606,16 +606,40 @@ class GraphStore:
         parent_id: Optional[str] = None,
         chapter_number: Optional[int] = None,
         session_id: Optional[str] = None,
+        if_exists: str = "create",
     ) -> NarrativeUnit:
         """创建一个新的叙事单元
         
         Args:
-            parent_id: 可选的父级单元 ID。若提供且有效，自动创建
+            parent_id: 可选的父级单元 ID。若提供且有效，会自动创建
                        parent_id CONTAINS 新单元关系。
             chapter_number: 精确章节号（CONTAINS 边关系下的真实标号）。
             session_id: 关联的创作会话 ID（遥测归因，写入事件）。
+            if_exists: 单元已存在时的处理策略（防重复创建的硬保障）：
+                - "create"（默认）: 无条件新建（旧行为，保持与历史调用兼容）。
+                - "error": 同名同类型单元已存在时抛出 ValueError，拒绝重复创建。
+                - "skip": 同名同类型单元已存在时直接返回已有单元（幂等），
+                  不创建新单元、不覆盖内容。幂等性由 name+type 语义键保证。
         """
-        # 校验 content 结构（如果是 JSON）— 必填字段缺失直接拒绝
+        # ── 幂等查重：name + type 语义键 ────────────────────────────────
+        # _unit_by_name 是按 name 的唯一索引；同名同类型才视为重复，
+        # 同名不同类型（如 SCENE "第1章" 与 CHAPTER_PLAN "第1章"）允许共存。
+        if if_exists != "create":
+            existing = self._unit_by_name.get(unit_name)
+            if existing is not None:
+                existing_unit = self._units.get(existing)
+                if existing_unit is not None and existing_unit.type == type and existing_unit.status != UnitStatus.ARCHIVED:
+                    if if_exists == "skip":
+                        # 幂等返回已有单元：不做任何写操作、不记录事件
+                        return existing_unit
+                    if if_exists == "error":
+                        raise ValueError(
+                            f"同名同类型单元已存在（type={type.value}, name={unit_name}, "
+                            f"id={existing}），拒绝重复创建。请改用 graph.get_unit / "
+                            f"graph.update_unit 修改已有单元，或显式传 if_exists=create 强制新建。"
+                        )
+
+        # 校验 content schema（如果是 JSON）— 必填字段缺失直接拒绝
         try:
             content_dict = json.loads(content) if isinstance(content, str) and content.startswith("{") else None
         except json.JSONDecodeError:

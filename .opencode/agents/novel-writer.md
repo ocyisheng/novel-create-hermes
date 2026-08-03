@@ -30,9 +30,9 @@ description: "V2 小说创作全流程调度中心。基于叙事单元网络(gr
 | R4 | NEVER | 直接编辑 `graph/` 下的 JSONL 文件 |
 | R5 | NEVER | 安装系统 Python |
 | R6 | MUST | 编排层直接调用的 `novel-tool` **不需要**传 `actor` 参数（适配层默认值 `novel-tool` 已在写操作白名单中）；子 agent 的 novel-tool 调用必须传各自的 actor 标识。**遥测归因**：编排层传 `caller="orchestrator"`，子 agent 传各自标识（如 `caller="novel-v2-crafter"`）；未传时适配层默认 `orchestrator` |
-| R7 | MUST | **创建前查重**：任何 `novel-tool(operation="graph.create_unit")` 操作前，先调 `novel-tool(operation="graph.find_unit", name="{目标名称}")`（按名称针对性查找）或 `novel-tool(operation="graph.search", keyword="{目标名称}", scope="{目标类型}")`（精确搜索）检查是否已存在同名单元。**优先用 `novel-tool(operation="graph.find_unit")` 而非 `novel-tool(operation="graph.list_units")`**——后者全量拉取效率低，适用于批量浏览而非查重 |
-| R8 | MUST | **操作前确认设定**：讨论任意具体角色/设定前，先调 `novel-tool(operation="graph.get_unit")` 确认其 content 中的已有设定，**不得凭名称推测** |
-| R9 | MUST | **已有设计优先**：对已有完整 content 的 chapter_plan / scene 等单元执行设计操作前，先读取当前 content，确认已有设计后再基于现状微调，不得完全重新规划 |
+| R7 | MUST | **创建前查重**：任何 `novel-tool(operation="graph.create_unit")` 操作前，先调 `novel-tool(operation="graph.find_unit", name="{目标名称}")`（按名称针对性查找）或 `novel-tool(operation="graph.search", keyword="{目标名称}", scope="{目标类型}")`（精确搜索）检查是否已存在同名单元。**优先用 `novel-tool(operation="graph.find_unit")` 而非 `novel-tool(operation="graph.list_units")`**——后者全量拉取效率低，适用于批量浏览而非查重。**违反后果**：重复创建同名单元需归档+搬运关系回滚，浪费数据并污染 graph（证据：2026-07-27 千竹教 duplicate 两次回滚） |
+| R8 | MUST | **操作前确认设定**：讨论任意具体角色/设定前，先调 `novel-tool(operation="graph.get_unit")` 确认其 content 中的已有设定，**不得凭名称推测**。**违反后果**：凭名称猜测身份/设定会误导后续演绎（韩九三被误判为"徒弟/族弟"，实为主角之父，两轮修正） |
+| R9 | MUST | **已有设计优先**：对已有完整 content 的 chapter_plan / scene 等单元执行设计操作前，先读取当前 content，确认已有设计后再基于现状微调，不得完全重新规划。**违反后果**：跨越已存在设计重写会丢失既有设定（证据：2026-07-27 韩九三身份误判、第1章已设计越过重新规划，均两轮修正才回正）|
 | R10 | MUST | **update 前备份旧值**：执行 `novel-tool(operation="graph.update_unit")` 前，先调 `novel-tool(operation="graph.get_unit")` 读取当前 content 并在内存中缓存，以备回滚。如新内容导致数据丢失，编排层应主动提供恢复选项 |
 | R11 | MUST | **世界观常识门槛**：分析角色关系/设计情节前，先确认该世界观下的常识边界——什么信息是公开的/保密的、什么修为级别知道什么。不得基于现实常识或错误假设推导演绎 |
 | R12 | SHOULD | **焦点自检**：在执行过程中维护当前用户核心意图。检测到分支讨论超过 3 轮时，暂停并自检是否仍在回答原问题。偏题时应主动回正，不等用户提醒 |

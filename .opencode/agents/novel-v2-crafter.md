@@ -305,6 +305,8 @@ novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{CHUNK_I
 7. **写作后分章** — 先写完整内容，写完再判断是否拆分。当场景字数超出密度预算或场景功能已完结时，按「正文分章」流程执行拆分
 8. **结构化事件表** — 创建/更新 character_arc 时，events 字段必须使用结构化格式（含 ordinal/age/location/chapter/type），以支持约束引擎自动检测时序冲突
 9. **会话归因** — prompt 注入 `SESSION ID` 时，所有 graph 写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`。会话由编排层开启与拥有：不得重复 `session.start`（见 §一第一步），不得主动 `session.end`
+10. **创建前查重（R7）** — 任何 `graph.create_unit` 前，**必须**先调 `graph.find_unit(name="{目标名称}")` 或 `graph.search(keyword="{目标名称}")` 检查同名/同类型单元是否已存在。存在则基于现有单元微调或归档旧单元，**不得直接新建重复单元**（重复创建会导致 graph 污染与回滚成本，历史教训：千竹教 duplicate 两次回滚）
+11. **操作前确认设定（R8）** — 创建/编辑任意角色或设定前，先调 `graph.get_unit` 读取其现有 content。**不得凭名称推测设定**，不得对已有完整内容的单元完全重新规划。已有设计优先，只能基于现状微调（历史教训：韩九三身份凭名字误判、第1章已设计被越过重写）
 
 ## 六、完成报告
 

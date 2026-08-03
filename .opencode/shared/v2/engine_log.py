@@ -75,7 +75,17 @@ class EngineLogWriter:
     def _rotate(self, new_date: str):
         """跨天时关闭旧文件，打开新文件。"""
         with self._lock:
-            self.close()
+            # 直接关闭文件句柄，不调用 self.close()：
+            # TelemetryRecorder 覆写了 close() 为 flush()+close()，若在此调用
+            # 会触发 flush → write → _rotate 的递归（_current_date 在 close()
+            # 之后才赋值，重入的 write 再次判定日期不匹配），直到 RecursionError，
+            # 回卷时每层都会把同一条记录再写一遍（实测单条膨胀 240~248 份）。
+            if self._log_file:
+                try:
+                    self._log_file.close()
+                except Exception:
+                    pass
+                self._log_file = None
             self._current_date = new_date
             _, path = self._date_stamped_path()
             try:

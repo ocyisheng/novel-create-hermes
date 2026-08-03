@@ -238,6 +238,27 @@ class TestDailySharding:
         assert entry["project"] == "项目A"
         assert entry["success"] is True
 
+    def test_no_duplicate_records_on_first_flush(self, tmp_path, monkeypatch):
+        """新 recorder 首次写入不膨胀（回归：_rotate 递归导致单条重复写入 240+ 份）。"""
+        import engine_log
+        from telemetry import TelemetryRecorder
+        monkeypatch.setattr(engine_log, "resolve_engine_root", lambda: str(tmp_path))
+        rec = TelemetryRecorder()
+        try:
+            for i in range(5):
+                rec.record(operation=f"op.{i}", params={"n": i},
+                           success=True, duration_ms=1.0, project="P", caller="test")
+        finally:
+            rec.close()
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        path = os.path.join(str(tmp_path), "telemetry", f"{today}.ndjson")
+        with open(path, encoding="utf-8") as f:
+            lines = [l.strip() for l in f if l.strip()]
+        assert len(lines) == 5, f"应恰好 5 条，实际 {len(lines)} 条"
+        ops = [json.loads(l)["op"] for l in lines]
+        assert ops == ["op.0", "op.1", "op.2", "op.3", "op.4"]
+
     def test_legacy_monthly_files_still_readable(self, tmp_path, monkeypatch):
         """历史月度分片文件仍可被读取（消费端兼容）。"""
         import telemetry

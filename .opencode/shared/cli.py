@@ -128,10 +128,14 @@ def _run_project(args):
         handle_project_new, handle_project_import, handle_project_status,
         handle_project_resume, handle_project_switch, handle_project_delete,
     )
+    from handlers_project import NOVELS_ROOT
+
+    # 将纯项目名转为绝对路径（handler 统一收 project_root）
+    project_root = os.path.join(NOBELS_ROOT, args.name) if args.name else ""
 
     if args.command == "new":
         result = handle_project_new(
-            name=args.name, genre=args.genre,
+            project_root=project_root, genre=args.genre,
             v2=args.v2, volumes=args.volumes,
             acts=args.acts, structure=args.structure,
         )
@@ -153,7 +157,7 @@ def _run_project(args):
             print(f"   章节: {result.get('chapters', 0)} 章")
 
     elif args.command == "import":
-        result = handle_project_import(name=args.name, source_path=args.source)
+        result = handle_project_import(project_root=project_root, source_path=args.source)
         if "error" in result:
             print(f"❌ {result['error']}")
             sys.exit(1)
@@ -168,7 +172,7 @@ def _run_project(args):
                   f"--path \"{result['path']}\"")
 
     elif args.command == "status":
-        result = handle_project_status(name=args.name, phase=args.phase)
+        result = handle_project_status(project_root=project_root, phase=args.phase)
         if "error" in result:
             print(f"❌ {result['error']}")
             sys.exit(1)
@@ -195,7 +199,7 @@ def _run_project(args):
             print(f"架构: V1（YAML 文件）")
 
     elif args.command == "resume":
-        result = handle_project_resume(name=args.name)
+        result = handle_project_resume(project_root=project_root)
         if "error" in result:
             print(f"❌ {result['error']}")
             sys.exit(1)
@@ -203,7 +207,7 @@ def _run_project(args):
 
     elif args.command == "switch":
         result = handle_project_switch(
-            name=args.name, dry_run=getattr(args, "dry_run", False)
+            project_root=project_root, dry_run=getattr(args, "dry_run", False)
         )
         if "error" in result:
             print(f"❌ {result['error']}")
@@ -220,7 +224,7 @@ def _run_project(args):
             print(f"   V2: ⬜ 未迁移（可执行 V2 迁移）")
 
     elif args.command == "delete":
-        result = handle_project_delete(name=args.name, force=args.force)
+        result = handle_project_delete(project_root=project_root, force=args.force)
         if "error" in result:
             if result.get("needs_force"):
                 print(f"⚠️  确认删除项目「{args.name}」?")

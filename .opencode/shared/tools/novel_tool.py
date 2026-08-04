@@ -79,15 +79,23 @@ def _find_novels_root() -> str:
 
 
 def _resolve_project(project: str) -> str:
+    """将项目名解析为绝对路径。
+
+    - 已是绝对路径 → 直接返回
+    - 相对路径 → 用 handlers_project.NOVELS_ROOT 拼接（与 handler 一致，支持测试 patch）
+    - NOVELS_ROOT 不可用时回退到 cwd/novels 拼接
+    - 候选目录不存在时仍返回拼接结果（由 handler 判断是否已存在）
+    """
     if not project:
         return ""
     if os.path.isabs(project):
         return project
-    novels = _find_novels_root()
-    cand = os.path.join(novels, project)
-    if os.path.isdir(cand):
-        return cand
-    return os.path.abspath(project)
+    try:
+        import handlers.handlers_project as hp
+        novels_root = hp.NOVELS_ROOT
+    except (ImportError, AttributeError):
+        novels_root = _find_novels_root()
+    return os.path.join(novels_root, project)
 
 
 def _project_basename(project: str) -> str:
@@ -122,6 +130,9 @@ _PARAM_MAP = {
     "dry_run": "dry_run",
     "parent_id": "parent_id",
     "if_exists": "if_exists",
+    "skip_constraint_check": "skip_constraint_check",
+    "full": "full",
+    "tag": "tag",
     # 关系
     "source": "source", "target": "target",
     "bidirectional": "bidirectional",
@@ -137,10 +148,6 @@ _PARAM_MAP = {
     "description": "description",
     "payload": "payload",
     "direction": "direction",
-    # 可视化
-    "character": "character", "timeline": "timeline",
-    "open": "open_browser",
-    "incremental": "incremental",
     # 迁移
     "verify": "verify", "report": "report",
     # 类型变更
@@ -155,7 +162,6 @@ _PARAM_MAP = {
     "phase": "phase",
     # 会话
     "cycle_type": "cycle_type",
-    "level": "level",
     "session_id": "session_id",
     # summary
     "focus_name": "focus_name",
@@ -209,13 +215,13 @@ _PARAM_ALIASES = {
     "session.start": {"focus_type": ["type", "focus_type"]},
     # graph.update_unit: data 是 content 的别名
     "graph.update_unit": {"content": ["content", "data"]},
-    # project.*: novel_tool 传 project，handler 需要 name
-    "project.new": {"name": ["project", "name"], "v2_default": True},
-    "project.import": {"name": ["project", "name"], "source_path": ["source", "source_path"]},
-    "project.status": {"name": ["project", "name"]},
-    "project.resume": {"name": ["project", "name"]},
-    "project.switch": {"name": ["project", "name"]},
-    "project.delete": {"name": ["project", "name"]},
+    # project.*: handler 收 project_root（绝对路径），别名从 project/name 派生
+    "project.new": {"project_root": ["project", "name"], "v2_default": True},
+    "project.import": {"project_root": ["project", "name"], "source_path": ["source", "source_path"]},
+    "project.status": {"project_root": ["project", "name"]},
+    "project.resume": {"project_root": ["project", "name"]},
+    "project.switch": {"project_root": ["project", "name"]},
+    "project.delete": {"project_root": ["project", "name"]},
     # read 类操作：file 会被 _PARAM_MAP 误映射为 file_path，
     # 需在别名层映射回 file，否则 run_operation 按注册的 file 过滤时丢失
     "summary.read": {"file": ["file", "file_path"]},
@@ -250,12 +256,24 @@ def _build_canonical_params(op: str, request: dict) -> dict:
                 canonical[canonical_key] = request[src]
                 break
 
-    # 3. project_root：从 project 字段解析；同时把规范化的项目名（纯 basename）
-    #    传给 handler —— analyze.* 等需要按项目过滤的操作依赖此参数
-    #    （_PARAM_MAP 不映射 project 原始值，避免完整路径污染遥测 params）
+    # 3. project 身份注入：按 OPERATION_REGISTRY 声明的参数裁剪，只填该 op
+    #    实际消费的形态，避免 project_root / project / name 三形态同时进 params。
+    #    - 存储类 ops（graph.*/session.*/deviation.* 等）：registry 声明 project_root → 只填绝对路径
+    #    - 过滤类 ops（analyze.*/summary.list）：registry 声明 project → 填 basename（遥测归因匹配）
+    #    - project.* ops：别名已将 project/name 映射为 project_root → 统一绝对路径
     if "project" in request:
-        canonical["project_root"] = _resolve_project(request["project"])
-        canonical["project"] = _project_basename(request["project"])
+        root = _resolve_project(request["project"])
+        base = _project_basename(request["project"])
+        from handlers import OPERATION_REGISTRY
+        accepted = set(OPERATION_REGISTRY.get(op, {}).get("params", {}).keys())
+        if "project_root" in accepted:
+            canonical["project_root"] = root
+        if "project" in accepted:
+            canonical["project"] = base
+    elif "project_root" in canonical and not os.path.isabs(canonical["project_root"]):
+        # 别名从 name 派生 project_root（如 project.* 传 name=项目名），
+        # 相对路径需解析为绝对路径
+        canonical["project_root"] = _resolve_project(canonical["project_root"])
 
     # 4. actor 默认值：未指定时用 "novel-tool"（在白名单中），避免 handler 默认 "orchestrator" 被拦截
     if "actor" not in canonical:

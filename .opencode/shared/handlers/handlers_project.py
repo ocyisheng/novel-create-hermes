@@ -57,17 +57,17 @@ def get_runtime_mode() -> str:
     return (raw or DEFAULT_MODE).strip().lower() or DEFAULT_MODE
 
 
-def _project_path(name: str) -> str:
-    return os.path.join(NOVELS_ROOT, name)
+def _project_name(project_root: str) -> str:
+    """从项目根目录绝对路径派生纯项目名（CLI/日志用）。"""
+    return os.path.basename(os.path.normpath(project_root))
 
 
-def _project_exists(name: str) -> bool:
-    p = _project_path(name)
-    return os.path.isdir(p) and os.path.isfile(os.path.join(p, "config.yaml"))
+def _project_exists(project_root: str) -> bool:
+    return os.path.isdir(project_root) and os.path.isfile(os.path.join(project_root, "config.yaml"))
 
 
-def _load_config(name: str) -> dict:
-    cfg = os.path.join(_project_path(name), "config.yaml")
+def _load_config(project_root: str) -> dict:
+    cfg = os.path.join(project_root, "config.yaml")
     if not os.path.exists(cfg):
         return {}
     import yaml
@@ -75,9 +75,9 @@ def _load_config(name: str) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def _save_config(name: str, config: dict):
+def _save_config(project_root: str, config: dict):
     import yaml
-    cfg = os.path.join(_project_path(name), "config.yaml")
+    cfg = os.path.join(project_root, "config.yaml")
     with open(cfg, "w", encoding="utf-8") as f:
         yaml.dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
 
@@ -107,7 +107,7 @@ def _get_store(project_root: str):
 # ── Handler 函数 ──────────────────────────────────────────────────────────
 
 def handle_project_new(
-    name: str,
+    project_root: str,
     genre: str = "通用",
     v2: bool = True,
     volumes: int = 3,
@@ -115,9 +115,9 @@ def handle_project_new(
     structure: str = "三幕",
 ) -> dict:
     """创建新小说项目。"""
-    name = name.strip()
     genre = genre.strip()
-    proj_dir = _project_path(name)
+    proj_dir = project_root
+    name = _project_name(project_root)
 
     if os.path.exists(proj_dir):
         return {"error": f"项目已存在: {proj_dir}"}
@@ -151,7 +151,7 @@ def handle_project_new(
         "写作进度": {"当前卷": 0, "当前章": 0, "卷大纲状态": "", "卷大纲完成数": 0},
         "创作目标": {"目标字数": 200000, "目标章节数": sum(chapter_dist), "每日目标": 2000},
     }
-    _save_config(name, config)
+    _save_config(project_root, config)
 
     return {
         "path": proj_dir,
@@ -201,18 +201,17 @@ def _create_v2_project(name: str, genre: str, proj_dir: str) -> dict:
         "写作进度": {"当前卷": 0, "当前章": 0, "卷大纲状态": "", "卷大纲完成数": 0},
         "创作目标": {"目标字数": 200000, "目标章节数": 40, "每日目标": 2000},
     }
-    _save_config(name, config)
+    _save_config(proj_dir, config)
 
     return {"path": proj_dir, "v2": True, "graph_initialized": graph_ok}
 
 
-def handle_project_import(name: str, source_path: str) -> dict:
+def handle_project_import(project_root: str, source_path: str) -> dict:
     """导入已有小说项目。"""
-    name = name.strip()
     source = source_path.strip()
     if not os.path.exists(source):
         return {"error": f"源路径不存在: {source}"}
-    proj_dir = _project_path(name)
+    proj_dir = project_root
     if os.path.exists(proj_dir):
         return {"error": f"目标项目已存在: {proj_dir}"}
     shutil.copytree(source, proj_dir)
@@ -222,17 +221,17 @@ def handle_project_import(name: str, source_path: str) -> dict:
     }
 
 
-def handle_project_status(name: str, phase: str = "") -> dict:
+def handle_project_status(project_root: str, phase: str = "") -> dict:
     """查看项目状态。"""
-    name = name.strip()
-    if not _project_exists(name):
+    name = _project_name(project_root)
+    if not _project_exists(project_root):
         return {"error": f"项目不存在: {name}"}
 
-    config = _load_config(name)
+    config = _load_config(project_root)
     if not config:
         return {"error": "config.yaml 为空或格式错误"}
 
-    proj = _project_path(name)
+    proj = project_root
     is_v2 = config.get("架构") == "v2" or is_v2_project(proj)
 
     result = {
@@ -245,7 +244,7 @@ def handle_project_status(name: str, phase: str = "") -> dict:
     # 更新 phase（如果提供）
     if phase:
         config["写作阶段"] = phase
-        _save_config(name, config)
+        _save_config(project_root, config)
         result["phase_updated"] = phase
 
     # V2 统计
@@ -341,26 +340,26 @@ def _vol_name(unit) -> str:
     return ""
 
 
-def handle_project_resume(name: str) -> dict:
+def handle_project_resume(project_root: str) -> dict:
     """续写项目（刷新最后编辑时间）。"""
-    name = name.strip()
-    if not _project_exists(name):
+    name = _project_name(project_root)
+    if not _project_exists(project_root):
         return {"error": f"项目不存在: {name}"}
-    config = _load_config(name)
+    config = _load_config(project_root)
     config["最后编辑"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-    _save_config(name, config)
+    _save_config(project_root, config)
     return {"ok": True}
 
 
-def handle_project_switch(name: str, dry_run: bool = False) -> dict:
+def handle_project_switch(project_root: str, dry_run: bool = False) -> dict:
     """切换当前项目。"""
-    name = name.strip()
-    proj_path = _project_path(name)
+    name = _project_name(project_root)
+    proj_path = project_root
 
-    if not _project_exists(name) and not dry_run:
+    if not _project_exists(project_root) and not dry_run:
         return {"error": f"项目不存在: {name}"}
 
-    config = _load_config(name) if _project_exists(name) else {}
+    config = _load_config(project_root) if _project_exists(project_root) else {}
     genre = config.get("项目类型", "未知")
     style = config.get("活跃风格", "通俗网文风")
 
@@ -408,10 +407,9 @@ __MODE__: {mode}
     }
 
 
-def handle_project_delete(name: str, force: bool = False) -> dict:
+def handle_project_delete(project_root: str, force: bool = False) -> dict:
     """删除项目。"""
-    name = name.strip()
-    proj = _project_path(name)
+    proj = project_root
     if not os.path.isdir(proj):
         return {"error": f"项目目录不存在: {proj}"}
     if not force:

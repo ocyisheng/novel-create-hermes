@@ -16,39 +16,39 @@ tags: ["novel", "project-management", "v2"]
 ### 新建项目
 
 ```
-novel-tool(operation="project.new", name="项目名", genre="玄幻")
+novel-tool(operation="project.new", project="项目名", genre="玄幻")
 ```
 
 ### 导入已有小说
 
 ```
-novel-tool(operation="project.import", name="项目名", source_path="源路径")
+novel-tool(operation="project.import", project="项目名", source_path="源路径")
 ```
 
 ### 查看状态
 
 ```
-novel-tool(operation="project.status", name="项目名")
+novel-tool(operation="project.status", project="项目名")
 ```
-可选参数：`name="项目名", phase="阶段"` 同时更新写作阶段。
+可选参数：`project="项目名", phase="阶段"` 同时更新写作阶段。
 
 ### 续写
 
 ```
-novel-tool(operation="project.resume", name="项目名")
+novel-tool(operation="project.resume", project="项目名")
 ```
 
 ### 切换
 
 ```
-novel-tool(operation="project.switch", name="项目名")
+novel-tool(operation="project.switch", project="项目名")
 ```
-试运行：`novel-tool(operation="project.switch", name="项目名", dry_run=true)`
+试运行：`novel-tool(operation="project.switch", project="项目名", dry_run=true)`
 
 ### 删除
 
 ```
-novel-tool(operation="project.delete", name="项目名", force=true)
+novel-tool(operation="project.delete", project="项目名", force=true)
 ```
 
 ## 前提

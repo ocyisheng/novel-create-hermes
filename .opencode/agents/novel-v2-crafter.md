@@ -38,7 +38,7 @@ SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
 
 ### 第二步：获取工作空间上下文
 
-`novel-tool(operation="session.build_workspace", project="<PROJECT>", id="<FOCUS_ID>", level="<PREHEAT_LEVEL>")`
+`novel-tool(operation="session.build_workspace", project="<PROJECT>", id="<FOCUS_ID>", preheat_level="<PREHEAT_LEVEL>")`
 
 工作空间中的 thematic_motif 和 note 条目（意象系统、闲笔计划等）仅列出名称，不包含内容。它们是设计阶段的产物——写完本章后如有需要再单独查阅，不要在写作中途逐条对照。
 

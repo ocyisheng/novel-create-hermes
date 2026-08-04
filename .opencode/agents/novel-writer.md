@@ -721,7 +721,7 @@ todowrite([
 skill("novel-project-manager", user_message="new \"项目名\" \"类型\" --v2")
 ```
 
-也可直接走 tool：`novel-tool(operation="project.new", name="项目名", genre="类型", v2=true)`
+也可直接走 tool：`novel-tool(operation="project.new", project="项目名", genre="类型", v2=true)`
 
 ## 七、状态维护
 

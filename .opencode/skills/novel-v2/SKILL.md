@@ -176,7 +176,7 @@ novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="expan
 novel-tool(operation="session.set_phase", project="{PROJECT}", phase="EXECUTE")
 
 # 构建工作空间上下文
-novel-tool(operation="session.build_workspace", project="{PROJECT}", id="{焦点单元ID}", level="warm")
+novel-tool(operation="session.build_workspace", project="{PROJECT}", id="{焦点单元ID}", preheat_level="warm")
 
 # 持久化 graph
 novel-tool(operation="graph.flush", project="{PROJECT}")

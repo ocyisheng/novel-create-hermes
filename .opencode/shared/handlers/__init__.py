@@ -234,27 +234,27 @@ OPERATION_REGISTRY = {
     # project
     "project.new": {
         "handler": handle_project_new,
-        "params": {"name": {"required": True}, "genre": {"required": True}, "v2": {}, "volumes": {}, "acts": {}, "structure": {}},
+        "params": {"project_root": {"required": True}, "genre": {"required": True}, "v2": {}, "volumes": {}, "acts": {}, "structure": {}},
     },
     "project.import": {
         "handler": handle_project_import,
-        "params": {"name": {"required": True}, "source_path": {"required": True}},
+        "params": {"project_root": {"required": True}, "source_path": {"required": True}},
     },
     "project.status": {
         "handler": handle_project_status,
-        "params": {"name": {"required": True}, "phase": {}},
+        "params": {"project_root": {"required": True}, "phase": {}},
     },
     "project.resume": {
         "handler": handle_project_resume,
-        "params": {"name": {"required": True}},
+        "params": {"project_root": {"required": True}},
     },
     "project.switch": {
         "handler": handle_project_switch,
-        "params": {"name": {"required": True}, "dry_run": {}},
+        "params": {"project_root": {"required": True}, "dry_run": {}},
     },
     "project.delete": {
         "handler": handle_project_delete,
-        "params": {"name": {"required": True}, "force": {}},
+        "params": {"project_root": {"required": True}, "force": {}},
     },
     # env
     "env.check": {
@@ -276,7 +276,7 @@ OPERATION_REGISTRY = {
     },
     "session.build_workspace": {
         "handler": handle_session_build_workspace,
-        "params": {"project_root": {"required": True}, "id": {"required": True}, "level": {}},
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "preheat_level": {}},
     },
     "session.info": {
         "handler": handle_session_info,
@@ -335,11 +335,11 @@ OPERATION_REGISTRY = {
     # analyze
     "analyze.usage": {
         "handler": handle_analyze_usage,
-        "params": {"project_root": {"required": True}, "mode": {}, "json_output": {}, "project": {}},
+        "params": {"project_root": {"required": True}, "mode": {}, "json_output": {}},
     },
     "analyze.telemetry": {
         "handler": handle_analyze_telemetry,
-        "params": {"project_root": {}, "project": {}},
+        "params": {"project_root": {}},
     },
     # summary（统一脚本：主 Agent 会话 + 子 Agent 调用，record_type 区分，路径分流）
     "summary.save": {

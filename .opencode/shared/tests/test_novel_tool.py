@@ -625,21 +625,21 @@ class TestGraphSessionExportViz:
     def test_build_workspace_cold(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("session.build_workspace", project=proj_path,
-                        id=units["后山拔剑"].id, level="cold")
+                        id=units["后山拔剑"].id, preheat_level="cold")
         assert_success(res)
         assert "context" in res["data"]
 
     def test_build_workspace_warm(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("session.build_workspace", project=proj_path,
-                        id=units["后山拔剑"].id, level="warm")
+                        id=units["后山拔剑"].id, preheat_level="warm")
         assert_success(res)
         assert "context" in res["data"]
 
     def test_build_workspace_hot(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("session.build_workspace", project=proj_path,
-                        id=units["后山拔剑"].id, level="hot")
+                        id=units["后山拔剑"].id, preheat_level="hot")
         assert_success(res)
         assert "context" in res["data"]
 

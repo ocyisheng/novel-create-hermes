@@ -46,8 +46,6 @@ PARAM_OPTS = {
     "verify": {"flags": ["--verify"], "action": "store_true", "help": "迁移时验证"},
     "report": {"flags": ["--report"], "action": "store_true", "help": "输出报告"},
     "force": {"flags": ["--force"], "action": "store_true", "help": "强制模式"},
-    "incremental": {"flags": ["--incremental"], "action": "store_true", "help": "增量生成"},
-    "open_browser": {"flags": ["--open"], "action": "store_true", "help": "生成后打开浏览器"},
     "since_version": {"flags": ["--since-version"], "type": int, "help": "起始版本号"},
     "version": {"flags": ["--version"], "help": "分析清单版本名（如 clues_20260731_134643_123.md）"},
     "sources": {"flags": ["--sources"], "help": "来源总结文件名（逗号分隔或 JSON 数组）"},
@@ -56,15 +54,13 @@ PARAM_OPTS = {
     "full_scan_version": {"flags": ["--full-scan-version"], "type": int, "help": "全量扫描版本号"},
     "slug": {"flags": ["--slug"], "help": "知识库标识"},
     "topic": {"flags": ["--topic"], "help": "查询主题"},
-    "level": {"flags": ["--level"], "default": "warm", "help": "预热级别"},
     "cycle_type": {"flags": ["--cycle-type"], "help": "循环类型"},
     "phase": {"flags": ["--phase"], "help": "会话阶段"},
     "parent_id": {"flags": ["--parent-id"], "help": "父级单元 ID"},
-    "character": {"flags": ["--character"], "help": "角色名称/ID"},
-    "timeline": {"flags": ["--timeline"], "help": "时间线角色"},
-    "output": {"flags": ["--output"], "help": "输出路径"},
     "verbose": {"flags": ["--verbose"], "action": "store_true", "help": "详细模式"},
     "source_path": {"flags": ["--source-path"], "help": "导入源路径"},
+    "skip_constraint_check": {"flags": ["--skip-constraint-check"], "action": "store_true", "help": "flush 跳过约束检查"},
+    "full": {"flags": ["--full"], "action": "store_true", "help": "constraint.check 全量检查"},
     # subagent
     "task_id": {"flags": ["--task-id"], "help": "子 Agent 任务 ID"},
     "subagent": {"flags": ["--subagent"], "help": "子 Agent 类型"},
@@ -92,9 +88,7 @@ PARAM_OPTS = {
 # 命令名 → 注册表操作名映射
 # 假设命令名格式为 op_name.replace("_", "-").replace(".", "-")
 # 少数特殊映射在此覆盖
-CMD_OVERRIDES = {
-    "open_browser": "open",
-}
+CMD_OVERRIDES = {}
 
 
 def _operation_to_command(op_name: str) -> str:

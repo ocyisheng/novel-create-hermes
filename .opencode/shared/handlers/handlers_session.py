@@ -66,7 +66,7 @@ def handle_session_start(project_root: str, focus_type: str, id: str) -> dict:
     return {"session_id": s.id if hasattr(s, 'id') else str(s)}
 
 
-def handle_session_build_workspace(project_root: str, id: str, level: str = "warm") -> dict:
+def handle_session_build_workspace(project_root: str, id: str, preheat_level: str = "warm") -> dict:
     """构建工作空间上下文。"""
     from workspace import WorkspaceBuilder
 
@@ -76,9 +76,9 @@ def handle_session_build_workspace(project_root: str, id: str, level: str = "war
 
     store = _get_store(project)
     b = WorkspaceBuilder(store)
-    ws = b.build(id, preheat_level=level)
+    ws = b.build(id, preheat_level=preheat_level)
 
-    return {"context": ws.to_prompt_block(level)}
+    return {"context": ws.to_prompt_block(preheat_level)}
 
 
 def handle_session_info(project_root: str) -> dict:

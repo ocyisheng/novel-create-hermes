@@ -19,7 +19,7 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 | 能力 | 入口 | 详情 |
 |------|------|------|
-| 遥测记录 | 每次 `task()` 返回后 | §1 |
+| 遥测记录 | 用户请求"会话总结"时，回顾本次对话中的所有 Task | §1 |
 | 数据分析 | "收集使用数据" / "分析数据" / "看故障模式" | §2 |
 | 会话总结 | "记录这次会话的总结" / "记录总结" | §3 + `references/session-summary.md` |
 | 聚合分析 | "分析优化线索" / "综合分析" | §4 + `references/aggregate-analysis.md` |
@@ -31,12 +31,17 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 ## §1 遥测记录（规则 T1）
 
-**主动发现`task()` 返回后**，执行**会话总结流程**——与 §3 A.1-A.4 完全一致（回顾 → 生成结构化总结 → 保存 → 确认），同一套 summary 脚本，仅存储区分（`record_type="subagent"`，路径 `subagents/`）：
+**触发条件**：dev模式下，用户请求"会话总结"时，回顾本次对话中所有 `task()` 调用，为每个未保存的子Agent补充生成子agent总结。
 
+**执行流程**：
 ```
-收到 task() 返回（同步结果 / background_output(id=bg_xxx)）
+用户请求"会话总结"（且 __MODE__: dev）
   ↓
-回顾子 Agent 执行过程，提取以下维度（每个维度对应落盘后的一个 section）：
+回顾本次对话，识别所有 task() 调用（提取 task_id / subagent_type / focus 等信息）
+  ↓
+检查 .engine/subagents/ 中是否已有对应总结
+  ↓
+为未保存的子Agent执行会话总结流程（与 §3 A.1-A.4 一致）：
   任务摘要    ← prompt 意图（对齐 A.1「意图识别」）
   结果摘要    ← 产出与结果状态（对齐 A.1「工具调用/子agent调用」的成效）
   用户意图    ← 用户原始输入（供路由分歧检测）
@@ -46,6 +51,8 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
   优化线索    ← 发现的可改进点（对齐 A.1「优化线索」）
   ↓
 生成结构化总结（A.2 Markdown content）→ 调用 summary.save 落盘 .md 总结（record_type="subagent"，content 为正文）
+  ↓
+继续执行主 Agent 会话总结（§3 A.1-A.4）
 ```
 
 **维度映射说明**：子 Agent 通常单轮执行，A.1 九维度中「路由决策/工具调用」信息已并入任务/结果摘要；「诊断发现」如有并入失败复盘或结果摘要；「迭代过程」如有多轮修正并入失败复盘。
@@ -105,14 +112,14 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 **统一流程，覆盖主 Agent 与子 Agent**：会话总结 = 回顾 → 生成结构化总结 → 保存 → 确认（A.1-A.4，子 Agent 确认环节豁免、静默保存，见 A.4），主 Agent 会话总结与子 Agent 调用总结走同一流程，**仅存储区分**（`record_type` 与路径，见 §1）：
 
 - **主 Agent**：用户说"记录这次会话的总结"/"记录总结"时触发 → `summary.save`（默认 `record_type="main"`，存 `.engine/summaries/`）
-- **子 Agent**：每次 `task()` 返回后由 §1 T1 自动触发 → `summary.save`（`record_type="subagent"`，存 `.engine/subagents/`）
+- **子 Agent**：用户请求"会话总结"时，由 §1 T1 回顾本次对话中的 Task 调用并补充生成 → `summary.save`（`record_type="subagent"`，存 `.engine/subagents/`）
 
 **完整流程见 `references/session-summary.md`**（A.1-A.4 两者通用，A.4 确认环节子 Agent 豁免），要点：
 
 - **A.1 回顾对话**：意图识别、路由决策、工具调用、子 agent 调用、冲突决策、诊断发现、失败复盘、迭代过程、优化线索
 - **A.2 生成结构化总结**：含两种优化线索格式（简格式 + 过程追踪格式）
 - **A.3 保存**：主 Agent → `summary.save(content="{总结内容}", ...)`；子 Agent → `summary.save(record_type="subagent", content="{总结内容}", 结构化元数据...)`；`record_type` 只决定存储路径
-- **A.4 返回确认**：仅主 Agent 场景执行（回复保存位置与焦点/标签）；子 Agent 自动触发，静默保存不回复
+- **A.4 返回确认**：仅主 Agent 场景执行（回复保存位置与焦点/标签）；子 Agent 总结在主 Agent 会话总结中确认
 
 ## §4 聚合分析
 
@@ -142,7 +149,7 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 2. **不存原始对话** — `summary.save(record_type="subagent")` 只存摘要，凭 `task_id` 回溯完整对话
 3. **不自动执行改进** — 优化闭环的任务清单必须等用户确认后再执行
 4. **最小改动原则** — 每次改进只改必要文件，不顺带重构
-5. **不自动触发递归** — 偏差/优化处理由用户驱动，发现 pending 问题只通知不自动修复
+5. **会话总结时补充子Agent** — 遥测记录不在 task() 返回后自动执行，而是在用户请求会话总结时回顾并补充
 
 ## 参考文件
 

@@ -19,6 +19,7 @@ Thumbs.db
 *.swo
 .codegraph
 .omo
+.hermes/
 
 # ----- OpenCode -----
 .opencode/node_modules/

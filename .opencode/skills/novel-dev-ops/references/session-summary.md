@@ -1,6 +1,6 @@
 # 会话总结流程（附录 A）
 
-**适用范围**：主 Agent 会话总结与子 Agent 调用总结使用**同一套流程**（回顾 → 生成 → 保存 → 确认，A.1-A.4），仅存储区分——主 Agent 存 `.engine/summaries/`（`record_type="main"`），子 Agent 存 `.engine/subagents/`（`record_type="subagent"`）。主 Agent 由用户触发（"记录这次会话的总结"）；子 Agent 由 T1 在每次 `task()` 返回后自动触发。以下流程两者通用，子 Agent 的回顾维度映射见 SKILL.md §1。
+**适用范围**：主 Agent 会话总结与子 Agent 调用总结使用**同一套流程**（回顾 → 生成 → 保存 → 确认，A.1-A.4），仅存储区分——主 Agent 存 `.engine/summaries/`（`record_type="main"`），子 Agent 存 `.engine/subagents/`（`record_type="subagent"`）。主 Agent 由用户触发（"记录这次会话的总结"）；子 Agent 由用户请求会话总结时，回顾本次对话中的 Task 调用并补充生成（§1 T1）。以下流程两者通用，子 Agent 的回顾维度映射见 SKILL.md §1。
 
 用户说"记录这次会话的总结"/"记录总结"时，执行以下流程：
 

@@ -26,6 +26,7 @@ import copy
 import uuid
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
+from enum import Enum
 from typing import Dict, List, Optional, Any
 
 import yaml
@@ -33,6 +34,14 @@ import yaml
 from graph_store import _normalize_project_root
 
 logger = logging.getLogger(__name__)
+
+
+class DeviationSource(str, Enum):
+    """偏差来源枚举"""
+    MECHANICAL = "mechanical"           # 机械检查
+    STATISTICAL_LLM = "statistical_llm" # 统计+LLM裁决
+    SEMANTIC_LLM = "semantic_llm"       # 语义分析+LLM
+    LEGACY = "legacy"                   # 旧格式兼容
 
 
 # ── 数据类 ──────────────────────────────────────────────────────────────────
@@ -309,7 +318,22 @@ class DeviationManager:
             "upgrade_", "plans_",
         })
         
-        def _derive_source(rid: str) -> str:
+        def _derive_source(rid: str, result: Any = None) -> str:
+            # 优先使用 CheckResult 对象的 source 字段
+            if result is not None:
+                src = getattr(result, "source", None)
+                if src is not None:
+                    # CheckSource 枚举 → DeviationSource 映射
+                    _MAP = {
+                        "mechanical": DeviationSource.MECHANICAL,
+                        "statistical": DeviationSource.STATISTICAL_LLM,
+                        "semantic": DeviationSource.SEMANTIC_LLM,
+                    }
+                    val = src.value if hasattr(src, "value") else str(src)
+                    mapped = _MAP.get(val)
+                    if mapped:
+                        return mapped.value
+            # fallback: 基于 rule_id 前缀的旧逻辑
             for prefix, source in SOURCE_RULES:
                 if rid.startswith(prefix):
                     return source
@@ -343,7 +367,7 @@ class DeviationManager:
                 units_involved = result.units_involved
                 detail = getattr(result, "detail", "")
             
-            source = _derive_source(rule_id)
+            source = _derive_source(rule_id, result)
             entity = _extract_entity(description)
             
             # 用 rule_id + 涉及单元 IDs 生成稳定 key

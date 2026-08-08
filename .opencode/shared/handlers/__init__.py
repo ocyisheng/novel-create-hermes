@@ -38,6 +38,7 @@ from .handlers_graph import (
     handle_schema_info,
     handle_change_type,
     handle_constraint_check,
+    handle_quality_check,
 )
 
 from .handlers_project import (
@@ -177,6 +178,14 @@ OPERATION_REGISTRY = {
     "constraint.check": {
         "handler": handle_constraint_check,
         "params": {"project_root": {"required": True}, "full": {}},
+    },
+    "graph.quality_check": {
+        "handler": handle_quality_check,
+        "params": {
+            "project_root": {"required": True},
+            "layers": {"required": False},
+            "full": {"required": False},
+        },
     },
     "graph.fix_asymmetry": {
         "handler": handle_fix_asymmetry,

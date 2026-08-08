@@ -107,36 +107,46 @@ novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
 
 ### 三、mode=cross-ref — 交叉引用检测
 
-检测 graph 中 7 条一致性规则。
+检测 graph 中的一致性规则。
 
 ```
-规则 1: 已故角色仍在出场？
-  → 查 CHARACTER_ARC[status=ARCHIVED] ↔ PARTICIPATES_IN → SCENE
-  方法: SearchEngine.check_consistency() 已有此规则
+① 获取机械检查结果：
+   novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical")
 
-规则 2: 角色关系不对称？
-  → A 列出了 B 但 B 没列出 A
-  方法: SearchEngine.check_consistency() 已有此规则
+   返回 mechanical_results 列表，每条包含：
+   - rule_id: R1/R2/R3/R4/R5/R6/R9
+   - rule_name: 规则名称
+   - severity: error/warning/info
+   - description: 问题描述
+   - units_involved: 涉及单元ID列表
 
-规则 3: 孤立单元（没有任何关系）
-  → SearchEngine.check_consistency() 已有此规则
+② 获取统计信号：
+   novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="statistical")
 
-规则 4: 归档单元仍有活跃关系
-  → SearchEngine.check_consistency() 已有此规则
+   返回 statistical_signals 列表，每条包含：
+   - rule_id: R7/R10/R11/R12
+   - signal_type: 信号类型
+   - raw_value: 原始值
+   - threshold: 阈值
 
-规则 5: 能力边界一致性（需 LLM 语义分析）
-  → CHARACTER_ARC 中记录的能力 vs CHUNK 中实际使用的能力
-  方法: 检索角色档案 + 含该角色的正文片段
+③ 语义分析（需 LLM）：
+   规则 5: 能力边界一致性
+     → CHARACTER_ARC 中记录的能力 vs CHUNK 中实际使用的能力
+     方法: 检索角色档案 + 含该角色的正文片段
 
-规则 6: 时间线一致性（需 LLM 语义分析）
-  → NOTE[tags=时间线] 中的事件顺序 vs CHUNK 按章节排列的顺序
-  方法: 检索时间线笔记 + 按章节排序的正文
+   规则 6: 时间线一致性
+     → NOTE[tags=时间线] 中的事件顺序 vs CHUNK 按章节排列的顺序
+     方法: 检索时间线笔记 + 按章节排序的正文
 
-规则 7: 情节线完成度（需 LLM 语义分析）
-  → PLOT_THREAD 中的关键事件 vs 已写的 CHUNK
-  方法: 检索情节线 + 正文统计
+   规则 7: 情节线完成度
+     → PLOT_THREAD 中的关键事件 vs 已写的 CHUNK
+     方法: 检索情节线 + 正文统计
 
-详见 references/cross_ref_rules.md 获取完整说明。
+④ 统计信号裁决（需 LLM）：
+   R7 位置变化：判断是否合理剧情推进
+   R10 节奏单调：判断是否有意的叙事节奏
+   R11 密度偏离：判断是否高潮/过渡章节
+   R12 主角能动性：判断是否角色性格设定
 
 每项输出:
   - 矛盾类型: error / warning / info
@@ -174,27 +184,26 @@ updated_at 判断"哪个是被修正过的最新值"：
    deviation.stats → full_scan_version
 
 ② 获取自该版本以来的变更单元
-   novel-tool(operation="graph.get_modified_units", project="<PROJECT>", since_version="<full_scan_version>")
+   novel-tool(operation="graph.get_modified_units", project="{PROJECT}", since_version="{full_scan_version}")
    → 返回 version > full_scan_version 的非 ARCHIVED 单元
 
-③ 只对变更单元运行 align + cross-ref + gap（增量分析）
-    注意：如果变更单元数量很大（>20个），优先分析：
-    - 角色相关变更（影响面最大）
-    - 世界观规则变更（影响面次之）
-    - 创建新的单元（而不是只修改内容）
+③ 只对变更单元运行质量检查（增量分析）
+   novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical,statistical")
+
+   注意：如果变更单元数量很大（>20个），优先分析：
+   - 角色相关变更（影响面最大）
+   - 世界观规则变更（影响面次之）
+   - 创建新的单元（而不是只修改内容）
 
 ④ 过滤已解决偏差：在生成 findings 前，加载已有偏差状态去重
-   novel-tool(operation="deviation.list", project="<PROJECT>")
+   novel-tool(operation="deviation.list", project="{PROJECT}")
    → 获取当前所有偏差记录
    → 标记为 resolved 或 retained 的偏差对应的 (dimension, entity)，不再重复生成
    → 如果发现当前变更又触发了同一问题，仅递增 detection_count（由 merge 处理），
-     不要在 findings 中重新提交已解决的条目
-   → 注意：若该 (dimension, entity) 的某个单元 updated_at 已更新（修正过），
-     视为"已处理"，除非其他单元仍持有旧值未同步——此时只报"未同步"，
-     不要再次报"设定有误"
+      不要在 findings 中重新提交已解决的条目
 
 ⑤ 合并新偏差并更新扫描版本
-   novel-tool(operation="deviation.merge", project="<PROJECT>", findings='[...]', full_scan_version="<最大unit.version>")
+   novel-tool(operation="deviation.merge", project="{PROJECT}", findings='[...]', full_scan_version="{最大unit.version}")
 ```
 
 ---
@@ -224,9 +233,11 @@ novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")
 novel-tool(operation="graph.search", project="<PROJECT>", pattern="筑基.*期", regex=true)
 novel-tool(operation="graph.search", project="<PROJECT>", keyword="剑", scope="SCENE", limit=10)
 
-# 一致性检查（输出供 LLM 分析的结构化数据）
-novel-tool(operation="graph.check", project="<PROJECT>")
-# 输出：4 条规则的结构化数据
+# 质量检查（统一引擎）
+novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="mechanical")
+novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="statistical")
+novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="mechanical,statistical")
+# 输出：机械规则 + 统计信号的结构化数据
 
 # 项目统计 + gap 数据
 novel-tool(operation="graph.stats", project="<PROJECT>")

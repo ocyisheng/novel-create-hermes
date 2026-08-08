@@ -522,6 +522,50 @@ def handle_check_consistency(project_root: str) -> dict:
     }
 
 
+def handle_quality_check(
+    project_root: str,
+    layers: Optional[str] = None,
+    full: bool = False,
+) -> dict:
+    """统一质量检查。"""
+    from narrative_quality_engine import NarrativeQualityEngine
+    from quality_checkers.types import QualityReport
+
+    store = _get_store(project_root)
+    engine = NarrativeQualityEngine(store)
+
+    layer_list = None
+    if layers:
+        layer_list = [l.strip() for l in layers.split(",")]
+
+    report = engine.run(layers=layer_list)
+
+    return {
+        "mechanical_results": [
+            {
+                "rule_id": r.rule_id, "rule_name": r.rule_name,
+                "severity": r.severity, "description": r.description,
+                "units_involved": r.units_involved, "detail": r.detail,
+                "source": r.source.value if hasattr(r.source, "value") else str(r.source),
+            }
+            for r in report.mechanical_results
+        ],
+        "statistical_signals": [
+            {
+                "rule_id": s.rule_id, "rule_name": s.rule_name,
+                "signal_type": s.signal_type,
+                "signal_data": s.signal_data,
+                "units_involved": s.units_involved,
+                "raw_value": s.raw_value,
+                "threshold": s.threshold,
+            }
+            for s in report.statistical_signals
+        ],
+        "deviations_created": report.deviations_created,
+        "timestamp": report.timestamp,
+    }
+
+
 def handle_recent_events(project_root: str, limit: int = 10) -> dict:
     """最近事件。"""
     store = _get_store(project_root)

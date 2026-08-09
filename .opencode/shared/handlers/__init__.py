@@ -93,6 +93,7 @@ from .handlers_summary import (
 
 from .handlers_analysis import (
     handle_save_analysis,
+    handle_resolve_analysis,
     handle_read_analysis,
     handle_list_analysis,
 )
@@ -374,11 +375,15 @@ OPERATION_REGISTRY = {
     # analysis
     "analysis.save": {
         "handler": handle_save_analysis,
-        "params": {"content": {}, "sources": {}},
+        "params": {"content": {}, "sources": {}, "project": {}},
     },
     "analysis.read": {
         "handler": handle_read_analysis,
-        "params": {"version": {}},
+        "params": {"version": {}, "file": {}},
+    },
+    "analysis.resolve": {
+        "handler": handle_resolve_analysis,
+        "params": {"file": {}, "clue": {}, "note": {}},
     },
     "analysis.list": {
         "handler": handle_list_analysis,

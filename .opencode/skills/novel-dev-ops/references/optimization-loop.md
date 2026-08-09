@@ -56,10 +56,17 @@
 
 ## C.4 反馈验证
 
-- 改进任务执行后，可重新触发聚合分析，确认对应线索的严重程度是否下降或消除
-- 重新分析会覆盖当前清单，旧清单自动归档到 history/。通过版本对比区分线索演进：
-  - `analysis.list` 查看历史版本 → `analysis.read(version=...)` 读取上一轮清单
-  - **遗留线索**：上轮与本轮都出现（未消除，继续追踪）
+- 改进任务执行后，**用 `analysis.resolve` 标记对应线索已修复**（写入 index.json 的 resolved 列表），下一轮聚合自动跳过/标注，避免重复报告：
+
+  ```text
+  novel-tool(operation="analysis.resolve", clue="{线索标识}", note="{修复说明}")   # 默认标记最新清单
+  novel-tool(operation="analysis.resolve", file="{清单文件名}", clue="{线索标识}", note="{修复说明}")
+  ```
+
+- 新一轮聚合前调用 `analysis.list` 读取 `entries[].resolved` 收集已修复线索集合，聚类时对已 resolve 线索标注 `✅ 已修复` 或跳过（详见 aggregate-analysis.md B.4.2）
+- 重新触发聚合分析后，通过版本对比区分线索演进：
+  - `analysis.list` 查看全部版本（含各自线索与修复状态）→ `analysis.read(file=...)` 读取指定版本
+  - **遗留线索**：上轮与本轮都出现且未 resolve（未消除，继续追踪）
   - **新线索**：仅本轮出现（本轮开发模式流程新发现）
-  - **已消除线索**：仅上轮出现（改进生效）
+  - **已消除线索**：已通过 `analysis.resolve` 标记（改进生效）
 - 未消除的线索保留在聚类中，下次分析时继续追踪

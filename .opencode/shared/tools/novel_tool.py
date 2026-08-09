@@ -190,6 +190,9 @@ _PARAM_MAP = {
     "conflict_decision": "conflict_decision",
     "failure_analysis": "failure_analysis",
     "optimization_clue": "optimization_clue",
+    # analysis
+    "clue": "clue",
+    "note": "note",
     # analyze
     "mode": "mode",
     "json_output": "json_output",
@@ -225,6 +228,9 @@ _PARAM_ALIASES = {
     # read 类操作：file 会被 _PARAM_MAP 误映射为 file_path，
     # 需在别名层映射回 file，否则 run_operation 按注册的 file 过滤时丢失
     "summary.read": {"file": ["file", "file_path"]},
+    # analysis 类操作：file 同 summary.read，映射回 file
+    "analysis.read": {"file": ["file", "file_path"]},
+    "analysis.resolve": {"file": ["file", "file_path"]},
 }
 
 

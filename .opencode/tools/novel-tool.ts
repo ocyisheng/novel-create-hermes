@@ -337,7 +337,7 @@ export default tool({
         "summary.save", "summary.list", "summary.read",
 
         // analysis
-        "analysis.save", "analysis.read", "analysis.list",
+        "analysis.save", "analysis.read", "analysis.resolve", "analysis.list",
 
         // server
         "web.start", "web.stop", "web.restart",
@@ -418,6 +418,8 @@ export default tool({
     since_version: tool.schema.number().optional().describe("起始版本号"),
     version: tool.schema.string().optional().describe("分析清单版本名（如 clues_20260731_134643_123.md）"),
     sources: tool.schema.array(tool.schema.string()).optional().describe("来源 summary 文件名列表（证据链）"),
+    clue: tool.schema.string().optional().describe("线索标识（如 [workflow] 编排层·创建/拆分前查重；analysis.resolve 标记已修复用）"),
+    note: tool.schema.string().optional().describe("修复说明（analysis.resolve 用）"),
     findings: tool.schema.string().optional().describe("偏差发现列表(JSON数组)"),
     scan_version: tool.schema.number().optional().describe("扫描版本号"),
     full_scan_version: tool.schema.number().optional().describe("全量扫描版本号"),

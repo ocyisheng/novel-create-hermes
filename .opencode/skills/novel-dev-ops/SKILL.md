@@ -130,7 +130,9 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 - **B.1 收集线索**：`summary.list`（主 Agent）→ 逐条 `summary.read`；`summary.list(record_type="subagent")`（子 Agent）→ 逐条 `summary.read(record_type="subagent")` → 提取 `### 优化线索` 段落的结构化行 → 记录来源文件名（含 B.1.5 路由分歧检测）
 - **B.2 归并聚类**：按 `类型 + 组件` 聚类，严重程度自动升级规则，流程类线索完整性校验
 - **B.3 输出改进清单**：按严重程度降序
-- **B.4 持久化**：`novel-tool(operation="analysis.save", content="{改进清单全文}", sources={["{来源文件名}"]})` → `.engine/analysis/clues_aggregated.md`（版本化覆盖，旧版自动归档 `history/`）
+- **B.4 持久化**：`novel-tool(operation="analysis.save", content="{改进清单全文}", sources={["{来源文件名}"]}, project="{项目名，可选}")` → `.engine/analysis/clues_YYYYMMDD_HHMMSS_fff.md`（版本化文件，自动登记 `index.json`，含线索清单 + 修复状态）
+- **B.4.1 修复标记**：修复后 `analysis.resolve(clue="{线索标识}", note="{说明}")` → 写入 index.json 的 resolved 列表
+- **B.4.2 新轮去重**：新一轮聚合前 `analysis.list` 读取已 resolve 线索 → 跳过/标注，避免重复报告
 
 ## §5 优化闭环
 
@@ -141,7 +143,7 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 - **C.1 改进维度映射**：`schema` / `prompt` / `handler` / `skill` / `workflow` / `tool` → 改进目标 + 多步可执行清单
 - **C.2 生成改进任务清单**：`analysis.read` 读取清单 → 转化为具体任务（含来源线索、过程回放、改动范围、验证方式）
 - **C.3 执行策略**：用户确认后执行、按维度并行、最小改动原则
-- **C.4 反馈验证**：重新触发聚合分析，对比版本区分遗留/新/已消除线索
+- **C.4 反馈验证**：修复后用 `analysis.resolve` 标记线索已解决；新一轮聚合通过 `analysis.list` 识别已修复线索，对比版本区分遗留/新/已消除线索
 
 ## HARD CONSTRAINTS
 

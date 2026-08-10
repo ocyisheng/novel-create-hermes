@@ -1,6 +1,6 @@
 ---
 name: "novel-ideation"
-description: "创意方案生成：基于约束库和焦点上下文，为下游 crafter 生成可选方案。不直接操作 graph，输出为自然语言方案清单。供编排层通过 subagent_type='novel-ideation' + load_skills=['novel-ideation'] 调度。触发词：创意、构思、方案、方向、灵感"
+description: "创意方案生成：基于约束库和焦点上下文，为下游 crafter 生成可选方案。不直接操作 graph，输出为自然语言方案清单。供规划主 agent（novel-planner）通过 subagent_type='novel-ideation' + load_skills=['novel-ideation'] 调度。触发词：创意、构思、方案、方向、灵感"
 license: "MIT"
 version: "4.0.0"
 compatibility: "OpenCode"
@@ -11,9 +11,9 @@ tags: ["novel", "ideation", "v2"]
 
 ## 定位
 
-本技能供编排层通过 `subagent_type="novel-ideation"` + `load_skills=["novel-ideation"]` 调度时注入。ideation 是 grill 和 crafter 之间的可选步骤——grill 收敛需求后，编排层可选择是否让 ideation 生成几套方案。
+本技能供规划主 agent（novel-planner）通过 `subagent_type="novel-ideation"` + `load_skills=["novel-ideation"]` 调度时注入。ideation 是 grill 和 crafter 之间的可选步骤——grill 收敛需求后，规划主 agent（novel-planner）可选择是否让 ideation 生成几套方案。
 
-ideation 的输出通过 task 响应文本传递，不写入 graph，由编排层直接消费并注入 crafter TASK。
+ideation 是**只读**步骤——输出仅通过 task 响应文本传递，**MUST NOT 写入 graph**（不调用任何 graph 写操作）。由规划主 agent（novel-planner）直接消费并注入 crafter TASK。
 
 ## 操作模式
 
@@ -37,7 +37,7 @@ ideation 的输出通过 task 响应文本传递，不写入 graph，由编排�
 **输入**：
 - `### 创作需求`（来自 grill）
 - FOCUS TYPE（scene/character_arc/plot_thread/world_rule/narrative_voice/thematic_motif/structure）/ FOCUS ID / FOCUS NAME + 焦点单元 1 度邻居
-- 可选：`### 知识库参考`（编排层注入，用于 with_knowledge 场景）
+- 可选：`### 知识库参考`（规划主 agent（novel-planner）注入，用于 with_knowledge 场景）
 
 **方法**：
 1. 阅读焦点单元邻居（已有角色/设定/情节线）
@@ -56,7 +56,7 @@ ideation 的输出通过 task 响应文本传递，不写入 graph，由编排�
 1. 每个方案必须包含"如何落地到当前项目"的具体路径
 2. focused 模式下必须验证与已有单元的兼容性
 3. 方案必须基于约束，不能是无约束的随意发散
-4. 仅通过响应文本传递，不写入 graph
+4. 仅通过响应文本传递，**MUST NOT 写入 graph**（只读）
 
 ## 参考文件
 - `references/constraints_library.md` — 30 个约束模板 + 组合策略

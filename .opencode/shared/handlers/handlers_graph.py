@@ -300,7 +300,7 @@ def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
     if not _ORCHESTRATOR_WRITE_BLOCKED:
         return None
     
-    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool", "web-ui"}
+    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool", "web-ui", "novel-planner"}
     if actor not in ALLOWED_WRITE_ACTORS:
         return {
             "error": (
@@ -612,6 +612,10 @@ def handle_create_unit(
 
     ut = UnitType[unit_type.upper()]
 
+    # novel-planner 仅允许创建 NOTE 单元（D17 白名单物理强制）
+    if actor == "novel-planner" and ut != UnitType.NOTE:
+        return {"error": f"novel-planner 不允许创建 {unit_type} 类型单元。规划主 agent 只能创建 note（创作笔记）。如需创建其他类型，请切换到 novel-writer。"}
+
     # 内容读取优先级：file_path > content
     if file_path:
         with open(file_path, "r", encoding="utf-8-sig") as f:
@@ -626,6 +630,7 @@ def handle_create_unit(
         chapter = _auto_detect_chapter(content or "", name)
 
     store = _get_store(project_root)
+    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else ("planner" if actor == "novel-planner" else "manual")
     store.set_session_context(session_id)
     try:
         # skip 模式前置查重：已存在（非归档）则直接返回已有单元，跳过关系推断/事件抽取
@@ -705,7 +710,7 @@ def handle_update_unit(
     blocked = _check_orchestrator_write(actor, "graph.update_unit")
     if blocked:
         return blocked
-    from graph_schema import UnitStatus
+    from graph_schema import UnitStatus, UnitType
     from relation_inferrer import RelationInferrer
 
     # 内容读取优先级：file_path > content
@@ -723,6 +728,9 @@ def handle_update_unit(
     try:
         # 预读取旧单元，判断内容是否有实际变更
         old_unit = store.get_unit(id)
+        # novel-planner 仅允许更新 NOTE 单元
+        if actor == "novel-planner" and old_unit and old_unit.type != UnitType.NOTE:
+            return {"error": f"novel-planner 不允许更新 {old_unit.type.value} 类型单元。规划主 agent 只能修改 note。"}
         old_content = old_unit.content if old_unit else None
         content_changed = (content is not None and content != old_content)
 
@@ -766,6 +774,9 @@ def handle_archive_unit(project_root: str, id: str, actor: str = "orchestrator")
     blocked = _check_orchestrator_write(actor, "graph.archive_unit")
     if blocked:
         return blocked
+    # novel-planner 不允许归档任何单元
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许归档单元。如需归档请切换到 novel-writer。"}
     store = _get_store(project_root)
     ok = store.archive_unit(id, actor=actor)
     if ok:
@@ -785,6 +796,9 @@ def handle_purge_archived(project_root: str, ids: str = "", force: bool = False,
     blocked = _check_orchestrator_write(actor, "graph.purge_archived")
     if blocked:
         return blocked
+    # novel-planner 不允许物理删除
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许执行 purge_archived。规划主 agent 不获得物理删除权限。"}
     store = _get_store(project_root)
     id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
     if id_list is None and not force:
@@ -851,13 +865,21 @@ def handle_add_relation(
     blocked = _check_orchestrator_write(actor, "graph.add_relation")
     if blocked:
         return blocked
-    from graph_schema import RelationType
+    from graph_schema import RelationType, UnitType
     rtype, fallback_label = _resolve_rel_type(rel_type)
     effective_label = label or fallback_label
     store = _get_store(project_root)
+    # novel-planner 仅允许建立涉及 NOTE 的关系
+    if actor == "novel-planner":
+        src_unit = store.get_unit(source)
+        tgt_unit = store.get_unit(target)
+        src_is_note = src_unit and src_unit.type == UnitType.NOTE
+        tgt_is_note = tgt_unit and tgt_unit.type == UnitType.NOTE
+        if not (src_is_note or tgt_is_note):
+            return {"error": "novel-planner 不允许建立两端均非 NOTE 的关系。规划主 agent 只能为 note 建立关系。如需角色↔角色关系请切换到 novel-writer。"}
     store.set_session_context(session_id)
     # 证据锚点：按 actor 判定来源通道
-    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else "manual"
+    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else ("planner" if actor == "novel-planner" else "manual")
     payload_dict = {}
     if payload:
         try:
@@ -924,6 +946,9 @@ def handle_update_relation(
     blocked = _check_orchestrator_write(actor, "graph.update_relation")
     if blocked:
         return blocked
+    # novel-planner 不允许更新关系
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许执行 update_relation。规划主 agent 不获得更新关系权限。"}
     store = _get_store(project_root)
     rel = store.get_relation(id)
     if not rel:
@@ -1109,6 +1134,9 @@ def handle_remove_relation(
     blocked = _check_orchestrator_write(actor, "graph.remove_relation")
     if blocked:
         return blocked
+    # novel-planner 不允许删除关系
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许执行 remove_relation。规划主 agent 不获得删除关系权限。"}
     from graph_schema import RelationType
     store = _get_store(project_root)
 
@@ -1141,6 +1169,9 @@ def handle_batch_infer(project_root: str, actor: str = "orchestrator") -> dict:
     blocked = _check_orchestrator_write(actor, "graph.batch_infer")
     if blocked:
         return blocked
+    # novel-planner 不允许批量推断
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许执行 batch_infer。规划主 agent 不获得批量推断权限。"}
     from relation_inferrer import RelationInferrer
     store = _get_store(project_root)
     before = store.stats()["total_relations"]
@@ -1302,6 +1333,9 @@ def handle_change_type(
     blocked = _check_orchestrator_write(actor, "graph.change_type")
     if blocked:
         return blocked
+    # novel-planner 不允许变更类型
+    if actor == "novel-planner":
+        return {"error": "novel-planner 不允许执行 change_type。规划主 agent 不获得变更类型权限。"}
     from graph_schema import UnitType
 
     store = _get_store(project_root)

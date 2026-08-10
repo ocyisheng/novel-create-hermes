@@ -33,7 +33,7 @@ V2 项目使用 `graph/` 作为**单一真相源**，全部创作数据通过 no
 > ├── notepads/
 > └── plans/
 > ```
-> `.engine/` 子目录由编排层维护、代码层不读写（`subagents/`/`summaries/` 除外——由 novel-tool 操作写入）。
+> `.engine/` 子目录由路由器（novel-router）维护、代码层不读写（`subagents/`/`summaries/` 除外——由 novel-tool 操作写入）。
 
 ## graph 文件说明
 

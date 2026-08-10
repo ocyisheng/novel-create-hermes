@@ -17,26 +17,45 @@ tags: ["novel", "v2", "graph"]
 
 ---
 
-## 领域参考（按焦点类型 + 横切维度）
+## 领域参考（按角色路由）
 
-子 Agent 根据 `FOCUS TYPE` 加载对应的创作方法论参考文档。对于横切维度（不绑定单一焦点类型），根据特定条件额外加载。
+子 Agent 根据自身角色（planner / writer / crafter / analyzer）加载对应的创作方法论参考文档。横切维度（关系操作）对所有角色通用，按需额外加载。
 
-### 焦点类型 → 参考文档映射
+### 角色 → 参考文档路由
+
+**IF YOU ARE planner**（规划：总纲/部篇/卷/章纲、情节线、笔记）→ 读取 `references/planning/`：
 
 | 焦点类型 | 参考文档 | 子类型 | 应关注什么 |
 |---------|---------|-------|-----------|
-| `scene` | `references/scene.md` | 开篇/推进/冲突/转折/展示/过渡/收束 | 按场域功能选择方法论：POV选择、一句话概要 |
-| `character_arc` | `references/character_arc.md` | 主角/重要配角/反派/关键配角/群像/功能性角色 | 按角色定位选择弧线深度：扁平vs圆形、自动性空间、关系标签 |
-| `plot_thread` | `references/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
-| `world_rule` | `references/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
-| `note` | `references/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
-| `chunk` | `references/chunk.md` | v1/v2/v3 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
-| `outline` | `references/structure.md` | 总纲 | 七面观照+模式节奏+本体论 |
-| `arc_plan` | `references/structure.md` | 部大纲/篇大纲 | 部篇弧线+跨卷节奏+层级过渡 |
-| `volume_plan` | `references/structure.md` | 卷大纲 | 卷弧线+节奏密度+过渡 |
-| `chapter_plan` | `references/structure.md` | 章纲 | 章纲→场景规划+字数分配+密度预算 |
-| `narrative_voice` | `references/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
-| `thematic_motif` | `references/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
+| `outline` | `references/planning/structure.md` | 总纲 | 七面观照+模式节奏+本体论 |
+| `arc_plan` | `references/planning/structure.md` | 部大纲/篇大纲 | 部篇弧线+跨卷节奏+层级过渡 |
+| `volume_plan` | `references/planning/structure.md` | 卷大纲 | 卷弧线+节奏密度+过渡 |
+| `chapter_plan` | `references/planning/structure.md` | 章纲 | 章纲→场景规划+字数分配+密度预算 |
+| `plot_thread` | `references/planning/plot_thread.md` | 主线/支线/暗线/感情线/成长线/世界观线 | 按线类型控制信息释放：伏笔四分类、复调结构、松散度 |
+| `note` | `references/planning/note.md` | 灵感/笔记 | 灵感记录、本体论核心问题 |
+
+**IF YOU ARE writer/crafter**（写作：场景/角色/世界观/正文/腔调/意象）→ 读取 `references/writing/` + `references/planning/`（全量物化需要结构方法论）：
+
+| 焦点类型 | 参考文档 | 子类型 | 应关注什么 |
+|---------|---------|-------|-----------|
+| `scene` | `references/writing/scene.md` | 开篇/推进/冲突/转折/展示/过渡/收束 | 按场域功能选择方法论：POV选择、一句话概要 |
+| `character_arc` | `references/writing/character_arc.md` | 主角/重要配角/反派/关键配角/群像/功能性角色 | 按角色定位选择弧线深度：扁平vs圆形、自动性空间、关系标签 |
+| `world_rule` | `references/writing/world_rule.md` | 世界观总览/规则/力量体系/势力/地点/历史/文化/经济体系/政治体系/社会阶层/纪年事件 | 按子类型选择创建策略：自洽性标准、延迟创建 |
+| `chunk` | `references/writing/chunk.md` | v1/v2/v3 | 完整读取，统一方法论：正文写作原则 + 章尾钩子 + 写作警觉 |
+| `narrative_voice` | `references/writing/narrative_voice.md` | 第一人称/第三人称限制/第三人称全知/第二人称/多视角交替 | 按视角类型决策：腔调谱系、信息分配、笔记传统 |
+| `thematic_motif` | `references/writing/thematic_motif.md` | 贯穿性/局部性/装饰性 | 按作用范围管理意象生命周期：倒置与反向、跨章节追踪 |
+| `content 字段` | `references/writing/content字段参考.md` | 全部单元类型 | 创建/更新单元时按类型查字段标准 |
+
+**IF YOU ARE analyzer**（质检/诊断）→ 读取 `references/analysis/`：
+
+| 场景 | 参考文档 | 应关注什么 |
+|------|---------|-----------|
+| 质量检查 | `references/analysis/quality_methodology.md` | 设计原则、各场景校验关注点、统计信号裁决提示词（R7/R10/R11/R12） |
+
+**（横切）关系操作**（所有角色通用）→ `references/relation_guide.md`：
+
+| 焦点类型 | 参考文档 | 子类型 | 应关注什么 |
+|---------|---------|-------|-----------|
 | `（横切）关系操作` | `references/relation_guide.md` | 全部 26 种关系类型 + 开放标签规则 | 建边前必查：结构类/叙事类/角色势力事件类 + 自反vs配对决定 bidirectional 行为 |
 
 ### 脚本 vs 提示词的分工
@@ -53,9 +72,9 @@ tags: ["novel", "v2", "graph"]
 
 ## 上下文契约
 
-### 焦点启动（编排层负责）
+### 焦点启动（主 agent 负责）
 
-编排层在调用 `task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"])` 时，在 prompt 中注入以下 V2 上下文：
+主 agent（planner / writer / crafter）在调用 `task(subagent_type="novel-v2-crafter", load_skills=["novel-v2"])` 时，在 prompt 中注入以下 V2 上下文：
 
 ```
 CURRENT PROJECT: {项目名}
@@ -66,7 +85,7 @@ FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: cold | warm | hot
 CYCLE TYPE: ideation | expansion | refinement | proofing | planning  # 活跃会话的循环类型（可空）
-SESSION ID: {session_id}  # 活跃会话 ID（可空）。已注入则 crafter 不得重复 session.start（会话归编排层拥有）
+SESSION ID: {session_id}  # 活跃会话 ID（可空）。已注入则 crafter 不得重复 session.start（会话归主 agent 自持）
 ```
 
 ---
@@ -121,7 +140,7 @@ novel-tool(operation="web.start", project="{PROJECT}")
 
 ### 2. 写入 graph 数据
 
-**会话归因**：prompt 注入了 `SESSION ID`（活跃会话中）时，所有写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`，确保事件溯源归因到会话（供遥测/偏差分析）。会话由编排层开启与拥有，执行者不 `session.start`/`session.end`。
+**会话归因**：prompt 注入了 `SESSION ID`（活跃会话中）时，所有写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`，确保事件溯源归因到会话（供遥测/偏差分析）。会话由主 agent 自持（规划=planning / 写作=expansion），执行者不 `session.start`/`session.end`。
 
 ```
 # 创建叙事单元
@@ -160,16 +179,16 @@ novel-tool(operation="graph.archive_unit", project="{PROJECT}", id="{单元ID}")
 
 ### 3. 会话管理
 
-**会话由编排层（novel-writer）开启与拥有**：编排层调度 crafter 时通过 `SESSION ID` 注入活跃会话，执行者直接消费，不得重复 `session.start`。
+**会话由主 agent 自持**：planner 自持 planning 会话，writer/crafter 自持 expansion 会话，analyzer 不开会话（只读诊断）。主 agent 调度 crafter 时通过 `SESSION ID` 注入活跃会话，执行者直接消费，不得重复 `session.start`。
 
 ```
 # 查询当前会话状态（返回 preheat/cycle_type/session_id/updated_at/focus 等）
 novel-tool(operation="session.info", project="{PROJECT}")
 
-# 启动创作会话（仅编排层使用，或 SESSION ID 为空时兜底）
+# 启动创作会话（主 agent 自持会话时使用，或 SESSION ID 为空时兜底）
 novel-tool(operation="session.start", project="{PROJECT}", focus_type="SCENE", id="{单元ID}")
 
-# 设置循环类型（编排层写后回写：expansion/refinement/proofing/planning/ideation）
+# 设置循环类型（主 agent 写后回写：规划=planning / 写作=expansion / 其他 refinement/proofing/ideation）
 novel-tool(operation="session.set_cycle", project="{PROJECT}", cycle_type="expansion")
 
 # 设置会话阶段（ASSESS/EXECUTE/REVIEW/SETTLE）
@@ -231,7 +250,7 @@ Workspace 构建后，entity_timeline 自动包含该实体的所有事件类型
 
 ### 5. content 字段参考
 
-创建叙事单元时，content 字段遵循标准格式（详见 `references/content字段参考.md`）。
+创建叙事单元时，content 字段遵循标准格式（详见 `references/writing/content字段参考.md`）。
 
 字段名统一为英文（ASCII），中文展示走 schema 的 `description`。以下为速查：
 
@@ -286,27 +305,14 @@ Workspace 构建后，entity_timeline 自动包含该实体的所有事件类型
 
 ## 质量检查（创作流程内嵌）
 
-### 设计原则
-
-- **轻量**：不打断创作流，快速检查
-- **嵌入式**：集成到现有写作步骤中
-- **可选**：用户可跳过质检直接继续
-
-### 1. 章节写作后自动质检
-
-写完章节（`graph.create_unit` 创建 CHUNK）后，顺手执行：
+写完章节 / 创建角色 / 创建世界观规则后，顺手执行机械自检（轻量、嵌入式、可选，不打断创作流）：
 
 ```
-# 获取质量检查结果
+# 章节写作后：机械 + 统计双层检查
 novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical,statistical")
-```
 
-**输出格式**：
-```
-✅ 章节已写入
-📋 质量摘要：
-  - 机械检查：{N} 个问题（{error} 个错误，{warning} 个警告）
-  - 统计信号：{M} 个信号需关注
+# 角色创建后 / 世界观规则创建后：机械检查
+novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical")
 ```
 
 **处理逻辑**：
@@ -314,59 +320,7 @@ novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechani
 - 如果有 `warning` 级别问题：简要列出，建议用户关注
 - 如果只有 `info` 或无问题：简单告知"质量检查通过"
 
-### 2. 角色创建后校验
-
-创建角色（`graph.create_unit` 创建 CHARACTER_ARC）后，检查关系完整性：
-
-```
-# 检查角色关系
-novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical")
-```
-
-**关注点**：
-- R2: 关系不对称（角色 A→B 但 B→A 缺失）
-- R3: 孤立单元（新角色没有任何关系）
-
-### 3. 世界观规则创建后校验
-
-创建世界观规则（`graph.create_unit` 创建 WORLD_RULE）后，检查自洽性：
-
-```
-# 检查世界观一致性
-novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical")
-```
-
-**关注点**：
-- 规则之间的逻辑矛盾
-- 规则与已有设定的冲突
-
-### 4. 统计信号裁决
-
-当统计检测返回信号时，按以下提示词裁决：
-
-**R7 位置变化信号**：
-```
-检测到角色位置变化：{from_location} → {to_location}
-请判断：这是合理的剧情推进，还是可能的设定矛盾？
-```
-
-**R10 节奏单调信号**：
-```
-检测到节奏可能过于均匀（标准差: {std}）
-请判断：这是有意的叙事节奏，还是需要调整？
-```
-
-**R11 密度偏离信号**：
-```
-检测到第{chapter}章场景数偏离均值（{count} vs 均值{mean}）
-请判断：这是高潮/过渡章节的正常安排，还是结构问题？
-```
-
-**R12 主角能动性信号**：
-```
-检测到主角可能过于被动（主动比例: {ratio}）
-请判断：这是角色性格设定，还是需要增强主角行动？
-```
+**深度诊断**：设计原则、各场景校验关注点（R2/R3 等）、统计信号裁决提示词（R7/R10/R11/R12）见 `references/analysis/quality_methodology.md`。统计检测返回信号时，按该文档的裁决提示词判断。
 
 ---
 

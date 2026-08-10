@@ -1,6 +1,6 @@
 ---
 name: "novel-dev-ops"
-description: "开发模式工具集：子 Agent 调度摘要(telemetry)、数据分析、会话总结、聚合分析、优化闭环。仅当运行时模式（novel-context.md 的 __MODE__）非 release 时由编排层 novel-writer 加载。触发词：收集使用数据、分析数据、分析遥测、看故障模式、记录总结、会话总结、历史总结、优化线索、综合分析、更新优化线索、优化闭环、执行改进"
+description: "开发模式工具集：子 Agent 调度摘要(telemetry)、数据分析、会话总结、聚合分析、优化闭环。仅当运行时模式（novel-context.md 的 __MODE__）非 release 时由 4 个主 agent（router/planner/writer/analyzer）加载。触发词：收集使用数据、分析数据、分析遥测、看故障模式、记录总结、会话总结、历史总结、优化线索、综合分析、更新优化线索、优化闭环、执行改进"
 license: "MIT"
 version: "1.0.0"
 compatibility: "OpenCode"
@@ -11,9 +11,9 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 ## 定位
 
-本技能承载 novel-writer 编排层的**开发模式工具**——遥测记录、数据分析、会话总结、聚合分析、优化闭环。仅在运行时模式（`.context/novel-context.md` 的 `__MODE__`，默认 `release`）非 `release` 时加载。
+本技能承载 4 个主 agent（router/planner/writer/analyzer）的**开发模式工具**——遥测记录、数据分析、会话总结、聚合分析、优化闭环。仅在运行时模式（`.context/novel-context.md` 的 `__MODE__`，默认 `release`）非 `release` 时加载。
 
-**加载方式**：编排层在处理任何请求之前读取 `__MODE__`，非 `release` 时调用 `skill("novel-dev-ops")` 加载本技能；`__MODE__: release`（默认）时**不加载**，编排层 prompt 保持精简。
+**加载方式**：4 个主 agent（router/planner/writer/analyzer）在处理任何请求之前读取 `__MODE__`，非 `release` 时均调用 `skill("novel-dev-ops")` 加载本技能；`__MODE__: release`（默认）时**不加载**，主 agent prompt 保持精简。
 
 ## 能力一览
 
@@ -27,7 +27,7 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 ## 上下文契约
 
-> 由编排层提供 `CURRENT PROJECT`（项目名）与 `PROJECT PATH`（项目绝对路径）。所有 novel-tool 调用均携带 `project` 参数。
+> 由主 agent 提供 `CURRENT PROJECT`（项目名）与 `PROJECT PATH`（项目绝对路径）。所有 novel-tool 调用均携带 `project` 参数。
 
 ## §1 遥测记录（规则 T1）
 
@@ -136,7 +136,7 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 
 ## §5 优化闭环
 
-聚合分析产出改进清单后，编排层将其映射为具体改进任务。
+聚合分析产出改进清单后，主 agent 将其映射为具体改进任务。
 
 **完整流程见 `references/optimization-loop.md`**，要点：
 
@@ -147,7 +147,7 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 
 ## HARD CONSTRAINTS
 
-1. **仅开发模式加载** — `__MODE__: release`（默认）时编排层不加载本技能
+1. **仅开发模式加载** — `__MODE__: release`（默认）时主 agent 不加载本技能
 2. **不存原始对话** — `summary.save(record_type="subagent")` 只存摘要，凭 `task_id` 回溯完整对话
 3. **不自动执行改进** — 优化闭环的任务清单必须等用户确认后再执行
 4. **最小改动原则** — 每次改进只改必要文件，不顺带重构

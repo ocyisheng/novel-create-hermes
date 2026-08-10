@@ -26,7 +26,7 @@ skill("novel-search-analysis", user_message="mode=gap")
 skill("novel-search-analysis", user_message="mode=full-diagnose")
 ```
 
-编排层传入 `user_message` 参数时自动解析模式标识（`mode=xxx`）。
+分析主 agent（novel-analyzer）传入 `user_message` 参数时自动解析模式标识（`mode=xxx`）。
 若未提供模式，默认走引导式询问。
 
 ### 直接搜索（不需要 skill）

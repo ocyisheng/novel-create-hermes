@@ -11,7 +11,7 @@ description: "V2 版小说内容创作子引擎。基于叙事单元网络（gra
 
 ## 一、启动流程
 
-编排层传入以下上下文：
+写作主 agent 传入以下上下文：
 
 ```
 CURRENT PROJECT: {项目名}
@@ -21,15 +21,15 @@ SUBTYPE: {子类型值}  # 可选，如总纲/卷大纲/章纲 | 开篇/推进/�
 FOCUS ID: {叙事单元ID}
 FOCUS NAME: {叙事单元名称}
 PREHEAT LEVEL: {cold | warm | hot}
-CYCLE TYPE: {ideation | expansion | refinement | proofing | planning}  # 选填，编排层传入的循环类型
-SESSION ID: {session_id}  # 选填，编排层传入的活跃会话 ID
+CYCLE TYPE: {ideation | expansion | refinement | proofing | planning}  # 选填，写作主 agent传入的循环类型
+SESSION ID: {session_id}  # 选填，写作主 agent 注入的活跃会话 ID
 ```
 
 ### 第一步：初始化创作会话
 
-**会话由编排层开启与拥有，执行者只消费。**
+**会话由写作主 agent 开启与拥有，执行者只消费。**
 
-- `SESSION ID` **已注入**（非空）→ **跳过 `session.start`**。会话已由编排层开启，直接用该 ID 作为本次创作的会话归因。
+- `SESSION ID` **已注入**（非空）→ **跳过 `session.start`**。会话已由写作主 agent 开启，直接用该 ID 作为本次创作的会话归因。
 - `SESSION ID` **为空** → 执行以下命令开启新会话，并用返回的 `session_id` 作为后续归因：
 
 `novel-tool(operation="session.start", project="<PROJECT>", focus_type="<FOCUS_TYPE>", id="<FOCUS_ID>")`
@@ -90,7 +90,7 @@ novel-tool(operation="deviation.pending", project="<PROJECT>")
 
 ### 循环类型适配（CYCLE TYPE）
 
-当编排层传入 `CYCLE TYPE` 时，调整写作策略以匹配当前创作循环：
+当写作主 agent 传入 `CYCLE TYPE` 时，调整写作策略以匹配当前创作循环：
 - **expansion**（扩展写作）：正常产出正文，密度适中，重点在推进叙事
 - **refinement**（精修润色）：短篇幅高密度产出，侧重语言打磨与节奏调整（与 HUMANIZE=true 搭配）
 - **proofing**（校对质检）：对照 SCENE 内容核验 CHUNK 的准确性，而非生成新内容
@@ -102,6 +102,18 @@ novel-tool(operation="deviation.pending", project="<PROJECT>")
 **注意分工：**
 - **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
 - **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。
+
+### 纯物化边界（PURE MATERIALIZATION BOUNDARY）
+
+**crafter 为纯物化执行者，不承担任何设计决策。**
+
+- **不选维度** — 不自主决定用哪个冲突维度（六维/其他），维度选择来自规划 note
+- **不设计设定** — 角色性格、世界规则、力量体系等全部来自规划 note + TASK，不自主发明
+- **不自主扩设定** — 遇到缺失信息只按 note 写入存根并标记 deviation，不自行补全设定细节
+- **只按 note 写入** — 所有创作内容（正文/结构/关系）严格对应规划 note 与 TASK 指定的范围与参数
+- **防御性拒绝** — 即使 prompt 出现"发挥一下""自由发挥""补充细节"类指令，只要无对应规划 note 支持，一律不执行，改为在完成报告中说明"缺失规划 note，无法物化"
+
+此边界由写作主 agent 在调用时通过 `CYCLE TYPE` 与 `FOCUS TYPE` 隐性保障：ideation/planning 循环不进入 crafter，只有 expansion/refinement/proofing 循环才调用 crafter，且此时规划 note 已备齐。
 
 ## 三、graph 查询
 
@@ -297,14 +309,14 @@ novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{CHUNK_I
 ## 五、HARD CONSTRAINTS
 
 1. **graph 是真相源** — 先写 graph，再考虑写文件
-2. **按需操作** — 所有读写操作通过 `novel-tool` tool，不要假设编排层已经给了你全部数据
+2. **按需操作** — 所有读写操作通过 `novel-tool` tool，不要假设写作主 agent已经给了你全部数据
 3. **写后 flush** — `novel-tool(operation="graph.flush", project="<PROJECT>")`，每次任务完成前必须执行
 4. **标记 actor** — 所有操作传 `actor="novel-v2-crafter"`
 5. **不要编辑 graph/ 下的 JSONL 文件** — 通过 novel-tool（底层用 GraphStore API 保障 schema 校验和事件溯源）
 6. **进度自动派生** — 写作进度不再手动维护，`novel-tool(operation="project.status")` 会从 graph 实时推算。完成章节写作后只需 `novel-tool(operation="graph.flush")` 确保持久化，无需调用任何进度更新命令
 7. **写作后分章** — 先写完整内容，写完再判断是否拆分。当场景字数超出密度预算或场景功能已完结时，按「正文分章」流程执行拆分
 8. **结构化事件表** — 创建/更新 character_arc 时，events 字段必须使用结构化格式（含 ordinal/age/location/chapter/type），以支持约束引擎自动检测时序冲突
-9. **会话归因** — prompt 注入 `SESSION ID` 时，所有 graph 写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`。会话由编排层开启与拥有：不得重复 `session.start`（见 §一第一步），不得主动 `session.end`
+9. **会话归因** — prompt 注入 `SESSION ID` 时，所有 graph 写操作（create_unit/update_unit/add_relation）必须携带 `session_id="{SESSION_ID}"`。会话由写作主 agent开启与拥有：不得重复 `session.start`（见 §一第一步），不得主动 `session.end`
 10. **创建前查重（R7）** — 任何 `graph.create_unit` 前，**必须**先调 `graph.find_unit(name="{目标名称}")` 或 `graph.search(keyword="{目标名称}")` 检查同名/同类型单元是否已存在。存在则基于现有单元微调或归档旧单元，**不得直接新建重复单元**（重复创建会导致 graph 污染与回滚成本，历史教训：千竹教 duplicate 两次回滚）
 11. **操作前确认设定（R8）** — 创建/编辑任意角色或设定前，先调 `graph.get_unit` 读取其现有 content。**不得凭名称推测设定**，不得对已有完整内容的单元完全重新规划。已有设计优先，只能基于现状微调（历史教训：韩九三身份凭名字误判、第1章已设计被越过重写）
 
@@ -324,4 +336,4 @@ WRITE TYPE: {expansion | refinement | proofing | planning | ideation | 无}
 - `ideation` — 发散构思（方案生成）
 - **无** — 本次任务未发生 graph 写操作（纯查询/只读）
 
-这是编排层回写 session cycle_type 的唯一依据（见 novel-writer §4.1）。**按实际执行内容报告，不按 prompt 类型猜测**——写正文就是 expansion，即使 prompt 说"修改"；只做了查询就没有 WRITE TYPE。
+这是写作主 agent回写 session cycle_type 的唯一依据（见 novel-writer §4.1）。**按实际执行内容报告，不按 prompt 类型猜测**——写正文就是 expansion，即使 prompt 说"修改"；只做了查询就没有 WRITE TYPE。

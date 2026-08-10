@@ -46,7 +46,7 @@
   - 第1次 (low): 时间线事件无法标注位置
   - 第2次 (medium): 与分卷大纲位置冲突需手动排查
   - 第3次 (medium): 角色移动路径缺少起点终点
-- [prompt][novel-writer.md] × 2次 → "路由表缺少时间线查询分支"
+- [prompt][novel-router.md] × 2次 → "路由表缺少时间线查询分支"
   - 第1次 (low): 简单查询走了深度诊断
   - 第2次 (low): 用户问"韩致在哪出现过"触发了 cross-ref
 ```
@@ -123,7 +123,7 @@ novel-tool(operation="analysis.resolve", clue="{线索标识}", note="{修复说
 novel-tool(operation="analysis.resolve", file="{清单文件名}", clue="{线索标识}", note="{修复说明}")  # 指定版本
 ```
 
-`clue` 用线索标识（如 `[workflow] 编排层·创建/拆分前查重`），支持包含匹配（传子串即可命中）；未命中清单线索列表时按原样记录（宽容模式）。修复状态写入 index.json 对应条目的 `resolved` 列表（含 `resolved_at` 与 `note`），供下一轮聚合读取。
+`clue` 用线索标识（如 `[workflow] 规划主 agent·创建/拆分前查重`），支持包含匹配（传子串即可命中）；未命中清单线索列表时按原样记录（宽容模式）。修复状态写入 index.json 对应条目的 `resolved` 列表（含 `resolved_at` 与 `note`），供下一轮聚合读取。
 
 ### B.4.2 新一轮聚合识别已修复线索
 

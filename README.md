@@ -87,7 +87,7 @@ cd Desktop\novel-create-hermes
 opencode
 ```
 
-按 Tab 键切换到 **Novel-writer** Agent。
+按 Tab 键切换到 **novel-router**（入口）/ **novel-planner**（规划）/ **novel-writer**（写作）/ **novel-analyzer**（分析）。
 
 ### 4. 创建项目
 
@@ -217,11 +217,14 @@ GPT 是对话窗口，每次都要手动粘贴上下文；Hermes 是**结构化�
 V2 基于**叙事单元网络**，取代了传统的线性阶段和离散 YAML 文件体系。
 
 ```
-novel-writer（编排层）→ 意图识别 + 焦点映射 + 需求发现
+novel-router（入口）→ 意图识别 + 建议切换 + 项目管理
+novel-planner（规划）→ 设计讨论 + note 写入
+novel-writer（写作）→ 全量物化调度
+novel-analyzer（分析）→ 只读诊断
         │
-        ├─ novel-v2-crafter      ← V2 统一创作（章节/角色/世界观/质检/导出）
-        ├─ novel-ideation        ← 创意方案生成（grill 后可选）
-        └─ novel-search-analysis ← 深度诊断（只读，偏差检测）
+        ├─ novel-v2-crafter      ← V2 统一创作（写作调度）
+        ├─ novel-ideation        ← 创意方案生成（规划调度）
+        └─ novel-search-analysis ← 深度诊断（分析调度）
         │
         ▼
 shared/v2/ → GraphStore + SearchEngine + ConstraintEngine + DeviationManager

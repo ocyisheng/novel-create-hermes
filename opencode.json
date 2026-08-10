@@ -1,11 +1,70 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "agent": {
+    "novel-router": {
+      "description": "意图识别 + 建议切换 + 非创作基础设施——环境、项目管理、知识库、导出、可视化、快速状态查询",
+      "mode": "primary",
+      "model": "opencode/big-pickle",
+      "prompt": ".opencode/agents/novel-router.md",
+      "skills": ["novel-project-manager", "novel-env-setup", "book-knowledge", "book-to-knowledge", "novel-dev-ops"],
+      "tools": {
+        "skill": true,
+        "read": true,
+        "bash": true,
+        "glob": true,
+        "grep": true,
+        "novel-tool": true
+      }
+    },
+    "novel-planner": {
+      "description": "设计讨论主 agent——需求发现、创意构思、六维冲突设计、调度 ideation 生成方案、设计成果写入 NOTE 单元",
+      "mode": "primary",
+      "model": "opencode/big-pickle",
+      "prompt": ".opencode/agents/novel-planner.md",
+      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-v2", "novel-dev-ops"],
+      "tools": {
+        "task": true,
+        "skill": true,
+        "read": true,
+        "edit": true,
+        "write": true,
+        "novel-tool": true
+      }
+    },
+    "novel-writer": {
+      "description": "写作主 agent——读规划 note、调度 crafter 全量物化、编辑修改、写后处理",
+      "mode": "primary",
+      "model": "opencode/big-pickle",
+      "prompt": ".opencode/agents/novel-writer.md",
+      "skills": ["novel-v2", "humanizer-zh-enhanced", "novel-dev-ops"],
+      "tools": {
+        "task": true,
+        "skill": true,
+        "read": true,
+        "edit": true,
+        "write": true,
+        "novel-tool": true
+      }
+    },
+    "novel-analyzer": {
+      "description": "只读诊断主 agent——快速检索、深度诊断调度 search-analysis、输出诊断报告",
+      "mode": "primary",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": ".opencode/agents/novel-analyzer.md",
+      "skills": ["novel-search-analysis", "novel-v2", "novel-dev-ops"],
+      "tools": {
+        "task": true,
+        "skill": true,
+        "read": true,
+        "novel-tool": true
+      }
+    },
     "novel-v2-crafter": {
       "description": "V2 统一创作子引擎。基于叙事单元网络(graph)处理全部创作任务：章节写作、角色管理、世界观建设、情节设计、总纲大纲、质量检测、编辑修订",
       "mode": "subagent",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-v2-crafter.md",
+      "skills": ["novel-v2"],
       "permission": {
         "edit": "allow",
         "bash": "allow",
@@ -25,40 +84,13 @@
       }
     },
     "novel-ideation": {
-      "description": "创意方案生成器。在 grill 收敛需求后，基于约束库和焦点上下文生成可选方案",
+      "description": "创意方案生成器。在 grill 收敛需求后，基于约束库和焦点上下文生成可选方案（只读，不写入 graph）",
       "mode": "subagent",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-ideation.md",
       "permission": {
-        "edit": "allow",
-        "bash": "allow",
         "read": "allow",
-        "write": "allow",
         "novel-tool": "allow"
-      }
-    },
-    "novel-writer": {
-      "description": "AI 小说创作助手 V2 — 基于叙事单元网络的纯 V2 架构",
-      "mode": "primary",
-      "prompt": ".opencode/agents/novel-writer.md",
-      "skills": [
-        "novel-v2",
-        "novel-project-manager",
-        "novel-env-setup",
-        "book-knowledge",
-        "book-to-knowledge",
-        "novel-search-analysis",
-        "novel-grill"
-      ],
-      "tools": {
-        "task": true,
-        "skill": true,
-        "read": true,
-        "edit": true,
-        "bash": true,
-        "glob": true,
-        "grep": true,
-        "write": true
       }
     }
   }

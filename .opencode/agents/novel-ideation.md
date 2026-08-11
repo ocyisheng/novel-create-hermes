@@ -21,18 +21,6 @@ FOCUS TYPE: {scene | character_arc | plot_thread | world_rule | narrative_voice 
 FOCUS NAME: {目标名称}
 ```
 
-## 操作方法
+## 参考
 
-按 `CREATIVE MODE` 选择：
-
-### divergent — 纯概念发散
-
-适用于无焦点单元时的创意生成。读取 `novel-ideation` skill 的 `references/constraints_library.md` 选 3-5 个约束，按 `references/genres_compendium.md` 定位类型，生成 3-5 个概念方向。
-
-### focused — 方案生成
-
-适用于有焦点单元时的方案生成。读取焦点邻居和 `### 创作需求`，从 `references/constraints_library.md` 选匹配约束，生成 3 个不冲突且可落地的方案。focused 模式下必须检查与已有单元的兼容性。
-
-## 输出格式
-
-按 `references/ideation_mode.md` 的内容构成要求组织每个方案。自然语言描述，标题分隔，不要用 YAML 或代码块包装。不写入 graph，所有产出通过响应文本传递。
+操作方法、输出格式、核心约束等详见 `novel-ideation` skill 的 `SKILL.md`（权威参考）。

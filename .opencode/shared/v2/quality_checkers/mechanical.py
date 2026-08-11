@@ -61,6 +61,9 @@ class MechanicalChecker:
             self._registry_loaded = True
         return self._registry
 
+    # NOTE: R1-R6 rule family duplicates quality_checkers/mechanical.py;
+    # canonical LLM-facing entry is graph.quality_check (NarrativeQualityEngine).
+    # Do not add new duplicate rules here.
     def check_all(self) -> List[CheckResult]:
         """运行所有机械检查规则（R1-R6, R9 + 约束引擎规则）。"""
         results: List[CheckResult] = []

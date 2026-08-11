@@ -81,6 +81,9 @@ class SearchEngine:
     接收一个已初始化的 GraphStore 实例（store.initialize() 已调用）。
     """
 
+    # NOTE: R1-R6 rule family duplicates quality_checkers/mechanical.py;
+    # canonical LLM-facing entry is graph.quality_check (NarrativeQualityEngine).
+    # Do not add new duplicate rules here.
     # ── 一致性检查规则注册表 ─────────────────────────────────────────────
     # 格式: (rule_id: str, severity: str, method_name: str)
     # 新增规则只需在列表中追加，无需修改 check_consistency() 方法体。

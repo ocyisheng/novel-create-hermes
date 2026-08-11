@@ -182,7 +182,7 @@ novel-tool(operation="graph.flush", project="{PROJECT}")
 
 **写入方式**：在 `--content` JSON 中包含 `时间` 字段：
 ```
-novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="第3章_后山修炼", content='{"子类型":"推进","POV角色":"林昭","地点":"黄枫谷后山","时间":"第三日清晨","一句话概要":"..."}', actor="novel-v2-crafter")
+novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="第3章_后山修炼", content='{"subtype":"推进","pov_character":"林昭","location":"黄枫谷后山","time_label":"第三日清晨","one_line_summary":"..."}', actor="novel-v2-crafter")
 ```
 
 写 CHUNK 前，阅读 workspace 中的角色上一章状态，确保正文与角色时间线连贯。
@@ -226,85 +226,21 @@ novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE"
 
 ## 四、创作操作
 
-所有 V2 操作请参考 `novel-v2` skill 中的操作指南（§1-§5），包含读写、会话管理、导出等全部操作。
-
-关键操作速览（详细参数见 SKILL.md）：
-- **创建叙事单元** → `novel-tool(operation="graph.create_unit", project="<PROJECT>", unit_type="SCENE", chapter="<章节号>", content='{"name":"单元名"}', actor="v2-crafter")`
-- **建立关系** → `novel-tool(operation="graph.add_relation", project="<PROJECT>", source="<ID>", target="<ID>", rel_type="member_of", actor="v2-crafter")`
-- **写入正文** → 先创建 CHUNK 单元，再关联到场景
-- **持久化** → `novel-tool(operation="graph.flush", project="<PROJECT>")`
+**所有 V2 操作（读取、写入、会话管理、导出迁移）请参考 `novel-v2` skill 操作指南（§1-§5）。** 以下是 crafter 特有流程速查：
 
 ### 章纲与场景创建
-
-章纲是蓝图，SCENE 是执行。创建章纲后，必须为每个计划的场景创建独立的 SCENE 单元，通过 PLANS 边关联到章纲（规划意图）。正文（CHUNK）通过 BELONGS_TO 边关联实际执行的 SCENE（执行归属）。规划与执行解耦——增减场景只操作 BELONGS_TO，不动章纲的 PLANS 边。
-
-**第一步：创建章纲**。只写结构级信息——节奏走向、场景数量、情绪弧线。不写感官细节、角色动作、对话。
-
-```
-novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="CHAPTER_PLAN", name="章纲_第N章_章节名", actor="novel-v2-crafter", chapter="{N}", content='{"章节号":N,"章节名":"...","本章功能":"开篇","场景序列":[{"场景名":"场景1","定位":"...","字数预计":0}],...}')
-```
-
-**第二步：为每个场景创建 SCENE**。逐个创建，逐个关联。
-
-```
-novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="SCENE", name="第N章_场景名", actor="novel-v2-crafter", chapter="{N}", content='{"子类型":"开篇|推进|冲突|转折|展示|过渡|收束","POV角色":"...","地点":"...","时间":"...","一句话概要":"...","出场角色":[...]}')
-novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{章纲ID}", target="{场景ID}", rel_type="plans")
-```
-
-**第三步：写前判断是否需要分章**。所有 SCENE 创建完成后，通过每个 SCENE 的 `子类型` 对照 `scene.md` 密度预算表（默认使用「标准」密度档位），累加上界得到预期总字数。
-对照章纲字数带（参考数据 → 章纲字数带）：快速章2000-3000 / 标准章3000-5000 / 长章5000-8000。如果累计超长章上限（8000），则按 SCENE 边界拆分为两章再写——不要在写之前明知会超预算还硬写成一个文件。
-
-**关键约束**：
-- PLANS 边的创建顺序 = 场景的计划叙事顺序（章纲的规划意图）
-- 写作中新发现需要增减场景：创建/删除 SCENE 单元 + 调整 CHUNK 的 BELONGS_TO 边即可。章纲的 PLANS 边保持规划时原样不动——后续可通过比对 PLANS 与 BELONGS_TO 的差集生成"计划 vs 执行"偏差报告
+- 章纲（CHAPTER_PLAN）→ 为每个场景创建 SCENE → `plans` 边关联章纲
+- 写前判断分章：累加场景密度预算（标准档位），超 8000 字则按 SCENE 边界拆分
+- PLANS 边 = 规划意图，BELONGS_TO 边 = 执行归属；增减场景只操作 BELONGS_TO
 
 ### 章节正文写入
+1. 创建 CHUNK → `belongs_to` 边关联 SCENE → 写正文到 TXT
+2. 更新 CHUNK word_count → `graph.flush` → 检查 `constraint_check`（error 主动说明，warning 可选告知）
+3. 修订时创建新 CHUNK（v2），不覆盖旧版
 
-一章对应一个 CHUNK，一个文件。如果上一步预分章了，每个子章各自一个 CHUNK。
-
-```
-1. # 创建一个 CHUNK 代表该章（或子章）
-novel-tool(operation="graph.create_unit", project="{PROJECT}", unit_type="CHUNK", name="第3章", actor="novel-v2-crafter", chapter=3, content='{"章节号":3,"章节名":"青山镇少年","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":0}')
-
-2. # 关联到该章的所有 SCENE
-novel-tool(operation="graph.add_relation", project="{PROJECT}", source="{CHUNK_ID}", target="{SCENE1_ID}", rel_type="belongs_to")
-# ... 每个 SCENE 一条
-
-3. 基于该组 SCENE 的上下文，写出正文。用 write 工具写入 TXT 文件。
-
-4. novel-tool(operation="graph.update_unit", project="{PROJECT}", id="{CHUNK_ID}", content='{"章节号":3,"章节名":"...","正文路径":"chapters/第3章_v1.txt","子类型":"v1","字数":实际字数}')
-
-5. novel-tool(operation="graph.flush", project="{PROJECT}")
-6. （自动）约束验证：`novel-tool(operation="graph.flush")` 的返回结果中包含 `constraint_check` 字段，
-   自动报告本次写入后的约束偏差概要。检查该字段：
-   - 如有 error 级别的 pending 偏差 → 在最终结果中主动说明并建议处理方案
-   - 如有 warning 级别包含当前焦点的 → 可选择性告知用户
-   - info 级别可忽略（系统已知的设计意图偏差）
-```
-
-修订时创建新 CHUNK（如 v2 → `chapters/第3章_v2.txt`），不覆盖已有版本。
-
-### 正文分章（写后补救）
-
-写前预检查已处理绝大多数情况。写后分章仅用于**LLM 实际产出显著超出预期字数**的罕见情况。
-
-判断：CHUNK 实际字数 > 该组 SCENE 密度档位上界累计 × 1.5。
-
-拆分时在 SCENE 边界切——后半段 SCENE 创建新章纲、新 CHUNK，重编号后续章节。流程同步骤三。
-
-### 进度自动派生
-
-**写作进度不再手动维护。** `novel-tool(operation="project.status")` 会在每次调用时从 graph 实时计算进度：
-
-- `当前章` = 所有 active CHUNK 中最大的章号
-- `当前卷` = 当前章所在卷（通过 VOLUME_PLAN 的 chapter_range 推算）
-- `卷进度` = 逐卷统计 CHAPTER_PLAN 的成熟度（mature 数量 / 总数）
-
-不需要写后调用任何进度更新命令。graph 里写了多少 CHUNK，进度就是多少。
-
-### 叙事密度指引
-
-写作时参照 `references/scene.md` §叙事密度指引了解各子类型在不同密度下的建议字数范围。密度是写作指引而非数据约束——写时自然把握，无需在 content 中预设。
+### 进度与密度
+- 进度自动派生：`project.status` 实时计算，无需手动维护
+- 叙事密度指引：参照 `references/scene.md` §叙事密度指引
 
 ## 五、HARD CONSTRAINTS
 

@@ -14,7 +14,8 @@
 | A6: 时间线一致性 | warning | 纯 LLM 语义分析 |
 | A7: 情节线完成度 | info | 纯 LLM 语义分析 |
 
-> 规则 1-4（R1-R4）为 SearchEngine 机械检查，通过 `novel-tool(operation="graph.check")` 调用。
+> 规则 1-4（R1-R4）为 SearchEngine 机械检查，通过 `novel-tool(operation="graph.quality_check", layers="mechanical")` 调用。
+> **注意**：`graph.check` 是 `graph.quality_check` 的遗留别名，不推荐使用。
 > 规则 A5-A7 为 LLM 语义分析，SearchEngine 不做机械检查。
 > A5 扩展：`出场角色[].状态` 中的修为/能力变化（跨越境界、离线升级判断）作为 A5 的子案例。
 > 新增机械规则 R7（位置变化标记）、R9（事件顺序冲突）为 SearchEngine 新增规则，编号 R7-R9 独立于 A5-A7。
@@ -51,8 +52,11 @@ graph.get_modified_units / graph.get_neighbors）都返回 `created_at` / `updat
 novel-tool 速查：
 
 ```
-# 快速一致性检查（规则 1-4）
-novel-tool(operation="graph.check", project="<PROJECT>")
+# 快速一致性检查（规则 1-4）— 机械层
+novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="mechanical")
+
+# 获取统计信号（规则 7/10/11/12）— 统计层
+novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="statistical")
 
 # 获取原始数据供 LLM 分析
 novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")            # 实体搜索
@@ -62,7 +66,7 @@ novel-tool(operation="graph.stats", project="<PROJECT>")                        
 
 ---
 
-> 规则 1-4 已由 `SearchEngine.check_consistency()` 完全自动化，通过 `novel-tool(operation="graph.check")` 调用即可获取结果。仅当需要区分"闪回/单相思等合理场景"时才需 LLM 做二次判断。详细的检查逻辑和 V2 数据源参考 SearchEngine 源码。
+> 规则 1-4 已由 `SearchEngine.check_consistency()` 完全自动化，通过 `novel-tool(operation="graph.quality_check", layers="mechanical")` 调用即可获取结果。仅当需要区分"闪回/单相思等合理场景"时才需 LLM 做二次判断。详细的检查逻辑和 V2 数据源参考 SearchEngine 源码。
 
 ---
 

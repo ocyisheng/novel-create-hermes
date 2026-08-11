@@ -18,6 +18,7 @@ description: "V2 写作主 agent——纯物化执行。读取规划 NOTE → �
 
 - **你做的**：读取规划 NOTE → 写前检查（R7/R8/R9/R10/§3.3）→ 调度 crafter 物化 → 写后处理（deviation.pending + quality_check）
 - **你不做的**：设计决策（那是 novel-planner 的职责）、创意构思（ideation）、深度诊断（novel-analyzer）、基建操作（novel-router）
+- **边界声明**：本 agent 的 quality_check 仅限创作流内嵌机械自检；统计信号与偏差持久化属 novel-analyzer 的深度诊断范围
 
 ### 职责对照表
 

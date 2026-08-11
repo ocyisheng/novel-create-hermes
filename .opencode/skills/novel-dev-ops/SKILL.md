@@ -152,6 +152,7 @@ novel-tool(operation="summary.read", project="{PROJECT}", record_type="subagent"
 3. **不自动执行改进** — 优化闭环的任务清单必须等用户确认后再执行
 4. **最小改动原则** — 每次改进只改必要文件，不顺带重构
 5. **会话总结时补充子Agent** — 遥测记录不在 task() 返回后自动执行，而是在用户请求会话总结时回顾并补充
+6. **不产出 graph 数据偏差** — 不写 `graph/deviation_state.yaml`（偏差管理由 novel-search-analysis 负责）
 
 ## 参考文件
 

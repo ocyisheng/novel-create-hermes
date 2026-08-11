@@ -214,7 +214,7 @@ novel-tool(operation="graph.export_docs", project="{PROJECT}")
 novel-tool(operation="graph.export_chunks", project="{PROJECT}")
 ```
 
-### 4. 时间事件（TEMPORAL_EVENT）
+### 5. 时间事件（TEMPORAL_EVENT）
 
 时间事件是挂载到任意实体上的时间轴节点，可独立 CRUD、可关联地点/参与者/因果。
 
@@ -248,7 +248,7 @@ Workspace 构建后，entity_timeline 自动包含该实体的所有事件类型
 
 > 存量数据（CHARACTER_ARC 的 `events[]`、PLOT_THREAD 的 `key_events[]`、SCENE 的 `time_text`）自动提取到时间线，无需迁移。
 
-### 5. content 字段参考
+### 6. content 字段参考
 
 创建叙事单元时，content 字段遵循标准格式（详见 `references/writing/content字段参考.md`）。
 

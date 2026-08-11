@@ -116,8 +116,8 @@ _PARAM_MAP = {
     "id": "id", "ids": "ids", "name": "name",
     "unit_type": "unit_type", "rel_type": "rel_type", "focus_type": "focus_type",
     "content": "content", "file": "file_path",
-    "tags": "tags", "chapter": "chapter",
-    "actor": "actor", "limit": "limit",
+    "tags": "tags", "chapter": "chapter", "volume": "volume",
+    "actor": "actor", "limit": "limit", "offset": "offset",
     "keyword": "keyword", "pattern": "pattern", "verbose": "verbose",
     "scope": "scope", "regex": "regex",
     "case_sensitive": "case_sensitive",
@@ -167,6 +167,7 @@ _PARAM_MAP = {
     "focus_name": "focus_name",
     # 偏差
     "findings": "findings",
+    "severity": "severity", "dimension": "dimension",
     "scan_version": "scan_version",
     "full_scan_version": "full_scan_version",
     # 知识库

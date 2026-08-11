@@ -117,15 +117,15 @@ OPERATION_REGISTRY = {
     },
     "graph.find_unit": {
         "handler": handle_find_unit,
-        "params": {"project_root": {"required": True}, "name": {}, "keyword": {}},
+        "params": {"project_root": {"required": True}, "name": {}, "keyword": {}, "limit": {}},
     },
     "graph.search": {
         "handler": handle_search,
-        "params": {"project_root": {"required": True}, "keyword": {}, "pattern": {}, "name": {}, "scope": {}, "regex": {}, "case_sensitive": {}, "limit": {}, "verbose": {}},
+        "params": {"project_root": {"required": True}, "keyword": {}, "pattern": {}, "name": {}, "scope": {}, "regex": {}, "case_sensitive": {}, "limit": {}, "verbose": {}, "tags": {}, "chapter": {}},
     },
     "graph.list_units": {
         "handler": handle_list_units,
-        "params": {"project_root": {"required": True}, "unit_type": {}, "limit": {}, "status": {}},
+        "params": {"project_root": {"required": True}, "unit_type": {}, "limit": {}, "status": {}, "tags": {}, "chapter": {}, "volume": {}, "offset": {}},
     },
     "graph.stats": {
         "handler": handle_stats,
@@ -133,11 +133,11 @@ OPERATION_REGISTRY = {
     },
     "graph.get_modified_units": {
         "handler": handle_get_modified_units,
-        "params": {"project_root": {"required": True}, "since_version": {}},
+        "params": {"project_root": {"required": True}, "since_version": {}, "limit": {}, "offset": {}},
     },
     "graph.get_neighbors": {
         "handler": handle_get_neighbors,
-        "params": {"project_root": {"required": True}, "id": {"required": True}, "rel_type": {}, "limit": {}},
+        "params": {"project_root": {"required": True}, "id": {"required": True}, "rel_type": {}, "limit": {}, "max_depth": {}},
     },
     "graph.check": {
         "handler": handle_check_consistency,
@@ -194,7 +194,7 @@ OPERATION_REGISTRY = {
     },
     "graph.get_relations": {
         "handler": handle_get_relations,
-        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}, "role": {}, "role_substring": {}, "min_weight": {}, "max_weight": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}, "role": {}, "role_substring": {}, "min_weight": {}, "max_weight": {}, "limit": {}, "offset": {}},
     },
     "graph.remove_relation": {
         "handler": handle_remove_relation,
@@ -307,11 +307,11 @@ OPERATION_REGISTRY = {
     },
     "deviation.list": {
         "handler": handle_deviation_list,
-        "params": {"project_root": {"required": True}, "status": {}},
+        "params": {"project_root": {"required": True}, "status": {}, "limit": {}, "offset": {}, "severity": {}, "dimension": {}},
     },
     "deviation.pending": {
         "handler": handle_deviation_pending,
-        "params": {"project_root": {"required": True}},
+        "params": {"project_root": {"required": True}, "limit": {}, "offset": {}},
     },
     "deviation.resolve": {
         "handler": handle_deviation_resolve,
@@ -365,7 +365,7 @@ OPERATION_REGISTRY = {
     },
     "summary.list": {
         "handler": handle_list_summaries,
-        "params": {"project_root": {"required": True}, "limit": {}, "tag": {},
+        "params": {"project_root": {"required": True}, "limit": {}, "offset": {}, "tag": {},
                     "record_type": {}, "subagent": {}, "result": {}, "project": {}},
     },
     "summary.read": {

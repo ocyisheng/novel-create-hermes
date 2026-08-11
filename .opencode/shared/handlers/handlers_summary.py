@@ -100,6 +100,16 @@ def _atomic_write_json(path: str, data: dict) -> None:
         raise
 
 
+def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
+    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
+    total = len(items)
+    if limit and limit > 0:
+        items = items[offset:offset + limit]
+    elif offset:
+        items = items[offset:]
+    return items, total
+
+
 def handle_save_summary(
     project_root: str,
     content: str = "",
@@ -257,6 +267,7 @@ def handle_save_summary(
 def handle_list_summaries(
     project_root: str = "",
     limit: int = 20,
+    offset: int = 0,
     tag: str = "",
     project: str = "",
     record_type: str = "main",
@@ -269,6 +280,7 @@ def handle_list_summaries(
     Args:
         project_root: 兼容旧格式（忽略，使用 engine 路径）
         limit: 返回条数上限
+        offset: 偏移量（用于分页）
         tag: 按标签过滤
         project: 按项目名过滤（可选，不传则显示所有项目）
         record_type: 按记录类型过滤（默认 "main" 只列主 Agent；"subagent" 只列子 Agent；""=全部合并）
@@ -306,11 +318,13 @@ def handle_list_summaries(
 
     # 兼容新旧索引：新条目用 timestamp，旧条目用 ts
     entries.sort(key=lambda e: e.get("timestamp") or e.get("ts") or "", reverse=True)
-    entries = entries[:limit]
+    entries, total = _paginate(entries, limit, offset)
 
     return {
         "entries": entries,
-        "total": len(entries),
+        "total": total,
+        "returned": len(entries),
+        "truncated": len(entries) < total,
     }
 
 

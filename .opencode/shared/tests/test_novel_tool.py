@@ -1107,6 +1107,273 @@ class TestDeviation:
         res = call_tool("deviation.stats", project=proj_path)
         assert res["data"]["total"] >= 1
 
+    def test_deviation_list_filters_severity(self, tmp_project):
+        """按 severity 过滤偏差列表（集成测试）"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "entity_id": "ca_s1",
+             "severity": "high", "summary": "高严重"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "entity_id": "sc_s1",
+             "severity": "medium", "summary": "中严重"},
+            {"dimension": "世界观", "entity": "天道宗", "entity_id": "wr_s1",
+             "severity": "low", "summary": "低严重"},
+            {"dimension": "角色一致性", "entity": "韩致", "entity_id": "ca_s2",
+             "severity": "high", "summary": "另一高严重"},
+        ]
+        call_tool("deviation.merge", project=proj_path, findings=findings)
+
+        # 过滤 high severity
+        res = call_tool("deviation.list", project=proj_path, severity="high")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 2
+        for d in res["data"]["deviations"]:
+            assert d["severity"] == "high"
+
+        # 过滤 medium severity
+        res = call_tool("deviation.list", project=proj_path, severity="medium")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["severity"] == "medium"
+
+        # 过滤 low severity
+        res = call_tool("deviation.list", project=proj_path, severity="low")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["severity"] == "low"
+
+        # 过滤不存在的 severity
+        res = call_tool("deviation.list", project=proj_path, severity="critical")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 0
+
+    def test_deviation_list_filters_dimension(self, tmp_project):
+        """按 dimension 过滤偏差列表（集成测试）"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "entity_id": "ca_d1",
+             "severity": "high", "summary": "角色偏差1"},
+            {"dimension": "角色一致性", "entity": "韩致", "entity_id": "ca_d2",
+             "severity": "medium", "summary": "角色偏差2"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "entity_id": "sc_d1",
+             "severity": "high", "summary": "情节偏差"},
+            {"dimension": "世界观", "entity": "天道宗", "entity_id": "wr_d1",
+             "severity": "low", "summary": "世界观偏差"},
+        ]
+        call_tool("deviation.merge", project=proj_path, findings=findings)
+
+        # 过滤 character_trait (角色一致性)
+        res = call_tool("deviation.list", project=proj_path, dimension="角色一致性")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 2
+        for d in res["data"]["deviations"]:
+            assert d["dimension"] == "角色一致性"
+
+        # 过滤 plot_consistency (情节逻辑)
+        res = call_tool("deviation.list", project=proj_path, dimension="情节逻辑")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["dimension"] == "情节逻辑"
+
+        # 过滤 world_rule (世界观)
+        res = call_tool("deviation.list", project=proj_path, dimension="世界观")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["dimension"] == "世界观"
+
+    def test_deviation_list_filters_combined(self, tmp_project):
+        """组合 severity + dimension 过滤（集成测试）"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "entity_id": "ca_c1",
+             "severity": "high", "summary": "高+角色"},
+            {"dimension": "角色一致性", "entity": "韩致", "entity_id": "ca_c2",
+             "severity": "medium", "summary": "中+角色"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "entity_id": "sc_c1",
+             "severity": "high", "summary": "高+情节"},
+            {"dimension": "世界观", "entity": "天道宗", "entity_id": "wr_c1",
+             "severity": "low", "summary": "低+世界观"},
+        ]
+        call_tool("deviation.merge", project=proj_path, findings=findings)
+
+        # 高严重 + 角色维度
+        res = call_tool("deviation.list", project=proj_path, severity="high", dimension="角色一致性")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["entity"] == "林渊"
+
+        # 高严重 + 情节维度
+        res = call_tool("deviation.list", project=proj_path, severity="high", dimension="情节逻辑")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["entity"] == "后山拔剑"
+
+        # 中严重 + 角色维度
+        res = call_tool("deviation.list", project=proj_path, severity="medium", dimension="角色一致性")
+        assert_success(res)
+        assert len(res["data"]["deviations"]) == 1
+        assert res["data"]["deviations"][0]["entity"] == "韩致"
+
+    def test_deviation_pending_pagination(self, tmp_project):
+        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确（集成测试）"""
+        proj_path, store = tmp_project
+        # 创建 5 个 pending 偏差
+        findings = []
+        for i in range(5):
+            findings.append({
+                "dimension": "角色一致性",
+                "entity": f"角色{i}",
+                "entity_id": f"ca_p{i}",
+                "severity": "high" if i % 2 == 0 else "medium",
+                "summary": f"偏差{i}",
+                "status": "pending"
+            })
+        call_tool("deviation.merge", project=proj_path, findings=findings)
+
+        # 第 1 页：limit=2, offset=0
+        res1 = call_tool("deviation.pending", project=proj_path, limit=2, offset=0)
+        assert_success(res1)
+        data1 = res1["data"]
+        assert data1["returned"] == 2
+        assert data1["total"] == 5
+        assert data1["truncated"] is True
+        assert len(data1["deviations"]) == 2
+
+        # 第 2 页：limit=2, offset=2
+        res2 = call_tool("deviation.pending", project=proj_path, limit=2, offset=2)
+        assert_success(res2)
+        data2 = res2["data"]
+        assert data2["returned"] == 2
+        assert data2["total"] == 5
+        assert data2["truncated"] is True
+        assert len(data2["deviations"]) == 2
+
+        # 第 3 页：limit=2, offset=4
+        res3 = call_tool("deviation.pending", project=proj_path, limit=2, offset=4)
+        assert_success(res3)
+        data3 = res3["data"]
+        assert data3["returned"] == 1
+        assert data3["total"] == 5
+        assert data3["truncated"] is True  # 1 < 5
+        assert len(data3["deviations"]) == 1
+
+        # 超出范围：offset=10
+        res_empty = call_tool("deviation.pending", project=proj_path, limit=2, offset=10)
+        assert_success(res_empty)
+        data_empty = res_empty["data"]
+        assert data_empty["returned"] == 0
+        assert data_empty["total"] == 5
+        assert data_empty["truncated"] is True  # len([]) < total → True
+
+        # 验证无重叠
+        ids1 = {d["id"] for d in data1["deviations"]}
+        ids2 = {d["id"] for d in data2["deviations"]}
+        ids3 = {d["id"] for d in data3["deviations"]}
+        assert ids1.isdisjoint(ids2)
+        assert ids2.isdisjoint(ids3)
+        assert ids1.isdisjoint(ids3)
+        assert len(ids1 | ids2 | ids3) == 5
+
+
+# ============================================================================
+# 11. Summary 列表分页与 total 语义
+# ============================================================================
+
+
+class TestSummaryListPagination:
+    def test_summary_list_total_untruncated(self, tmp_project):
+        """保存 25+ 条总结，验证 list_summaries 分页：total=总数，returned=limit，truncated=True，offset 分页正确"""
+        proj_path, store = tmp_project
+
+        # 创建 25 条主 Agent 会话总结
+        for i in range(25):
+            res = call_tool("summary.save", project=proj_path,
+                          content=f"第 {i+1} 次会话总结内容",
+                          session_id=f"ses_{i:03d}",
+                          focus_type="SCENE",
+                          focus_name=f"第{i+1}章",
+                          tags="测试,分页",
+                          record_type="main")
+            assert_success(res)
+
+        # 第 1 页：limit=10, offset=0
+        res1 = call_tool("summary.list", project=proj_path, limit=10, offset=0, record_type="main")
+        assert_success(res1)
+        data1 = res1["data"]
+        assert data1["total"] == 25, f"total 应为 25，实际 {data1['total']}"
+        assert data1["returned"] == 10, f"returned 应为 10，实际 {data1['returned']}"
+        assert data1["truncated"] is True, "第 1 页应被截断"
+        assert len(data1["entries"]) == 10
+
+        # 第 2 页：limit=10, offset=10
+        res2 = call_tool("summary.list", project=proj_path, limit=10, offset=10, record_type="main")
+        assert_success(res2)
+        data2 = res2["data"]
+        assert data2["total"] == 25, f"total 应为 25，实际 {data2['total']}"
+        assert data2["returned"] == 10, f"returned 应为 10，实际 {data2['returned']}"
+        assert data2["truncated"] is True, "第 2 页应被截断"
+        assert len(data2["entries"]) == 10
+
+        # 第 3 页：limit=10, offset=20
+        res3 = call_tool("summary.list", project=proj_path, limit=10, offset=20, record_type="main")
+        assert_success(res3)
+        data3 = res3["data"]
+        assert data3["total"] == 25, f"total 应为 25，实际 {data3['total']}"
+        assert data3["returned"] == 5, f"returned 应为 5，实际 {data3['returned']}"
+        assert data3["truncated"] is True, "truncated = returned(5) < total(25)"
+        assert len(data3["entries"]) == 5
+
+        # 验证第 1 页和第 2 页无重叠
+        ids1 = {e["file"] for e in data1["entries"]}
+        ids2 = {e["file"] for e in data2["entries"]}
+        ids3 = {e["file"] for e in data3["entries"]}
+        assert ids1.isdisjoint(ids2), "第 1 页和第 2 页不应有重叠"
+        assert ids2.isdisjoint(ids3), "第 2 页和第 3 页不应有重叠"
+        assert ids1.isdisjoint(ids3), "第 1 页和第 3 页不应有重叠"
+
+        # 验证所有条目总数
+        all_ids = ids1 | ids2 | ids3
+        assert len(all_ids) == 25, f"所有页合并应为 25 条，实际 {len(all_ids)}"
+
+    def test_summary_list_subagent_pagination(self, tmp_project):
+        """子 Agent 总结同样支持分页"""
+        proj_path, store = tmp_project
+
+        # 创建 15 条子 Agent 总结
+        for i in range(15):
+            res = call_tool("summary.save", project=proj_path,
+                          content=f"子 Agent 任务 {i+1} 总结",
+                          record_type="subagent",
+                          task_id=f"bg_{i:03d}",
+                          subagent="novel-v2-crafter",
+                          result="success",
+                          prompt_summary=f"任务 {i+1} 提示",
+                          result_summary=f"任务 {i+1} 结果")
+            assert_success(res)
+
+        # 第 1 页：limit=5
+        res1 = call_tool("summary.list", project=proj_path, limit=5, offset=0, record_type="subagent")
+        assert_success(res1)
+        data1 = res1["data"]
+        assert data1["total"] == 15
+        assert data1["returned"] == 5
+        assert data1["truncated"] is True
+
+        # 第 2 页：limit=5, offset=5
+        res2 = call_tool("summary.list", project=proj_path, limit=5, offset=5, record_type="subagent")
+        assert_success(res2)
+        data2 = res2["data"]
+        assert data2["total"] == 15
+        assert data2["returned"] == 5
+        assert data2["truncated"] is True
+
+        # 第 3 页：limit=5, offset=10
+        res3 = call_tool("summary.list", project=proj_path, limit=5, offset=10, record_type="subagent")
+        assert_success(res3)
+        data3 = res3["data"]
+        assert data3["total"] == 15
+        assert data3["returned"] == 5
+        assert data3["truncated"] is True, "truncated = returned(5) < total(15)"
+
 
 # ============================================================================
 # 9. 项目解析 & 错误边界

@@ -23,6 +23,7 @@ from deviation_manager import (
     DeviationState,
     ScanState,
 )
+from handlers.handlers_deviation import handle_deviation_list, handle_deviation_merge
 
 
 # ── 辅助函数 ────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ def _make_item(
     summary: str = "",
     entity_id: str = "",
     scanned_version: int = 0,
+    severity: str = "info",
 ) -> DeviationItem:
     """创建测试用的偏差项"""
     return DeviationItem(
@@ -44,7 +46,7 @@ def _make_item(
         entity_id=entity_id,
         scanned_version=scanned_version,
         status=status,
-        severity="info",
+        severity=severity,
         summary=summary or f"{entity} 的 {dimension} 偏差",
     )
 
@@ -364,3 +366,165 @@ class TestEdgeCases:
         mgr.merge([_make_item(dimension="character_trait", entity="林昭", entity_id="ca_001")])
         assert len(mgr.list_all()) == 1
         assert mgr.list_all()[0].detection_count == 2
+
+
+# ── 列表过滤与分页 ─────────────────────────────────────────────────────────────
+
+
+class TestListFiltersAndPagination:
+    def test_deviation_list_filters_severity(self, project_root):
+        """按 severity 过滤偏差列表"""
+        mgr = DeviationManager(project_root)
+        # 创建不同 severity 的偏差
+        mgr.merge([
+            _make_item(dimension="character_trait", entity="林昭", severity="high", summary="高严重"),
+            _make_item(dimension="plot_consistency", entity="韩致", severity="medium", summary="中严重"),
+            _make_item(dimension="world_rule", entity="天道宗", severity="low", summary="低严重"),
+            _make_item(dimension="character_trait", entity="陈峰", severity="high", summary="另一高严重"),
+        ])
+        mgr.save()
+
+        # 过滤 high severity
+        high_items = [d for d in mgr.list_all() if d.severity == "high"]
+        assert len(high_items) == 2
+        for item in high_items:
+            assert item.severity == "high"
+
+        # 过滤 medium severity
+        medium_items = [d for d in mgr.list_all() if d.severity == "medium"]
+        assert len(medium_items) == 1
+        assert medium_items[0].severity == "medium"
+
+        # 过滤 low severity
+        low_items = [d for d in mgr.list_all() if d.severity == "low"]
+        assert len(low_items) == 1
+        assert low_items[0].severity == "low"
+
+    def test_deviation_list_filters_dimension(self, project_root):
+        """按 dimension 过滤偏差列表"""
+        mgr = DeviationManager(project_root)
+        mgr.merge([
+            _make_item(dimension="character_trait", entity="林昭", severity="high", summary="角色偏差1"),
+            _make_item(dimension="character_trait", entity="韩致", severity="medium", summary="角色偏差2"),
+            _make_item(dimension="plot_consistency", entity="后山拔剑", severity="high", summary="情节偏差"),
+            _make_item(dimension="world_rule", entity="天道宗", severity="low", summary="世界观偏差"),
+        ])
+        mgr.save()
+
+        # 过滤 character_trait
+        char_items = [d for d in mgr.list_all() if d.dimension == "character_trait"]
+        assert len(char_items) == 2
+        for item in char_items:
+            assert item.dimension == "character_trait"
+
+        # 过滤 plot_consistency
+        plot_items = [d for d in mgr.list_all() if d.dimension == "plot_consistency"]
+        assert len(plot_items) == 1
+        assert plot_items[0].dimension == "plot_consistency"
+
+        # 过滤 world_rule
+        world_items = [d for d in mgr.list_all() if d.dimension == "world_rule"]
+        assert len(world_items) == 1
+        assert world_items[0].dimension == "world_rule"
+
+    def test_deviation_list_filters_combined(self, project_root):
+        """组合 severity + dimension 过滤"""
+        mgr = DeviationManager(project_root)
+        mgr.merge([
+            _make_item(dimension="character_trait", entity="林昭", severity="high", summary="高+角色"),
+            _make_item(dimension="character_trait", entity="韩致", severity="medium", summary="中+角色"),
+            _make_item(dimension="plot_consistency", entity="后山拔剑", severity="high", summary="高+情节"),
+            _make_item(dimension="world_rule", entity="天道宗", severity="low", summary="低+世界观"),
+        ])
+        mgr.save()
+
+        # 高严重 + 角色维度
+        filtered = [d for d in mgr.list_all() if d.severity == "high" and d.dimension == "character_trait"]
+        assert len(filtered) == 1
+        assert filtered[0].entity == "林昭"
+
+        # 高严重 + 情节维度
+        filtered = [d for d in mgr.list_all() if d.severity == "high" and d.dimension == "plot_consistency"]
+        assert len(filtered) == 1
+        assert filtered[0].entity == "后山拔剑"
+
+    def test_deviation_pending_pagination(self, project_root):
+        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确"""
+        mgr = DeviationManager(project_root)
+        # 创建 5 个 pending 偏差
+        for i in range(5):
+            mgr.merge([_make_item(
+                dimension="character_trait",
+                entity=f"角色{i}",
+                severity="high" if i % 2 == 0 else "medium",
+                summary=f"偏差{i}",
+                status="pending"
+            )])
+        mgr.save()
+
+        # 第 1 页：limit=2, offset=0
+        page1 = mgr.filter_for_presentation()[0:2]
+        total = len(mgr.filter_for_presentation())
+        assert len(page1) == 2
+        assert total == 5
+        assert len(page1) < total  # truncated
+
+        # 第 2 页：limit=2, offset=2
+        page2 = mgr.filter_for_presentation()[2:4]
+        assert len(page2) == 2
+        assert total == 5
+        assert len(page2) < total  # truncated
+
+        # 第 3 页：limit=2, offset=4
+        page3 = mgr.filter_for_presentation()[4:6]
+        assert len(page3) == 1
+        assert total == 5
+        assert len(page3) < total  # truncated (1 < 5)
+
+        # 超出范围：offset=10
+        page_empty = mgr.filter_for_presentation()[10:12]
+        assert len(page_empty) == 0
+        assert total == 5
+
+    def test_deviation_list_filters_handler(self, tmp_project):
+        """handler-level: call handle_deviation_list with severity+dimension filters"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high", "summary": "高严重"},
+            {"dimension": "角色一致性", "entity": "韩致", "severity": "medium", "summary": "中严重"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "severity": "high", "summary": "高情节"},
+            {"dimension": "世界观", "entity": "天道宗", "severity": "low", "summary": "低世界观"},
+        ]
+        handle_deviation_merge(proj_path, findings=findings)
+
+        # Filter by severity
+        result = handle_deviation_list(proj_path, severity="high")
+        assert result["total"] == 2
+        assert result["returned"] == 2
+        assert result["truncated"] is False
+        for d in result["deviations"]:
+            assert d["severity"] == "high"
+
+        # Filter by dimension
+        result = handle_deviation_list(proj_path, dimension="角色一致性")
+        assert result["total"] == 2
+        assert result["returned"] == 2
+        for d in result["deviations"]:
+            assert d["dimension"] == "角色一致性"
+
+        # Filter by both severity + dimension
+        result = handle_deviation_list(proj_path, severity="high", dimension="角色一致性")
+        assert result["total"] == 1
+        assert result["deviations"][0]["entity"] == "林渊"
+
+        # Non-matching filter
+        result = handle_deviation_list(proj_path, severity="critical")
+        assert result["total"] == 0
+        assert result["deviations"] == []
+
+        # Filter by status
+        result = handle_deviation_list(proj_path, status="pending")
+        assert result["total"] == 4
+
+        result = handle_deviation_list(proj_path, status="resolved")
+        assert result["total"] == 0

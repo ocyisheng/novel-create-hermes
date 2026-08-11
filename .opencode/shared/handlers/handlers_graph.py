@@ -263,6 +263,16 @@ def _read_chunk_text(c, project_root: str) -> str:
     return ""
 
 
+def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
+    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
+    total = len(items)
+    if limit and limit > 0:
+        items = items[offset:offset + limit]
+    elif offset:
+        items = items[offset:]
+    return items, total
+
+
 def _auto_detect_chapter(content: str, unit_name: str) -> Optional[int]:
     """自动推断章节号：从 content JSON 或单元名称提取。"""
     chapter = None
@@ -344,12 +354,13 @@ def handle_get_unit(project_root: str, id: str = "", name: str = "") -> dict:
     return {"unit": _unit_to_dict(u)}
 
 
-def handle_find_unit(project_root: str, name: str = "", keyword: str = "") -> dict:
+def handle_find_unit(project_root: str, name: str = "", keyword: str = "", limit: int = 10) -> dict:
     """按名称或关键词查找叙事单元 ID。
     
     Args:
         name: 精确单元名称（name 和 keyword 至少提供一个）
         keyword: 模糊关键词搜索（name 和 keyword 至少提供一个）
+        limit: 最大返回结果数（默认 10）
     
     Returns:
         单个精确 ID（name 匹配时），或候选列表（keyword 搜索时）
@@ -365,7 +376,7 @@ def handle_find_unit(project_root: str, name: str = "", keyword: str = "") -> di
     
     if keyword and not name:
         # 模糊搜索
-        result = engine.search(keyword=keyword, max_results=10)
+        result = engine.search(keyword=keyword, max_results=limit)
         items = []
         for r in result.results:
             items.append({
@@ -393,12 +404,16 @@ def handle_search(
     case_sensitive: bool = False,
     limit: int = 20,
     verbose: bool = False,
+    tags: Optional[list] = None,
+    chapter: Optional[int] = None,
 ) -> dict:
     """搜索叙事单元。接受 scope 为列表或逗号分隔字符串。"""
     from graph_schema import UnitType
     # 兼容 string → list（novel_tool 可能传 "CHARACTER_ARC,SCENE" 这样的字符串）
     if isinstance(scope, str):
         scope = [s.strip() for s in scope.split(",") if s.strip()]
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
     types = None
     if scope:
         types = [UnitType[s.upper()] for s in scope if s.strip()]
@@ -407,6 +422,7 @@ def handle_search(
         keyword=keyword, pattern=pattern, name=name,
         scope=types, regex=regex, case_sensitive=case_sensitive,
         max_results=limit,
+        tags=tags, chapter=chapter,
     )
     items = []
     for r in result.results:
@@ -425,22 +441,26 @@ def handle_search(
             if u:
                 item["content"] = u.content
         items.append(item)
+    items, total = _paginate(items, limit, 0)
     return {
-        "total": result.total,
+        "total": total,
+        "returned": len(items),
+        "truncated": len(items) < total,
         "time_ms": result.time_ms,
         "results": items,
     }
 
 
-def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0, status: str = "") -> dict:
+def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0, status: str = "", tags: Optional[list] = None, chapter: Optional[int] = None, volume: Optional[int] = None, offset: int = 0) -> dict:
     """列出叙事单元。status 可选：archived/mature/sprout/growing/frozen。为空时默认排除 archived。"""
     from graph_schema import UnitType, UnitStatus
     ut = UnitType[unit_type.upper()] if unit_type and unit_type.upper() != "ALL" else None
     store = _get_store(project_root)
     status_obj = UnitStatus[status.upper()] if status and status.upper() else None
-    units = store.find_units(type=ut, status=status_obj)
-    if limit and limit > 0:
-        units = units[:limit]
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+    units = store.find_units(type=ut, status=status_obj, tags=tags, chapter=chapter, volume=volume)
+    units, total = _paginate(units, limit, offset)
     return {
         "units": [
             {
@@ -452,7 +472,9 @@ def handle_list_units(project_root: str, unit_type: str = "", limit: int = 0, st
             }
             for u in units
         ],
-        "total": len(units),
+        "total": total,
+        "returned": len(units),
+        "truncated": len(units) < total,
     }
 
 
@@ -462,10 +484,11 @@ def handle_stats(project_root: str) -> dict:
     return store.stats()
 
 
-def handle_get_modified_units(project_root: str, since_version: int = 0) -> dict:
+def handle_get_modified_units(project_root: str, since_version: int = 0, limit: int = 0, offset: int = 0) -> dict:
     """获取从指定版本号以来修改过的单元。"""
     _store, engine = _get_engine(project_root)
     changed = engine.get_modified_units(since_version=since_version)
+    changed, total = _paginate(changed, limit, offset)
     return {
         "units": [
             {
@@ -478,31 +501,40 @@ def handle_get_modified_units(project_root: str, since_version: int = 0) -> dict
             }
             for u in changed
         ],
-        "total": len(changed),
+        "total": total,
+        "returned": len(changed),
+        "truncated": len(changed) < total,
     }
 
 
-def handle_get_neighbors(project_root: str, id: str, rel_type: str = "", limit: int = 0) -> dict:
+def handle_get_neighbors(project_root: str, id: str, rel_type: str = "", limit: int = 0, max_depth: int = 1) -> dict:
     """查询关联关系。"""
     from graph_schema import RelationType
     store = _get_store(project_root)
     rt = RelationType[rel_type.upper()] if rel_type else None
-    neighbors = store.get_neighbors(id, relation_type=rt, max_depth=1)
+    neighbors = store.get_neighbors(id, relation_type=rt, max_depth=max_depth)
     result = []
-    count = 0
     for nid in neighbors.get(1, set()):
         n = store.get_unit(nid)
         if n:
+            # 获取该邻居与源单元的关系权重
+            rels = store.get_relations(unit_id=nid, direction="both")
+            weight = 0.0
+            for r in rels:
+                if (r.source_id == id and r.target_id == nid) or (r.source_id == nid and r.target_id == id):
+                    weight = r.weight
+                    break
             result.append({
                 "id": n.id, "name": n.unit_name,
                 "type": n.type.value if hasattr(n.type, "value") else str(n.type),
+                "weight": weight,
                 "created_at": str(n.created_at) if n.created_at else None,
                 "updated_at": str(n.updated_at) if n.updated_at else None,
             })
-            count += 1
-            if limit and count >= limit:
-                break
-    return {"neighbors": result, "total": len(result)}
+    # 确定性排序：weight 降序，id 升序
+    result.sort(key=lambda x: (-x["weight"], x["id"]))
+    result, total = _paginate(result, limit, 0)
+    return {"neighbors": result, "total": total, "returned": len(result), "truncated": len(result) < total}
 
 
 def handle_check_consistency(project_root: str) -> dict:
@@ -1096,6 +1128,8 @@ def handle_get_relations(
     role_substring: bool = False,
     min_weight: Optional[float] = None,
     max_weight: Optional[float] = None,
+    limit: int = 0,
+    offset: int = 0,
 ) -> dict:
     """获取关系列表。"""
     from graph_schema import RelationType
@@ -1105,6 +1139,7 @@ def handle_get_relations(
                                     label=label or None, label_substring=label_substring,
                                     role=role or None, role_substring=role_substring,
                                     min_weight=min_weight, max_weight=max_weight)
+    relations, total = _paginate(relations, limit, offset)
     return {
         "relations": [
             {
@@ -1119,6 +1154,9 @@ def handle_get_relations(
             }
             for r in relations
         ],
+        "total": total,
+        "returned": len(relations),
+        "truncated": len(relations) < total,
     }
 
 

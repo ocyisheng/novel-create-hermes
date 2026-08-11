@@ -114,6 +114,9 @@ class SearchEngine:
         case_sensitive: bool = False,
         max_results: int = 50,
         context_lines: int = 3,
+        status: Optional[str] = None,     # "archived"/"mature"/"sprout"/"growing"/"frozen"/"" = default exclude archived
+        chapter: Optional[int] = None,    # filter by chapter_number
+        tags: Optional[List[str]] = None, # filter: ALL tags must match (AND semantics)
     ) -> SearchResultSet:
         """
         统一搜索入口。三种模式互斥：keyword > pattern > name。
@@ -126,19 +129,23 @@ class SearchEngine:
           scope: 只搜索指定类型的单元
           case_sensitive: 是否区分大小写（仅 keyword 模式）
           regex: 是否使用正则（仅 pattern 模式）
+          status: 单元状态过滤，None/空字符串=排除 ARCHIVED（默认行为），指定值=精确匹配
+          chapter: 章节号过滤，只包含 chapter_number 等于该值的单元
+          tags: 标签过滤（AND 语义），只包含同时拥有所有指定标签的单元
         """
         import time
         t0 = time.time()
 
         if name:
-            results = self._entity_search(name, scope)
+            results = self._entity_search(name, scope, status, chapter, tags)
         elif pattern:
-            results = self._regex_search(pattern, scope, case_sensitive)
+            results = self._regex_search(pattern, scope, case_sensitive, status, chapter, tags)
         elif keyword:
-            results = self._keyword_search(keyword, scope, case_sensitive)
+            results = self._keyword_search(keyword, scope, case_sensitive, status, chapter, tags)
         else:
             results = []
 
+        total_matches = len(results)
         results = results[:max_results]
 
         t1 = time.time()
@@ -149,7 +156,7 @@ class SearchEngine:
 
         return SearchResultSet(
             query=keyword or pattern or name,
-            total=len(results),
+            total=total_matches,
             results=results,
             time_ms=round((t1 - t0) * 1000, 1),
         )
@@ -196,13 +203,33 @@ class SearchEngine:
         keyword: str,
         scope: Optional[List[UnitType]],
         case_sensitive: bool,
+        status: Optional[str] = None,
+        chapter: Optional[int] = None,
+        tags: Optional[List[str]] = None,
     ) -> List[SearchResult]:
         results: List[SearchResult] = []
         kw = keyword if case_sensitive else keyword.lower()
 
         for unit in self.store._units.values():
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
+            # Status filter
+            if status is None or status == "":
+                if unit.status == UnitStatus.ARCHIVED:
+                    continue
+            else:
+                if unit.status.value != status:
+                    continue
+            
+            # Chapter filter
+            if chapter is not None:
+                if get_unit_chapter(unit) != chapter:
+                    continue
+            
+            # Tags filter (AND semantics)
+            if tags:
+                unit_tags = set(unit.tags)
+                if not all(tag in unit_tags for tag in tags):
+                    continue
+            
             if scope and unit.type not in scope:
                 continue
 
@@ -234,6 +261,9 @@ class SearchEngine:
         pattern: str,
         scope: Optional[List[UnitType]],
         case_sensitive: bool,
+        status: Optional[str] = None,
+        chapter: Optional[int] = None,
+        tags: Optional[List[str]] = None,
     ) -> List[SearchResult]:
         flags = 0 if case_sensitive else re.IGNORECASE
         try:
@@ -243,8 +273,25 @@ class SearchEngine:
 
         results: List[SearchResult] = []
         for unit in self.store._units.values():
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
+            # Status filter
+            if status is None or status == "":
+                if unit.status == UnitStatus.ARCHIVED:
+                    continue
+            else:
+                if unit.status.value != status:
+                    continue
+            
+            # Chapter filter
+            if chapter is not None:
+                if get_unit_chapter(unit) != chapter:
+                    continue
+            
+            # Tags filter (AND semantics)
+            if tags:
+                unit_tags = set(unit.tags)
+                if not all(tag in unit_tags for tag in tags):
+                    continue
+            
             if scope and unit.type not in scope:
                 continue
 
@@ -261,6 +308,9 @@ class SearchEngine:
         self,
         name_or_id: str,
         scope: Optional[List[UnitType]],
+        status: Optional[str] = None,
+        chapter: Optional[int] = None,
+        tags: Optional[List[str]] = None,
     ) -> List[SearchResult]:
         # 1. 先按名称查找
         unit = self.store.get_unit_by_name(name_or_id)
@@ -268,6 +318,10 @@ class SearchEngine:
         if not unit:
             unit = self.store.get_unit(name_or_id)
         if not unit:
+            return []
+
+        # Apply filters to main unit
+        if not self._passes_filters(unit, status, chapter, tags):
             return []
 
         # 主单元
@@ -281,9 +335,40 @@ class SearchEngine:
             if n:
                 if scope and n.type not in scope:
                     continue
+                if not self._passes_filters(n, status, chapter, tags):
+                    continue
                 results.append(self._make_result(n, score=3.0))
 
         return results
+
+    def _passes_filters(
+        self,
+        unit: NarrativeUnit,
+        status: Optional[str] = None,
+        chapter: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+    ) -> bool:
+        """检查单元是否通过所有过滤条件"""
+        # Status filter
+        if status is None or status == "":
+            if unit.status == UnitStatus.ARCHIVED:
+                return False
+        else:
+            if unit.status.value != status:
+                return False
+        
+        # Chapter filter
+        if chapter is not None:
+            if get_unit_chapter(unit) != chapter:
+                return False
+        
+        # Tags filter (AND semantics)
+        if tags:
+            unit_tags = set(unit.tags)
+            if not all(tag in unit_tags for tag in tags):
+                return False
+        
+        return True
 
     # ── 一致性检查实现 ───────────────────────────────────────────────────
 

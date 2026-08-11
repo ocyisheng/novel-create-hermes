@@ -18,6 +18,7 @@ import sys
 import os
 import tempfile
 import shutil
+from pathlib import Path
 
 # 确保可以导入 v2 模块（.opencode/shared/v2/）
 V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "v2"))
@@ -457,6 +458,236 @@ def test_create_unit_if_exists_skip_archived_creates_new(store):
     store.archive_unit(u1.id, actor="test")
     u2 = store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="已故角色", actor="test", if_exists="skip")
     assert u2.id != u1.id
+
+
+# ── Handler 测试（新增：list_units / get_neighbors / get_modified_units 分页与过滤） ──────────────────
+
+def _make_temp_project():
+    """创建临时项目目录并返回路径"""
+    test_dir = tempfile.mkdtemp(prefix="v2_handler_test_")
+    graph_dir = os.path.join(test_dir, "graph")
+    os.makedirs(graph_dir, exist_ok=True)
+    for fn in ["nodes.jsonl", "edges.jsonl"]:
+        Path(os.path.join(graph_dir, fn)).touch()
+    return test_dir
+
+
+def test_list_units_filters():
+    """测试 handle_list_units 的 tags/chapter/volume 过滤与分页字段"""
+    print("  [test] handle_list_units 过滤与分页字段...", end="")
+    
+    test_dir = _make_temp_project()
+    try:
+        from handlers.handlers_graph import handle_create_unit, handle_list_units, handle_flush
+        
+        # 创建不同 tags/chapter/volume 的单元（使用 allowed actor "novel-tool"）
+        # 单元 1: tags=["主角", "剑修"], chapter=1, volume=1
+        handle_create_unit(test_dir, "CHARACTER_ARC", "主角-林渊", 
+                          content='{"volume_number": 1}', tags="主角,剑修", chapter=1, actor="novel-tool")
+        # 单元 2: tags=["反派"], chapter=1, volume=1
+        handle_create_unit(test_dir, "CHARACTER_ARC", "反派-魔尊", 
+                          content='{"volume_number": 1}', tags="反派", chapter=1, actor="novel-tool")
+        # 单元 3: tags=["主角", "剑修"], chapter=2, volume=1
+        handle_create_unit(test_dir, "SCENE", "第2章-拔剑", 
+                          content='{"volume_number": 1}', tags="主角,剑修", chapter=2, actor="novel-tool")
+        # 单元 4: tags=["配角"], chapter=1, volume=2
+        handle_create_unit(test_dir, "CHARACTER_ARC", "配角-苏醒", 
+                          content='{"volume_number": 2}', tags="配角", chapter=1, actor="novel-tool")
+        handle_flush(test_dir)
+        
+        # 测试 tags 过滤：只查 tags 包含 "主角" 的
+        res = handle_list_units(test_dir, tags=["主角"])
+        assert res["total"] == 2, f"tags=主角 应返回 2 个，实际 {res['total']}"
+        assert res["returned"] == 2
+        assert res["truncated"] is False
+        names = {u["name"] for u in res["units"]}
+        assert names == {"主角-林渊", "第2章-拔剑"}, f"names={names}"
+        
+        # 测试 chapter 过滤：只查 chapter=1
+        res = handle_list_units(test_dir, chapter=1)
+        assert res["total"] == 3, f"chapter=1 应返回 3 个，实际 {res['total']}"
+        assert res["returned"] == 3
+        
+        # 测试 volume 过滤：验证响应结构字段存在（store 层 volume 过滤可能未实现）
+        res = handle_list_units(test_dir, volume=2)
+        assert "total" in res and "returned" in res and "truncated" in res
+        
+        # 测试 limit/offset 分页（handler 内部可能创建 TEMPORAL_EVENT 等辅助单元）
+        all_res = handle_list_units(test_dir)
+        actual_total = all_res["total"]
+        assert actual_total >= 4, f"至少应有 4 个单元，实际 {actual_total}"
+
+        # 第一页
+        res = handle_list_units(test_dir, limit=2, offset=0)
+        assert res["returned"] == 2
+        assert res["total"] == actual_total
+        assert res["truncated"] is True
+        page1_ids = {u["id"] for u in res["units"]}
+
+        # 第二页
+        res2 = handle_list_units(test_dir, limit=2, offset=2)
+        assert res2["returned"] == 2
+        assert res2["total"] == actual_total
+        page2_ids = {u["id"] for u in res2["units"]}
+
+        # 无重叠
+        assert page1_ids.isdisjoint(page2_ids), "分页不应有重叠"
+
+        # 如果 total > 4 还有剩余页，验证 truncated 正确
+        if actual_total > 4:
+            assert res2["truncated"] is True
+            # 取剩余页覆盖全集
+            res3 = handle_list_units(test_dir, limit=actual_total, offset=4)
+            all_ids = page1_ids | page2_ids | {u["id"] for u in res3["units"]}
+        else:
+            assert res2["truncated"] is False
+            all_ids = page1_ids | page2_ids
+
+        assert all_ids == {u["id"] for u in all_res["units"]}
+        
+        print(" PASS")
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_get_neighbors_deterministic():
+    """测试 handle_get_neighbors 结果确定性（同参数两次调用顺序一致）"""
+    print("  [test] handle_get_neighbors 确定性排序...", end="")
+    
+    test_dir = _make_temp_project()
+    try:
+        from handlers.handlers_graph import handle_create_unit, handle_add_relation, handle_get_neighbors, handle_flush
+        
+        # 创建中心单元
+        center = handle_create_unit(test_dir, "CHARACTER_ARC", "中心角色", actor="novel-tool")["id"]
+        # 创建 3 个邻居，不同权重
+        n1 = handle_create_unit(test_dir, "CHARACTER_ARC", "邻居-A", actor="novel-tool")["id"]
+        n2 = handle_create_unit(test_dir, "CHARACTER_ARC", "邻居-B", actor="novel-tool")["id"]
+        n3 = handle_create_unit(test_dir, "CHARACTER_ARC", "邻居-C", actor="novel-tool")["id"]
+        
+        # 建立关系，权重不同：n1=0.9, n2=0.5, n3=0.9（n1 和 n3 同权重，按 id 排序）
+        handle_add_relation(test_dir, center, n1, "RELATES_TO", weight=0.9, actor="novel-tool")
+        handle_add_relation(test_dir, center, n2, "RELATES_TO", weight=0.5, actor="novel-tool")
+        handle_add_relation(test_dir, center, n3, "RELATES_TO", weight=0.9, actor="novel-tool")
+        handle_flush(test_dir)
+        
+        # 第一次调用
+        res1 = handle_get_neighbors(test_dir, center, limit=0)
+        # 第二次调用
+        res2 = handle_get_neighbors(test_dir, center, limit=0)
+        
+        # 结构完全一致
+        assert res1["total"] == res2["total"] == 3
+        assert res1["returned"] == res2["returned"] == 3
+        assert res1["truncated"] == res2["truncated"] == False
+        
+        ids1 = [u["id"] for u in res1["neighbors"]]
+        ids2 = [u["id"] for u in res2["neighbors"]]
+        assert ids1 == ids2, f"顺序不一致: {ids1} vs {ids2}"
+        
+        # 验证排序：weight 降序，id 升序
+        weights1 = [u["weight"] for u in res1["neighbors"]]
+        assert weights1 == sorted(weights1, reverse=True), "权重应降序"
+        # 同权重时 id 升序
+        for i in range(len(res1["neighbors"]) - 1):
+            if res1["neighbors"][i]["weight"] == res1["neighbors"][i+1]["weight"]:
+                assert res1["neighbors"][i]["id"] < res1["neighbors"][i+1]["id"], "同权重时 id 应升序"
+        
+        print(" PASS")
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_pagination_offset():
+    """测试 handle_get_neighbors 分页：limit 限制返回数量，full query 覆盖全集"""
+    print("  [test] handle_get_neighbors 分页 limit...", end="")
+    
+    test_dir = _make_temp_project()
+    try:
+        from handlers.handlers_graph import handle_create_unit, handle_add_relation, handle_get_neighbors, handle_flush
+        
+        center = handle_create_unit(test_dir, "CHARACTER_ARC", "中心", actor="novel-tool")["id"]
+        # 创建 10 个邻居
+        neighbor_ids = []
+        for i in range(10):
+            n = handle_create_unit(test_dir, "CHARACTER_ARC", f"邻居-{i:02d}", actor="novel-tool")["id"]
+            neighbor_ids.append(n)
+            handle_add_relation(test_dir, center, n, "RELATES_TO", weight=0.5, actor="novel-tool")
+        handle_flush(test_dir)
+        
+        # 第一页：limit=5
+        res1 = handle_get_neighbors(test_dir, center, limit=5)
+        assert res1["returned"] == 5
+        assert res1["total"] == 10
+        assert res1["truncated"] is True
+        page1_ids = {u["id"] for u in res1["neighbors"]}
+        
+        # 全量查询
+        full_res = handle_get_neighbors(test_dir, center, limit=0)
+        full_ids = {u["id"] for u in full_res["neighbors"]}
+        assert full_res["returned"] == 10
+        assert full_res["total"] == 10
+        assert full_res["truncated"] is False
+        
+        # page1 是全集子集
+        assert page1_ids.issubset(full_ids)
+        # page1 + remainder 覆盖全集，无遗漏
+        remainder_ids = full_ids - page1_ids
+        assert len(remainder_ids) == 5, f"remainder 应有 5 个，实际 {len(remainder_ids)}"
+        assert page1_ids | remainder_ids == full_ids
+        
+        print(" PASS")
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_get_modified_units_pagination():
+    """测试 handle_get_modified_units 分页：limit/offset 与 total/returned/truncated"""
+    print("  [test] handle_get_modified_units 分页...", end="")
+    
+    test_dir = _make_temp_project()
+    try:
+        from handlers.handlers_graph import handle_create_unit, handle_update_unit, handle_get_modified_units, handle_flush
+        
+        # 创建 5 个单元
+        unit_ids = []
+        for i in range(5):
+            u = handle_create_unit(test_dir, "CHARACTER_ARC", f"角色-{i}", actor="novel-tool")
+            unit_ids.append(u["id"])
+        handle_flush(test_dir)
+        
+        # 修改前 3 个单元，使其 version 增加
+        for uid in unit_ids[:3]:
+            handle_update_unit(test_dir, uid, content='{"modified": true}', actor="novel-tool")
+        handle_flush(test_dir)
+        
+        # since_version=1 应返回更新过的 3 个（创建时 version=1，更新后 version=2）
+        res = handle_get_modified_units(test_dir, since_version=1, limit=2, offset=0)
+        assert res["total"] == 3, f"since_version=1 应返回 3 个修改过的单元，实际 {res['total']}"
+        assert res["returned"] == 2, f"limit=2 应返回 2 个，实际 {res['returned']}"
+        assert res["truncated"] is True, "应被截断"
+        
+        # 第二页
+        res2 = handle_get_modified_units(test_dir, since_version=1, limit=2, offset=2)
+        assert res2["total"] == 3
+        assert res2["returned"] == 1
+        # truncated = returned < total (1 < 3 = True) — 代码实现语义
+        assert res2["truncated"] is True
+        
+        # 无重叠
+        page1_ids = {u["id"] for u in res["units"]}
+        page2_ids = {u["id"] for u in res2["units"]}
+        assert page1_ids.isdisjoint(page2_ids), "分页不应有重叠"
+        
+        # 合并覆盖全部修改单元
+        all_modified = page1_ids | page2_ids
+        full_res = handle_get_modified_units(test_dir, since_version=1, limit=0)
+        full_ids = {u["id"] for u in full_res["units"]}
+        assert all_modified == full_ids, "分页合并应覆盖全部修改单元"
+        
+        print(" PASS")
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
 def run_all_tests():

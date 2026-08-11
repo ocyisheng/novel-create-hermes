@@ -32,6 +32,16 @@ def _resolve_project(project: str) -> str:
     return os.path.abspath(project)
 
 
+def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
+    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
+    total = len(items)
+    if limit and limit > 0:
+        items = items[offset:offset + limit]
+    elif offset:
+        items = items[offset:]
+    return items, total
+
+
 def handle_deviation_merge(
     project_root: str,
     findings: list,
@@ -80,7 +90,14 @@ def handle_deviation_merge(
     }
 
 
-def handle_deviation_list(project_root: str, status: str = "") -> dict:
+def handle_deviation_list(
+    project_root: str,
+    status: str = "",
+    limit: int = 0,
+    offset: int = 0,
+    severity: str = "",
+    dimension: str = "",
+) -> dict:
     """列出偏差。"""
     from deviation_manager import DeviationManager
 
@@ -91,6 +108,13 @@ def handle_deviation_list(project_root: str, status: str = "") -> dict:
     mgr = DeviationManager(project)
     all_items = mgr.list_all() if not status else [d for d in mgr.list_all() if d.status == status]
 
+    if severity:
+        all_items = [d for d in all_items if d.severity == severity]
+    if dimension:
+        all_items = [d for d in all_items if d.dimension == dimension]
+
+    items, total = _paginate(all_items, limit, offset)
+
     return {
         "deviations": [
             {
@@ -99,13 +123,15 @@ def handle_deviation_list(project_root: str, status: str = "") -> dict:
                 "severity": d.severity, "summary": d.summary,
                 "detail": d.detail, "detection_count": d.detection_count,
             }
-            for d in all_items
+            for d in items
         ],
-        "total": len(all_items),
+        "total": total,
+        "returned": len(items),
+        "truncated": len(items) < total,
     }
 
 
-def handle_deviation_pending(project_root: str) -> dict:
+def handle_deviation_pending(project_root: str, limit: int = 0, offset: int = 0) -> dict:
     """列出待处理偏差。"""
     from deviation_manager import DeviationManager
 
@@ -115,6 +141,7 @@ def handle_deviation_pending(project_root: str) -> dict:
 
     mgr = DeviationManager(project)
     items = mgr.filter_for_presentation()
+    items, total = _paginate(items, limit, offset)
 
     return {
         "deviations": [
@@ -125,7 +152,9 @@ def handle_deviation_pending(project_root: str) -> dict:
             }
             for d in items
         ],
-        "total": len(items),
+        "total": total,
+        "returned": len(items),
+        "truncated": len(items) < total,
     }
 
 

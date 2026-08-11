@@ -152,6 +152,93 @@ class TestKeywordSearch:
         result = engine.search(keyword="剑")
         assert result.total == 0
 
+    def test_search_total_untruncated(self, store):
+        """total 为截断前总数，results 受 max_results 限制"""
+        from graph_schema import UnitType
+        # 创建 25 个包含"测试关键词"的单元
+        for i in range(25):
+            store.create_unit(
+                type=UnitType.CHARACTER_ARC,
+                unit_name=f"角色{i}",
+                content=f"这是第{i}个测试关键词单元",
+                tags=["测试"],
+                actor="test",
+            )
+        store.flush()
+
+        engine = SearchEngine(store)
+        result = engine.search(keyword="测试关键词", max_results=10)
+
+        assert result.total == 25, "total 应为截断前的总匹配数"
+        assert len(result.results) == 10, "results 应被 max_results 截断"
+        # 验证截断语义：total > len(results) 表示被截断
+        assert result.total > len(result.results)
+
+    def test_search_filters_tags(self, store):
+        """tags 过滤：AND 语义，仅返回同时包含所有指定标签的单元"""
+        from graph_schema import UnitType
+        # 创建不同标签组合的单元
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="A", content="内容", tags=["tagA", "tagB"], actor="test")
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="B", content="内容", tags=["tagA"], actor="test")
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="C", content="内容", tags=["tagB"], actor="test")
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="D", content="内容", tags=["tagA", "tagB", "tagC"], actor="test")
+        store.create_unit(type=UnitType.CHARACTER_ARC, unit_name="E", content="内容", tags=[], actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+
+        # 搜索 tagA + tagB（AND 语义）
+        result = engine.search(keyword="内容", tags=["tagA", "tagB"])
+        names = [r.unit_name for r in result.results]
+        assert result.total == 2, "应仅匹配同时拥有 tagA 和 tagB 的单元"
+        assert set(names) == {"A", "D"}
+
+        # 搜索单个 tagA
+        result = engine.search(keyword="内容", tags=["tagA"])
+        names = [r.unit_name for r in result.results]
+        assert result.total == 3, "应匹配拥有 tagA 的所有单元"
+        assert set(names) == {"A", "B", "D"}
+
+        # 搜索不存在的标签组合
+        result = engine.search(keyword="内容", tags=["tagA", "不存在"])
+        assert result.total == 0
+
+    def test_search_filters_chapter(self, store):
+        """chapter 过滤：仅返回 chapter_number 等于指定值的单元"""
+        from graph_schema import UnitType
+        # 创建不同章节的单元
+        for ch in [1, 1, 2, 2, 3]:
+            store.create_unit(
+                type=UnitType.SCENE,
+                unit_name=f"场景_ch{ch}",
+                content=f"第{ch}章内容",
+                chapter_number=ch,
+                actor="test",
+            )
+        store.flush()
+
+        engine = SearchEngine(store)
+
+        # 搜索第 2 章
+        result = engine.search(keyword="内容", chapter=2)
+        assert result.total == 2, "应仅匹配 chapter_number=2 的单元"
+        names = [r.unit_name for r in result.results]
+        assert all("ch2" in n for n in names)
+
+        # 搜索第 1 章
+        result = engine.search(keyword="内容", chapter=1)
+        assert result.total == 2
+        names = [r.unit_name for r in result.results]
+        assert all("ch1" in n for n in names)
+
+        # 搜索不存在的章节
+        result = engine.search(keyword="内容", chapter=99)
+        assert result.total == 0
+
+        # 不指定 chapter 时应匹配所有
+        result = engine.search(keyword="内容")
+        assert result.total == 5
+
 
 # ── 正则搜索 ────────────────────────────────────────────────────────────────
 

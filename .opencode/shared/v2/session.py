@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import uuid
 import json
+import os
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
+import logging
 
 from graph_schema import UnitType, UnitStatus, NarrativeUnit
+
+logger = logging.getLogger(__name__)
 
 
 # ── 枚举 ──────────────────────────────────────────────────────────────────
@@ -359,6 +363,8 @@ class SessionManager:
         self._hooks: Dict[str, List[Callable]] = {
             "session_start": [],
             "session_end": [],
+            "session_pause": [],
+            "session_resume": [],
             "phase_change": [],
             "focus_change": [],
             "action_complete": [],
@@ -405,17 +411,17 @@ class SessionManager:
         self._remove_session_snapshot()
 
     def pause_session(self):
-        """暂停当前会话"""
+        """暂停当前会话（触发 session_pause 钩子，区别于真正的 session_end）"""
         if self.active_session:
             self.active_session.pause()
-            self._trigger_hooks("session_end", self.active_session)
+            self._trigger_hooks("session_pause", self.active_session)
 
     def resume_session(self) -> Optional[WritingSession]:
-        """恢复上次暂停的会话"""
+        """恢复上次暂停的会话（触发 session_resume 钩子，区别于新的 session_start）"""
         if self.active_session and self.active_session.status == SessionStatus.PAUSING:
             self.active_session.resume()
             self.user_state.start_session()
-            self._trigger_hooks("session_start", self.active_session)
+            self._trigger_hooks("session_resume", self.active_session)
             return self.active_session
         return None
 
@@ -519,8 +525,9 @@ class SessionManager:
         for hook in self._hooks.get(event, []):
             try:
                 hook(data)
-            except Exception:
-                pass
+            except Exception as e:
+                # 钩子失败不应中断主流程，但必须留痕（不静默吞掉）
+                logger.warning("事件钩子执行失败 (event=%s): %s", event, e)
 
     # ── 持久化 ───────────────────────────────────────────────────────────
 
@@ -535,8 +542,15 @@ class SessionManager:
         state_dir = self.project_root / ".omo"
         state_dir.mkdir(parents=True, exist_ok=True)
         state_path = state_dir / "user_state.yaml"
-        with open(state_path, "w", encoding="utf-8") as f:
+        # 原子写入：唯一 tmp 名 + fsync + rename（与 session.json 快照同机制）
+        tmp_path = state_path.with_name(
+            f"user_state.{os.getpid()}.{uuid.uuid4().hex[:6]}.tmp"
+        )
+        with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(self.user_state.to_yaml_persistable())
+            f.flush()
+            os.fsync(f.fileno())
+        tmp_path.replace(state_path)
 
         if self.active_session:
             self._write_session_snapshot()

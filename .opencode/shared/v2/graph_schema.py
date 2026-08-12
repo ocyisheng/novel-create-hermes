@@ -537,10 +537,13 @@ class Relation:
 @dataclass
 class Event:
     """
-    事件溯源的事件记录。
-    
-    每次对 graph 的修改都记录为一条事件，构成完整的创作历史。
-    可以回放到任意时间点、审计每次修改的来源（用户/Agent/脚本）。
+    事件溯源的事件记录（append-only 审计日志，非可回放日志）。
+
+    每次对 graph 的修改都追加一条事件，构成完整的创作历史，用于
+    审计每次修改的来源（用户/Agent/脚本）与时间线追踪。
+
+    注意：events.olog 是仅追加的调试/审计日志，没有消费游标，也不支持
+    "回放到任意时间点"——状态恢复请使用 graph/snapshots/ 下的快照。
     """
     event_id: str
     timestamp: datetime

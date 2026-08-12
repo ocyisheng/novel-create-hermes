@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -54,7 +55,7 @@ class ConstraintDef:
 class PayloadConstraintDef:
     """边 payload 约束定义"""
     rule_id: str
-    category: str          # temporal | boundary | pattern
+    category: str          # temporal | boundary
     severity: str
     description: str
     fields: List[str]      # payload 中的字段路径
@@ -158,7 +159,8 @@ class TypeRegistry:
     同名类型，项目级覆盖合并/覆盖内置定义。
     """
 
-    _global_instance: Optional["TypeRegistry"] = None
+    _global_instances: Dict[str, "TypeRegistry"] = {}
+    _global_lock = threading.Lock()
     _BUILTIN_DIR = os.path.join(os.path.dirname(__file__), "unit_types")
 
     def __init__(self, project_root: Optional[str] = None, lazy: bool = False):
@@ -841,14 +843,28 @@ class TypeRegistry:
 
     # ── 单例 ─────────────────────────────────────────────────────────────
 
+    _global_instances: Dict[str, "TypeRegistry"] = {}
+    _global_lock = threading.Lock()
+    _BUILTIN_DIR = os.path.join(os.path.dirname(__file__), "unit_types")
+
     @classmethod
     def get_global(cls, project_root: Optional[str] = None) -> "TypeRegistry":
-        """获取全局单例。"""
-        if cls._global_instance is None:
-            cls._global_instance = cls(project_root=project_root, lazy=False)
-        return cls._global_instance
+        """获取全局注册表（按 project_root 键控，避免跨项目污染）。
+
+        - 传入 project_root：每个项目一份独立注册表（含项目级 unit_types 覆盖）。
+        - 未传 project_root：使用默认（空键）注册表——只加载内置类型，
+          绝不会静默复用其它项目的注册表。
+        """
+        key = str(project_root) if project_root else ""
+        with cls._global_lock:
+            registry = cls._global_instances.get(key)
+            if registry is None:
+                registry = cls(project_root=project_root, lazy=False)
+                cls._global_instances[key] = registry
+            return registry
 
     @classmethod
     def reset_global(cls):
-        """重置全局单例（测试用）。"""
-        cls._global_instance = None
+        """重置全局注册表缓存（测试用）。"""
+        with cls._global_lock:
+            cls._global_instances.clear()

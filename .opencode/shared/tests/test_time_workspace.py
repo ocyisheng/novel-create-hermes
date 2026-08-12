@@ -16,6 +16,7 @@ Workspace 时间序列 + 关系图 集成测试。
 """
 
 import json
+import os
 import pytest
 
 from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType
@@ -24,6 +25,24 @@ from time_utils import (
     get_story_label, set_story_time, STORY_TIME_KEY,
 )
 from workspace import Workspace, WorkspaceBuilder
+
+
+@pytest.fixture(autouse=True)
+def _enable_content_timeline_fallback():
+    """启用存量 content 时间线回退提取（NOVEL_TEMPORAL_CONTENT_FALLBACK=1）。
+
+    NOTE（本次修复）：temporal_index 的内容回退提取（来源 B）已按缺陷修复
+    要求默认关闭（默认值从 "1" 翻转为 "0"）。本文件的时间线测试走的是
+    存量 content JSON 提取管线（无 TEMPORAL_EVENT 节点），因此显式开启
+    该兼容开关，与测试意图保持一致。
+    """
+    old = os.environ.get("NOVEL_TEMPORAL_CONTENT_FALLBACK")
+    os.environ["NOVEL_TEMPORAL_CONTENT_FALLBACK"] = "1"
+    yield
+    if old is None:
+        os.environ.pop("NOVEL_TEMPORAL_CONTENT_FALLBACK", None)
+    else:
+        os.environ["NOVEL_TEMPORAL_CONTENT_FALLBACK"] = old
 
 
 # ═════════════════════════════════════════════════════════════════════════════

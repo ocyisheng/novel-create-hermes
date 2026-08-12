@@ -239,7 +239,7 @@ class Workspace:
                 lines.append(f"{idx}. 【角色】{cs.name}：{cs.description}"); idx += 1
         if self.missing_gaps:
             for gap in self.missing_gaps:
-                lines.append(f"{idx}. ⚠️ {gap}"); idx += 1
+                lines.append(f"{idx}. [缺口] {gap}"); idx += 1
         lines.append("")
         
         # 段3：写作指引
@@ -325,7 +325,7 @@ class Workspace:
             lines.append(f"### 实体时间线（{len(self.entity_timeline)} 个事件）")
             for evt in self.entity_timeline:
                 marker = "→ " if evt.get("is_focus") else "  "
-                loc_str = f" 📍{evt['location']}" if evt.get("location") else ""
+                loc_str = f" [地点]{evt['location']}" if evt.get("location") else ""
                 ord_val = evt.get("story_ordinal")
                 ord_str = f"{ord_val:.1f}" if ord_val is not None else "?"
                 lines.append(f"{marker}#{ord_str} {evt.get('time_label', '')}{loc_str}  {evt.get('event', '')}")
@@ -349,7 +349,7 @@ class Workspace:
             for evt in self.location_timeline:
                 ord_val = evt.get("story_ordinal")
                 ord_str = f"{ord_val:.1f}" if ord_val is not None else "?"
-                lines.append(f"  #{ord_str} {evt.get('time_label', '')} 📍{evt.get('location', '')}  {evt.get('event', '')}")
+                lines.append(f"  #{ord_str} {evt.get('time_label', '')} [地点]{evt.get('location', '')}  {evt.get('event', '')}")
             lines.append("")
 
         # ═══════════════════════════════════════════════════════════
@@ -477,23 +477,39 @@ class WorkspaceBuilder:
     def __init__(self, store: GraphStoreImpl):
         self.store = store
         self._project_config: Optional[Dict[str, Any]] = None
+        self._project_config_mtime: Optional[float] = None  # config.yaml mtime 校验（mtime 变更即失效）
     
     # ── 从 config.yaml 加载预热配置 ─────────────────────────────────────
     
     def _load_project_config(self) -> Dict[str, Any]:
-        """读取项目的 config.yaml，优先从 store.project_root 加载"""
-        if self._project_config is not None:
-            return self._project_config
-        
-        self._project_config = {}
+        """读取项目的 config.yaml，优先从 store.project_root 加载。
+
+        缓存按 config.yaml 的 mtime 校验：文件被修改后自动重读，
+        避免配置永久缓存导致修改不生效。
+        """
+        config_path = self.store.project_root / "config.yaml"
+        current_mtime = None
         try:
-            config_path = self.store.project_root / "config.yaml"
+            current_mtime = config_path.stat().st_mtime if config_path.exists() else None
+        except OSError:
+            current_mtime = None
+
+        # 缓存有效：路径 mtime 未变则复用
+        if (self._project_config is not None
+                and current_mtime is not None
+                and self._project_config_mtime == current_mtime):
+            return self._project_config
+
+        self._project_config = {}
+        self._project_config_mtime = current_mtime
+        try:
             if config_path.exists():
                 import yaml
                 with open(config_path, "r", encoding="utf-8") as f:
                     self._project_config = yaml.safe_load(f) or {}
         except Exception:
-            pass  # 静默失败，回退到默认值
+            # 静默失败，回退到默认值（与历史行为一致）
+            self._project_config = {}
         return self._project_config
     
     def _get_preheat_config(self, preheat_level: str) -> Dict[str, Any]:
@@ -1109,7 +1125,7 @@ class WorkspaceBuilder:
                 ts = f"#{e_ord:.0f}" if isinstance(e_ord, (int, float)) and e_ord else ""
                 if e_label:
                     ts = e_label if not ts else f"{ts} {e_label}"
-                loc_str = f"📍{e_loc}" if e_loc else ""
+                loc_str = f"[地点]{e_loc}" if e_loc else ""
                 nearby_strs.append(f"  {ts} {e_summary} {loc_str}".strip())
             if nearby_strs:
                 parts.append("附近事件：")
@@ -1433,7 +1449,7 @@ class WorkspaceBuilder:
         if ws.focus_unit and ws.focus_unit.type == UnitType.SCENE:
             scene_ids_to_check.add(ws.focus_unit.id)
 
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(project_root=str(self.store.project_root))
 
         for sid in scene_ids_to_check:
             scene = self.store.get_unit(sid)

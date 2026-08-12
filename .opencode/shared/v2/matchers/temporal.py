@@ -57,7 +57,9 @@ class TemporalMatcher(BaseMatcher):
                 idx_b, val_b = values_clean[i + 1]
                 if val_a >= val_b:
                     # 检查此位置是否为例外
-                    exc_field_val = self._get_exception_value(unit.content, exception_field, idx_b)
+                    exc_field_val = self._get_exception_value(
+                        unit.content, exception_field, idx_b, store
+                    )
                     if exc_field_val in exception_values:
                         continue
                     return CheckResult(
@@ -72,7 +74,9 @@ class TemporalMatcher(BaseMatcher):
                 idx_a, val_a = values_clean[i]
                 idx_b, val_b = values_clean[i + 1]
                 if val_a > val_b:
-                    exc_field_val = self._get_exception_value(unit.content, exception_field, idx_b)
+                    exc_field_val = self._get_exception_value(
+                        unit.content, exception_field, idx_b, store
+                    )
                     if exc_field_val in exception_values:
                         continue
                     return CheckResult(
@@ -85,7 +89,13 @@ class TemporalMatcher(BaseMatcher):
 
         return None
 
-    def _get_exception_value(self, content: Any, exception_field: str, idx: int) -> Optional[str]:
+    def _get_exception_value(
+        self,
+        content: Any,
+        exception_field: str,
+        idx: int,
+        store: GraphStore,
+    ) -> Optional[str]:
         """从 content 中获取例外判断字段的值。"""
         if not exception_field:
             return None
@@ -105,7 +115,7 @@ class TemporalMatcher(BaseMatcher):
 
         # 解析路径如 "events[].type"
         from type_registry import TypeRegistry
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(project_root=str(store.project_root))
         values = registry._traverse(parsed, exception_field)
 
         if 0 <= idx < len(values):

@@ -87,6 +87,7 @@ class ProjectionEngine:
         self.output_mode = output_mode
         self.projections_dir = self.project_root / "projections"
         self._project_config: Optional[Dict[str, Any]] = None
+        self._project_config_mtime: Optional[float] = None  # config.yaml mtime 校验（mtime 变更即失效）
         
         # 根据项目 config 动态调整 CHAPTER_OUTLINE 路径模板
         self._init_path_templates()
@@ -269,18 +270,32 @@ class ProjectionEngine:
     # ── 项目配置加载 ────────────────────────────────────────────────────
     
     def _load_project_config(self) -> Dict[str, Any]:
-        """读取项目的 config.yaml"""
-        if self._project_config is not None:
-            return self._project_config
-        self._project_config = {}
+        """读取项目的 config.yaml。
+
+        缓存按 config.yaml 的 mtime 校验：文件被修改后自动重读，
+        避免配置永久缓存导致修改不生效（与 workspace.py 行为一致）。
+        """
+        config_path = self.project_root / "config.yaml"
+        current_mtime = None
         try:
-            config_path = self.project_root / "config.yaml"
+            current_mtime = config_path.stat().st_mtime if config_path.exists() else None
+        except OSError:
+            current_mtime = None
+
+        if (self._project_config is not None
+                and current_mtime is not None
+                and self._project_config_mtime == current_mtime):
+            return self._project_config
+
+        self._project_config = {}
+        self._project_config_mtime = current_mtime
+        try:
             if config_path.exists():
                 import yaml
                 with open(config_path, "r", encoding="utf-8") as f:
                     self._project_config = yaml.safe_load(f) or {}
         except Exception:
-            pass
+            self._project_config = {}
         return self._project_config
     
     def _init_path_templates(self):

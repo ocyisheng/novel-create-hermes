@@ -42,7 +42,7 @@ class BoundaryMatcher(BaseMatcher):
             return None
 
         # 获取当前单元的值
-        this_val = self._get_content_value(unit.content, field)
+        this_val = self._get_content_value(unit.content, field, store)
 
         # 通过关系找后续单元
         for rel in store.get_relations(unit.id, direction="outgoing"):
@@ -51,7 +51,7 @@ class BoundaryMatcher(BaseMatcher):
             following = store.get_unit(rel.target_id)
             if not following:
                 continue
-            following_val = self._get_content_value(following.content, field)
+            following_val = self._get_content_value(following.content, field, store)
 
             if this_val and following_val and this_val != following_val:
                 return CheckResult(
@@ -64,7 +64,9 @@ class BoundaryMatcher(BaseMatcher):
 
         return None
 
-    def _get_content_value(self, content: Any, field_path: str) -> Optional[str]:
+    def _get_content_value(
+        self, content: Any, field_path: str, store: GraphStore
+    ) -> Optional[str]:
         """从 content 中提取字段值。"""
         if not field_path:
             return None
@@ -82,7 +84,7 @@ class BoundaryMatcher(BaseMatcher):
         if not isinstance(parsed, dict):
             return None
 
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(project_root=str(store.project_root))
         values = registry._traverse(parsed, field_path)
         if values:
             v = values[0]

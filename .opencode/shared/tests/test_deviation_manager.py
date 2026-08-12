@@ -449,12 +449,19 @@ class TestListFiltersAndPagination:
         assert filtered[0].entity == "后山拔剑"
 
     def test_deviation_pending_pagination(self, project_root):
-        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确"""
+        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确。
+
+        NOTE（本次修复）：5 条 pending 使用不同 dimension 构造，避免触发
+        filter_for_presentation 的"≥3 同维度折叠"规则（该规则在缺陷修复
+        后已实现）——否则 5 条同维度会被折叠为 1 条聚合条目。
+        """
         mgr = DeviationManager(project_root)
-        # 创建 5 个 pending 偏差
-        for i in range(5):
+        # 创建 5 个 pending 偏差（跨维度，避免触发 ≥3 同维度折叠）
+        dims = ["character_trait", "character_trait", "plot_consistency",
+                "plot_consistency", "world_rule"]
+        for i, dim in enumerate(dims):
             mgr.merge([_make_item(
-                dimension="character_trait",
+                dimension=dim,
                 entity=f"角色{i}",
                 severity="high" if i % 2 == 0 else "medium",
                 summary=f"偏差{i}",
@@ -485,6 +492,32 @@ class TestListFiltersAndPagination:
         page_empty = mgr.filter_for_presentation()[10:12]
         assert len(page_empty) == 0
         assert total == 5
+
+    def test_filter_for_presentation_collapses_same_dimension_ge3(self, project_root):
+        """filter_for_presentation 的 ≥3 同维度折叠规则（缺陷修复后实现）。
+
+        5 条同维度 pending 应折叠为 1 条聚合条目；<3 条时原样返回。
+        """
+        mgr = DeviationManager(project_root)
+        for i in range(5):
+            mgr.merge([_make_item(
+                dimension="character_trait",
+                entity=f"角色{i}",
+                status="pending",
+            )])
+        collapsed = mgr.filter_for_presentation()
+        assert len(collapsed) == 1, "≥3 同维度 pending 应折叠为一条聚合条目"
+        assert collapsed[0].id == "character_trait:collapse"
+        assert collapsed[0].status == "pending"
+        assert "5" in collapsed[0].summary  # 摘要标注条数
+
+        # <3 条同维度：原样返回
+        mgr2 = DeviationManager(project_root)
+        mgr2.merge([_make_item(dimension="dim_a", entity="A", status="pending")])
+        mgr2.merge([_make_item(dimension="dim_a", entity="B", status="pending")])
+        mgr2.merge([_make_item(dimension="dim_b", entity="C", status="pending")])
+        items = mgr2.filter_for_presentation()
+        assert len(items) == 3, "各维度均 <3 条时不应折叠"
 
     def test_deviation_list_filters_handler(self, tmp_project):
         """handler-level: call handle_deviation_list with severity+dimension filters"""

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -128,7 +129,7 @@ class GraphStore:
         self._events: List[Event] = []
         self._outgoing_edges: Dict[str, List[str]] = defaultdict(list)  # source_id → [rel_id]
         self._incoming_edges: Dict[str, List[str]] = defaultdict(list)  # target_id → [rel_id]
-        self._unit_by_name: Dict[str, str] = {}  # unit_name → id
+        self._unit_by_name: Dict[str, List[str]] = {}  # unit_name → [ids]（同名可跨类型共存）
         
         # 脏标记
         self._dirty_nodes = False
@@ -150,28 +151,35 @@ class GraphStore:
         
         # 是否已初始化
         self._initialized = False
+        
+        # 线程安全锁（RLock 允许同一线程重入）
+        self._lock = threading.RLock()
     
     # ── 初始化与持久化 ──────────────────────────────────────────────────
     
     def initialize(self):
         """初始化存储：创建目录、加载现有数据"""
-        self.graph_dir.mkdir(parents=True, exist_ok=True)
-        self.snapshots_dir.mkdir(exist_ok=True)
-        
-        # 优先从缓存恢复，缓存失效或不存在时回退到 JSONL 逐行加载
-        cache_loaded = self._load_cache()
-        
-        if not cache_loaded:
-            self._load_nodes()
-            self._load_edges()
-            self._rebuild_indices()
-        
-        # 事件始终从 olog 加载（事件是 append-only，缓存事件性价比低）
-        self._load_events()
-        
-        self._initialized = True
-        if not cache_loaded:
-            self._save_cache()
+        with self._lock:
+            self.graph_dir.mkdir(parents=True, exist_ok=True)
+            self.snapshots_dir.mkdir(exist_ok=True)
+
+            # 优先从缓存恢复，缓存失效或不存在时回退到 JSONL 逐行加载
+            cache_loaded = self._load_cache()
+
+            if not cache_loaded:
+                self._load_nodes()
+                self._load_edges()
+                self._rebuild_indices()
+
+            # 事件始终从 olog 加载（事件是 append-only，缓存事件性价比低）
+            self._load_events()
+
+            self._initialized = True
+            if not cache_loaded:
+                try:
+                    self._save_cache()
+                except Exception as e:
+                    logger.warning("缓存写入失败（不影响初始化）: %s", e)
     
     def _load_nodes(self):
         """从 JSONL 加载叙事单元"""
@@ -272,7 +280,7 @@ class GraphStore:
             self._incoming_edges[rel.target_id].append(rel_id)
         
         for uid, unit in self._units.items():
-            self._unit_by_name[unit.unit_name] = uid
+            self._unit_by_name.setdefault(unit.unit_name, []).append(uid)
     
     # ── 缓存（.index.json） ────────────────────────────────────────────
     
@@ -285,15 +293,16 @@ class GraphStore:
     
     def _save_cache(self):
         """将当前状态缓存到 .index.json，附带源文件 mtime 用于后续校验。
-        
+
         注意：事件（events）不写入缓存——事件是 append-only 且量级大，
         缓存的序列化开销远超其收益。事件始终从 events.olog 加载。
-        
-        缓存写失败不抛出异常（调用方在 flush 中已 catch）。
+
+        缓存写失败向上抛出（调用方负责 catch：flush 中已 catch，
+        initialize 中已 catch），不在此处静默吞掉。
         """
         if not self._initialized:
             return
-        try:
+        with self._lock:
             cache = {
                 "_cache_version": 1,
                 "nodes_mtime": self._get_mtime_ns(self.nodes_path),
@@ -305,9 +314,6 @@ class GraphStore:
                 self._index_path,
                 lambda f: json.dump(cache, f, ensure_ascii=False, default=str),
             )
-        except Exception:
-            # 缓存写失败不阻塞业务流程——下次 flush 会重试
-            pass
     
     def _load_cache(self) -> bool:
         """
@@ -445,19 +451,41 @@ class GraphStore:
         self._dirty_edges = False
     
     def _flush_events(self):
-        """将新增事件追加到 olog（只写未持久化的新事件）"""
+        """将新增事件追加到 olog（只写未持久化的新事件）。
+
+        重试安全：写入前记录起始偏移，逐条写入并同步推进 _last_flushed_event。
+        某条写入失败时，将该事件写入起点之前的文件截断到干净位置，
+        使下次 flush 从最后成功写入的事件之后恢复，避免重复追加产生脏行。
+        成功路径与其它写入保持一致：flush + fsync 确保落盘。
+        """
         if not self._dirty_events:
             return
         # 追踪上次刷新的位置
         if not hasattr(self, '_last_flushed_event'):
             self._last_flushed_event = 0
-        new_events = self._events[self._last_flushed_event:]
+        start_idx = self._last_flushed_event
+        new_events = self._events[start_idx:]
         if not new_events:
             self._dirty_events = False
             return
         with open(self.events_path, "a", encoding="utf-8") as f:
-            for event in new_events:
-                f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            pos = f.tell()
+            for i, event in enumerate(new_events):
+                try:
+                    f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+                except Exception:
+                    # 截断掉可能残留的半行，保证下次重试从干净位置继续
+                    try:
+                        with open(self.events_path, "r+", encoding="utf-8") as tf:
+                            tf.seek(pos)
+                            tf.truncate()
+                    except OSError:
+                        logger.warning("事件日志截断失败（可能残留半行）: %s", self.events_path)
+                    self._last_flushed_event = start_idx + i
+                    raise
+                pos = f.tell()
+            f.flush()
+            os.fsync(f.fileno())
         self._last_flushed_event = len(self._events)
         self._dirty_events = False
     
@@ -472,49 +500,50 @@ class GraphStore:
         Args:
             skip_constraint_check: True 时跳过约束引擎 post_flush 钩子
         """
-        if not (self._dirty_nodes or self._dirty_edges or self._dirty_events):
-            return
-        
-        saved_nodes = not self._dirty_nodes
-        saved_edges = not self._dirty_edges
-        saved_events = not self._dirty_events
-        try:
-            if self._dirty_nodes:
-                self._flush_nodes()
-                saved_nodes = True
-            if self._dirty_edges:
-                self._flush_edges()
-                saved_edges = True
-            if self._dirty_events:
-                self._flush_events()
-                saved_events = True
-        except Exception:
-            # 写入失败，恢复脏标记，下次 flush 重试
-            if not saved_nodes:
-                self._dirty_nodes = True
-            if not saved_edges:
-                self._dirty_edges = True
-            if not saved_events:
-                self._dirty_events = True
-            raise
-        
-        # 缓存写节流：每 N 次 flush 写一次（默认 N=5）
-        # 消除了 400-700ms 的每次全量序列化瓶颈
-        self._flush_counter += 1
-        if self._flush_counter >= self._cache_write_interval:
+        with self._lock:
+            if not (self._dirty_nodes or self._dirty_edges or self._dirty_events):
+                return
+
+            saved_nodes = not self._dirty_nodes
+            saved_edges = not self._dirty_edges
+            saved_events = not self._dirty_events
             try:
-                self._save_cache()
-            except Exception as e:
-                logger.warning("缓存写入失败（不影响本次 flush）: %s", e)
-            self._flush_counter = 0
-        
-        # post_flush：执行已注册的回调链（失败不影响写）
-        if not skip_constraint_check:
-            for hook in self._post_flush_hooks:
+                if self._dirty_nodes:
+                    self._flush_nodes()
+                    saved_nodes = True
+                if self._dirty_edges:
+                    self._flush_edges()
+                    saved_edges = True
+                if self._dirty_events:
+                    self._flush_events()
+                    saved_events = True
+            except Exception:
+                # 写入失败，恢复脏标记，下次 flush 重试
+                if not saved_nodes:
+                    self._dirty_nodes = True
+                if not saved_edges:
+                    self._dirty_edges = True
+                if not saved_events:
+                    self._dirty_events = True
+                raise
+
+            # 缓存写节流：每 N 次 flush 写一次（默认 N=5）
+            # 消除了 400-700ms 的每次全量序列化瓶颈
+            self._flush_counter += 1
+            if self._flush_counter >= self._cache_write_interval:
                 try:
-                    hook(self)
+                    self._save_cache()
                 except Exception as e:
-                    logger.warning("post_flush 钩子执行失败: %s", e)
+                    logger.warning("缓存写入失败（不影响本次 flush）: %s", e)
+                self._flush_counter = 0
+
+            # post_flush：执行已注册的回调链（失败不影响写）
+            if not skip_constraint_check:
+                for hook in self._post_flush_hooks:
+                    try:
+                        hook(self)
+                    except Exception as e:
+                        logger.warning("post_flush 钩子执行失败: %s", e)
     
     def register_post_flush_hook(self, hook: Callable[["GraphStore"], None]):
         """注册 flush 后回调钩子。
@@ -536,13 +565,14 @@ class GraphStore:
         - 过滤已归档单元
         """
         from graph_schema import UnitStatus
-        changed = []
-        for unit in self._units.values():
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
-            if unit.version > since_version:
-                changed.append(unit)
-        return changed
+        with self._lock:
+            changed = []
+            for unit in self._units.values():
+                if unit.status == UnitStatus.ARCHIVED:
+                    continue
+                if unit.version > since_version:
+                    changed.append(unit)
+            return changed
     
     # ── 事件记录 ────────────────────────────────────────────────────────
     
@@ -621,21 +651,48 @@ class GraphStore:
                 - "skip": 同名同类型单元已存在时直接返回已有单元（幂等），
                   不创建新单元、不覆盖内容。幂等性由 name+type 语义键保证。
         """
+        with self._lock:
+            return self._create_unit_locked(
+                type=type, unit_name=unit_name, content=content, status=status,
+                confidence=confidence, tags=tags, extra=extra, actor=actor,
+                structure_path=structure_path, parent_id=parent_id,
+                chapter_number=chapter_number, session_id=session_id,
+                if_exists=if_exists,
+            )
+
+    def _create_unit_locked(
+        self,
+        type: UnitType,
+        unit_name: str,
+        content: str = "",
+        status: UnitStatus = UnitStatus.SPROUT,
+        confidence: float = 0.5,
+        tags: Optional[List[str]] = None,
+        extra: Optional[Dict[str, Any]] = None,
+        actor: str = "script",
+        structure_path: Optional[List[Any]] = None,
+        parent_id: Optional[str] = None,
+        chapter_number: Optional[int] = None,
+        session_id: Optional[str] = None,
+        if_exists: str = "create",
+    ) -> NarrativeUnit:
+        """create_unit 的加锁实现（调用方须持有 self._lock）。"""
         # ── 幂等查重：name + type 语义键 ────────────────────────────────
-        # _unit_by_name 是按 name 的唯一索引；同名同类型才视为重复，
+        # _unit_by_name 是 name → [ids] 的多值索引；同名同类型才视为重复，
         # 同名不同类型（如 SCENE "第1章" 与 CHAPTER_PLAN "第1章"）允许共存。
         if if_exists != "create":
-            existing = self._unit_by_name.get(unit_name)
-            if existing is not None:
-                existing_unit = self._units.get(existing)
-                if existing_unit is not None and existing_unit.type == type and existing_unit.status != UnitStatus.ARCHIVED:
+            for existing_id in self._unit_by_name.get(unit_name, []):
+                existing_unit = self._units.get(existing_id)
+                if (existing_unit is not None
+                        and existing_unit.type == type
+                        and existing_unit.status != UnitStatus.ARCHIVED):
                     if if_exists == "skip":
                         # 幂等返回已有单元：不做任何写操作、不记录事件
                         return existing_unit
                     if if_exists == "error":
                         raise ValueError(
                             f"同名同类型单元已存在（type={type.value}, name={unit_name}, "
-                            f"id={existing}），拒绝重复创建。请改用 graph.get_unit / "
+                            f"id={existing_id}），拒绝重复创建。请改用 graph.get_unit / "
                             f"graph.update_unit 修改已有单元，或显式传 if_exists=create 强制新建。"
                         )
 
@@ -645,7 +702,7 @@ class GraphStore:
         except json.JSONDecodeError:
             content_dict = None
         if content_dict:
-            errors = validate_content(type, content_dict)
+            errors = validate_content(type, content_dict, project_root=str(self.project_root))
             if errors:
                 error_msg = f"content schema 校验不通过: {'; '.join(errors)}"
                 self._record_event(
@@ -683,7 +740,7 @@ class GraphStore:
             extra=extra or {},
         )
         self._units[unit.id] = unit
-        self._unit_by_name[unit.unit_name] = unit.id
+        self._unit_by_name.setdefault(unit.unit_name, []).append(unit.id)
         
         # 如果指定了 parent_id，自动建立 CONTAINS 关系
         if parent_id is not None and parent_id in self._units:
@@ -718,12 +775,34 @@ class GraphStore:
         """按 ID 获取叙事单元"""
         return self._units.get(unit_id)
     
-    def get_unit_by_name(self, name: str) -> Optional[NarrativeUnit]:
-        """按名称获取叙事单元"""
-        uid = self._unit_by_name.get(name)
-        if uid:
-            return self._units.get(uid)
-        return None
+    def get_unit_by_name(self, name: str, type: Optional[UnitType] = None) -> Optional[NarrativeUnit]:
+        """按名称获取叙事单元。
+
+        同名单元可跨类型共存（如 SCENE "第1章" 与 CHAPTER_PLAN "第1章"）。
+        - 传入 type 时：返回该类型下的匹配单元（有歧义时优先精确类型匹配）。
+        - 未传 type 时：返回第一个活跃匹配；若存在多个同名单元，记录一条
+          debug 日志使歧义显式化（调用方需要精确语义时应传 type）。
+        """
+        ids = self._unit_by_name.get(name, [])
+        if not ids:
+            return None
+        if type is not None:
+            for uid in ids:
+                u = self._units.get(uid)
+                if u is not None and u.type == type:
+                    return u
+            return None
+        if len(ids) > 1:
+            logger.debug(
+                "单元名 '%s' 存在 %d 个同名单元（%s），get_unit_by_name 返回第一个匹配；"
+                "需要精确语义请传入 type 参数",
+                name, len(ids), ", ".join(ids[:5]),
+            )
+        for uid in ids:
+            u = self._units.get(uid)
+            if u is not None and u.status != UnitStatus.ARCHIVED:
+                return u
+        return self._units.get(ids[0])
     
     def find_units(
         self,
@@ -734,25 +813,86 @@ class GraphStore:
         volume: Optional[int] = None,
     ) -> List[NarrativeUnit]:
         """
-        按条件查询叙事单元。chapter 参数只匹配 chapter_number。
+        按条件查询叙事单元。chapter 参数只匹配 chapter_number；volume 参数
+        按单元的卷号过滤（见 _get_unit_volume 的推导链）。
 
         默认排除已归档(archived)单元。如果需显式查询归档单元，传入 status=UnitStatus.ARCHIVED。
         """
-        results = []
-        for unit in self._units.values():
-            if type and unit.type != type:
-                continue
-            if status is not None:
-                if unit.status != status:
+        with self._lock:
+            results = []
+            for unit in self._units.values():
+                if type and unit.type != type:
                     continue
-            elif unit.status == UnitStatus.ARCHIVED:
-                continue  # 默认排除归档单元
-            if tags and not all(t in unit.tags for t in tags):
-                continue
-            if chapter is not None and unit.chapter_number != chapter:
-                continue
-            results.append(unit)
-        return results
+                if status is not None:
+                    if unit.status != status:
+                        continue
+                elif unit.status == UnitStatus.ARCHIVED:
+                    continue  # 默认排除归档单元
+                if tags and not all(t in unit.tags for t in tags):
+                    continue
+                if chapter is not None and unit.chapter_number != chapter:
+                    continue
+                if volume is not None and self._get_unit_volume(unit) != volume:
+                    continue
+                results.append(unit)
+            return results
+
+    def _get_unit_volume(self, unit: NarrativeUnit) -> Optional[int]:
+        """推导单元所属卷号。
+
+        推导链（从精确到兜底）：
+        1. content JSON 中的 volume_number / volume / 卷号
+        2. extra 中的 volume_number / volume
+        3. 沿 CONTAINS 边向上找 VOLUME_PLAN 祖先，取其 extra.sequence
+        4. structure_path 倒数第二个元素（若为 int，如 ["人界篇", 2, 15]）
+
+        返回 None 表示无法确定卷号（不参与 volume 过滤）。
+        """
+        # 1. content JSON 显式字段
+        content = self._parse_content(unit)
+        for key in ("volume_number", "volume", "卷号"):
+            v = content.get(key)
+            if v is not None:
+                try:
+                    return int(v)
+                except (ValueError, TypeError):
+                    continue
+        # 2. extra 字段
+        for key in ("volume_number", "volume"):
+            v = (unit.extra or {}).get(key)
+            if v is not None:
+                try:
+                    return int(v)
+                except (ValueError, TypeError):
+                    continue
+        # 3. 沿 CONTAINS 边向上找 VOLUME_PLAN 祖先
+        seen: Set[str] = set()
+        current_id = unit.id
+        while current_id and current_id not in seen:
+            seen.add(current_id)
+            parents = self.get_relations(
+                current_id, relation_type=RelationType.CONTAINS, direction="incoming"
+            )
+            if not parents:
+                break
+            parent = self.get_unit(parents[0].source_id)
+            if not parent:
+                break
+            if parent.type == UnitType.VOLUME_PLAN:
+                seq = (parent.extra or {}).get("sequence")
+                if seq is not None:
+                    try:
+                        return int(seq)
+                    except (ValueError, TypeError):
+                        return None
+                return None
+            current_id = parent.id
+        # 4. structure_path 倒数第二个 int（卷号）
+        if unit.structure_path and len(unit.structure_path) >= 2:
+            penultimate = unit.structure_path[-2]
+            if isinstance(penultimate, int):
+                return penultimate
+        return None
     
     def update_unit(
         self,
@@ -772,6 +912,28 @@ class GraphStore:
         Args:
             session_id: 关联的创作会话 ID（遥测归因，写入事件）。
         """
+        with self._lock:
+            return self._update_unit_locked(
+                unit_id=unit_id, content=content, status=status,
+                confidence=confidence, tags=tags, extra=extra,
+                unit_name=unit_name, actor=actor,
+                structure_path=structure_path, session_id=session_id,
+            )
+
+    def _update_unit_locked(
+        self,
+        unit_id: str,
+        content: Optional[str] = None,
+        status: Optional[UnitStatus] = None,
+        confidence: Optional[float] = None,
+        tags: Optional[List[str]] = None,
+        extra: Optional[Dict[str, Any]] = None,
+        unit_name: Optional[str] = None,
+        actor: str = "script",
+        structure_path: Optional[List[Any]] = None,
+        session_id: Optional[str] = None,
+    ) -> Optional[NarrativeUnit]:
+        """update_unit 的加锁实现（调用方须持有 self._lock）。"""
         unit = self._units.get(unit_id)
         if not unit:
             return None
@@ -787,7 +949,7 @@ class GraphStore:
             except json.JSONDecodeError:
                 content_dict = None
             if content_dict:
-                errors = validate_content(unit.type, content_dict)
+                errors = validate_content(unit.type, content_dict, project_root=str(self.project_root))
                 if errors:
                     self._record_event(
                         EventType.SYSTEM_EVENT, actor=actor,
@@ -811,13 +973,12 @@ class GraphStore:
             changed_fields["extra"] = (dict(unit.extra), extra)
             unit.extra = extra
         if unit_name is not None and unit_name != unit.unit_name:
-            # 更新名称索引
+            # 更新名称索引（多值索引：从旧名移除本 id，挂到新名）
             old_name = unit.unit_name
-            if old_name in self._unit_by_name:
-                del self._unit_by_name[old_name]
+            self._index_remove_name(old_name, unit.id)
             changed_fields["unit_name"] = (unit.unit_name, unit_name)
             unit.unit_name = unit_name
-            self._unit_by_name[unit.unit_name] = unit.id
+            self._unit_by_name.setdefault(unit.unit_name, []).append(unit.id)
         if structure_path is not None and structure_path != unit.structure_path:
             changed_fields["structure_path"] = (unit.structure_path, structure_path)
             unit.structure_path = structure_path
@@ -840,24 +1001,35 @@ class GraphStore:
         self._dirty_nodes = True
         self._dirty_unit_ids.add(unit_id)
         return unit
-    
+
+    def _index_remove_name(self, unit_name: str, unit_id: str) -> None:
+        """从多值名称索引中移除指定单元 ID（调用方须持有 self._lock）。"""
+        ids = self._unit_by_name.get(unit_name)
+        if not ids:
+            return
+        if unit_id in ids:
+            ids.remove(unit_id)
+        if not ids:
+            del self._unit_by_name[unit_name]
+
     def archive_unit(self, unit_id: str, actor: str = "script") -> bool:
         """归档一个叙事单元（软删除）"""
-        unit = self._units.get(unit_id)
-        if not unit:
-            return False
-        unit.status = UnitStatus.ARCHIVED
-        unit.updated_at = datetime.now(timezone.utc)
-        
-        self._record_event(
-            EventType.UNIT_ARCHIVED,
-            actor=actor,
-            target_type="unit",
-            target_ids=[unit_id],
-        )
-        self._dirty_nodes = True
-        self._dirty_unit_ids.add(unit_id)
-        return True
+        with self._lock:
+            unit = self._units.get(unit_id)
+            if not unit:
+                return False
+            unit.status = UnitStatus.ARCHIVED
+            unit.updated_at = datetime.now(timezone.utc)
+
+            self._record_event(
+                EventType.UNIT_ARCHIVED,
+                actor=actor,
+                target_type="unit",
+                target_ids=[unit_id],
+            )
+            self._dirty_nodes = True
+            self._dirty_unit_ids.add(unit_id)
+            return True
     
     def purge_archived(self, ids: Optional[List[str]] = None, actor: str = "script") -> dict:
         """
@@ -870,6 +1042,11 @@ class GraphStore:
         Returns:
             {"purged_units": int, "removed_relations": int, "unit_ids": List[str]}
         """
+        with self._lock:
+            return self._purge_archived_locked(ids=ids, actor=actor)
+
+    def _purge_archived_locked(self, ids: Optional[List[str]] = None, actor: str = "script") -> dict:
+        """purge_archived 的加锁实现（调用方须持有 self._lock）。"""
         # 确定待删除的单元 ID
         if ids is not None:
             target_ids = [
@@ -910,11 +1087,11 @@ class GraphStore:
                         r for r in self._incoming_edges[rel.target_id] if r != rel_id
                     ]
         
-        # 删除单元
+        # 删除单元（多值名称索引：仅移除被删 ID，同名的其它类型单元保留）
         for uid in target_ids:
             unit = self._units.pop(uid, None)
-            if unit and unit.unit_name in self._unit_by_name:
-                del self._unit_by_name[unit.unit_name]
+            if unit:
+                self._index_remove_name(unit.unit_name, uid)
         
         # 记录事件
         self._record_event(
@@ -1032,6 +1209,32 @@ class GraphStore:
             session_id: 关联的创作会话 ID（遥测归因，写入事件）。
             payload: 关系结构化载荷（证据锚点/时态约定写入处）。
         """
+        with self._lock:
+            return self._add_relation_locked(
+                source_id=source_id, target_id=target_id,
+                relation_type=relation_type, weight=weight,
+                description=description, label=label,
+                source_role=source_role, target_role=target_role,
+                actor=actor, record_event=record_event,
+                session_id=session_id, payload=payload,
+            )
+
+    def _add_relation_locked(
+        self,
+        source_id: str,
+        target_id: str,
+        relation_type: RelationType,
+        weight: float = 0.5,
+        description: str = "",
+        label: str = "",
+        source_role: str = "",
+        target_role: str = "",
+        actor: str = "script",
+        record_event: bool = True,
+        session_id: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Relation]:
+        """add_relation 的加锁实现（调用方须持有 self._lock）。"""
         if source_id not in self._units or target_id not in self._units:
             return None
         
@@ -1122,28 +1325,29 @@ class GraphStore:
     
     def remove_relation(self, relation_id: str, actor: str = "script") -> bool:
         """删除一条关系"""
-        rel = self._relations.pop(relation_id, None)
-        if not rel:
-            return False
-        
-        # 更新索引
-        if rel.source_id in self._outgoing_edges:
-            self._outgoing_edges[rel.source_id] = [
-                r for r in self._outgoing_edges[rel.source_id] if r != relation_id
-            ]
-        if rel.target_id in self._incoming_edges:
-            self._incoming_edges[rel.target_id] = [
-                r for r in self._incoming_edges[rel.target_id] if r != relation_id
-            ]
-        
-        self._record_event(
-            EventType.RELATION_REMOVED,
-            actor=actor,
-            target_type="relation",
-            target_ids=[relation_id],
-        )
-        self._dirty_edges = True
-        return True
+        with self._lock:
+            rel = self._relations.pop(relation_id, None)
+            if not rel:
+                return False
+            
+            # 更新索引
+            if rel.source_id in self._outgoing_edges:
+                self._outgoing_edges[rel.source_id] = [
+                    r for r in self._outgoing_edges[rel.source_id] if r != relation_id
+                ]
+            if rel.target_id in self._incoming_edges:
+                self._incoming_edges[rel.target_id] = [
+                    r for r in self._incoming_edges[rel.target_id] if r != relation_id
+                ]
+            
+            self._record_event(
+                EventType.RELATION_REMOVED,
+                actor=actor,
+                target_type="relation",
+                target_ids=[relation_id],
+            )
+            self._dirty_edges = True
+            return True
     
     # ── 层级关系查询（CONTAINS 边） ─────────────────────────────────────
     
@@ -1305,22 +1509,23 @@ class GraphStore:
         
         触发脏标记，使约束引擎在下次 flush 时检查 payload。
         """
-        rel = self._relations.get(relation_id)
-        if not rel:
-            return False
-        rel.payload = payload
-        rel.updated_at = datetime.now(timezone.utc)
-        self._dirty_edges = True
-        self._dirty_relation_ids.add(relation_id)
-        self._record_event(
-            EventType.RELATION_UPDATED,
-            actor=actor,
-            target_type="relation",
-            target_ids=[relation_id],
-            payload={"relation_type": rel.relation_type.value,
-                     "source_id": rel.source_id, "target_id": rel.target_id},
-        )
-        return True
+        with self._lock:
+            rel = self._relations.get(relation_id)
+            if not rel:
+                return False
+            rel.payload = payload
+            rel.updated_at = datetime.now(timezone.utc)
+            self._dirty_edges = True
+            self._dirty_relation_ids.add(relation_id)
+            self._record_event(
+                EventType.RELATION_UPDATED,
+                actor=actor,
+                target_type="relation",
+                target_ids=[relation_id],
+                payload={"relation_type": rel.relation_type.value,
+                         "source_id": rel.source_id, "target_id": rel.target_id},
+            )
+            return True
 
     def get_dirty_relation_ids(self) -> Set[str]:
         """获取所有待检查的边 ID（供约束引擎增量检查使用）。"""
@@ -1597,42 +1802,62 @@ class GraphStore:
     # ── 快照操作 ────────────────────────────────────────────────────────
     
     def create_snapshot(self, metadata: Optional[Dict[str, Any]] = None) -> GraphSnapshot:
-        """创建当前 graph 状态的快照"""
-        snapshot = GraphSnapshot(
-            snapshot_id=f"snap_{uuid.uuid4().hex[:12]}",
-            timestamp=datetime.now(timezone.utc),
-            units=list(self._units.values()),
-            relations=list(self._relations.values()),
-            last_event_id=self._events[-1].event_id if self._events else "",
-            metadata=metadata or {},
-        )
-        
-        snapshot_path = self.snapshots_dir / f"{snapshot.snapshot_id}.json"
-        with open(snapshot_path, "w", encoding="utf-8") as f:
-            json.dump(snapshot.to_dict(), f, ensure_ascii=False, indent=2)
-        
-        return snapshot
-    
-    def restore_snapshot(self, snapshot_id: str) -> bool:
-        """从快照恢复 graph 状态"""
-        snapshot_path = self.snapshots_dir / f"{snapshot_id}.json"
-        if not snapshot_path.exists():
-            return False
-        
-        with open(snapshot_path, "r", encoding="utf-8") as f:
-            data = json.loads(f.read())
-        
-        self._units = {u["id"]: NarrativeUnit.from_dict(u) for u in data["units"]}
-        self._relations = {}
-        for r in data["relations"]:
-            rel = Relation.from_dict(r)
-            self._relations[rel.id] = rel
-        
-        self._rebuild_indices()
-        self._dirty_nodes = True
-        self._dirty_edges = True
-        
-        return True
+        """创建当前 graph 状态的快照（原子写入：tmp + fsync + rename）。"""
+        with self._lock:
+            snapshot = GraphSnapshot(
+                snapshot_id=f"snap_{uuid.uuid4().hex[:12]}",
+                timestamp=datetime.now(timezone.utc),
+                units=list(self._units.values()),
+                relations=list(self._relations.values()),
+                last_event_id=self._events[-1].event_id if self._events else "",
+                metadata=metadata or {},
+            )
+
+            snapshot_path = self.snapshots_dir / f"{snapshot.snapshot_id}.json"
+            self._atomic_write(
+                snapshot_path,
+                lambda f: json.dump(snapshot.to_dict(), f, ensure_ascii=False, indent=2),
+            )
+
+            return snapshot
+
+    def restore_snapshot(self, snapshot_id: str, actor: str = "system") -> bool:
+        """从快照恢复 graph 状态。
+
+        恢复后记录一条 snapshot restore 事件，使事件日志与恢复后的状态
+        保持一致性（快照恢复本身也是 graph 历史的一部分）。
+        """
+        with self._lock:
+            snapshot_path = self.snapshots_dir / f"{snapshot_id}.json"
+            if not snapshot_path.exists():
+                return False
+
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                data = json.loads(f.read())
+
+            self._units = {u["id"]: NarrativeUnit.from_dict(u) for u in data["units"]}
+            self._relations = {}
+            for r in data["relations"]:
+                rel = Relation.from_dict(r)
+                self._relations[rel.id] = rel
+
+            self._rebuild_indices()
+            self._dirty_nodes = True
+            self._dirty_edges = True
+
+            # 记录恢复事件（事件日志与状态保持一致；_record_event 置脏事件标记）
+            self._record_event(
+                EventType.SYSTEM_EVENT,
+                actor=actor,
+                target_type="snapshot",
+                target_ids=[snapshot_id],
+                payload={
+                    "action": "restore_snapshot",
+                    "snapshot_last_event_id": data.get("last_event_id", ""),
+                },
+            )
+
+            return True
     
     def get_snapshots(self) -> List[Dict[str, Any]]:
         """列出所有快照"""
@@ -1669,6 +1894,11 @@ class GraphStore:
         这是一次性迁移函数。V2 新项目无需调用。
         执行后 structure_path 字段不再更新——CONTAINS 边成为真相源。
         """
+        with self._lock:
+            return self._migrate_structure_path_to_edges_locked(actor)
+
+    def _migrate_structure_path_to_edges_locked(self, actor: str) -> Dict[str, int]:
+        """migrate_structure_path_to_edges 的加锁实现（调用方须持有 self._lock）。"""
         found = 0
         edges_created = 0
         skipped = 0
@@ -1751,4 +1981,4 @@ class GraphStore:
     def get_schema_info(self, unit_type: UnitType) -> List[str]:
         """返回该类型的 content 字段要求（供注入 LLM prompt）"""
         from schemas import schema_info
-        return schema_info(unit_type)
+        return schema_info(unit_type, project_root=str(self.project_root))

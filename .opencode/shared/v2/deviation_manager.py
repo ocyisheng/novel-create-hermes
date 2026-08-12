@@ -35,7 +35,6 @@ from graph_store import _normalize_project_root
 
 logger = logging.getLogger(__name__)
 
-
 class DeviationSource(str, Enum):
     """偏差来源枚举"""
     MECHANICAL = "mechanical"           # 机械检查
@@ -71,6 +70,8 @@ class ScanState:
     """增量分析版本跟踪"""
     full_scan_version: int = 0
     last_scan_at: str = ""
+    constraint_watermark: int = 0  # 约束引擎增量水位：已检查过的最大 unit.version
+    constraint_checked: Dict[str, int] = field(default_factory=dict)  # {unit_id: 已检查版本}
 
 
 @dataclass
@@ -121,6 +122,8 @@ class DeviationManager:
             self._state.scan = ScanState(
                 full_scan_version=scan_data.get("full_scan_version", 0),
                 last_scan_at=scan_data.get("last_scan_at", ""),
+                constraint_watermark=scan_data.get("constraint_watermark", 0),
+                constraint_checked=dict(scan_data.get("constraint_checked", {})),
             )
             
             # 解析 deviations
@@ -144,18 +147,23 @@ class DeviationManager:
                 )
                 self._state.deviations[item.id] = item
         except Exception as e:
-            # 损坏的 YAML 无法恢复——重置状态但明确告警，防止静默丢失偏差记录
+            # 损坏的 YAML 无法恢复——先将损坏文件备份（防止数据永久丢失），
+            # 再重置为空状态并明确告警。
+            self._backup_corrupt_state_file()
             logger.warning(
-                "偏差状态文件损坏，已重置为空状态（原数据将被覆盖）: %s", e
+                "偏差状态文件损坏，已备份到 .corrupt-<timestamp> 并重置为空状态: %s", e
             )
             self._state = DeviationState()
 
     def save(self):
-        """将偏差状态写入 YAML 文件"""
+        """将偏差状态原子写入 YAML 文件（tmp + fsync + os.replace）。
+
+        保留 scanned_version 与 constraint_watermark，保证 save/load 往返不丢字段。
+        """
         deviations_list = []
         for item in self._state.deviations.values():
             d = asdict(item)
-            d.pop("scanned_version", None)
+            # 保留 scanned_version（不再丢弃——它是增量分析的关键元数据）
             deviations_list.append(d)
 
         data = {
@@ -163,13 +171,45 @@ class DeviationManager:
             "scan": {
                 "full_scan_version": self._state.scan.full_scan_version,
                 "last_scan_at": self._state.scan.last_scan_at,
+                "constraint_watermark": self._state.scan.constraint_watermark,
+                "constraint_checked": self._state.scan.constraint_checked,
             },
             "deviations": deviations_list,
         }
 
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
-        with open(self.state_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        # 原子写入：唯一 tmp 名 + fsync + os.replace，防止半写文件
+        tmp_path = (
+            f"{self.state_path}.{os.getpid()}.{uuid.uuid4().hex[:6]}.tmp"
+        )
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, self.state_path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            raise
+
+    def _backup_corrupt_state_file(self) -> None:
+        """将损坏的偏差状态文件备份为 .corrupt-<timestamp>。
+
+        仅在原文件存在时备份；备份失败不阻塞重置流程（记 warning）。
+        """
+        if not os.path.exists(self.state_path):
+            return
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        backup_path = f"{self.state_path}.corrupt-{timestamp}"
+        try:
+            os.replace(self.state_path, backup_path)
+            logger.warning("已备份损坏的偏差状态文件到: %s", backup_path)
+        except OSError as e:
+            logger.warning("备份损坏的偏差状态文件失败: %s", e)
 
     # ── 扫描状态管理 ──────────────────────────────────────────────────
 
@@ -181,6 +221,24 @@ class DeviationManager:
     def full_scan_version(self, version: int):
         self._state.scan.full_scan_version = version
         self._state.scan.last_scan_at = datetime.now(timezone.utc).isoformat()
+
+    @property
+    def constraint_watermark(self) -> int:
+        """约束引擎增量检查水位：已检查过的最大 unit.version。"""
+        return self._state.scan.constraint_watermark
+
+    @constraint_watermark.setter
+    def constraint_watermark(self, version: int):
+        self._state.scan.constraint_watermark = int(version)
+
+    @property
+    def constraint_checked(self) -> Dict[str, int]:
+        """约束引擎已检查版本表：{unit_id: 已检查的 unit.version}。
+
+        用于增量判定：unit.version > 表中记录的版本才需要重新检查。
+        新单元（version=1，未记录）必然触发检查。
+        """
+        return self._state.scan.constraint_checked
 
     # ── 偏差操作 ───────────────────────────────────────────────────────
 
@@ -258,17 +316,60 @@ class DeviationManager:
     def filter_for_presentation(self) -> List[DeviationItem]:
         """
         获取待展示的偏差列表。
-        
+
         过滤规则：
         - status=pending → 展示
         - status=resolved → 跳过
         - status=retained → 跳过
-        - 相同维度出现 ≥ 3 次的 → 不在此处处理（让 LLM 决定是否折叠）
+        - 相同维度出现 ≥ 3 条 pending 的 → 折叠为一条聚合条目（摘要中标注条数），
+          让 LLM 决定是否需要进一步折叠/分组，避免列表被同一维度刷屏。
         """
-        return [
+        pending = [
             item for item in self._state.deviations.values()
             if item.status == "pending"
         ]
+        return self._collapse_same_dimension(pending)
+
+    def _collapse_same_dimension(self, items: List[DeviationItem]) -> List[DeviationItem]:
+        """将同一维度 ≥3 条 pending 偏差折叠为一条聚合条目。
+
+        聚合条目保留维度、最高 severity、条数与实体列表；detail 中列出全部实体。
+        少于 3 条的维度原样透传。
+        """
+        by_dimension: Dict[str, List[DeviationItem]] = {}
+        for item in items:
+            by_dimension.setdefault(item.dimension, []).append(item)
+
+        result: List[DeviationItem] = []
+        for dimension, group in by_dimension.items():
+            if len(group) < 3:
+                result.extend(group)
+                continue
+            group_sorted = sorted(
+                group, key=lambda it: ("error", "warning", "info").index(it.severity)
+                if it.severity in ("error", "warning", "info") else 99
+            )
+            entities = [g.entity or "?" for g in group][:8]
+            entity_str = "、".join(entities)
+            if len(group) > 8:
+                entity_str += f" 等共 {len(group)} 条"
+            collapsed = DeviationItem(
+                id=f"{dimension}:collapse",
+                dimension=dimension,
+                entity=entity_str,
+                status="pending",
+                severity=group_sorted[0].severity,
+                first_detected=min((g.first_detected for g in group if g.first_detected), default=""),
+                last_detected=max((g.last_detected for g in group if g.last_detected), default=""),
+                detection_count=sum(g.detection_count for g in group),
+                summary=f"「{dimension}」维度共有 {len(group)} 条待处理偏差（已折叠），需 LLM 判断是否合并处理",
+                detail="\n".join(
+                    f"- [{g.severity}] {g.entity}：{g.summary}"
+                    for g in group[:10]
+                ),
+            )
+            result.append(collapsed)
+        return result
 
     # ── 统计 ───────────────────────────────────────────────────────────
 
@@ -292,16 +393,21 @@ class DeviationManager:
             "full_scan_version": self._state.scan.full_scan_version,
         }
 
-    def merge_from_check_results(self, results: list) -> Dict[str, int]:
+    def merge_from_check_results(self, results: list, full_scan: bool = False) -> Dict[str, int]:
         """
         将约束引擎/一致性检查结果合并到偏差状态中。
         
         接收 CheckResult dataclass 或兼容的 dict 列表。
+        full_scan: True 表示本次检查覆盖全部单元（全量扫描）。此时本次
+                  未再报出的 pending 偏差视为已修复，自动标记 resolved
+                  并计入 stats["resolved"]；增量检查（full_scan=False）
+                  不做自动解决，避免子集扫描误判。
         返回: {"new": N, "resolved": M, "updated": K}
         """
         from dataclasses import dataclass
         now = datetime.now(timezone.utc).isoformat()
         stats = {"new": 0, "resolved": 0, "updated": 0}
+        seen_keys: Set[str] = set()
         
         # rule_id → source 映射表（按最长前缀优先匹配）
         SOURCE_RULES = [
@@ -373,7 +479,8 @@ class DeviationManager:
             # 用 rule_id + 涉及单元 IDs 生成稳定 key
             unit_ids_sorted = sorted(units_involved) if units_involved else ["global"]
             key = f"{rule_id}:" + ":".join(unit_ids_sorted[:3])
-            
+            seen_keys.add(key)
+
             existing = self._state.deviations.get(key)
             if existing:
                 existing.detection_count += 1
@@ -401,7 +508,15 @@ class DeviationManager:
                     source=source,
                 )
                 stats["new"] += 1
-        
+
+        # 全量扫描下：未再报出的 pending 偏差视为已修复，自动标记 resolved
+        if full_scan and seen_keys:
+            for key, item in list(self._state.deviations.items()):
+                if item.status == "pending" and key not in seen_keys:
+                    item.status = "resolved"
+                    item.last_detected = now
+                    stats["resolved"] += 1
+
         self.save()
         return stats
     

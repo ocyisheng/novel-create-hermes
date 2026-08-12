@@ -102,7 +102,9 @@ class EventExtractor:
         registry: Optional[TypeRegistry] = None,
     ):
         self.store = store
-        self.registry = registry or TypeRegistry.get_global()
+        self.registry = registry or TypeRegistry.get_global(
+            project_root=str(store.project_root)
+        )
         self._stored_old_content: Optional[dict] = None
 
     # ── 主入口 ───────────────────────────────────────────────────────────

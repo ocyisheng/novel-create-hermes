@@ -216,7 +216,7 @@ class RelationInferrer:
         from type_registry import TypeRegistry
         count = 0
         type_name = unit.type.value if hasattr(unit.type, "value") else str(unit.type)
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(project_root=str(self.store.project_root))
         td = registry.get_type(type_name)
         if not td:
             return count
@@ -355,7 +355,9 @@ class RelationInferrer:
 
         # 从 type_registry 读取全部标签配置
         from type_registry import TypeRegistry
-        labels = TypeRegistry.get_global().get_relation_auto_labels(
+        labels = TypeRegistry.get_global(
+            project_root=str(self.store.project_root)
+        ).get_relation_auto_labels(
             unit.type.value, rel_type.value
         )
 

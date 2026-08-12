@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
-from graph_schema import UnitType, UnitStatus
+from graph_schema import UnitType, UnitStatus, RelationType
 from graph_store import GraphStore
 from type_registry import TypeRegistry
 from time_utils import get_story_time
@@ -107,7 +107,9 @@ class TemporalEventIndex:
         registry: Optional[TypeRegistry] = None,
     ):
         self.store = store
-        self.registry = registry or TypeRegistry.get_global()
+        self.registry = registry or TypeRegistry.get_global(
+            project_root=str(store.project_root)
+        )
         self._events: List[TemporalEvent] = []
 
         # 索引
@@ -135,7 +137,7 @@ class TemporalEventIndex:
         """
         if use_content_fallback is None:
             use_content_fallback = os.environ.get(
-                "NOVEL_TEMPORAL_CONTENT_FALLBACK", "1"
+                "NOVEL_TEMPORAL_CONTENT_FALLBACK", "0"
             ) in ("1", "true", "yes")
 
         self._events.clear()
@@ -184,7 +186,11 @@ class TemporalEventIndex:
     # ── 来源 A：从 TEMPORAL_EVENT 节点提取 ──────────────────────────────
 
     def _extract_from_event_nodes(self, covered_entities: Set[str] = set()):
-        """遍历 TEMPORAL_EVENT 节点，通过 HAS_EVENT 边关联到实体。"""
+        """遍历 TEMPORAL_EVENT 节点，通过 HAS_EVENT 边关联到实体。
+
+        关系查询使用 GraphStore 的 per-unit 索引（O(events+relations)），
+        不再逐事件全量扫描关系表。
+        """
         for unit in self.store._units.values():
             if unit.type != UnitType.TEMPORAL_EVENT:
                 continue
@@ -195,30 +201,33 @@ class TemporalEventIndex:
             if not content:
                 continue
 
-            # 通过 HAS_EVENT 入边找到关联实体
+            # 通过 HAS_EVENT 入边找到关联实体（per-unit 索引查询）
             entity_names: Set[str] = set()
             source_entity: Optional[str] = None
-            for rel in self.store._relations.values():
-                if rel.relation_type.value == "has_event" and rel.target_id == unit.id:
-                    parent = self.store.get_unit(rel.source_id)
-                    if parent:
-                        entity_names.add(parent.unit_name)
-                        source_entity = parent.unit_name
+            for rel in self.store.get_relations(
+                unit.id, relation_type=RelationType.HAS_EVENT, direction="incoming"
+            ):
+                parent = self.store.get_unit(rel.source_id)
+                if parent:
+                    entity_names.add(parent.unit_name)
+                    source_entity = parent.unit_name
 
             # 通过 LOCATED_AT 出边找到地点
             location = content.get("location", "") or ""
-            for rel in self.store._relations.values():
-                if rel.relation_type.value == "located_at" and rel.source_id == unit.id:
-                    loc = self.store.get_unit(rel.target_id)
-                    if loc:
-                        location = location or loc.unit_name
+            for rel in self.store.get_relations(
+                unit.id, relation_type=RelationType.LOCATED_AT, direction="outgoing"
+            ):
+                loc = self.store.get_unit(rel.target_id)
+                if loc:
+                    location = location or loc.unit_name
 
             # 通过 INVOLVES 出边找到参与者
-            for rel in self.store._relations.values():
-                if rel.relation_type.value == "involves" and rel.source_id == unit.id:
-                    participant = self.store.get_unit(rel.target_id)
-                    if participant and participant.unit_name:
-                        entity_names.add(participant.unit_name)
+            for rel in self.store.get_relations(
+                unit.id, relation_type=RelationType.INVOLVES, direction="outgoing"
+            ):
+                participant = self.store.get_unit(rel.target_id)
+                if participant and participant.unit_name:
+                    entity_names.add(participant.unit_name)
 
             ordinal = content.get("ordinal")
             if ordinal is not None:
@@ -269,8 +278,10 @@ class TemporalEventIndex:
         for unit in self.store._units.values():
             if unit.status == UnitStatus.ARCHIVED:
                 continue
-            # 跳过已有 TEMPORAL_EVENT 节点覆盖的实体
-            if unit.type == UnitType.CHARACTER_ARC and unit.unit_name in covered_entities:
+            # 跳过已有 TEMPORAL_EVENT 节点覆盖的实体——CHARACTER_ARC 与 SCENE
+            # 均可能由内容提取出与节点重复的 scene_event，防止重复事件入索引
+            if unit.type in (UnitType.CHARACTER_ARC, UnitType.SCENE) \
+                    and unit.unit_name in covered_entities:
                 continue
             events = extractor.extract(unit)
             for evt in events:

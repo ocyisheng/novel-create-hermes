@@ -52,6 +52,8 @@ class ConstraintEngine:
         self.registry = registry or TypeRegistry.get_global(
             project_root=str(store.project_root)
         )
+        # DeviationManager 实例缓存（延迟创建，复用同一实例保证水位/偏差一致落盘）
+        self._dm: Optional[Any] = None
 
     def register_with_store(self):
         """注册到 GraphStore 的 post_flush 钩子，使约束检查自动运行。"""
@@ -61,12 +63,27 @@ class ConstraintEngine:
         """flush 后自动调用的回调。run_incremental 自身已持久化。"""
         self.run_incremental()
 
+    def _get_deviation_manager(self):
+        """延迟创建并缓存 DeviationManager（与水位/偏差共用同一实例）。"""
+        if self._dm is None:
+            from deviation_manager import DeviationManager
+            self._dm = DeviationManager(str(self.store.project_root))
+        return self._dm
+
+    def _current_max_unit_version(self) -> int:
+        """当前所有单元（含归档）的最大 version；无单元时返回 0。"""
+        return max(
+            (u.version for u in self.store._units.values()), default=0
+        )
+
     def run(self, full: bool = False) -> List[CheckResult]:
         """
         全量运行约束检查。
         
         遍历所有非 archived 单元，检查其类型定义中的约束。
         结果自动持久化到 DeviationManager。
+        full=True 时同时推进增量水位（constraint_watermark），
+        使后续 run_incremental() 基于水位只检查有变更的单元。
         """
         results = []
         for unit in self.store._units.values():
@@ -81,17 +98,36 @@ class ConstraintEngine:
             unit_results = self._check_unit(unit, type_def)
             results.extend(unit_results)
 
-        if results:
-            self._persist_results(results)
+        dm = self._get_deviation_manager()
+        self._persist_results(results, dm, full_scan=full)
+        if full:
+            # 全量扫描：记录所有单元已检查到当前版本，并推进最大水位
+            checked = dm.constraint_checked
+            for u in self.store._units.values():
+                checked[u.id] = u.version
+            dm.constraint_watermark = self._current_max_unit_version()
+            dm.save()
         return results
 
     def run_incremental(self) -> List[CheckResult]:
         """
-        增量运行：只检查有变更的单元相关的约束。
-        
-        结果自动持久化到 DeviationManager。
+        增量运行：只检查 version 高于上次检查版本（constraint_checked 表）的单元。
+
+        unit.version 是逐单元计数器（从 1 起），因此仅靠单一水位无法识别
+        "新建但 version 未超过水位"的单元——这里用 {unit_id: 已检查版本} 表
+        判定：未记录（新建）或 version 递增（修改）的单元必然被检查，
+        未变化的单元不会被重新扫描。
+
+        结果自动持久化到 DeviationManager；检查成功后推进水位与已检查表。
         """
-        modified = self.store.get_modified_units(since_version=0)
+        dm = self._get_deviation_manager()
+        checked = dm.constraint_checked
+        # 候选：未检查过（新建）或 version 超过已检查版本（修改）
+        modified = [
+            unit for unit in self.store._units.values()
+            if unit.status.name != "ARCHIVED"
+            and unit.version > checked.get(unit.id, 0)
+        ]
         results = []
 
         # 检查活跃的已修改单元
@@ -105,7 +141,7 @@ class ConstraintEngine:
             results.extend(unit_results)
 
         # 额外检查状态相关约束：从 events 中找到最近归档的单元
-        # get_modified_units 已归档的不会返回，但状态守恒需要检查
+        # 增量候选不含 archived，但状态守恒需要检查
         archived_check = self._check_archived_units()
         results.extend(archived_check)
 
@@ -113,8 +149,13 @@ class ConstraintEngine:
         relation_results = self._check_relations_incremental()
         results.extend(relation_results)
 
-        if results:
-            self._persist_results(results)
+        self._persist_results(results, dm, full_scan=False)
+
+        # 记录本次已检查单元的版本，并推进最大水位（成功检查后）
+        for unit in self.store._units.values():
+            checked[unit.id] = unit.version
+        dm.constraint_watermark = self._current_max_unit_version()
+        dm.save()
         return results
 
     def _check_archived_units(self) -> List[CheckResult]:
@@ -360,8 +401,6 @@ class ConstraintEngine:
             return self._check_payload_temporal(pc, rel, source)
         elif pc.category == "boundary":
             return self._check_payload_boundary(pc, rel, source)
-        elif pc.category == "pattern":
-            return self._check_payload_pattern(pc, rel, source)
         return None
 
     def _check_payload_temporal(
@@ -411,8 +450,14 @@ class ConstraintEngine:
         # monotonic_increasing: 检查数组字段是否单调递增
         if pc.check == "monotonic_increasing" and len(pc.fields) >= 1:
             raw = self._traverse_payload(rel.payload, pc.fields[0])
-            # 如果结果是 [[...]]（嵌套路径如 upgrades → 取 upgrades 字段本身作为数组）
-            values = raw[0] if isinstance(raw, list) and raw else raw
+            # _traverse 统一返回 List[Any]：
+            #   - 直接数组路径（如 "upgrades"）→ [[{...}, {...}]]（外层包裹一层）
+            #   - 数组元素路径（如 "upgrades[].ordinal"）→ [1, 2, 3]（已展平）
+            # 仅当第一个元素本身是 list 时才解开外层包裹，两种路径都能正确取值。
+            if isinstance(raw, list) and raw and isinstance(raw[0], list):
+                values = raw[0]
+            else:
+                values = raw
             if not isinstance(values, list):
                 return None
             if len(values) <= 1:
@@ -473,26 +518,25 @@ class ConstraintEngine:
                 )
         return None
 
-    def _check_payload_pattern(
-        self,
-        pc: PayloadConstraintDef,
-        rel: Relation,
-        source: NarrativeUnit,
-    ) -> Optional[CheckResult]:
-        """payload 模式检测约束（扩展预留）。"""
-        return None
-
     def _traverse_payload(self, payload: Dict, path: str) -> Any:
         """在 payload dict 中按点分路径取值。"""
         return self.registry._traverse(payload, path)
 
-    def _persist_results(self, results: List[CheckResult]):
-        """将检查结果持久化到 DeviationManager。"""
+    def _persist_results(
+        self,
+        results: List[CheckResult],
+        dm: Optional[Any] = None,
+        full_scan: bool = False,
+    ):
+        """将检查结果持久化到 DeviationManager。
+
+        dm 可复用调用方已持有的实例（保证水位与偏差状态一致落盘）；
+        full_scan 标记本次是否为全量扫描（影响自动 resolve 语义）。
+        """
         try:
-            from deviation_manager import DeviationManager
-            project_root = str(self.store.project_root)
-            dm = DeviationManager(project_root)
-            dm.merge_from_check_results(results)
+            if dm is None:
+                dm = self._get_deviation_manager()
+            dm.merge_from_check_results(results, full_scan=full_scan)
         except Exception as e:
             logger.warning(
                 "ConstraintEngine._persist_results 失败: %s", e

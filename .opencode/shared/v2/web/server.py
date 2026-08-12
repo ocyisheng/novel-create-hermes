@@ -160,7 +160,9 @@ def create_app(project_root: str = "") -> FastAPI:
             ut = UnitType[unit_type.upper()]
         except KeyError:
             return {"error": f"未知单元类型: {unit_type}"}
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(
+            project_root=str(getattr(app.state, "project_root", "") or project_root)
+        )
         schema = registry.get_content_schema(ut.value)
         # 转成可 JSON 序列化的格式
         def _serialize_type(t):
@@ -197,7 +199,9 @@ def create_app(project_root: str = "") -> FastAPI:
         if not unit_type:
             return {"error": "缺少 unit_type 参数"}
         from type_registry import TypeRegistry
-        registry = TypeRegistry.get_global()
+        registry = TypeRegistry.get_global(
+            project_root=str(getattr(app.state, "project_root", "") or project_root)
+        )
         cfg = registry.get_subtype_config(unit_type)
         if not cfg:
             return {"unit_type": unit_type, "subtype": None}

@@ -742,19 +742,127 @@ class SearchEngine:
             lines.append("")
         return "\n".join(lines)
     
-    # ── R10-R12：占位实现（供 _CHECKERS 注册表调用） ──────────────
-    # 这些规则设计用于节奏分析和主角能动性检测，需要结合 LLM 分析。
-    # 当前返回空列表作为占位，避免 check_consistency 时 AttributeError。
-    # 后续可在 constraint_engine.py 中实现为 pattern 类别约束。
-    
+    # ── R10-R12：节奏 / 密度 / 能动性机械检测 ─────────────────────────
+    # 这些规则输出供 LLM 分析的原始信号（与 R1-R9 相同的机械定位），
+    # 由 LLM 判断"这是问题还是有意设计"。
+
     def _check_pacing_monotony(self) -> List[CheckResult]:
-        """规则 10：节奏单调检测（占位，返回空）"""
-        return []
-    
+        """规则 10：节奏单调——≥3 个连续场景（按章节+序数排序）共享同一 subtype。
+
+        机械标记节奏重复的信号，不推断后果。
+        """
+        import json as _json
+
+        results: List[CheckResult] = []
+        scenes = []
+        for unit in self.store._units.values():
+            if unit.type != UnitType.SCENE or unit.status == UnitStatus.ARCHIVED:
+                continue
+            content = unit.content
+            if isinstance(content, str) and content.startswith("{"):
+                try:
+                    content = _json.loads(content)
+                except (_json.JSONDecodeError, ValueError):
+                    content = {}
+            subtype = content.get("subtype", "") if isinstance(content, dict) else ""
+            if not subtype:
+                continue
+            scenes.append((
+                get_unit_chapter(unit),
+                get_story_ordinal(unit) or 0.0,
+                unit.id,
+                unit.unit_name or "?",
+                subtype,
+            ))
+
+        if len(scenes) < 3:
+            return results
+
+        scenes.sort(key=lambda s: (s[0], s[1]))
+        run = 1
+        for i in range(1, len(scenes)):
+            if scenes[i][4] == scenes[i - 1][4]:
+                run += 1
+            else:
+                run = 1
+            if run == 3:
+                results.append(CheckResult(
+                    rule_name="节奏单调",
+                    rule_id="R10",
+                    severity="warning",
+                    description=(
+                        f"连续 {run} 个场景类型均为「{scenes[i][4]}」"
+                        f"（{scenes[i - run + 1][3]} → {scenes[i][3]}）"
+                    ),
+                    units_involved=[scenes[i][2]],
+                    detail=f"场景「{scenes[i][3]}」（ch{scenes[i][0]}）与前面 {run - 1} 个场景同 subtype",
+                ))
+        return results
+
     def _check_density_deviation(self) -> List[CheckResult]:
-        """规则 11：密度偏离检测（占位，返回空）"""
-        return []
-    
+        """规则 11：密度偏离——CHUNK 字数显著高于同类均值（>2.5× 均值）。
+
+        样本少于 3 个 CHUNK 时不判断，避免小样本误报。
+        """
+        chunks = []
+        for unit in self.store._units.values():
+            if unit.type != UnitType.CHUNK or unit.status == UnitStatus.ARCHIVED:
+                continue
+            chunks.append((unit.id, unit.unit_name or "?", len(unit.content or "")))
+
+        results: List[CheckResult] = []
+        if len(chunks) < 3:
+            return results
+        lengths = [c[2] for c in chunks]
+        mean = sum(lengths) / len(lengths)
+        if mean <= 0:
+            return results
+        threshold = mean * 2.5
+        for cid, cname, length in chunks:
+            if length > threshold:
+                results.append(CheckResult(
+                    rule_name="密度偏离",
+                    rule_id="R11",
+                    severity="warning",
+                    description=(
+                        f"CHUNK『{cname}』字数 {length} 显著高于均值 {mean:.0f}"
+                    ),
+                    units_involved=[cid],
+                    detail=f"密度偏离：{length} > {threshold:.0f}（{2.5}× 均值）",
+                ))
+        return results
+
     def _check_protagonist_agency(self) -> List[CheckResult]:
-        """规则 12：主角能动性检测（占位，返回空）"""
-        return []
+        """规则 12：主角能动性——主角出场 ≥3 个场景却没有任何主动关系。
+
+        "主动关系"定义为除 PARTICIPATES_IN 之外的任意出边
+        （如 CAUSES/REFERENCES/PRECEDES）。仅机械标记被动信号，不下结论。
+        """
+        results: List[CheckResult] = []
+        for unit in self.store._units.values():
+            if unit.type != UnitType.CHARACTER_ARC or unit.status == UnitStatus.ARCHIVED:
+                continue
+            if "主角" not in unit.tags:
+                continue
+            outgoing = self.store.get_relations(unit.id, direction="outgoing")
+            scene_rels = [
+                r for r in outgoing if r.relation_type == RelationType.PARTICIPATES_IN
+            ]
+            if len(scene_rels) < 3:
+                continue
+            active_rels = [
+                r for r in outgoing if r.relation_type != RelationType.PARTICIPATES_IN
+            ]
+            if not active_rels:
+                results.append(CheckResult(
+                    rule_name="主角能动性不足",
+                    rule_id="R12",
+                    severity="warning",
+                    description=(
+                        f"主角『{unit.unit_name}』在 {len(scene_rels)} 个场景中出场，"
+                        f"但没有任何主动关系"
+                    ),
+                    units_involved=[unit.id],
+                    detail="连续被动：仅有 PARTICIPATES_IN 出边，无 CAUSES/REFERENCES 等主动关系",
+                ))
+        return results

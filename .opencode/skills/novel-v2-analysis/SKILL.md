@@ -31,4 +31,4 @@ tags: ["novel", "v2", "analysis", "analyzer", "quality"]
 
 - 操作层：`novel-v2-core`（必读）
 - 诊断方法论：`novel-search-analysis`（4 模式：align / cross-ref / gap / full-diagnose）
-- 只读约束：诊断路径只读（唯一写例外 `deviation.merge`，见 novel-diagnose agent 契约）
+- 只读约束：诊断路径只读（`deviation.merge` 是偏差库的写入通道，多方可调用，按 `dimension+entity` 键控合并，见 novel-diagnose agent 契约）

@@ -12,7 +12,7 @@ tags: ["novel", "search", "analysis", "quality", "v2"]
 ## 核心职责
 
 在创作过程中（不限于"之后"），提供搜索、分析、意图对齐核验能力，找出创作数据与用户意图之间的偏差。
-**只读 graph 单元（不 create/update/archive/关系）；唯一允许的写操作 = deviation.merge（偏差状态文件，非 graph 单元）**——仅输出结构化分析报告。
+**只读 graph 单元（不 create/update/archive/关系）；`deviation.merge` 为偏差库写入通道，多方可调用，按 `dimension+entity` 键控合并**——仅输出结构化分析报告。
 
 **不做什么/边界**：不写优化线索/分析清单（不写 `.engine/analysis/`），分析结果只持久化到 `deviation_state.yaml`。
 

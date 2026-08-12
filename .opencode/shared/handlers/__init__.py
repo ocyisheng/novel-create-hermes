@@ -423,6 +423,12 @@ def run_operation(op_name: str, **params) -> dict:
         return {"error": f"未知操作: {op_name}"}
     accepted = set(entry["params"].keys())
     filtered = {k: v for k, v in params.items() if k in accepted}
+    # 警告被静默过滤的参数（排除 adapter 层无条件注入的 actor）
+    INJECTED = {"actor"}
+    unknown = set(params.keys()) - accepted - INJECTED
+    if unknown:
+        import warnings
+        warnings.warn(f"novel-tool 参数被静默过滤: {unknown} (operation={op_name})", stacklevel=2)
     try:
         return entry["handler"](**filtered)
     except Exception as e:

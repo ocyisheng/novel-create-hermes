@@ -307,8 +307,8 @@ export default tool({
         "graph.get_neighbors", "graph.check", "graph.find_unit",
         "graph.list_relation_types", "graph.recent_events", "graph.get_modified_units",
         // graph writes
-        "graph.create_unit", "graph.update_unit", "graph.add_relation",
-        "graph.flush", "graph.fix_asymmetry", "graph.get_relations", "graph.remove_relation", "graph.batch_infer",
+        "graph.create_unit", "graph.update_unit", "graph.add_relation", "graph.update_relation",
+        "graph.flush", "constraint.check", "graph.quality_check", "graph.fix_asymmetry", "graph.get_relations", "graph.remove_relation", "graph.batch_infer",
         "graph.archive_unit", "graph.purge_archived",
         // graph hierarchy queries
         "graph.find_descendants", "graph.find_ancestors",
@@ -378,7 +378,7 @@ export default tool({
     parent_id: tool.schema.string().optional().describe("创建单元时的父级单元 ID（自动建 CONTAINS 边）"),
     max_depth: tool.schema.number().optional().describe("find_descendants/get_neighbors 最大深度"),
     direction: tool.schema.string().optional().describe("方向 (outgoing/incoming/both，默认 both)"),
-    actor: tool.schema.string().optional().describe("操作者标识 (orchestrator/crafter/ideation/search-analysis)"),
+    actor: tool.schema.string().optional().describe("操作者标识 (orchestrator/novel-planner/novel-writer/novel-analyzer/novel-diagnose/novel-lore-search)"),
     force: tool.schema.boolean().optional().describe("强制模式"),
     verbose: tool.schema.boolean().optional().describe("详细模式（显示完整内容）"),
     if_exists: tool.schema.string().optional().describe("创建单元时同名单元已存在的处理策略 (error/skip/create，默认 error)"),
@@ -401,7 +401,7 @@ export default tool({
     mode: tool.schema.string().optional().describe("analyze.usage 模式 (quick/full，默认 full)"),
     json_output: tool.schema.boolean().optional().describe("analyze.usage 是否输出 JSON（默认 false）"),
     task_id: tool.schema.string().optional().describe("子 Agent 任务 ID（如 bg_xxx / ses_xxx）"),
-    subagent: tool.schema.string().optional().describe("子 Agent 类型（explore / novel-v2-crafter / novel-ideation 等）"),
+    subagent: tool.schema.string().optional().describe("子 Agent 类型（explore / novel-writer / novel-planner / novel-analyzer / novel-diagnose / novel-lore-search / novel-book-importer）"),
     preheat_level: tool.schema.string().optional().describe("预热级别 (cold/warm/hot)"),
     humanize: tool.schema.boolean().optional().describe("是否去 AI 味"),
     prompt_summary: tool.schema.string().optional().describe("子 Agent prompt 自然语言摘要"),

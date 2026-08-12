@@ -1,6 +1,6 @@
 ---
 name: "novel-ideation"
-description: "创意方案生成：基于约束库和焦点上下文，为下游 crafter 生成可选方案。不直接操作 graph，输出为自然语言方案清单。供规划主 agent（novel-planner）通过 subagent_type='novel-ideation' + load_skills=['novel-ideation'] 调度。触发词：创意、构思、方案、方向、灵感"
+description: "创意方案生成：基于约束库和焦点上下文，为规划闭环生成可选方案。不直接操作 graph，输出为自然语言方案清单。由 novel-planner 以 skill("novel-ideation") 方式加载自执行（非 subagent 调度）。触发词：创意、构思、方案、方向、灵感"
 license: "MIT"
 version: "4.0.0"
 compatibility: "OpenCode"
@@ -11,9 +11,9 @@ tags: ["novel", "ideation", "v2"]
 
 ## 定位
 
-本技能供规划主 agent（novel-planner）通过 `subagent_type="novel-ideation"` + `load_skills=["novel-ideation"]` 调度时注入。ideation 是 grill 和 crafter 之间的可选步骤——grill 收敛需求后，规划主 agent（novel-planner）可选择是否让 ideation 生成几套方案。
+本技能由 novel-planner 以 `skill("novel-ideation")` 方式加载自执行（**非 subagent 调度**——不存在 novel-ideation agent）。ideation 是 grill 与设计物化之间的可选步骤——grill 收敛需求后，novel-planner 可选择是否让 ideation 生成几套方案。
 
-ideation 是**只读**步骤——输出仅通过 task 响应文本传递，**MUST NOT 写入 graph**（不调用任何 graph 写操作）。由规划主 agent（novel-planner）直接消费并注入 crafter TASK。
+ideation 是**只读**步骤——输出仅通过响应文本传递，**MUST NOT 写入 graph**（不调用任何 graph 写操作）。由 novel-planner 直接消费，用于后续设计决策。
 
 ## 操作模式
 

@@ -28,13 +28,14 @@ V2 认为写作的基本单位不是"文档"而是**叙事单元**：
 ### 架构层次
 
 ```
-novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现（grill）
+orchestrator.md（唯一入口）→ 意图识别 + 基建自处理 + 领域扇出
         │
-        ├─ task(subagent_type="novel-v2-crafter", ...)    ← V2 统一创作
-        ├─ task(subagent_type="novel-ideation", ...)      ← 创意方案生成
-        └─ task(subagent_type="novel-search-analysis")    ← 深度诊断
+        ├─ novel-planner（设计）   → grill → 创意 → 六维 → NOTE 单元（唯一写类型）
+        ├─ novel-writer（物化）    → 业务单元 + 关系 + 质检（actor 门禁白名单）
+        ├─ novel-analyzer（诊断）  → 快速检索自执行 / 调度 novel-diagnose
+        └─ subagents              → novel-diagnose / novel-lore-search / novel-book-importer
         │                      │
-        │              load_skills=["novel-v2"]
+        │              load_skills=["novel-v2-core", "<角色技能>", ...]
         │                      │
         ▼                      ▼
 ┌─────────────────────────────────────────────┐
@@ -102,10 +103,13 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现（g
 
 | 子 Agent | 职责 | 权限 |
 |---------|------|------|
-| `novel-writer` | 编排层：意图识别、焦点映射、需求发现（grill）、子 Agent 调度决策 | 读 prompt 文件 + `task()` 调度 |
-| `novel-v2-crafter` | 全部创作任务：章节写作、角色管理、世界观建设、情节设计、质检、导出 | `edit`, `bash`, `read`, `write`, `novel-tool` |
-| `novel-ideation` | 创意方案生成：在 grill 收敛需求后生成可选方案 | `edit`, `bash`, `read`, `write`, `novel-tool` |
-| `novel-search-analysis` | 深度诊断：完整性扫描、意图对齐、交叉引用、Gap 分析（只读） | `read`, `novel-tool` **仅** |
+| `orchestrator` | 总编排（唯一入口）：意图识别、基建自处理、领域扇出调度 | `novel-tool` + `task()` 调度 |
+| `novel-planner` | 设计讨论：grill 需求发现 → 创意方案 → 六维冲突设计 → NOTE 单元（唯一写类型） | `read`, `novel-tool`, `skill()` |
+| `novel-writer` | 写作物化：单元内容创作、关系构建、质量检查、写后处理（actor 门禁白名单） | `read`, `novel-tool`, `skill()` |
+| `novel-analyzer` | 诊断编排：快检自执行（novel-search-analysis 方法论）、深度诊断调度 novel-diagnose | `read`, `novel-tool`, `skill()` |
+| `novel-diagnose` | 深度诊断 subagent：align/cross-ref/gap/full-diagnose（只读 + deviation.merge 唯一写例外） | `read`, `novel-tool` **仅** |
+| `novel-lore-search` | 跨库检索 subagent：graph + knowledge/ + 文件系统全文检索（只读） | `read`, `novel-tool` **仅** |
+| `novel-book-importer` | 书籍导入 subagent：book-to-knowledge 全管道（写 knowledge/） | `read`, `write`, `bash` |
 
 子 Agent 不走链式调用，编排层收到结果后直接决策下一步。
 
@@ -116,18 +120,18 @@ novel-writer.md（编排层）→ 意图识别 + 焦点映射 + 需求发现（g
 #### 创作路由
 
 ```
-用户请求 → 明确指令? → 是 → 直接调 crafter（注入 FOCUS TYPE / FOCUS ID / PREHEAT LEVEL / WRITING MODE）
-                  → 否 → skill("novel-grill") 收敛需求 → 用户确认 → 调 crafter
+用户请求 → 明确指令? → 是 → orchestrator 路由到 novel-writer（写作物化）/ novel-planner（设计讨论）/ novel-analyzer（诊断）
+                  → 否 → skill("novel-grill") 收敛需求 → 用户确认 → 按领域路由
 ```
 
-Grill 后可选 `novel-ideation` 生成方案再路由到 crafter。
+Grill 后可选 `skill("novel-ideation")` 生成方案（由 novel-planner 自执行加载），再进入设计/写作闭环。
 
 #### 搜索分析路由
 
 ```
 搜索分析请求
   ├─ 简单数据检索（"找找天道宗在哪"）→ novel-tool graph.search（直接调 tool）
-  └─ 深度诊断（分析/核验/对齐/整体检测）→ task(subagent_type="novel-search-analysis", ...)
+  └─ 深度诊断（分析/核验/对齐/整体检测）→ task(subagent_type="novel-diagnose", ...)
 ```
 
 简单数据检索不需要 LLM 分析，直接走 tool；深度诊断需要 LLM 推理，走子 Agent。

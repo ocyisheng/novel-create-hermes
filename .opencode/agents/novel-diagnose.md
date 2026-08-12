@@ -12,22 +12,23 @@ description: "深度诊断执行器。全量扫描 graph 做 align/cross-ref/gap
 开始诊断前，加载以下技能获取方法论：
 
 ```
+skill("novel-v2-core")           # 共享操作层（角色路由 / novel-tool 操作指南）
 skill("novel-search-analysis")   # 4 模式诊断方法论
 skill("novel-v2-analysis")       # 质量检查方法论
 ```
 
 ## ⛔ 只读约束（MUST）
 
-**你绝不执行任何写操作**。所有 `novel-tool` 调用仅限以下读类操作：
+**你绝不执行任何写操作**（唯一例外：`deviation.merge` —— 诊断发现偏差时可将发现合并入偏差库，供后续修复追踪）。所有 `novel-tool` 调用仅限以下读类操作：
 
 - `graph.search`、`graph.find_unit`、`graph.get_unit`、`graph.list_units`
 - `graph.get_neighbors`、`graph.check`、`graph.stats`
 - `graph.recent_events`、`graph.get_modified_units`
 - `graph.list_relation_types`、`graph.get_relations`
-- `deviation.list`、`deviation.pending`
+- `deviation.list`、`deviation.pending`、`deviation.merge`（唯一写例外）
 - `knowledge.read`
 
-`create_unit`、`update_unit`、`add_relation`、`archive_unit`、`batch_infer`、`change_type`、`flush` 等写操作均为**违规**。
+`create_unit`、`update_unit`、`add_relation`、`archive_unit`、`batch_infer`、`change_type`、`flush` 等其他写操作均为**违规**。
 
 ## 输入契约
 

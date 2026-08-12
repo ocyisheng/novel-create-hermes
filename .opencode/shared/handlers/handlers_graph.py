@@ -302,21 +302,23 @@ def set_orchestrator_write_blocked(blocked: bool):
 def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
     """检查调用者是否有权限直接写 graph。返回 dict | None 而非抛异常。
     
-    允许的 actor：novel-v2-crafter / v2-crafter（创作通路）、script（迁移脚本）、fix-asymmetry、novel-tool
-    禁止的 actor：orchestrator（编排层应通过 crafter）或其他未识别值
+    允许的 actor：novel-writer（创作通路，主执行者）、novel-planner（仅 NOTE 白名单）、
+    novel-v2-crafter / v2-crafter（迁移期遗留别名，兼容旧调用）、script（迁移脚本）、
+    fix-asymmetry、novel-tool、web-ui
+    禁止的 actor：orchestrator（编排层应通过 novel-writer）或其他未识别值
     
     Returns: None（允许）或 {"error": ..., "blocked_operation": ...}（拒绝，error 含修正指引）
     """
     if not _ORCHESTRATOR_WRITE_BLOCKED:
         return None
     
-    ALLOWED_WRITE_ACTORS = {"novel-v2-crafter", "v2-crafter", "script", "fix-asymmetry", "novel-tool", "web-ui", "novel-planner"}
+    ALLOWED_WRITE_ACTORS = {"novel-writer", "novel-v2-crafter", "v2-crafter", "novel-planner", "script", "fix-asymmetry", "novel-tool", "web-ui"}
     if actor not in ALLOWED_WRITE_ACTORS:
         return {
             "error": (
                 f"不允许直接调用 {operation}（actor={actor}）。"
-                f"叙事内容写操作必须通过 novel-v2-crafter 子 agent 执行。"
-                f"请使用 task(subagent_type='novel-v2-crafter', load_skills=['novel-v2'], ...)"
+                f"叙事内容写操作必须通过 novel-writer 主 agent 执行。"
+                f"请调度 task(subagent_type='novel-writer', load_skills=['novel-v2-core', 'novel-v2-writing'], ...)"
             ),
             "blocked_operation": operation,
         }
@@ -662,7 +664,7 @@ def handle_create_unit(
         chapter = _auto_detect_chapter(content or "", name)
 
     store = _get_store(project_root)
-    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else ("planner" if actor == "novel-planner" else "manual")
+    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter", "novel-writer") else ("planner" if actor == "novel-planner" else "manual")
     store.set_session_context(session_id)
     try:
         # skip 模式前置查重：已存在（非归档）则直接返回已有单元，跳过关系推断/事件抽取
@@ -911,7 +913,7 @@ def handle_add_relation(
             return {"error": "novel-planner 不允许建立两端均非 NOTE 的关系。规划主 agent 只能为 note 建立关系。如需角色↔角色关系请切换到 novel-writer。"}
     store.set_session_context(session_id)
     # 证据锚点：按 actor 判定来源通道
-    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter") else ("planner" if actor == "novel-planner" else "manual")
+    source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter", "novel-writer") else ("planner" if actor == "novel-planner" else "manual")
     payload_dict = {}
     if payload:
         try:

@@ -17,7 +17,7 @@
 **判断逻辑**：
 1. 从每份总结提取用户意图与路由路径：
    - 主 Agent 总结：`### 意图与路由` 段落的 `用户意图：{描述}` 与 `路由路径：{分支名}`
-   - 子 Agent 总结：`## 用户意图` 段落；路由路径取其 frontmatter/index 的 `subagent` 类型（explore / novel-v2-crafter / novel-ideation / novel-search-analysis）
+   - 子 Agent 总结：`## 用户意图` 段落；路由路径取其 frontmatter/index 的 `subagent` 类型（explore / novel-writer / novel-planner / novel-analyzer / novel-diagnose / novel-lore-search / novel-book-importer）
 2. 对用户意图做模糊归类（按关键词分组，如含"检查"/"找找"归为搜索类，含"写第"/"写作"归为创作类）
 3. 同一类意图在不同总结中走了不同路由路径 → 标记为 `[workflow][auto] 路由分歧`
 4. 同一意图在不同总结中走了相同路径但结果不一致 → 标记为 `[workflow][auto] 执行不一致`

@@ -27,13 +27,15 @@ description: |
 
 | 用户请求类型 | 你的动作 |
 |---|---|
-| 设计/构思/大纲讨论/角色设定/世界观/冲突 | 调度 **novel-planner**，传 PLANNER 契约 |
-| 写章/正文/物化/编辑/润色 | 调度 **novel-writer**，传 WRITER 契约 |
-| 质检/搜索/诊断/AI味/一致性检查 | 调度 **novel-analyzer**，传 ANALYZER 契约 |
+| 设计/构思/大纲讨论/角色设定/世界观/冲突 | 调度 **novel-planner**，传 PLANNER 契约 <!-- ref: novel-v2-core#planner --> |
+| 写章/正文/物化/编辑/润色 | 调度 **novel-writer**，传 WRITER 契约 <!-- ref: novel-v2-core#writer --> |
+| 质检/搜索/诊断/AI味/一致性检查 | 调度 **novel-analyzer**，传 ANALYZER 契约 <!-- ref: novel-v2-core#analyzer --> |
 | 新建项目/导入/环境/知识库/导出/可视化/状态 | **自己处理**（基建操作） |
-| 跨库查找设定/引用/搜索 | 调度 **novel-lore-search** |
-| 深度诊断请求 | 经 **novel-analyzer**，或直接调度 **novel-diagnose** |
-| 导入书籍建知识库 | 预收敛 4 问 → 调度 **novel-book-importer** |
+| 跨库查找设定/引用/搜索 | 调度 **novel-lore-search** <!-- ref: novel-v2-core#lore-search --> |
+| 深度诊断请求 | 经 **novel-analyzer**，或直接调度 **novel-diagnose** <!-- ref: novel-v2-core#diagnose --> |
+| 导入书籍建知识库 | 预收敛 4 问 → 调度 **novel-book-importer** <!-- ref: novel-v2-core#book-importer --> |
+
+> **检索路径选择**：详见 [SELECTION_GUIDE.md](../docs/SELECTION_GUIDE.md) <!-- ref: docs/SELECTION_GUIDE.md -->
 
 ## 基建操作
 
@@ -153,7 +155,7 @@ novel-tool(operation="graph.find_unit", name="单元名称")
 
 - 不直接写 graph（基建写操作除外，如 project.new）
 - 不执行创作讨论、正文写作、质检分析
-- 不调度 crafter/ideation/search-analysis（已整合进领域 agent）
+- 不调度已废弃的 V1 子 agent（已整合进领域 agent）
 
 ---
 *路由: 意图识别 → 基建自处理 / 领域调度 / subagent 扇出*

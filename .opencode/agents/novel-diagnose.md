@@ -1,6 +1,6 @@
 ---
 name: novel-diagnose
-description: "深度诊断执行器。全量扫描 graph 做 align/cross-ref/gap/full-diagnose，返回诊断报告。支持后台运行。只读，不写任何数据。"
+description: "深度诊断执行器。全量扫描 graph 做 align/cross-ref/gap/full-diagnose，返回诊断报告。支持后台运行。graph 只读，deviation.merge 为偏差库写入通道（多方可调用，按 dimension+entity 键控合并）。"
 ---
 
 # novel-diagnose — 深度诊断执行器
@@ -19,13 +19,13 @@ skill("novel-v2-analysis")       # 质量检查方法论
 
 ## ⛔ 只读约束（MUST）
 
-**你绝不执行任何写操作**（唯一例外：`deviation.merge` —— 诊断发现偏差时可将发现合并入偏差库，供后续修复追踪）。所有 `novel-tool` 调用仅限以下读类操作：
+**你绝不执行任何 graph 写操作**（`deviation.merge` 为偏差库写入通道，多方可调用，按 `dimension+entity` 键控合并 —— 诊断发现偏差时可将发现合并入偏差库，供后续修复追踪）。所有 `novel-tool` 调用仅限以下读类操作：
 
 - `graph.search`、`graph.find_unit`、`graph.get_unit`、`graph.list_units`
 - `graph.get_neighbors`、`graph.check`、`graph.stats`
 - `graph.recent_events`、`graph.get_modified_units`
 - `graph.list_relation_types`、`graph.get_relations`
-- `deviation.list`、`deviation.pending`、`deviation.merge`（唯一写例外）
+- `deviation.list`、`deviation.pending`、`deviation.merge`
 - `knowledge.read`
 
 `create_unit`、`update_unit`、`add_relation`、`archive_unit`、`batch_infer`、`change_type`、`flush` 等其他写操作均为**违规**。

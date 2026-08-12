@@ -1,13 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "agent": {
-    "novel-router": {
-      "description": "意图识别 + 建议切换 + 非创作基础设施——环境、项目管理、知识库、导出、可视化、快速状态查询",
+    "orchestrator": {
+      "description": "统一入口主 agent——意图识别、基建自处理、创作类调度、上下文隔离 subagent 扇出",
       "mode": "primary",
       "model": "opencode/big-pickle",
-      "prompt": ".opencode/agents/novel-router.md",
+      "prompt": ".opencode/agents/orchestrator.md",
       "skills": ["novel-project-manager", "novel-env-setup", "book-knowledge", "book-to-knowledge", "novel-dev-ops"],
       "tools": {
+        "task": true,
         "skill": true,
         "read": true,
         "bash": true,
@@ -17,11 +18,11 @@
       }
     },
     "novel-planner": {
-      "description": "设计讨论主 agent——需求发现、创意构思、六维冲突设计、调度 ideation 生成方案、设计成果写入 NOTE 单元",
-      "mode": "primary",
+      "description": "设计讨论主 agent——需求发现、创意构思、六维冲突设计、设计成果写入 NOTE 单元",
+      "mode": "all",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-planner.md",
-      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-v2", "novel-dev-ops"],
+      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-v2-planning", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
@@ -32,26 +33,27 @@
       }
     },
     "novel-writer": {
-      "description": "写作主 agent——读规划 note、调度 crafter 全量物化、编辑修改、写后处理",
-      "mode": "primary",
+      "description": "写作主 agent——读规划 note、物化创作全流程、编辑修改、写后处理",
+      "mode": "all",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-writer.md",
-      "skills": ["novel-v2", "humanizer-zh-enhanced", "novel-dev-ops"],
+      "skills": ["novel-v2-writing", "humanizer-zh-enhanced", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
         "read": true,
         "edit": true,
         "write": true,
+        "bash": true,
         "novel-tool": true
       }
     },
     "novel-analyzer": {
-      "description": "只读诊断主 agent——快速检索、深度诊断调度 search-analysis、输出诊断报告",
-      "mode": "primary",
+      "description": "只读质检主 agent——快速检索自执行、深度诊断调度 diagnose、输出诊断报告",
+      "mode": "all",
       "model": "deepseek/deepseek-v4-flash",
       "prompt": ".opencode/agents/novel-analyzer.md",
-      "skills": ["novel-search-analysis", "novel-v2", "novel-dev-ops"],
+      "skills": ["novel-search-analysis", "novel-v2-analysis", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
@@ -59,37 +61,37 @@
         "novel-tool": true
       }
     },
-    "novel-v2-crafter": {
-      "description": "V2 统一创作子引擎。基于叙事单元网络(graph)处理全部创作任务：章节写作、角色管理、世界观建设、情节设计、总纲大纲、质量检测、编辑修订",
-      "mode": "subagent",
-      "model": "opencode/big-pickle",
-      "prompt": ".opencode/agents/novel-v2-crafter.md",
-      "skills": ["novel-v2"],
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "read": "allow",
-        "write": "allow",
-        "novel-tool": "allow"
-      }
-    },
-    "novel-search-analysis": {
-      "description": "深度诊断引擎。对 V2 项目做完整性扫描、意图对齐核验、交叉引用检测、Gap 分析、增量诊断",
+    "novel-lore-search": {
+      "description": "跨库检索器——graph+knowledge+文件系统检索，返回结构化摘要（只读）",
       "mode": "subagent",
       "model": "deepseek/deepseek-v4-flash",
-      "prompt": ".opencode/agents/novel-search-analysis.md",
+      "prompt": ".opencode/agents/novel-lore-search.md",
       "permission": {
         "read": "allow",
         "novel-tool": "allow"
       }
     },
-    "novel-ideation": {
-      "description": "创意方案生成器。在 grill 收敛需求后，基于约束库和焦点上下文生成可选方案（只读，不写入 graph）",
+    "novel-diagnose": {
+      "description": "深度诊断执行器——align/cross-ref/gap/full-diagnose 全量扫描，返回报告（只读）",
       "mode": "subagent",
-      "model": "opencode/big-pickle",
-      "prompt": ".opencode/agents/novel-ideation.md",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": ".opencode/agents/novel-diagnose.md",
+      "skills": ["novel-search-analysis", "novel-v2-analysis"],
       "permission": {
         "read": "allow",
+        "novel-tool": "allow"
+      }
+    },
+    "novel-book-importer": {
+      "description": "书籍导入执行器——book-to-knowledge 全管道，产出知识库到 knowledge/<slug>/",
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "prompt": ".opencode/agents/novel-book-importer.md",
+      "skills": ["book-to-knowledge"],
+      "permission": {
+        "read": "allow",
+        "bash": "allow",
+        "write": "allow",
         "novel-tool": "allow"
       }
     }

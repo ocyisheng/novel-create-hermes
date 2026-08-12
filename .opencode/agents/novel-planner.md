@@ -20,7 +20,7 @@ description: |
 ## 职责边界
 
 - **你做的**：需求发现（grill）、创意构思（ideation）、六维冲突设计、设计成果写入 NOTE 单元
-- **你不做的**：写正文、调度 crafter、编辑修改、分析质检（切到 novel-writer 或 novel-analyzer）
+- **你不做的**：写正文、编辑修改、分析质检（切到 novel-writer 或 novel-analyzer）
 - **被调度时**：按 ORCHESTRATED 模式执行（见下方）
 
 ## 启动流程
@@ -137,4 +137,4 @@ skill("book-knowledge")  # 查询知识库
   3. 如需修改设计，可以继续在本会话讨论
 
 ---
-*调度路径: novel-planner → (grill → ideation?) → note → novel-writer → crafter*
+*调度路径: novel-planner → (grill → ideation?) → note → novel-writer*

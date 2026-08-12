@@ -59,7 +59,7 @@
 
 ## 证据锚点与时态（payload 约定键，P2 起）
 
-- **证据锚点**：自动边（relation_inferrer / fix_asymmetry）写入 `payload.source="auto"` + 出处 `chapter`；`handle_add_relation` 按 actor 判定 `source="llm"`（crafter）或 `"manual"`（script/web-ui）。可用 `graph.get_relations` 读回 `payload` 溯源。
+- **证据锚点**：自动边（relation_inferrer / fix_asymmetry）写入 `payload.source="auto"` + 出处 `chapter`；`handle_add_relation` 按 actor 判定 `source="llm"`（novel-writer）或 `"manual"`（script/web-ui）。可用 `graph.get_relations` 读回 `payload` 溯源。
 - **时态约定**（约定而非新字段）：`payload.start_chapter` / `end_chapter` / `resolve_chapter` 表达关系生效/结束/伏笔回收章节。`Relation.set_temporal_scope()` / `get_temporal_scope()` 为读写入口。
 
 ## 常用操作

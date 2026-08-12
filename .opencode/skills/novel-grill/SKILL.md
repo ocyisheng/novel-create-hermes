@@ -105,7 +105,7 @@ novel-tool(
 3. **推荐答案必须具体** — 有依据的选项，不泛泛而谈
 4. **尊重用户中断** — `pass` 跳过，`stop` 终止
 5. **不直接 read 项目文件** — 使用 novel-tool tool 查询 graph，不做文件级操作
-6. **chunk 不经过 grill** — 正文写作不进入需求发现流程，规划主 agent 直接调度 crafter
+6. **chunk 不经过 grill** — 正文写作不进入需求发现流程，规划主 agent 直接物化
 
 ## 参考文件
 

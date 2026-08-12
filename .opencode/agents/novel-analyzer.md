@@ -39,6 +39,8 @@ description: |
 
 **方法论参考**：skill("novel-search-analysis") 已在启动时加载，包含 4 模式方法论（align/cross-ref/gap/full-diagnose），但快速检索使用 novel-tool 读类操作自执行，不调度子 agent。
 
+> **检索路径选择**：详见 [SELECTION_GUIDE.md](../docs/SELECTION_GUIDE.md) <!-- ref: docs/SELECTION_GUIDE.md -->
+
 ```python
 novel-tool(operation="graph.search", keyword="角色名")
 novel-tool(operation="graph.get_unit", id="单元ID")

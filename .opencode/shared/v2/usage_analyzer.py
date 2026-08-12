@@ -419,7 +419,7 @@ def collect_usage_data(project_root: str, telemetry_project: str = "") -> dict:
             "type": "quality",
             "target": f"dimension:{worst_dim}",
             "signal": f"偏差最多维度: {worst_dim} ({by_dim[worst_dim]} 次)",
-            "action": "优化 crafter prompt 中该维度的处理逻辑",
+            "action": "优化 novel-writer prompt 中该维度的处理逻辑",
         })
 
     # 基于修改模式
@@ -443,7 +443,7 @@ def collect_usage_data(project_root: str, telemetry_project: str = "") -> dict:
                 "type": "efficiency",
                 "target": "general",
                 "signal": f"修改/创建比: {update_count}/{create_count} = {update_count/create_count:.1f}",
-                "action": "首次生成质量可能不足，需优化 crafter 的首次输出",
+                "action": "首次生成质量可能不足，需优化 novel-writer 的首次输出",
             })
 
     report["sections"]["suggestions"] = suggestions

@@ -25,7 +25,7 @@ tags: ["novel", "conflict-design", "character", "plot"]
 | 创意发散/方案生成（ideation） | ✅ planner 注入——用维度约束框定创意的方向 |
 | 纯技术性操作（导出/质检/查重） | ❌ 不加载 |
 
-> **加载者**：novel-planner。本技能不被子 Agent 自行加载——planner 在调度 crafter/ideation 前，将相关维度内容注入 prompt。
+> **加载者**：novel-planner。本技能不被子 Agent 自行加载——planner 在物化/创意生成前，将相关维度内容注入 prompt。
 
 ---
 
@@ -97,7 +97,7 @@ ideation（方案生成）
   ├─ 用维度对立（模式C）生成冲突方案
   │
   ▼
-crafter（创作执行）
+novel-writer（创作执行）
   │
   ├─ 将选定的维度嵌入角色 content 的「角色弧线」字段
   ├─ 将不处理的后果映射为关键事件
@@ -126,7 +126,7 @@ graph（持久化）
 
 ## 模式 C 产出后的关系落盘（桥接到 graph）
 
-使用**模式 C（维度对立）**确认对立关系后，由执行者（crafter/ideation）用 novel-tool 把对立结构落盘到 graph，供后续写作与 R2 一致性检查引用：
+使用**模式 C（维度对立）**确认对立关系后，由执行者（novel-writer/ideation）用 novel-tool 把对立结构落盘到 graph，供后续写作与 R2 一致性检查引用：
 
 - 对立双方为角色 → `graph.add_relation(source="{角色A}", target="{角色B}", rel_type="relates_to", label="维度对立", bidirectional=true)`
 - 冲突已实体化为具体事件/设定 → 追加 `rel_type="contradicts"` 边

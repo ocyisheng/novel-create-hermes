@@ -87,7 +87,7 @@ SCRIPT_PATH="$SKILL_DIR/scripts/extract.py"
 
 ---
 
-> **路由器协作**：调度此 skill 时，路由器（novel-router）将注册 todowrite 追踪多步骤进度。本 skill 每完成一个关键步骤（环境检查、文件复制、文本提取、AI分段、框架提取、文件写入、清理、索引更新、验证）后，应告知路由器（novel-router）更新 todo 状态。
+> **编排协作**：调度此 skill 时，orchestrator 将注册 todowrite 追踪多步骤进度。本 skill 每完成一个关键步骤（环境检查、文件复制、文本提取、AI分段、框架提取、文件写入、清理、索引更新、验证）后，应告知 orchestrator 更新 todo 状态。
 
 ## Step 0 — Out-of-scope check
 

@@ -48,7 +48,7 @@
 
 ## 注入模板
 
-在 crafter/ideation prompt 中使用：
+在 novel-writer/ideation prompt 中使用：
 
 ```markdown
 ### 六维冲突设计参考

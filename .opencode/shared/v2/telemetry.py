@@ -6,7 +6,7 @@ telemetry.py — 工具调用遥测记录模块。
 记录的字段：
 - ts: 时间戳
 - project: 所属小说项目名（跨项目聚合用）
-- caller: 调用者标识（orchestrator | crafter | ideation | search-analysis | unknown）
+- caller: 调用者标识（orchestrator | novel-writer | novel-planner | novel-analyzer | unknown）
 - op: 操作名
 - params: 参数（不含大 content）
 - success: 是否成功

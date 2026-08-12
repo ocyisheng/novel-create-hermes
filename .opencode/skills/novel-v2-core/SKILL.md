@@ -685,6 +685,15 @@ novel_tool(
 )
 ```
 
+## 参考文件
+
+| 文件 | 内容 |
+|:----|:-----|
+| `references/relation_guide.md` | 关系操作指南 |
+| `references/planning/structure.md` | 结构化规划参考 |
+| `references/planning/plot_thread.md` | 情节线规划参考 |
+| `references/planning/note.md` | NOTE 单元规范 |
+
 ## HARD CONSTRAINTS
 
 1. **图操作唯一性**：所有图操作必须通过 `novel-tool` → `run_operation` → `GraphStore` / `DeviationManager` 路径，禁止直接编辑 `nodes.jsonl` 或 `edges.jsonl`

@@ -26,7 +26,12 @@ tags: ["novel", "v2", "writing", "writer", "graph", "content"]
 
 写作角色专属参考（本技能目录）：
 
-- `references/writing/` — 写作流程与最佳实践（scene / chunk / character_arc / world_rule / thematic_motif / narrative_voice）
+- `references/writing/scene.md` — 场景写作指南
+- `references/writing/chunk.md` — 片段写作指南
+- `references/writing/character_arc.md` — 角色弧线写作指南
+- `references/writing/world_rule.md` — 世界观规则写作指南
+- `references/writing/thematic_motif.md` — 主题动机写作指南
+- `references/writing/narrative_voice.md` — 叙述腔调写作指南
 - `references/writing/content字段参考.md` — content 字段规范
 
 共享参考（在 novel-v2-core）：

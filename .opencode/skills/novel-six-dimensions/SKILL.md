@@ -132,7 +132,7 @@ graph（持久化）
 - 冲突已实体化为具体事件/设定 → 追加 `rel_type="contradicts"` 边
 - 派系层面（对立升级为阵营冲突）→ `member_of` / `controls` 边
 
-> 关系类型选用与开放标签规则见 `novel-v2/references/relation_guide.md`。
+> 关系类型选用与开放标签规则见 `novel-v2-core/references/relation_guide.md`。
 
 ---
 

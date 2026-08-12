@@ -249,6 +249,8 @@ novel-tool(operation="graph.stats", project="<PROJECT>")
 
 分析中发现的偏差通过 `deviation.*` 操作持久化到 `graph/deviation_state.yaml`：
 
+> 以下操作与 novel-v2-core §3-§4 一致，独立加载时自包含；与 core 同载时以 core 为准
+
 ```
 # 合并新发现
 novel-tool(operation="deviation.merge", project="<PROJECT>", findings='[{"dimension":"character_trait","entity":"林昭","severity":"warning","summary":"角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'"}]')

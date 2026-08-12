@@ -1,6 +1,6 @@
 ---
 name: "novel-ideation"
-description: "创意方案生成：基于约束库和焦点上下文，为规划闭环生成可选方案。不直接操作 graph，输出为自然语言方案清单。由 novel-planner 以 skill("novel-ideation") 方式加载自执行（非 subagent 调度）。触发词：创意、构思、方案、方向、灵感"
+description: "创意方案生成：基于约束库和焦点上下文，为规划闭环生成可选方案。不直接操作 graph，输出为自然语言方案清单。由 novel-planner 以 skill(novel-ideation) 方式加载自执行（非 subagent 调度）。触发词：创意、构思、方案、方向、灵感"
 license: "MIT"
 version: "4.0.0"
 compatibility: "OpenCode"

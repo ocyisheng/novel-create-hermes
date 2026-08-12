@@ -1,6 +1,10 @@
 ---
 name: book-to-knowledge
 description: "Convert books and documents (PDF, EPUB, DOCX, HTML, Markdown, plain text, RTF, MOBI/AZW) into structured knowledge bases by extracting frameworks, mental models, principles, techniques, and anti-patterns. Output to knowledge/<slug>/. Triggers: import book, knowledge base, extract, book-to-knowledge"
+license: MIT
+version: 1.0.0
+compatibility: OpenCode
+tags: ["novel", "knowledge-base", "import", "extraction"]
 ---
 
 <!--

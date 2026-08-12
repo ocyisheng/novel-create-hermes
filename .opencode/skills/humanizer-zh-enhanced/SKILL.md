@@ -6,6 +6,10 @@ description: |
   当用户要求"去AI味""改写得更自然""太像AI了""人性化""去掉模板感""润色""仿写"时使用。
   适用于论文、公众号文章、博客、报告等所有需要人类化处理的中文文本。
   附带原版独有的声音校准（风格匹配）、最终反AI自检、质量评分体系。
+license: MIT
+version: 1.0.0
+compatibility: OpenCode
+tags: ["novel", "text-processing", "humanization", "chinese"]
 ---
 
 # Humanizer-zh Enhanced

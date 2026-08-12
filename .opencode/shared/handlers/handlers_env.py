@@ -51,7 +51,7 @@ def handle_env_check() -> dict:
         try:
             r = subprocess.run(
                 [str(_venv_python(VENV_DIR)), "-c", "import yaml; print(yaml.__version__)"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL,
             )
             deps_ok = r.returncode == 0
             if not deps_ok:
@@ -78,12 +78,12 @@ def handle_env_fix() -> dict:
     if req.exists():
         r = subprocess.run(
             [str(venv_python), "-m", "pip", "install", "-r", str(req)],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL,
         )
     else:
         r = subprocess.run(
             [str(venv_python), "-m", "pip", "install", "pyyaml"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
         )
 
     return {
@@ -102,7 +102,7 @@ def handle_env_force() -> dict:
     python_cmd = "python" if platform.system() == "Windows" else "python3"
     r1 = subprocess.run(
         [python_cmd, "-m", "venv", str(VENV_DIR)],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
     )
     if r1.returncode != 0:
         return {"error": f"创建虚拟环境失败: {r1.stderr}"}
@@ -113,12 +113,12 @@ def handle_env_force() -> dict:
     if req.exists():
         r2 = subprocess.run(
             [str(venv_python), "-m", "pip", "install", "-r", str(req)],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL,
         )
     else:
         r2 = subprocess.run(
             [str(venv_python), "-m", "pip", "install", "pyyaml"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
         )
 
     return {

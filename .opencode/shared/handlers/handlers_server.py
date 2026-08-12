@@ -45,7 +45,7 @@ def _kill_proc(pid: int) -> bool:
     """尝试 kill 进程，返回是否成功。"""
     try:
         if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5, stdin=subprocess.DEVNULL)
         else:
             os.kill(pid, 9)
         return True

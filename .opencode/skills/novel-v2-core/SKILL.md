@@ -30,7 +30,7 @@ novel-v2-core 是 V2 创作体系的**共享操作层**：角色路由、上下�
 | **planner** | `novel-planner`, `规划`, `planning` | 设计讨论：grill 需求发现 → 创意方案 → 六维冲突设计 → 写入 NOTE 单元（唯一写类型） |
 | **writer** | `novel-writer`, `写作`, `writing`, `写` | 写作物化：单元内容创作/优化、关系构建、质量检查、写后处理（actor 门禁白名单） |
 | **analyzer** | `novel-analyzer`, `分析`, `analysis`, `质检` | 诊断编排：快检自执行（novel-search-analysis 方法论）、深度诊断调度 novel-diagnose |
-| **diagnose** | `novel-diagnose` | 深度诊断 subagent：align/cross-ref/gap/full-diagnose（只读 + deviation.merge 唯一写例外） |
+| **diagnose** | `novel-diagnose` | 深度诊断 subagent：align/cross-ref/gap/full-diagnose（只读 + deviation.merge 写通道） |
 | **lore-search** | `novel-lore-search` | 跨库检索 subagent：graph + knowledge/ + 文件系统全文检索（只读） |
 | **book-importer** | `novel-book-importer` | 书籍导入 subagent：book-to-knowledge 全管道（写 knowledge/） |
 
@@ -331,12 +331,8 @@ novel_tool(
 novel_tool(
     operation="session.start",
     project="项目名",
-    focus_name="焦点名称",
-    focus_type="scene",
-    cycle_type="ideation",
-    phase="ideation",
-    preheat_level="warm",
-    verbose=True
+    id="ses_xxx",
+    focus_type="scene"
 )
 
 # 设置会话循环
@@ -357,17 +353,14 @@ novel_tool(
 novel_tool(
     operation="session.build_workspace",
     project="项目名",
-    focus_name="焦点名称",
-    focus_type="scene",
-    preheat_level="warm",
-    verbose=True
+    id="ses_xxx",
+    preheat_level="warm"
 )
 
 # 会话信息
 novel_tool(
     operation="session.info",
-    project="项目名",
-    session_id="ses_xxx"
+    project="项目名"
 )
 ```
 
@@ -708,8 +701,19 @@ novel_tool(
 
 7. **错误处理**：所有操作必须捕获异常并返回 `{status: "failed", error: "错误信息"}`，禁止吞错
 
-8. **版本控制**：迁移操作必须指定 `since_version`，禁止无版本迁移
+8. **版本控制**：增量扫描操作（`graph.get_modified_units`）必须指定 `since_version`，禁止无版本增量扫描
 
 9. **技能加载**：V2 技能必须 `["novel-v2-core", "<角色技能>"]` 成对加载；禁止单独加载角色技能（缺少操作层）或引用幽灵技能名（`novel-v2` / `novel-v2-crafter`）
 
 10. **参考文件**：所有参考文件必须从 `references/` 目录加载，禁止硬编码路径
+
+## DEVIATION_MERGE_POLICY
+
+偏差合并策略（`deviation.merge` 的行为契约）：
+
+1. **合并键**：`dimension + entity` 组合为唯一键（`entity_id` 为辅助，不参与键判定）
+2. **新偏差**：键不存在于状态 → 直接添加，`detection_count=1`，记录 `first_detected` 与 `last_detected`
+3. **已有偏差**：键命中 → `detection_count += 1`，`last_detected` 更新为当前时间，`summary`/`detail` 取最新值（last-write-wins）
+4. **已解决/保留状态保护**：`status == "resolved"` 或 `"retained"` 的偏差，合并时**不重置状态**，仅更新计数与时间戳、summary/detail
+5. **多入口写入**：`novel-writer`（写后自检）、`novel-search-analysis`（align/full-diagnose）、`novel-diagnose` 均可调用 `deviation.merge`，按 `dimension+entity` 键控合并，**无需显式优先级**（last-write-wins 自然消解冲突）
+6. **写入通道声明**：`deviation.merge` 是偏差库的写入通道，多方可调用，按 `dimension+entity` 键控合并

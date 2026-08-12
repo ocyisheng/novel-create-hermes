@@ -244,7 +244,7 @@ OPERATION_REGISTRY = {
     # project
     "project.new": {
         "handler": handle_project_new,
-        "params": {"project_root": {"required": True}, "genre": {"required": True}, "v2": {}, "volumes": {}, "acts": {}, "structure": {}},
+        "params": {"project_root": {"required": True}, "genre": {}, "v2": {}, "volumes": {}, "acts": {}, "structure": {}},
     },
     "project.import": {
         "handler": handle_project_import,
@@ -416,13 +416,31 @@ def run_operation(op_name: str, **params) -> dict:
         **params: 规范化参数（参数名已映射为规范名）
 
     Returns:
-        handler 返回的 dict（可能含 "error" 键表示失败）
+        handler 返回的 dict。统一返回信封（envelope）：
+        - 成功：原有数据键 + `"status": "ok"`
+        - 失败：`"error"` 键 + `"status": "error"`
+        `status` 字段为新增的统一标记（additive，不替换/删除任何原有键），
+        供调用方（novel_tool.py / cli.py）快速判定成功/失败。
+
+    校验：
+        - registry 声明 `{"required": True}` 的参数缺失 / 为 None / 为空字符串时，
+          直接返回干净的错误 dict（无 traceback）。
+        - 未知操作返回 {"error": ..., "status": "error"}。
     """
     entry = OPERATION_REGISTRY.get(op_name)
     if not entry:
-        return {"error": f"未知操作: {op_name}"}
+        return {"error": f"未知操作: {op_name}", "status": "error"}
     accepted = set(entry["params"].keys())
     filtered = {k: v for k, v in params.items() if k in accepted}
+    # 必填参数校验：缺失 / None / 空字符串 → 干净报错（不落到 handler，无 traceback）
+    required = [p for p, spec in entry["params"].items() if spec.get("required")]
+    missing = [p for p in required if not filtered.get(p)]
+    if missing:
+        name = missing[0]
+        return {
+            "error": f"缺少必填参数: {name} (operation={op_name})",
+            "status": "error",
+        }
     # 警告被静默过滤的参数（排除 adapter 层无条件注入的 actor）
     INJECTED = {"actor"}
     unknown = set(params.keys()) - accepted - INJECTED
@@ -430,7 +448,13 @@ def run_operation(op_name: str, **params) -> dict:
         import warnings
         warnings.warn(f"novel-tool 参数被静默过滤: {unknown} (operation={op_name})", stacklevel=2)
     try:
-        return entry["handler"](**filtered)
+        result = entry["handler"](**filtered)
     except Exception as e:
         import traceback
-        return {"error": f"{e}\n{traceback.format_exc()}"}
+        return {"error": f"{e}\n{traceback.format_exc()}", "status": "error"}
+    # 信封归一化：成功 → status="ok"，失败 → status="error"（additive，保留全部原有键）
+    if "error" in result:
+        result.setdefault("status", "error")
+    else:
+        result.setdefault("status", "ok")
+    return result

@@ -18,6 +18,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ._common import _paginate
+
 
 def _resolve_engine_kind_dir(kind: str) -> str:
     """解析 .engine/{kind}/ 目录路径（kind: summaries | subagents）。"""
@@ -98,16 +100,6 @@ def _atomic_write_json(path: str, data: dict) -> None:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise
-
-
-def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
-    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
-    total = len(items)
-    if limit and limit > 0:
-        items = items[offset:offset + limit]
-    elif offset:
-        items = items[offset:]
-    return items, total
 
 
 def handle_save_summary(

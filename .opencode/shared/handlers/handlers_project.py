@@ -5,41 +5,19 @@ handlers_project.py — 项目管理纯业务逻辑函数。
 提取自 novel_tool.py _handle_project 和 project_init.py cmd_*。
 """
 
-import json
 import os
 import shutil
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional
 
 from graph_store import is_v2_project
-
-_SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))
+from ._common import (
+    ensure_sys_path,
+    _SHARED_DIR, _V2_DIR,
+    _find_novels_root, NOVELS_ROOT, _resolve_project,
+    _derive_progress, _vol_num, _vol_name,
 )
-_V2_DIR = os.path.join(_SHARED_DIR, "v2")
-for _d in [_SHARED_DIR, _V2_DIR]:
-    if _d not in sys.path:
-        sys.path.insert(0, _d)
 
-
-# ── 工具函数 ──────────────────────────────────────────────────────────────
-
-def _find_novels_root() -> str:
-    env = os.environ.get("NOVELS_ROOT")
-    if env and os.path.isdir(env):
-        return env
-    cwd = os.path.join(os.getcwd(), "novels")
-    if os.path.isdir(cwd):
-        return cwd
-    tool_root = os.path.abspath(os.path.join(_SHARED_DIR, "..", ".."))
-    tool_novels = os.path.join(tool_root, "novels")
-    if os.path.isdir(tool_novels):
-        return tool_novels
-    return cwd
-
-
-NOVELS_ROOT = _find_novels_root()
+ensure_sys_path()
 
 
 # ── 运行时模式 (MODE) ──────────────────────────────────────────────────
@@ -259,85 +237,6 @@ def handle_project_status(project_root: str, phase: str = "") -> dict:
             result["v2_progress"] = None
 
     return result
-
-
-def _derive_progress(project_path: str) -> dict:
-    """从 graph 实时推算写作进度。"""
-    from graph_schema import UnitType, UnitStatus, get_unit_chapter
-    store = _get_store(project_path)
-    result = {}
-    chunks = store.find_units(type=UnitType.CHUNK)
-    chunk_chapters = sorted(set(
-        get_unit_chapter(c) for c in chunks if get_unit_chapter(c) > 0
-    ))
-    result["current_chapter"] = max(chunk_chapters) if chunk_chapters else 0
-    result["written_chapters"] = len(chunk_chapters)
-    volumes = store.find_units(type=UnitType.VOLUME_PLAN)
-    all_cp = store.find_units(type=UnitType.CHAPTER_PLAN)
-    volume_progress = []
-    for vol in sorted(volumes, key=lambda v: _vol_num(v)):
-        vn = _vol_num(vol)
-        vname = _vol_name(vol)
-        descendant_ids = set(store.find_descendants(vol.id, max_depth=3))
-        vol_cps = [cp for cp in all_cp if cp.id in descendant_ids]
-        total = len(vol_cps)
-        mature = sum(1 for cp in vol_cps if cp.status == UnitStatus.MATURE)
-        ch_nums = sorted(set(
-            get_unit_chapter(cp) for cp in vol_cps if get_unit_chapter(cp) > 0
-        ))
-        ch_range = (
-            f"{ch_nums[0]}-{ch_nums[-1]}"
-            if len(ch_nums) >= 2
-            else (str(ch_nums[0]) if ch_nums else "")
-        )
-        if total > 0 and mature == total:
-            status = "completed"
-        elif mature > 0:
-            status = "in_progress"
-        else:
-            status = "pending"
-        volume_progress.append({
-            "volume": vn, "name": vname, "chapter_range": ch_range,
-            "total_chapter_plans": total, "mature_chapter_plans": mature, "status": status,
-        })
-    result["volume_progress"] = volume_progress
-    cur_vol = 0
-    for vp in volume_progress:
-        if vp["chapter_range"]:
-            parts = vp["chapter_range"].split("-")
-            try:
-                lo, hi = int(parts[0]), int(parts[-1])
-                if lo <= result["current_chapter"] <= hi:
-                    cur_vol = vp["volume"]
-                    break
-            except (ValueError, IndexError):
-                pass
-    if cur_vol == 0 and volume_progress:
-        cur_vol = volume_progress[-1]["volume"]
-    result["current_volume"] = cur_vol
-    result["total_chunks"] = len(chunks)
-    result["total_chapter_plans"] = len(all_cp)
-    return result
-
-
-def _vol_num(unit) -> int:
-    try:
-        if unit.content and unit.content.startswith("{"):
-            c = json.loads(unit.content)
-            return int(c.get("卷号", 0))
-    except (json.JSONDecodeError, ValueError, TypeError, AttributeError):
-        pass
-    return 0
-
-
-def _vol_name(unit) -> str:
-    try:
-        if unit.content and unit.content.startswith("{"):
-            c = json.loads(unit.content)
-            return str(c.get("volume_title", ""))
-    except (json.JSONDecodeError, TypeError, AttributeError):
-        pass
-    return ""
 
 
 def handle_project_resume(project_root: str) -> dict:

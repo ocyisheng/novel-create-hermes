@@ -10,10 +10,24 @@ import json
 import logging
 import os
 import re
-import sys
+from contextlib import redirect_stdout
 
 from pathlib import Path
 from typing import Any, Optional
+
+from ._common import (
+    ensure_sys_path,
+    _SHARED_DIR, _V2_DIR,
+    _find_novels_root, _resolve_project,
+    _paginate,
+    _derive_progress, _vol_num, _vol_name,
+    set_orchestrator_write_blocked, check_write_permission,
+    check_planner_restriction,
+    _repair_content, _parse_tags, _unit_to_dict,
+    _validate_content_schema, _auto_detect_chapter,
+    _chunk_source_path, _read_chunk_text,
+    _resolve_rel_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +47,8 @@ def set_store_provider(provider):
     _GET_STORE_IMPL = provider
 
 
-# ── 内部工具函数 ──────────────────────────────────────────────────────────
-
-def _syspath_insert(p: str):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-
-_SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_V2_DIR = os.path.join(_SHARED_DIR, "v2")
-_syspath_insert(_SHARED_DIR)
-_syspath_insert(_V2_DIR)
+# 确保 sys.path 包含 shared/ 和 v2/
+ensure_sys_path()
 
 
 def _get_store(project_root: str):
@@ -74,255 +79,6 @@ def _get_engine(project_root: str):
     from search_engine import SearchEngine
     store = _get_store(project_root)
     return store, SearchEngine(store)
-
-
-def _find_novels_root() -> str:
-    env = os.environ.get("NOVELS_ROOT")
-    if env and os.path.isdir(env):
-        return env
-    cwd = os.path.join(os.getcwd(), "novels")
-    if os.path.isdir(cwd):
-        return cwd
-    tool_root = os.path.abspath(os.path.join(_SHARED_DIR, "..", ".."))
-    tool_novels = os.path.join(tool_root, "novels")
-    if os.path.isdir(tool_novels):
-        return tool_novels
-    return cwd
-
-
-def _resolve_project(project: str) -> str:
-    if not project:
-        return ""
-    if os.path.isabs(project):
-        return project
-    novels = _find_novels_root()
-    cand = os.path.join(novels, project)
-    if os.path.isdir(cand):
-        return cand
-    return os.path.abspath(project)
-
-
-def _repair_content(content: str) -> str:
-    """解析并修复 JSON 内容字符串，返回规范化的 JSON 字符串。"""
-    if not content:
-        return content
-    try:
-        from json_repair import loads as repair_loads
-        content = json.dumps(repair_loads(content), ensure_ascii=False)
-    except ModuleNotFoundError:
-        # json_repair 未安装时不做修复
-        pass
-    except Exception:
-        if isinstance(content, dict):
-            content = json.dumps(content, ensure_ascii=False)
-    return content
-
-
-def _parse_tags(tags_str: Optional[str]) -> Optional[list[str]]:
-    """解析逗号分隔的标签字符串为列表，None 表示未提供。"""
-    if not tags_str:
-        return None
-    return [t.strip() for t in tags_str.split(",") if t.strip()]
-
-
-def _unit_to_dict(u) -> dict:
-    return {
-        "id": u.id,
-        "name": u.unit_name,
-        "type": u.type.value if hasattr(u.type, "value") else str(u.type),
-        "status": u.status.value if hasattr(u.status, "value") else str(u.status),
-        "confidence": u.confidence,
-        "tags": list(u.tags) if u.tags else [],
-        "chapter": u.chapter_number,
-        "version": u.version,
-        "content": u.content,
-        "created_at": str(u.created_at) if u.created_at else None,
-        "updated_at": str(u.updated_at) if u.updated_at else None,
-    }
-
-
-def _validate_content_schema(unit_type, content: str) -> list:
-    """校验 content JSON 是否符合该类型的字段 Schema，返回错误列表。"""
-    if not content or not content.startswith("{"):
-        return []
-    try:
-        from schemas import validate_content
-        content_dict = json.loads(content)
-        if not isinstance(content_dict, dict):
-            return []
-        return validate_content(unit_type, content_dict)
-    except Exception as e:
-        logger.warning("content schema 校验异常（按无错误处理）: %s", e)
-        return []
-
-
-def _derive_progress(project_path: str) -> dict:
-    """从 graph 实时推算写作进度。"""
-    from graph_schema import UnitType, UnitStatus, get_unit_chapter
-    store = _get_store(project_path)
-    result = {}
-    chunks = store.find_units(type=UnitType.CHUNK)
-    chunk_chapters = sorted(set(
-        get_unit_chapter(c) for c in chunks if get_unit_chapter(c) > 0
-    ))
-    result["current_chapter"] = max(chunk_chapters) if chunk_chapters else 0
-    result["written_chapters"] = len(chunk_chapters)
-    volumes = store.find_units(type=UnitType.VOLUME_PLAN)
-    all_cp = store.find_units(type=UnitType.CHAPTER_PLAN)
-    volume_progress = []
-    for vol in sorted(volumes, key=lambda v: _vol_num(v)):
-        vn = _vol_num(vol)
-        vname = _vol_name(vol)
-        descendant_ids = set(store.find_descendants(vol.id, max_depth=3))
-        vol_cps = [cp for cp in all_cp if cp.id in descendant_ids]
-        total = len(vol_cps)
-        mature = sum(1 for cp in vol_cps if cp.status == UnitStatus.MATURE)
-        ch_nums = sorted(set(
-            get_unit_chapter(cp) for cp in vol_cps if get_unit_chapter(cp) > 0
-        ))
-        ch_range = (
-            f"{ch_nums[0]}-{ch_nums[-1]}"
-            if len(ch_nums) >= 2
-            else (str(ch_nums[0]) if ch_nums else "")
-        )
-        if total > 0 and mature == total:
-            status = "completed"
-        elif mature > 0:
-            status = "in_progress"
-        else:
-            status = "pending"
-        volume_progress.append({
-            "volume": vn, "name": vname, "chapter_range": ch_range,
-            "total_chapter_plans": total, "mature_chapter_plans": mature, "status": status,
-        })
-    result["volume_progress"] = volume_progress
-    cur_vol = 0
-    for vp in volume_progress:
-        if vp["chapter_range"]:
-            parts = vp["chapter_range"].split("-")
-            try:
-                lo, hi = int(parts[0]), int(parts[-1])
-                if lo <= result["current_chapter"] <= hi:
-                    cur_vol = vp["volume"]
-                    break
-            except (ValueError, IndexError):
-                pass
-    if cur_vol == 0 and volume_progress:
-        cur_vol = volume_progress[-1]["volume"]
-    result["current_volume"] = cur_vol
-    result["total_chunks"] = len(chunks)
-    result["total_chapter_plans"] = len(all_cp)
-    return result
-
-
-def _vol_num(unit) -> int:
-    try:
-        if unit.content and unit.content.startswith("{"):
-            c = json.loads(unit.content)
-            return int(c.get("卷号", 0))
-    except (json.JSONDecodeError, ValueError, TypeError, AttributeError):
-        pass
-    return 0
-
-
-def _vol_name(unit) -> str:
-    try:
-        if unit.content and unit.content.startswith("{"):
-            c = json.loads(unit.content)
-            return str(c.get("volume_title", ""))
-    except (json.JSONDecodeError, TypeError, AttributeError):
-        pass
-    return ""
-
-
-def _chunk_source_path(c, project_root: str) -> str:
-    """解析 CHUNK 单元正文的来源文件路径（用于去重与读取）。
-
-    优先取 正文分片.文件，回退到 file_path 元数据；无法解析时返回空串。
-    """
-    try:
-        cd = json.loads(c.content) if isinstance(c.content, str) else (c.content or {})
-    except (json.JSONDecodeError, ValueError):
-        cd = {}
-    slice_info = cd.get("slice_info")
-    if slice_info:
-        sp = slice_info.get("文件", "")
-        if sp:
-            return str(Path(project_root) / sp)
-    source_path = cd.get("file_path", "")
-    if source_path:
-        return str(Path(project_root) / source_path)
-    return ""
-
-
-def _read_chunk_text(c, project_root: str) -> str:
-    """从 CHUNK 单元读取正文文本。"""
-    src = _chunk_source_path(c, project_root)
-    if src and os.path.exists(src):
-        return Path(src).read_text(encoding="utf-8")
-    return ""
-
-
-def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
-    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
-    total = len(items)
-    if limit and limit > 0:
-        items = items[offset:offset + limit]
-    elif offset:
-        items = items[offset:]
-    return items, total
-
-
-def _auto_detect_chapter(content: str, unit_name: str) -> Optional[int]:
-    """自动推断章节号：从 content JSON 或单元名称提取。"""
-    chapter = None
-    if content and content.startswith("{"):
-        try:
-            content_dict = json.loads(content)
-            if isinstance(content_dict, dict) and "chapter_number" in content_dict:
-                chapter = int(content_dict["chapter_number"])
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-    if not chapter and unit_name:
-        m = re.search(r'第(\d+)章', unit_name)
-        if m:
-            chapter = int(m.group(1))
-    return chapter
-
-
-# ── 编排层写操作拦截 ──────────────────────────────────────────────────
-
-_ORCHESTRATOR_WRITE_BLOCKED = True
-
-def set_orchestrator_write_blocked(blocked: bool):
-    """设置是否禁止编排层直接写 graph（默认禁止）"""
-    global _ORCHESTRATOR_WRITE_BLOCKED
-    _ORCHESTRATOR_WRITE_BLOCKED = blocked
-
-def _check_orchestrator_write(actor: str, operation: str) -> Optional[dict]:
-    """检查调用者是否有权限直接写 graph。返回 dict | None 而非抛异常。
-    
-    允许的 actor：novel-writer（创作通路，主执行者）、novel-planner（仅 NOTE 白名单）、
-    novel-v2-crafter / v2-crafter（迁移期遗留别名，兼容旧调用）、script（迁移脚本）、
-    fix-asymmetry、novel-tool、web-ui
-    禁止的 actor：orchestrator（编排层应通过 novel-writer）或其他未识别值
-    
-    Returns: None（允许）或 {"error": ..., "blocked_operation": ...}（拒绝，error 含修正指引）
-    """
-    if not _ORCHESTRATOR_WRITE_BLOCKED:
-        return None
-    
-    ALLOWED_WRITE_ACTORS = {"novel-writer", "novel-v2-crafter", "v2-crafter", "novel-planner", "script", "fix-asymmetry", "novel-tool", "web-ui"}
-    if actor not in ALLOWED_WRITE_ACTORS:
-        return {
-            "error": (
-                f"不允许直接调用 {operation}（actor={actor}）。"
-                f"叙事内容写操作必须通过 novel-writer 主 agent 执行。"
-                f"请调度 task(subagent_type='novel-writer', load_skills=['novel-v2-core', 'novel-v2-writing'], ...)"
-            ),
-            "blocked_operation": operation,
-        }
-    return None
 
 
 # ── Handler 函数 ─────────────────────────────────────────────────────────
@@ -638,7 +394,7 @@ def handle_create_unit(
             - "skip": 已存在 → 幂等返回已有单元（不重新建边/抽事件）
             - "create": 强制新建（旧行为，通常仅内部流程用）
     """
-    blocked = _check_orchestrator_write(actor, "graph.create_unit")
+    blocked = check_write_permission(actor, "graph.create_unit")
     if blocked:
         return blocked
     from graph_schema import UnitType, UnitStatus
@@ -648,7 +404,10 @@ def handle_create_unit(
 
     # novel-planner 仅允许创建 NOTE 单元（D17 白名单物理强制）
     if actor == "novel-planner" and ut != UnitType.NOTE:
-        return {"error": f"novel-planner 不允许创建 {unit_type} 类型单元。规划主 agent 只能创建 note（创作笔记）。如需创建其他类型，请切换到 novel-writer。"}
+        return check_planner_restriction(
+            actor, "graph.create_unit",
+            allowed_hint="规划主 agent 只能创建 note（创作笔记）。如需创建其他类型，请切换到 novel-writer",
+        )
 
     # 内容读取优先级：file_path > content
     if file_path:
@@ -741,7 +500,7 @@ def handle_update_unit(
     session_id: Optional[str] = None,
 ) -> dict:
     """更新叙事单元。"""
-    blocked = _check_orchestrator_write(actor, "graph.update_unit")
+    blocked = check_write_permission(actor, "graph.update_unit")
     if blocked:
         return blocked
     from graph_schema import UnitStatus, UnitType
@@ -764,7 +523,10 @@ def handle_update_unit(
         old_unit = store.get_unit(id)
         # novel-planner 仅允许更新 NOTE 单元
         if actor == "novel-planner" and old_unit and old_unit.type != UnitType.NOTE:
-            return {"error": f"novel-planner 不允许更新 {old_unit.type.value} 类型单元。规划主 agent 只能修改 note。"}
+            return check_planner_restriction(
+                actor, "graph.update_unit",
+                allowed_hint="规划主 agent 只能修改 note（创作笔记）",
+            )
         old_content = old_unit.content if old_unit else None
         content_changed = (content is not None and content != old_content)
 
@@ -805,12 +567,13 @@ def handle_update_unit(
 
 def handle_archive_unit(project_root: str, id: str, actor: str = "orchestrator") -> dict:
     """归档叙事单元。"""
-    blocked = _check_orchestrator_write(actor, "graph.archive_unit")
+    blocked = check_write_permission(actor, "graph.archive_unit")
     if blocked:
         return blocked
-    # novel-planner 不允许归档任何单元
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许归档单元。如需归档请切换到 novel-writer。"}
+    # novel-planner 不允许归档任何单元（统一白名单校验）
+    blocked = check_planner_restriction(actor, "graph.archive_unit")
+    if blocked:
+        return blocked
     store = _get_store(project_root)
     ok = store.archive_unit(id, actor=actor)
     if ok:
@@ -827,12 +590,16 @@ def handle_purge_archived(project_root: str, ids: str = "", force: bool = False,
     - 传 ids（逗号分隔）→ 只删除指定 ID
     - 不传 ids → 默认报错（防止误删全部），仅当 force=true 时才允许删除全部已归档单元
     """
-    blocked = _check_orchestrator_write(actor, "graph.purge_archived")
+    blocked = check_write_permission(actor, "graph.purge_archived")
     if blocked:
         return blocked
-    # novel-planner 不允许物理删除
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许执行 purge_archived。规划主 agent 不获得物理删除权限。"}
+    # novel-planner 不允许物理删除（统一白名单校验）
+    blocked = check_planner_restriction(
+        actor, "graph.purge_archived",
+        allowed_hint="规划主 agent 不获得物理删除权限",
+    )
+    if blocked:
+        return blocked
     store = _get_store(project_root)
     id_list = [i.strip() for i in ids.split(",") if i.strip()] if ids else None
     if id_list is None and not force:
@@ -855,21 +622,6 @@ def handle_purge_archived(project_root: str, ids: str = "", force: bool = False,
         "unit_ids": result["unit_ids"],
         "message": f"已物理删除 {count} 个归档单元，移除 {rel_count} 条关联关系",
     }
-
-
-def _resolve_rel_type(rel_type: str):
-    """解析关系类型：先按 name 查，再按 value 查，都失败时返回 REFERENCES + 原始输入作为 label。"""
-    from graph_schema import RelationType
-    try:
-        rtype = RelationType[rel_type.upper()]
-        return rtype, ""
-    except KeyError:
-        try:
-            rtype = RelationType(rel_type.lower())
-            return rtype, ""
-        except ValueError:
-            # 非枚举值（如"师徒""母子"）→ 降级为 RELATES_TO（关联容器），原始输入存为语义标签
-            return RelationType.RELATES_TO, rel_type
 
 
 def handle_add_relation(
@@ -896,7 +648,7 @@ def handle_add_relation(
     证据锚点：payload 合并 source 通道（crafter → llm，其余 → manual），
     再与调用方传入的 payload（JSON 字符串，可选）合并。
     """
-    blocked = _check_orchestrator_write(actor, "graph.add_relation")
+    blocked = check_write_permission(actor, "graph.add_relation")
     if blocked:
         return blocked
     from graph_schema import RelationType, UnitType
@@ -910,7 +662,10 @@ def handle_add_relation(
         src_is_note = src_unit and src_unit.type == UnitType.NOTE
         tgt_is_note = tgt_unit and tgt_unit.type == UnitType.NOTE
         if not (src_is_note or tgt_is_note):
-            return {"error": "novel-planner 不允许建立两端均非 NOTE 的关系。规划主 agent 只能为 note 建立关系。如需角色↔角色关系请切换到 novel-writer。"}
+            return check_planner_restriction(
+                actor, "graph.add_relation",
+                allowed_hint="规划主 agent 只能为 note 建立关系。如需角色↔角色关系请切换到 novel-writer",
+            )
     store.set_session_context(session_id)
     # 证据锚点：按 actor 判定来源通道
     source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter", "novel-writer") else ("planner" if actor == "novel-planner" else "manual")
@@ -977,12 +732,16 @@ def handle_update_relation(
     """
     from datetime import datetime, timezone
     from graph_schema import EventType
-    blocked = _check_orchestrator_write(actor, "graph.update_relation")
+    blocked = check_write_permission(actor, "graph.update_relation")
     if blocked:
         return blocked
-    # novel-planner 不允许更新关系
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许执行 update_relation。规划主 agent 不获得更新关系权限。"}
+    # novel-planner 不允许更新关系（统一白名单校验）
+    blocked = check_planner_restriction(
+        actor, "graph.update_relation",
+        allowed_hint="规划主 agent 不获得更新关系权限",
+    )
+    if blocked:
+        return blocked
     store = _get_store(project_root)
     rel = store.get_relation(id)
     if not rel:
@@ -1012,10 +771,15 @@ def handle_update_relation(
         if not isinstance(payload_dict, dict):
             return {"error": "payload 必须是 JSON 对象"}
         if payload_dict != rel.payload:
-            # update_relation_payload 内部完成事件 + 脏标记
+            # update_relation_payload 内部完成事件 + 脏标记（公共 API，已封装）
             store.update_relation_payload(id, payload_dict, actor=actor)
             changed = True
 
+    # 封装缺口：非 payload 字段（label/weight/description/source_role/target_role）
+    # 目前 graph_store 尚无公共 API（仅 update_relation_payload 存在），因此这里
+    # 直接改 rel 字段并触碰私有 _dirty_edges / _record_event。引擎 Agent 正在并行
+    # 添加 store 侧 update_relation_meta()，届时应改为委托。注意 payload 分支已由
+    # update_relation_payload 内部记录 RELATION_UPDATED 事件，此处不再重复判定。
     if changed:
         rel.updated_at = datetime.now(timezone.utc)
         store._dirty_edges = True
@@ -1060,7 +824,12 @@ def handle_flush(project_root: str, skip_constraint_check: bool = False) -> dict
 
 
 def handle_constraint_check(project_root: str, full: bool = False) -> dict:
-    """手动触发约束检查。"""
+    """手动触发约束检查。
+
+    run() / run_incremental() 内部已自动持久化到 DeviationManager
+    （constraint_engine.run → _persist_results），此处不再重复调用
+    _persist_results，避免每次手动检查让偏差 detection_count 翻倍。
+    """
     from constraint_engine import ConstraintEngine
     store = _get_store(project_root)
     engine = ConstraintEngine(store)
@@ -1068,7 +837,6 @@ def handle_constraint_check(project_root: str, full: bool = False) -> dict:
         results = engine.run(full=True)
     else:
         results = engine.run_incremental()
-    engine._persist_results(results)
     return {
         "checked": True,
         "total_results": len(results),
@@ -1171,12 +939,16 @@ def handle_remove_relation(
     actor: str = "orchestrator",
 ) -> dict:
     """删除关系。"""
-    blocked = _check_orchestrator_write(actor, "graph.remove_relation")
+    blocked = check_write_permission(actor, "graph.remove_relation")
     if blocked:
         return blocked
-    # novel-planner 不允许删除关系
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许执行 remove_relation。规划主 agent 不获得删除关系权限。"}
+    # novel-planner 不允许删除关系（统一白名单校验）
+    blocked = check_planner_restriction(
+        actor, "graph.remove_relation",
+        allowed_hint="规划主 agent 不获得删除关系权限",
+    )
+    if blocked:
+        return blocked
     from graph_schema import RelationType
     store = _get_store(project_root)
 
@@ -1206,12 +978,16 @@ def handle_remove_relation(
 
 def handle_batch_infer(project_root: str, actor: str = "orchestrator") -> dict:
     """批量推断：扫描所有已有单元，自动建立关系。"""
-    blocked = _check_orchestrator_write(actor, "graph.batch_infer")
+    blocked = check_write_permission(actor, "graph.batch_infer")
     if blocked:
         return blocked
-    # novel-planner 不允许批量推断
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许执行 batch_infer。规划主 agent 不获得批量推断权限。"}
+    # novel-planner 不允许批量推断（统一白名单校验）
+    blocked = check_planner_restriction(
+        actor, "graph.batch_infer",
+        allowed_hint="规划主 agent 不获得批量推断权限",
+    )
+    if blocked:
+        return blocked
     from relation_inferrer import RelationInferrer
     store = _get_store(project_root)
     before = store.stats()["total_relations"]
@@ -1293,20 +1069,20 @@ def handle_migrate(
     verify: bool = True,
     report: bool = True,
 ) -> dict:
-    """V1→V2 迁移。"""
+    """V1→V2 迁移。
+
+    用 contextlib.redirect_stdout 临时静音迁移器输出（scoped、线程安全），
+    避免全局替换 sys.stdout 破坏 daemon / 并发输出。
+    """
     from migrate import run_migration
 
-    _old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
+    with redirect_stdout(io.StringIO()):
         run_migration(
             project_root=project_root,
             dry_run=dry_run,
             verify=verify,
             report=report,
         )
-    finally:
-        sys.stdout = _old_stdout
     return {"migrated": True}
 
 
@@ -1369,16 +1145,32 @@ def handle_change_type(
     """变更叙事单元的类型（world_rule→plot_thread 等）。
 
     流程：创建新类型单元 → 搬运 content/relations → 归档旧单元。
+    编排逻辑在模块级 _change_unit_type 中（handler 保持薄封装）。
     """
-    blocked = _check_orchestrator_write(actor, "graph.change_type")
+    blocked = check_write_permission(actor, "graph.change_type")
     if blocked:
         return blocked
-    # novel-planner 不允许变更类型
-    if actor == "novel-planner":
-        return {"error": "novel-planner 不允许执行 change_type。规划主 agent 不获得变更类型权限。"}
-    from graph_schema import UnitType
+    # novel-planner 不允许变更类型（统一白名单校验）
+    blocked = check_planner_restriction(
+        actor, "graph.change_type",
+        allowed_hint="规划主 agent 不获得变更类型权限",
+    )
+    if blocked:
+        return blocked
 
     store = _get_store(project_root)
+    return _change_unit_type(store, id, new_type, actor)
+
+
+def _change_unit_type(store, id: str, new_type: str, actor: str) -> dict:
+    """执行单元类型变更编排：建新单元 → 搬运关系 → 归档旧单元。
+
+    从 handler 中提取的模块级辅助函数（handlers_graph.py 文件内），
+    便于单元测试与复用。graph_store 尚无公共 change-type API，
+    由引擎 Agent 并行补上后此处可改为委托。
+    """
+    from graph_schema import UnitType
+
     old = store.get_unit(id)
     if not old:
         return {"error": f"单元 {id} 不存在"}

@@ -240,6 +240,9 @@ def _build_canonical_params(op: str, request: dict) -> dict:
 
     - 不在 _PARAM_MAP 中的参数会被忽略
     - 特殊操作通过 _PARAM_ALIASES 处理别名
+    - 被别名消费的来源键（如 project.* 的 name、project.import 的 source、
+      graph.search 的 unit_type）不再同时经基础映射进入 canonical，
+      避免 run_operation 过滤时产生"参数被静默过滤"噪音
     """
     canonical = {}
 
@@ -250,6 +253,7 @@ def _build_canonical_params(op: str, request: dict) -> dict:
 
     # 2. 别名处理
     aliases = _PARAM_ALIASES.get(op, {})
+    alias_set = set()  # 由别名实际设置了值的 canonical 键
     for canonical_key, source_keys in aliases.items():
         if canonical_key == "v2_default":
             if "v2" not in request:
@@ -261,7 +265,28 @@ def _build_canonical_params(op: str, request: dict) -> dict:
         for src in source_keys:
             if src in request:
                 canonical[canonical_key] = request[src]
+                alias_set.add(canonical_key)
                 break
+
+    # 2b. 别名消费清理：来源键被别名重定向后，不应再以其自身规范名残留。
+    #     否则 run_operation 按 registry 过滤时会报"参数被静默过滤"（如
+    #     project.* 的 {'name'}、project.import 的 {'name', 'source'}）。
+    for canonical_key, source_keys in aliases.items():
+        if canonical_key == "v2_default" or canonical_key not in alias_set:
+            continue
+        for src in source_keys:
+            if src not in request:
+                continue
+            if src == canonical_key:
+                # 同键重定向（如 summary.read 的 file→file）：基础映射已把它
+                # 映射到别的规范名（file→file_path），需移除该映射产物
+                for nk, ck in _PARAM_MAP.items():
+                    if (nk == src and ck != canonical_key
+                            and ck in canonical and canonical[ck] == request[src]):
+                        canonical.pop(ck, None)
+            elif src in canonical and canonical[src] == request[src]:
+                # 异键重定向（如 project.* 的 name→project_root）：移除残留的 name
+                canonical.pop(src, None)
 
     # 3. project 身份注入：按 OPERATION_REGISTRY 声明的参数裁剪，只填该 op
     #    实际消费的形态，避免 project_root / project / name 三形态同时进 params。

@@ -11,11 +11,9 @@ import sys
 import subprocess
 import json
 
-_SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_V2_DIR = os.path.join(_SHARED_DIR, "v2")
-for _d in [_SHARED_DIR, _V2_DIR]:
-    if _d not in sys.path:
-        sys.path.insert(0, _d)
+from ._common import _SHARED_DIR, _V2_DIR, ensure_sys_path
+
+ensure_sys_path()
 
 # ── PID 持久化 ────────────────────────────────────────────────────
 

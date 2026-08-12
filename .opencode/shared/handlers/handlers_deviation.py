@@ -11,35 +11,9 @@ import sys
 from typing import Optional
 
 from graph_store import is_v2_project
+from ._common import ensure_sys_path, _resolve_project, _paginate
 
-_SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_V2_DIR = os.path.join(_SHARED_DIR, "v2")
-for _d in [_SHARED_DIR, _V2_DIR]:
-    if _d not in sys.path:
-        sys.path.insert(0, _d)
-
-
-def _resolve_project(project: str) -> str:
-    if not project:
-        return ""
-    if os.path.isabs(project):
-        return project
-    env = os.environ.get("NOVELS_ROOT")
-    novels_root = env if env and os.path.isdir(env) else os.path.join(os.getcwd(), "novels")
-    cand = os.path.join(novels_root, project)
-    if os.path.isdir(cand):
-        return cand
-    return os.path.abspath(project)
-
-
-def _paginate(items: list, limit: int = 0, offset: int = 0) -> tuple:
-    """返回 (切片后的 items, 真实总数)。limit<=0 表示不限制。"""
-    total = len(items)
-    if limit and limit > 0:
-        items = items[offset:offset + limit]
-    elif offset:
-        items = items[offset:]
-    return items, total
+ensure_sys_path()
 
 
 def handle_deviation_merge(

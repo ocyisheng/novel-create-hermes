@@ -100,12 +100,14 @@ class TestGraphRead:
         assert len(content) == 500
 
     def test_get_unit_verbose_does_not_truncate(self, tmp_project):
+        # graph.get_unit 不消费 verbose（registry 未声明），不再传该未注册参数，
+        # 避免 run_operation 输出"参数被静默过滤"噪音。handler 始终返回完整 content。
         proj_path, store = tmp_project
         from graph_schema import UnitType
         long_content = "A" * 500
         u = store.create_unit(type=UnitType.NOTE, unit_name="长内容", content=long_content, actor="novel-v2-crafter")
         store.flush()
-        res = call_tool("graph.get_unit", project=proj_path, id=u.id, verbose=True)
+        res = call_tool("graph.get_unit", project=proj_path, id=u.id)
         assert len(res["data"]["unit"]["content"]) == 500
 
     def test_find_unit_found(self, sample_units):
@@ -220,7 +222,8 @@ class TestGraphRead:
     def test_get_neighbors_no_id(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.get_neighbors", project=proj_path)
-        assert_error(res, "missing 1 required positional argument: 'id'")
+        # 必填参数校验：干净错误（无 raw TypeError traceback）
+        assert_error(res, "缺少必填参数: id")
 
     def test_get_neighbors_with_reltype_filter(self, sample_units):
         proj_path, store, units = sample_units
@@ -383,7 +386,8 @@ class TestGraphWrite:
         proj_path, store, units = sample_units
         uid = units["林渊"].id
         res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
-        assert_success(res, {"archived": True})
+        # 信封归一化：run_operation 在成功结果上追加 status="ok"（additive），故按键断言
+        assert_success(res, lambda d: d.get("archived") is True and d.get("status") == "ok")
         verify = call_tool("graph.get_unit", project=proj_path, id=uid)
         assert verify["data"]["unit"]["status"] == "archived"
 
@@ -397,7 +401,7 @@ class TestGraphWrite:
         proj_path, store, units = sample_units
         uid = units["林渊"].id
         res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
-        assert_success(res, {"archived": True})
+        assert_success(res, lambda d: d.get("archived") is True)
         # 不带 ids、不带 force → 必须拒绝
         res = call_tool("graph.purge_archived", project=proj_path, actor="novel-tool")
         assert_error(res, "未指定 ids")
@@ -412,7 +416,7 @@ class TestGraphWrite:
         uid2 = units["陈峰"].id
         for uid in (uid1, uid2):
             res = call_tool("graph.archive_unit", project=proj_path, id=uid, actor="novel-v2-crafter")
-            assert_success(res, {"archived": True})
+            assert_success(res, lambda d: d.get("archived") is True)
         # 定向删除 uid1
         res = call_tool("graph.purge_archived", project=proj_path, ids=uid1, actor="novel-tool")
         assert_success(res)
@@ -663,13 +667,13 @@ class TestGraphSessionExportViz:
     def test_export_chunks_no_chunks(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.export_chunks", project=proj_path)
-        assert_success(res, {"files": []})
+        assert_success(res, lambda d: d.get("files") == [])
 
     @patch("migrate.run_migration")
     def test_migrate(self, mock_migrate, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.migrate", project=proj_path)
-        assert_success(res, {"migrated": True})
+        assert_success(res, lambda d: d.get("migrated") is True)
         assert mock_migrate.called
 
     def test_start_session_resume(self, sample_units):
@@ -803,7 +807,7 @@ class TestProject:
             shutil.copytree(proj_path, dst)
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
                 res = call_tool("project.resume", name=proj_name)
-                assert_success(res, {"ok": True})
+                assert_success(res, lambda d: d.get("ok") is True)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -939,7 +943,8 @@ class TestEnv:
 class TestKnowledge:
     def test_knowledge_read_missing_slug(self):
         res = call_tool("knowledge.read", project=".")
-        assert_error(res, "missing 1 required positional argument: 'slug'")
+        # 必填参数校验：干净错误（无 raw TypeError traceback）
+        assert_error(res, "缺少必填参数: slug")
 
     def test_knowledge_read_slug_not_found(self):
         import tempfile
@@ -1051,7 +1056,7 @@ class TestDeviation:
         list_res = call_tool("deviation.list", project=proj_path)
         did = list_res["data"]["deviations"][0]["id"]
         res = call_tool("deviation.resolve", project=proj_path, id=did)
-        assert_success(res, {"resolved": True})
+        assert_success(res, lambda d: d.get("resolved") is True)
 
     def test_deviation_resolve_not_found(self, tmp_project):
         proj_path, _ = tmp_project
@@ -1067,7 +1072,7 @@ class TestDeviation:
         list_res = call_tool("deviation.list", project=proj_path)
         did = list_res["data"]["deviations"][0]["id"]
         res = call_tool("deviation.retain", project=proj_path, id=did)
-        assert_success(res, {"retained": True})
+        assert_success(res, lambda d: d.get("retained") is True)
 
     def test_deviation_retain_not_found(self, tmp_project):
         proj_path, _ = tmp_project
@@ -1083,7 +1088,7 @@ class TestDeviation:
         list_res = call_tool("deviation.list", project=proj_path)
         did = list_res["data"]["deviations"][0]["id"]
         res = call_tool("deviation.delete", project=proj_path, id=did)
-        assert_success(res, {"deleted": True})
+        assert_success(res, lambda d: d.get("deleted") is True)
 
     def test_deviation_delete_not_found(self, tmp_project):
         proj_path, _ = tmp_project
@@ -1214,13 +1219,19 @@ class TestDeviation:
         assert res["data"]["deviations"][0]["entity"] == "韩致"
 
     def test_deviation_pending_pagination(self, tmp_project):
-        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确（集成测试）"""
+        """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确（集成测试）
+
+        NOTE（本次修复）：5 条 pending 使用不同 dimension 构造，避免触发
+        filter_for_presentation 的"≥3 同维度折叠"规则（缺陷修复后已实现）——
+        否则 5 条同维度会被折叠为 1 条聚合条目，无法验证分页。
+        """
         proj_path, store = tmp_project
-        # 创建 5 个 pending 偏差
+        # 创建 5 个 pending 偏差（跨维度，避免触发 ≥3 同维度折叠）
+        dims = ["角色一致性", "角色一致性", "情节逻辑", "情节逻辑", "世界观"]
         findings = []
-        for i in range(5):
+        for i, dim in enumerate(dims):
             findings.append({
-                "dimension": "角色一致性",
+                "dimension": dim,
                 "entity": f"角色{i}",
                 "entity_id": f"ca_p{i}",
                 "severity": "high" if i % 2 == 0 else "medium",
@@ -1409,8 +1420,9 @@ class TestProjectResolution:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_graph_ops_no_project_fails(self):
+        # 缺 project → 必填参数校验返回干净错误（无 traceback）
         res = call_tool("graph.stats", project="")
-        assert_error(res, "项目路径为空")
+        assert_error(res, "缺少必填参数")
 
 
 # ============================================================================
@@ -1522,7 +1534,7 @@ class TestIntegration:
                 # deviation.resolve
                 did = r4["data"]["deviations"][0]["id"]
                 r5 = call_tool("deviation.resolve", project=proj_path, id=did)
-                assert_success(r5, {"resolved": True})
+                assert_success(r5, lambda d: d.get("resolved") is True)
 
                 # deviation.stats
                 r6 = call_tool("deviation.stats", project=proj_path)
@@ -1535,7 +1547,7 @@ class TestIntegration:
                 remaining = call_tool("deviation.list", project=proj_path)
                 d2_id = remaining["data"]["deviations"][0]["id"]
                 r7 = call_tool("deviation.delete", project=proj_path, id=d2_id)
-                assert_success(r7, {"deleted": True})
+                assert_success(r7, lambda d: d.get("deleted") is True)
 
                 r8 = call_tool("deviation.stats", project=proj_path)
                 assert r8["data"]["total"] == 1

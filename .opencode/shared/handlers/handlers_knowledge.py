@@ -11,36 +11,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-_SHARED_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SHARED_DIR not in sys.path:
-    sys.path.insert(0, _SHARED_DIR)
+from ._common import ensure_sys_path, _resolve_project, _find_novels_root
 
-
-def _resolve_project(project: str) -> str:
-    if not project:
-        return ""
-    if os.path.isabs(project):
-        return project
-    env = os.environ.get("NOVELS_ROOT")
-    novels_root = env if env and os.path.isdir(env) else os.path.join(os.getcwd(), "novels")
-    cand = os.path.join(novels_root, project)
-    if os.path.isdir(cand):
-        return cand
-    return os.path.abspath(project)
-
-
-def _find_novels_root() -> str:
-    env = os.environ.get("NOVELS_ROOT")
-    if env and os.path.isdir(env):
-        return env
-    cwd = os.path.join(os.getcwd(), "novels")
-    if os.path.isdir(cwd):
-        return cwd
-    tool_root = os.path.abspath(os.path.join(_SHARED_DIR, "..", ".."))
-    tool_novels = os.path.join(tool_root, "novels")
-    if os.path.isdir(tool_novels):
-        return tool_novels
-    return cwd
+ensure_sys_path()
 
 
 def _resolve_knowledge_root(root: str) -> str:

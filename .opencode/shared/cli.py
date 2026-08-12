@@ -770,6 +770,13 @@ def _auto_dispatch_v2(args):
         if val is not None and val != "":
             params[pname] = val
 
+    # 写操作 actor 对齐：registry 声明 actor 的 handler 默认 "orchestrator"，
+    # 而写权限门 check_write_permission 明确拒绝 orchestrator —— 与 novel-tool
+    # 适配层（默认注入 "novel-tool"）对齐，CLI 自动 dispatch 注入 "script"
+    # （与 _run_v2 内其他硬编码 actor='script' 的调用点一致）。
+    if "actor" in entry["params"] and "actor" not in params:
+        params["actor"] = "script"
+
     result = run_operation(op_name, **params)
     if "error" in result:
         print(f"❌ {result['error']}")

@@ -8,7 +8,7 @@
 
 主 agent 回顾本轮对话（从用户首次请求到当前），提取：
 - **意图识别**：用户一开始想做什么，是否有模糊→收敛的过程
-- **路由决策**：走的是哪条路径（novel-planner/novel-writer/novel-analyzer/direct-tool）
+- **路由决策**：走的是哪条路径（novel-planner/novel-writer/direct-tool）
 - **工具调用**：调用了哪些 novel-tool 操作，参数是什么，结果如何
 - **子agent调用**：调度了哪些子agent（novel-lore-search/novel-diagnose/novel-book-importer），参数是什么，执行结果如何，会话ID是多少
 - **冲突决策**：是否有两难选择，用户做了什么决策

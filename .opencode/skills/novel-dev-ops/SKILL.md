@@ -1,6 +1,6 @@
 ---
 name: "novel-dev-ops"
-description: "开发模式工具集：子 Agent 调度摘要(telemetry)、数据分析、会话总结、聚合分析、优化闭环。仅当运行时模式（novel-context.md 的 __MODE__）非 release 时由 4 个主 agent（orchestrator/planner/writer/analyzer）加载。触发词：收集使用数据、分析数据、分析遥测、看故障模式、记录总结、会话总结、历史总结、优化线索、综合分析、更新优化线索、优化闭环、执行改进"
+description: "开发模式工具集：子 Agent 调度摘要(telemetry)、数据分析、会话总结、聚合分析、优化闭环。仅当运行时模式（novel-context.md 的 __MODE__）非 release 时由 3 个主 agent（orchestrator/planner/writer）加载。触发词：收集使用数据、分析数据、分析遥测、看故障模式、记录总结、会话总结、历史总结、优化线索、综合分析、更新优化线索、优化闭环、执行改进"
 license: "MIT"
 version: "1.0.0"
 compatibility: "OpenCode"
@@ -11,9 +11,9 @@ tags: ["novel", "dev", "telemetry", "analytics", "v2"]
 
 ## 定位
 
-本技能承载 4 个主 agent（orchestrator/planner/writer/analyzer）的**开发模式工具**——遥测记录、数据分析、会话总结、聚合分析、优化闭环。仅在运行时模式（`.context/novel-context.md` 的 `__MODE__`，默认 `release`）非 `release` 时加载。
+本技能承载 3 个主 agent（orchestrator/planner/writer）的**开发模式工具**——遥测记录、数据分析、会话总结、聚合分析、优化闭环。仅在运行时模式（`.context/novel-context.md` 的 `__MODE__`，默认 `release`）非 `release` 时加载。
 
-**加载方式**：4 个主 agent（orchestrator/planner/writer/analyzer）在处理任何请求之前读取 `__MODE__`，非 `release` 时均调用 `skill("novel-dev-ops")` 加载本技能；`__MODE__: release`（默认）时**不加载**，主 agent prompt 保持精简。
+**加载方式**：3 个主 agent（orchestrator/planner/writer）在处理任何请求之前读取 `__MODE__`，非 `release` 时均调用 `skill("novel-dev-ops")` 加载本技能；`__MODE__: release`（默认）时**不加载**，主 agent prompt 保持精简。
 
 ## 能力一览
 

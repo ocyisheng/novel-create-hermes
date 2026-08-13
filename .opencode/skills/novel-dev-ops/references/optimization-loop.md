@@ -9,10 +9,10 @@
 | 线索类型 | 改进维度 | 具体目标 | 执行方式（含多步可执行清单） |
 |---------|---------|---------|---------|
 | `schema` | Graph 数据模型 | 单元字段、关系类型、edge 定义 | ① 定位缺失/错误的字段定义 ② 修改 `graph_store.py` schema 校验 ③ 更新 skill 文档中的单元类型说明 ④ 运行 `novel-tool(operation="graph.check")` 验证 |
-| `prompt` | Agent 调度逻辑 | 按线索类型定位到 orchestrator.md / novel-planner.md / novel-writer.md / novel-analyzer.md 各自 prompt | ① 定位缺失/错误的判断分支（从「过程回放」的根因反推具体行号） ② 写出修正后的分支条件 ③ 更新对应主 agent prompt ④ 关联触发场景的描述（防止同类误判再现） |
+| `prompt` | Agent 调度逻辑 | 按线索类型定位到 orchestrator.md / novel-planner.md / novel-writer.md 各自 prompt（分析类优化定位 orchestrator.md 分诊段 / novel-diagnose.md） | ① 定位缺失/错误的判断分支（从「过程回放」的根因反推具体行号） ② 写出修正后的分支条件 ③ 更新对应主 agent prompt ④ 关联触发场景的描述（防止同类误判再现） |
 | `handler` | 业务逻辑 | `handlers_*.py` 中的处理函数 | ① 定位函数 + 有问题的代码行 ② 写出修正后的逻辑 ③ 添加/更新测试用例 |
 | `skill` | 创作能力 | `.opencode/skills/*/SKILL.md` 操作指南 | ① 定位缺失/错误的操作步骤 ② 更新 skill 文档 ③ 同步更新触发词列表（如有） |
-| `workflow` | 编排流程 | 4 个主 agent（orchestrator/planner/writer/analyzer）主循环、决策树、调度模板 | ① 从「过程回放」的第 1 轮根因提取"缺了哪步前置判断" ② 在对应主 agent 主循环路由树中插入新分支/检查点 ③ 更新对应的调度模板或注入规则 ④ 在 A.1 迭代过程的说明中新增"触发条件"描述 |
+| `workflow` | 编排流程 | 3 个主 agent（orchestrator/planner/writer）主循环、决策树、调度模板 | ① 从「过程回放」的第 1 轮根因提取"缺了哪步前置判断" ② 在对应主 agent 主循环路由树中插入新分支/检查点 ③ 更新对应的调度模板或注入规则 ④ 在 A.1 迭代过程的说明中新增"触发条件"描述 |
 | `tool` | 工具层 | `novel-tool` 参数、返回格式 | ① 定位参数/返回值问题 ② 修改 `novel_tool.py` 适配层或 `__init__.py` 注册 ③ 更新 handlers 对应函数签名 |
 
 ## C.2 生成改进任务清单

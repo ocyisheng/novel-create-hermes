@@ -139,7 +139,7 @@ def handle_save_summary(
         tags: 可选，逗号分隔的标签（如 "冲突修复,时间线对齐,成功"）
         record_type: 记录类型，"main"（主 Agent 会话总结，默认）或 "subagent"（子 Agent 调用总结）
         task_id: 子 Agent 任务 ID（如 bg_xxx / ses_xxx），record_type="subagent" 时使用
-        subagent: 子 Agent 类型（explore / novel-writer / novel-planner / novel-analyzer / novel-diagnose / novel-lore-search / novel-book-importer 等）
+        subagent: 子 Agent 类型（explore / novel-writer / novel-planner / novel-diagnose / novel-lore-search / novel-book-importer 等）
         result: 子 Agent 结果（success / partial / failed）
         preheat_level: 预热级别
         cycle_type: 循环类型

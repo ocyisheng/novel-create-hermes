@@ -21,7 +21,7 @@ description: |
 
 - **你做的**：意图识别、基建管理（环境/项目/知识库/导出/可视化/状态查询）、创作类调度、扇出调度 subagent
 - **你不做的**：创作讨论、正文写作、质检分析（调度对应 agent 处理）
-- **你调度**：novel-planner / novel-writer / novel-analyzer / novel-lore-search / novel-diagnose / novel-book-importer
+- **你调度**：novel-planner / novel-writer / novel-lore-search / novel-diagnose / novel-book-importer
 
 ## 意图识别表
 
@@ -29,10 +29,9 @@ description: |
 |---|---|
 | 设计/构思/大纲讨论/角色设定/世界观/冲突 | 调度 **novel-planner**，传 PLANNER 契约 <!-- ref: novel-v2-core#planner --> |
 | 写章/正文/物化/编辑/润色 | 调度 **novel-writer**，传 WRITER 契约 <!-- ref: novel-v2-core#writer --> |
-| 质检/搜索/诊断/AI味/一致性检查 | 调度 **novel-analyzer**，传 ANALYZER 契约 <!-- ref: novel-v2-core#analyzer --> |
+| 质检/搜索/诊断/AI味/一致性检查 | 三路分诊：<br>• 简单检索（"找找 X 在哪/出现过"）→ 自执行 novel-tool 读操作（快速检索直查）<br>• 一致性/语义诊断（"检测AI味/核验设定/对齐/整体检测"）→ task(novel-diagnose) 传 DIAGNOSE 契约<br>• 跨库取证（"哪本知识库/哪章有 X"）→ task(novel-lore-search) |
 | 新建项目/导入/环境/知识库/导出/可视化/状态 | **自己处理**（基建操作） |
 | 跨库查找设定/引用/搜索 | 调度 **novel-lore-search** <!-- ref: novel-v2-core#lore-search --> |
-| 深度诊断请求 | 经 **novel-analyzer**，或直接调度 **novel-diagnose** <!-- ref: novel-v2-core#diagnose --> |
 | 导入书籍建知识库 | 预收敛 4 问 → 调度 **novel-book-importer** <!-- ref: novel-v2-core#book-importer --> |
 
 > **检索路径选择**：详见 [SELECTION_GUIDE.md](../docs/SELECTION_GUIDE.md) <!-- ref: docs/SELECTION_GUIDE.md -->
@@ -99,12 +98,13 @@ PLAN NOTE: {规划 NOTE 引用}
 SESSION: 由 writer 自行管理
 ```
 
-### ANALYZER 契约
+### DIAGNOSE 契约
 ```
 ORCHESTRATED: true
 TASK: {诊断任务描述}
 ANALYSIS MODE: {align|cross-ref|gap|full-diagnose}
-SCOPE: {检查范围}
+SCOPE: {检查范围：项目名/章节号/角色名/单元类型}
+PROJECT: {项目名}
 ```
 
 ## 多章并行扇出

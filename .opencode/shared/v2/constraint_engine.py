@@ -52,8 +52,6 @@ class ConstraintEngine:
         self.registry = registry or TypeRegistry.get_global(
             project_root=str(store.project_root)
         )
-        # DeviationManager 实例缓存（延迟创建，复用同一实例保证水位/偏差一致落盘）
-        self._dm: Optional[Any] = None
 
     def register_with_store(self):
         """注册到 GraphStore 的 post_flush 钩子，使约束检查自动运行。"""
@@ -64,11 +62,17 @@ class ConstraintEngine:
         self.run_incremental()
 
     def _get_deviation_manager(self):
-        """延迟创建并缓存 DeviationManager（与水位/偏差共用同一实例）。"""
-        if self._dm is None:
-            from deviation_manager import DeviationManager
-            self._dm = DeviationManager(str(self.store.project_root))
-        return self._dm
+        """获取 DeviationManager（每次调用都从磁盘加载最新状态）。
+
+        不缓存实例：deviation_state.yaml 可能已被 deviation.* handler
+        （它们每次调用都新建实例）写入更新。daemon 中 GraphStore/
+        ConstraintEngine 跨请求复用——若缓存 DeviationManager，其内存状态
+        会与磁盘脱节，后续 flush 的 post_flush 钩子会用缓存旧状态整体覆盖
+        新状态（曾导致 merge/resolve 结果被回滚为全 pending）。
+        同一 run 内水位/偏差的一致性由调用方显式传递 dm 参数保证。
+        """
+        from deviation_manager import DeviationManager
+        return DeviationManager(str(self.store.project_root))
 
     def _current_max_unit_version(self) -> int:
         """当前所有单元（含归档）的最大 version；无单元时返回 0。"""

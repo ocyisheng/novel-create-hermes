@@ -168,6 +168,9 @@ class TestConstraintWatermark:
 
         assert engine._checked_ids == [u3.id], \
             f"未修改单元不应被重新扫描，实际 {engine._checked_ids}"
+        # 重新获取实例读取磁盘上的最新水位（引擎每次运行都新建实例落盘，
+        # 不缓存实例；此前持有的 dm 是第 1 轮的旧实例，不代表最新状态）
+        dm = engine._get_deviation_manager()
         assert dm.constraint_watermark >= 2, \
             "水位应推进到当前最大 unit.version"
 

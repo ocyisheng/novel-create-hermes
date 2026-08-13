@@ -22,7 +22,7 @@
       "mode": "all",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-planner.md",
-      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-v2-planning", "novel-dev-ops"],
+      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
@@ -48,19 +48,6 @@
         "novel-tool": true
       }
     },
-    "novel-analyzer": {
-      "description": "只读质检主 agent——快速检索自执行、深度诊断调度 diagnose、输出诊断报告",
-      "mode": "all",
-      "model": "deepseek/deepseek-v4-flash",
-      "prompt": ".opencode/agents/novel-analyzer.md",
-      "skills": ["novel-search-analysis", "novel-v2-analysis", "novel-dev-ops"],
-      "tools": {
-        "task": true,
-        "skill": true,
-        "read": true,
-        "novel-tool": true
-      }
-    },
     "novel-lore-search": {
       "description": "跨库检索器——graph+knowledge+文件系统检索，返回结构化摘要（只读）",
       "mode": "subagent",
@@ -76,7 +63,7 @@
       "mode": "subagent",
       "model": "deepseek/deepseek-v4-flash",
       "prompt": ".opencode/agents/novel-diagnose.md",
-      "skills": ["novel-search-analysis", "novel-v2-analysis"],
+      "skills": ["novel-v2-core", "novel-search-analysis"],
       "permission": {
         "read": "allow",
         "novel-tool": "allow"

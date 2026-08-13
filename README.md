@@ -87,7 +87,7 @@ cd Desktop\novel-create-hermes
 opencode
 ```
 
-按 Tab 键切换到 **orchestrator**（入口）/ **novel-planner**（规划）/ **novel-writer**（写作）/ **novel-analyzer**（分析）。
+按 Tab 键切换到 **orchestrator**（入口）/ **novel-planner**（规划）/ **novel-writer**（写作）。
 
 ### 4. 创建项目
 
@@ -220,7 +220,7 @@ V2 基于**叙事单元网络**，取代了传统的线性阶段和离散 YAML �
 orchestrator（入口）→ 意图识别 + 基建自处理 + 扇出调度
 novel-planner（规划）→ 设计闭环（grill→创意→六维→note）
 novel-writer（写作）→ 写作闭环（note→R7-R10→写作→写后处理）
-novel-analyzer（分析）→ 质检闭环（分诊→诊断→报告）
+orchestrator → novel-diagnose（质检）
         │
         ├─ novel-lore-search   ← 跨库检索（只读）
         ├─ novel-diagnose      ← 深度诊断（只读）

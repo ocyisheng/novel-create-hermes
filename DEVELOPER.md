@@ -32,7 +32,6 @@ orchestrator.md（唯一入口）→ 意图识别 + 基建自处理 + 领域扇�
         │
         ├─ novel-planner（设计）   → grill → 创意 → 六维 → NOTE 单元（唯一写类型）
         ├─ novel-writer（物化）    → 业务单元 + 关系 + 质检（actor 门禁白名单）
-        ├─ novel-analyzer（诊断）  → 快速检索自执行 / 调度 novel-diagnose
         └─ subagents              → novel-diagnose / novel-lore-search / novel-book-importer
         │                      │
         │              load_skills=["novel-v2-core", "<角色技能>", ...]
@@ -106,7 +105,6 @@ orchestrator.md（唯一入口）→ 意图识别 + 基建自处理 + 领域扇�
 | `orchestrator` | 总编排（唯一入口）：意图识别、基建自处理、领域扇出调度 | `novel-tool` + `task()` 调度 |
 | `novel-planner` | 设计讨论：grill 需求发现 → 创意方案 → 六维冲突设计 → NOTE 单元（唯一写类型） | `read`, `novel-tool`, `skill()` |
 | `novel-writer` | 写作物化：单元内容创作、关系构建、质量检查、写后处理（actor 门禁白名单） | `read`, `novel-tool`, `skill()` |
-| `novel-analyzer` | 诊断编排：快检自执行（novel-search-analysis 方法论）、深度诊断调度 novel-diagnose | `read`, `novel-tool`, `skill()` |
 | `novel-diagnose` | 深度诊断 subagent：align/cross-ref/gap/full-diagnose（只读 + deviation.merge 唯一写例外） | `read`, `novel-tool` **仅** |
 | `novel-lore-search` | 跨库检索 subagent：graph + knowledge/ + 文件系统全文检索（只读） | `read`, `novel-tool` **仅** |
 | `novel-book-importer` | 书籍导入 subagent：book-to-knowledge 全管道（写 knowledge/） | `read`, `write`, `bash` |
@@ -120,7 +118,7 @@ orchestrator.md（唯一入口）→ 意图识别 + 基建自处理 + 领域扇�
 #### 创作路由
 
 ```
-用户请求 → 明确指令? → 是 → orchestrator 路由到 novel-writer（写作物化）/ novel-planner（设计讨论）/ novel-analyzer（诊断）
+用户请求 → 明确指令? → 是 → orchestrator 路由到 novel-writer（写作物化）/ novel-planner（设计讨论）
                   → 否 → skill("novel-grill") 收敛需求 → 用户确认 → 按领域路由
 ```
 

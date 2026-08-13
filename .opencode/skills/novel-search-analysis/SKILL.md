@@ -28,26 +28,16 @@ skill("novel-search-analysis", user_message="mode=gap")
 skill("novel-search-analysis", user_message="mode=full-diagnose")
 ```
 
-分析主 agent（novel-analyzer）传入 `user_message` 参数时自动解析模式标识（`mode=xxx`）。
+深度诊断 subagent（novel-diagnose）传入 `user_message` 参数时自动解析模式标识（`mode=xxx`）。
 若未提供模式，默认走引导式询问。
 
-### 直接搜索（不需要 skill）
-
-如果用户只是问"在哪里出现过"这种简单问题，不需要 LLM 分析——直接调 novel-tool：
-
-```
-novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
-```
-
-### 分析类任务（需要 skill）
-
-如果用户要求"分析一致性"、"帮我看看哪里不对"、"检查一下设定矛盾"——切换到 skill 路径，LLM 做推理。
+简单检索（"在哪里出现过"）由 orchestrator 经 novel-tool 自执行，无需本 skill；分析类任务（"分析一致性"、"哪里不对"）才走本 skill 的 LLM 推理路径。
 
 ---
 
 ## 分析模式（LLM 做的事）
 
-以下每种模式，你（LLM）都要按推理框架执行。
+以下每种模式，你（LLM）都要按推理框架执行。通用分析方法详见 `references/analysis/quality_methodology.md`。
 
 ### 一、mode=search
 
@@ -96,13 +86,9 @@ novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
 
 ④ 每个偏差项生成 suggested_changeset
 
-⑤ 过滤已解决偏差：在 merge 前，加载已有偏差记录，排除已 resolved/retained 的
-   novel-tool(operation="deviation.list", project="<PROJECT>")
-   → 对比本次 findings 与历史状态
-   → 已在 resolved/retained 状态的 (dimension, entity) 不重复提交
-   → 除非有新的证据表明问题比之前评估的更严重（此时可附带说明重新提交）
+⑤ 偏差去重/计数由 deviation.merge 自动处理（按 dimension+entity 键控），无需手动过滤
 
-⑥ deviation_manager.merge() 写入新偏差
+⑥ deviation.merge 写入新偏差
 
 ```
 > 评估维度详见 references/alignment_criteria.md
@@ -197,14 +183,9 @@ updated_at 判断"哪个是被修正过的最新值"：
    - 世界观规则变更（影响面次之）
    - 创建新的单元（而不是只修改内容）
 
-④ 过滤已解决偏差：在生成 findings 前，加载已有偏差状态去重
-   novel-tool(operation="deviation.list", project="{PROJECT}")
-   → 获取当前所有偏差记录
-   → 标记为 resolved 或 retained 的偏差对应的 (dimension, entity)，不再重复生成
-   → 如果发现当前变更又触发了同一问题，仅递增 detection_count（由 merge 处理），
-      不要在 findings 中重新提交已解决的条目
+④ 偏差去重/计数由 deviation.merge 自动处理（按 dimension+entity 键控），无需手动过滤
 
-⑤ 合并新偏差并更新扫描版本
+⑤ deviation.merge 合并新偏差并更新扫描版本
    novel-tool(operation="deviation.merge", project="{PROJECT}", findings='[...]', full_scan_version="{最大unit.version}")
 ```
 
@@ -226,53 +207,9 @@ novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭", limi
 **重要**：novel-tool 只回答"数据在哪"，不回答"这意味着什么"。
 后面的分析工作是你（LLM）的事。
 
-### novel-tool 命令参考
+### novel-tool 参数契约
 
-```
-# 搜索
-novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
-novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭")
-novel-tool(operation="graph.search", project="<PROJECT>", pattern="筑基.*期", regex=true)
-novel-tool(operation="graph.search", project="<PROJECT>", keyword="剑", scope="SCENE", limit=10)
-
-# 质量检查（统一引擎）
-novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="mechanical")
-novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="statistical")
-novel-tool(operation="graph.quality_check", project="<PROJECT>", layers="mechanical,statistical")
-# 输出：机械规则 + 统计信号的结构化数据
-
-# 项目统计 + gap 数据
-novel-tool(operation="graph.stats", project="<PROJECT>")
-```
-
-### 偏差持久化
-
-分析中发现的偏差通过 `deviation.*` 操作持久化到 `graph/deviation_state.yaml`：
-
-> 以下操作与 novel-v2-core §3-§4 一致，独立加载时自包含；与 core 同载时以 core 为准
-
-```
-# 合并新发现
-novel-tool(operation="deviation.merge", project="<PROJECT>", findings='[{"dimension":"character_trait","entity":"林昭","severity":"warning","summary":"角色档案写的是'杀伐果断'，但第3章的行为偏'隐忍谨慎'"}]')
-
-# 查看当前待处理偏差
-novel-tool(operation="deviation.pending", project="<PROJECT>")
-
-# 查看全部偏差记录（含已解决/保留）
-novel-tool(operation="deviation.list", project="<PROJECT>")
-
-# 删除偏差条目（清理误报/撤销）
-novel-tool(operation="deviation.delete", project="<PROJECT>", id="<偏差ID>")
-
-# 标记为已解决
-novel-tool(operation="deviation.resolve", project="<PROJECT>", id="<偏差ID>")
-
-# 标记为保留（正常设计）
-novel-tool(operation="deviation.retain", project="<PROJECT>", id="<偏差ID>")
-
-# 偏差统计
-novel-tool(operation="deviation.stats", project="<PROJECT>")
-```
+参数契约见 novel-tool.ts schema；操作语义见 novel-v2-core。
 
 ---
 

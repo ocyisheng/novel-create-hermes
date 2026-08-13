@@ -1,30 +1,17 @@
 ---
 name: "novel-v2-writing"
-description: "V2 写作子技能：为 novel-writer 提供写作角色定位与专属参考。共享操作层见 novel-v2-core（必须与 novel-v2-core 一起加载）。触发词：写作、物化、单元内容、关系构建"
+description: "V2 写作领域参考索引：提供 7 类写作参考文档"
 license: "MIT"
 version: "2.0.0"
 compatibility: "OpenCode"
-tags: ["novel", "v2", "writing", "writer", "graph", "content"]
+tags: ["novel", "v2", "writing", "reference"]
 ---
 
-# novel-v2-writing
-
-## 定位
-
-本技能为 **novel-writer** 主 agent 提供写作角色的定位与专属参考。
-
-> **必读**：角色路由、上下文契约、novel-tool 操作指南、HARD CONSTRAINTS 全部在 **novel-v2-core** 中。本技能与 `novel-v2-core` 成对加载：`load_skills=["novel-v2-core", "novel-v2-writing"]`。
-
-负责：
-- 单元内容创作与优化（scene / chunk / character_arc / world_rule / thematic_motif / narrative_voice）
-- 关系构建与验证（add_relation / remove_relation / update_relation）
-- 质量检查与偏差管理（quality_check / deviation）
-- 上下文预热与结构化（session.start / build_workspace）
-- 写后处理（写前检查 R7-R10 → 物化 → 偏差检核 + 质量自检）
+# novel-v2-writing — 写作参考索引
 
 ## 领域参考
 
-写作角色专属参考（本技能目录）：
+写作参考文档（本技能目录）：
 
 - `references/writing/scene.md` — 场景写作指南
 - `references/writing/chunk.md` — 片段写作指南

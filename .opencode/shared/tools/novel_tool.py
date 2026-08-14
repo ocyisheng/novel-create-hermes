@@ -62,40 +62,8 @@ def _err(msg: str) -> str:
     return json.dumps({"success": False, "error": str(msg)}, ensure_ascii=False)
 
 
-# ── 项目路径解析 ─────────────────────────────────────────────────────────
-
-def _find_novels_root() -> str:
-    env = os.environ.get("NOVELS_ROOT")
-    if env and os.path.isdir(env):
-        return env
-    cwd = os.path.join(os.getcwd(), "novels")
-    if os.path.isdir(cwd):
-        return cwd
-    tool_root = os.path.abspath(os.path.join(_SHARED_DIR, "..", ".."))
-    tool_novels = os.path.join(tool_root, "novels")
-    if os.path.isdir(tool_novels):
-        return tool_novels
-    return cwd
-
-
-def _resolve_project(project: str) -> str:
-    """将项目名解析为绝对路径。
-
-    - 已是绝对路径 → 直接返回
-    - 相对路径 → 用 handlers_project.NOVELS_ROOT 拼接（与 handler 一致，支持测试 patch）
-    - NOVELS_ROOT 不可用时回退到 cwd/novels 拼接
-    - 候选目录不存在时仍返回拼接结果（由 handler 判断是否已存在）
-    """
-    if not project:
-        return ""
-    if os.path.isabs(project):
-        return project
-    try:
-        import handlers.handlers_project as hp
-        novels_root = hp.NOVELS_ROOT
-    except (ImportError, AttributeError):
-        novels_root = _find_novels_root()
-    return os.path.join(novels_root, project)
+# ── 项目路径解析（统一实现在 handlers._common）──────────────────────────
+from handlers._common import _find_novels_root, _resolve_project  # noqa: F401
 
 
 def _project_basename(project: str) -> str:
@@ -210,7 +178,7 @@ _PARAM_ALIASES = {
     # graph.add_relation: old type/rel_type → canonical rel_type
     "graph.add_relation": {"rel_type": ["rel_type", "relType", "type"]},
     # graph.get_relations: old type → canonical rel_type
-    "graph.get_relations": {"rel_type": ["type", "rel_type"], "source_id": ["source_id"], "target_id": ["target_id"], "payload_filter": ["payload_filter"]},
+    "graph.get_relations": {"rel_type": ["type", "rel_type"], "source_id": ["source_id", "source"], "target_id": ["target_id", "target"], "payload_filter": ["payload_filter"]},
     # graph.remove_relation: old type → canonical rel_type
     "graph.remove_relation": {"rel_type": ["type", "rel_type"]},
     # graph.list_units: old type → canonical unit_type

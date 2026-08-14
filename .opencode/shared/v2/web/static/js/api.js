@@ -9,8 +9,11 @@
     /** 获取项目信息 */
     projectInfo() { return _get('/api/project'); },
 
-    /** 全量图谱数据 */
-    fullGraph() { return _get('/api/graph'); },
+    /** 图谱数据（支持分页: limit/offset/depth） */
+    fullGraph(params = {}) {
+      const q = new URLSearchParams(params).toString();
+      return _get(`/api/graph${q ? '?' + q : ''}`);
+    },
 
     /** 单节点详情 */
     nodeDetail(id) { return _get(`/api/nodes/${encodeURIComponent(id)}`); },
@@ -60,6 +63,11 @@
     /** 全局时间线（所有场景按故事时间排序） */
     globalTimeline() {
       return _get('/api/graph/timeline');
+    },
+
+    /** 结构树（总纲 → 卷 → 章） */
+    structureTree() {
+      return _get('/api/graph/structure-tree');
     },
 
     /** 搜索 */

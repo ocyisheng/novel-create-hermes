@@ -20,6 +20,9 @@
   let network = null;       // vis.Network
   let currentId = null;     // 当前选中的节点 ID
   let loaded = false;
+  let loadedNeighbors = {}; // id → true, 已拉取过邻居的节点
+  let initialLimit = 50;    // 首次加载节点数
+  let initialDepth = 1;     // 首次加载深度
 
   // 类型配置
   const TYPE_CONFIG = {};
@@ -32,7 +35,7 @@
       // 加载项目信息
       const [projInfo, graphResp, scopeResp] = await Promise.all([
         API.projectInfo(),
-        API.fullGraph(),
+        API.fullGraph({ limit: initialLimit, depth: initialDepth }),
         API.searchScope(),
       ]);
 
@@ -138,33 +141,56 @@
   // ── 视图切换 ────────────────────────────────────────────
 
   window.switchView = function(view, focusNodeId) {
-    const network = document.getElementById('network');
+    const networkEl = document.getElementById('network');
     const timelineView = document.getElementById('timelineView');
+    const structureView = document.getElementById('structureView');
     const graphToolbar = document.getElementById('graphToolbar');
     const timelineToolbar = document.getElementById('timelineToolbar');
+    const structureToolbar = document.getElementById('structureToolbar');
     const tabGraph = document.getElementById('tabGraph');
     const tabTimeline = document.getElementById('tabTimeline');
+    const tabStructure = document.getElementById('tabStructure');
 
     if (view === 'timeline') {
-      if (network) network.style.display = 'none';
+      if (networkEl) networkEl.style.display = 'none';
       if (timelineView) timelineView.style.display = 'block';
+      if (structureView) structureView.style.display = 'none';
       if (graphToolbar) graphToolbar.style.display = 'none';
       if (timelineToolbar) timelineToolbar.style.display = 'inline-flex';
+      if (structureToolbar) structureToolbar.style.display = 'none';
       if (tabGraph) tabGraph.classList.remove('active');
       if (tabTimeline) tabTimeline.classList.add('active');
+      if (tabStructure) tabStructure.classList.remove('active');
       // 关闭详情面板
       closeDetail();
       // 加载时间线
       if (typeof TIMELINE !== 'undefined' && TIMELINE.load) {
         TIMELINE.load();
       }
-    } else {
-      if (network) network.style.display = 'block';
+    } else if (view === 'structure') {
+      if (networkEl) networkEl.style.display = 'none';
       if (timelineView) timelineView.style.display = 'none';
+      if (structureView) structureView.style.display = 'block';
+      if (graphToolbar) graphToolbar.style.display = 'none';
+      if (timelineToolbar) timelineToolbar.style.display = 'none';
+      if (structureToolbar) structureToolbar.style.display = 'inline-flex';
+      if (tabGraph) tabGraph.classList.remove('active');
+      if (tabTimeline) tabTimeline.classList.remove('active');
+      if (tabStructure) tabStructure.classList.add('active');
+      // 关闭详情面板
+      closeDetail();
+      // 加载结构树（每次进入刷新，保证最新）
+      loadStructureTree();
+    } else {
+      if (networkEl) networkEl.style.display = 'block';
+      if (timelineView) timelineView.style.display = 'none';
+      if (structureView) structureView.style.display = 'none';
       if (graphToolbar) graphToolbar.style.display = 'inline-flex';
       if (timelineToolbar) timelineToolbar.style.display = 'none';
+      if (structureToolbar) structureToolbar.style.display = 'none';
       if (tabGraph) tabGraph.classList.add('active');
       if (tabTimeline) tabTimeline.classList.remove('active');
+      if (tabStructure) tabStructure.classList.remove('active');
       // 聚焦节点
       if (focusNodeId && nodeData[focusNodeId]) {
         setTimeout(function() {
@@ -182,6 +208,111 @@
     if (typeof TIMELINE !== 'undefined' && TIMELINE.resetTimelineFilter) {
       TIMELINE.resetTimelineFilter();
     }
+  };
+
+  // ── 结构树（总纲 → 卷 → 章） ──────────────────────────────
+
+  const STRUCTURE_META = {
+    outline:      { label: '总纲' },
+    volume_plan:  { label: '卷' },
+    chapter_plan: { label: '章' },
+  };
+
+  let structureNodes = [];      // 后端返回的扁平节点（children 存 id，保持树序）
+  let structureNodeMap = {};    // id → node（渲染查找用）
+  let structureCollapsed = {};  // id → true = 折叠
+
+  async function loadStructureTree() {
+    const cont = document.getElementById('structureContent');
+    if (!cont) return;
+    const statsEl = document.getElementById('stStats');
+    try {
+      const resp = await API.structureTree();
+      structureNodes = resp.nodes || [];
+      structureNodeMap = {};
+      structureNodes.forEach(n => { structureNodeMap[n.id] = n; });
+
+      const counts = resp.counts || {};
+      if (statsEl) {
+        statsEl.textContent =
+          (counts.outline || 0) + ' 总纲 · ' +
+          (counts.volume_plan || 0) + ' 卷 · ' +
+          (counts.chapter_plan || 0) + ' 章';
+      }
+
+      if (!structureNodes.length) {
+        cont.innerHTML = '<div class="tl-empty">暂无结构单元（总纲 / 卷 / 章）</div>';
+        return;
+      }
+      renderStructureTreeIntoDom(cont);
+    } catch (err) {
+      cont.innerHTML = '<div class="tl-empty">结构树加载失败: ' + esc(err.message) + '</div>';
+    }
+  }
+
+  /** 根节点 = 未被任何 children 引用的节点（保持后端返回顺序） */
+  function structureRoots() {
+    const childRefs = new Set();
+    structureNodes.forEach(n => (n.children || []).forEach(c => childRefs.add(c)));
+    return structureNodes.filter(n => !childRefs.has(n.id));
+  }
+
+  function renderStructureTreeIntoDom(cont) {
+    cont = cont || document.getElementById('structureContent');
+    let html = '<ul class="st-tree">';
+    structureRoots().forEach(r => { html += renderStructureNode(r); });
+    html += '</ul>';
+    cont.innerHTML = html;
+  }
+
+  function renderStructureNode(node) {
+    const kids = (node.children || []).filter(id => structureNodeMap[id]);
+    const collapsed = !!structureCollapsed[node.id];
+    const synthetic = !!node.synthetic;
+    const meta = STRUCTURE_META[node.type] || { label: node.type };
+    const rowCls = 'st-row' + (synthetic ? ' st-synthetic' : '');
+    let html = '<li class="st-item">';
+    html += '<div class="' + rowCls + '">';
+    html += '<span class="st-caret' + (kids.length ? '' : ' st-caret-empty') + '" ' +
+      'onclick="event.stopPropagation();toggleStructureNode(\'' + jsStr(node.id) + '\')">' +
+      (kids.length ? (collapsed ? '▸' : '▾') : '·') + '</span>';
+    html += '<span class="st-dot" style="background:' + getTypeColor(node.type) + '"></span>';
+    if (synthetic) {
+      html += '<span class="st-name">' + esc(node.name) + '</span>';
+    } else {
+      html += '<span class="st-name st-link" title="点击在图谱中定位" onclick="jumpToGraphNode(\'' + jsStr(node.id) + '\')">' + esc(node.name) + '</span>';
+      html += '<span class="st-type">' + esc(meta.label) + '</span>';
+      html += '<span class="st-jump" title="在图谱中定位" onclick="jumpToGraphNode(\'' + jsStr(node.id) + '\')">↗</span>';
+    }
+    html += '</div>';
+    if (kids.length && !collapsed) {
+      html += '<ul class="st-children">' + kids.map(id => renderStructureNode(structureNodeMap[id])).join('') + '</ul>';
+    }
+    html += '</li>';
+    return html;
+  }
+
+  window.toggleStructureNode = function(id) {
+    structureCollapsed[id] = !structureCollapsed[id];
+    renderStructureTreeIntoDom();
+  };
+
+  window.structureExpandAll = function(expand) {
+    structureCollapsed = {};
+    if (!expand) {
+      structureNodes.forEach(n => {
+        if ((n.children || []).length) structureCollapsed[n.id] = true;
+      });
+    }
+    renderStructureTreeIntoDom();
+  };
+
+  window.jumpToGraphNode = async function(id) {
+    // 未加载过的节点先增量拉取（合并进图数据），保证图视图能聚焦高亮
+    if (!nodeData[id] && !loadedNeighbors[id]) {
+      try { await loadNeighborsIncremental(id); } catch (e) { /* 忽略，切视图兜底 */ }
+    }
+    switchView('graph', id);
   };
 
   // ── 节点/边构建 ──────────────────────────────────────────
@@ -235,25 +366,8 @@
 
     const typeVal = document.getElementById('typeFilter').value;
     const query = document.getElementById('searchBox').value.trim().toLowerCase();
-    const noFilter = typeVal === 'all' && !query;
 
-    if (noFilter) {
-      // 无筛选条件时：移除所有 hidden 标记，恢复全部显示
-      const toShow = [];
-      nodesDataSet.forEach(node => {
-        if (node.hidden) toShow.push({ id: node.id, hidden: false });
-      });
-      if (toShow.length) nodesDataSet.update(toShow);
-      const edgeToShow = [];
-      edgesDataSet.forEach(edge => {
-        if (edge.hidden) edgeToShow.push({ id: edge.id, hidden: false });
-      });
-      if (edgeToShow.length) edgesDataSet.update(edgeToShow);
-      network.fit({ animation: false });
-      return;
-    }
-
-    // 预计算可见节点
+    // 计算可见节点集合（类型 + 搜索）
     const visible = new Set();
     Object.entries(nodeData).forEach(([id, n]) => {
       let ok = true;
@@ -262,25 +376,24 @@
       if (ok) visible.add(id);
     });
 
-    // 批量更新节点可见性
-    const nodeUpdates = [];
-    nodesDataSet.forEach(node => {
-      const shouldHide = !visible.has(node.id);
-      if (!!node.hidden !== shouldHide) nodeUpdates.push({ id: node.id, hidden: shouldHide });
-    });
-    if (nodeUpdates.length) nodesDataSet.update(nodeUpdates);
+    // 重建只含可见节点的图 → 触发独立的物理布局。
+    // 原实现只是隐藏节点、保留全图布局位置，导致所有类型过滤都显示同样的聚团；
+    // 重建后每个类型/搜索视图展示自己的真实连接结构（回到"全部"时恢复全图总览）。
+    const newNodes = new vis.DataSet(
+      Array.from(visible).map(id => buildVisNode(id, nodeData[id]))
+    );
+    const newEdges = new vis.DataSet(
+      edgeData.filter(e => visible.has(e.from) && visible.has(e.to)).map(e => buildVisEdge(e))
+    );
 
-    // 批量更新边
-    const edgeUpdates = [];
-    edgesDataSet.forEach(edge => {
-      const shouldHide = !visible.has(edge.from) || !visible.has(edge.to);
-      if (!!edge.hidden !== shouldHide) edgeUpdates.push({ id: edge.id, hidden: shouldHide });
-    });
-    if (edgeUpdates.length) edgesDataSet.update(edgeUpdates);
+    nodesDataSet = newNodes;
+    edgesDataSet = newEdges;
+    network.setData({ nodes: newNodes, edges: newEdges });
 
-    // 强制重绘 + 适配视角
-    network.redraw();
-    setTimeout(() => network.fit({ animation: false }), 50);
+    // 重新启用物理布局并适配视角
+    network.setOptions({ physics: { enabled: true } });
+    network.fit({ animation: false });
+    setTimeout(() => network.fit({ animation: false }), 400);
   }
 
   // ── Hover ─────────────────────────────────────────────────
@@ -304,9 +417,62 @@
 
   function onClick(params) {
     if (params.nodes && params.nodes.length > 0) {
-      showDetail(params.nodes[0]);
+      const id = params.nodes[0];
+      showDetail(id);
+      // 增量加载：未拉取过邻居时按需加载
+      if (!loadedNeighbors[id]) {
+        loadNeighborsIncremental(id);
+      }
     } else {
       closeDetail();
+    }
+  }
+
+  /**
+   * 增量加载节点邻居：调用 /api/graph/neighbors/{id}，
+   * 用 vis.DataSet.update() 追加新节点/边，避免全量重载。
+   */
+  async function loadNeighborsIncremental(id) {
+    loadedNeighbors[id] = true;
+    try {
+      const resp = await API.neighbors(id, 2);
+      if (!resp || !resp.nodes) return;
+
+      const newNodes = [];
+      const newEdges = [];
+
+      // 收集新节点
+      Object.entries(resp.nodes).forEach(([nid, n]) => {
+        if (!nodeData[nid]) {
+          nodeData[nid] = n;
+          newNodes.push(buildVisNode(nid, n));
+        }
+      });
+
+      // 收集新边（去重）
+      (resp.edges || []).forEach(e => {
+        const exists = edgeData.some(
+          existing => existing.from === e.from && existing.to === e.to && existing.relation_type === e.relation_type
+        );
+        if (!exists) {
+          edgeData.push(e);
+          newEdges.push(buildVisEdge(e));
+        }
+      });
+
+      // 增量更新 DataSet（仅追加，不替换已有数据）
+      if (newNodes.length > 0 && nodesDataSet) {
+        nodesDataSet.update(newNodes);
+      }
+      if (newEdges.length > 0 && edgesDataSet) {
+        edgesDataSet.update(newEdges);
+      }
+
+      if (newNodes.length > 0 || newEdges.length > 0) {
+        updateStats();
+      }
+    } catch (err) {
+      console.error('增量加载邻居失败:', err);
     }
   }
 
@@ -1304,16 +1470,16 @@
 
   async function refreshGraph() {
     try {
-      const graphResp = await API.fullGraph();
-      nodeData = graphResp.nodes || {};
-      edgeData = graphResp.edges || [];
+      const graphResp = await API.fullGraph({ limit: initialLimit, depth: initialDepth });
+      const newNodeData = graphResp.nodes || {};
+      const newEdgeData = graphResp.edges || [];
 
-      // 更新 vis.DataSet（用 update 替代 clear+add，避免闪烁）
+      // 合并：保留已加载的邻居节点，追加新数据
+      Object.assign(nodeData, newNodeData);
+      edgeData = newEdgeData;
+
       if (nodesDataSet && edgesDataSet) {
-        nodeData = graphResp.nodes || {};
-        edgeData = graphResp.edges || [];
-
-        // 构建全套数据后批量 update（DataSet 按 id 匹配，新旧一致则保持状态）
+        // 构建全套数据后批量 update
         const nodeUpdates = Object.entries(nodeData).map(([nid, n]) => buildVisNode(nid, n));
         const edgeUpdates = edgeData.map(e => buildVisEdge(e));
         nodesDataSet.update(nodeUpdates);
@@ -1332,10 +1498,18 @@
     }
   }
 
-  // ── 增量刷新（用 update 避免闪烁，语义别名） ─────────────
+  // ── 增量刷新：仅更新已加载节点的属性，不重载全图 ─────────
 
   function incrementalRefresh() {
-    return refreshGraph();
+    if (!nodesDataSet || !edgesDataSet) return refreshGraph();
+
+    // 更新已有节点的属性（状态、标签等变化）
+    const nodeUpdates = Object.entries(nodeData).map(([nid, n]) => buildVisNode(nid, n));
+    nodesDataSet.update(nodeUpdates);
+
+    if (currentId && nodeData[currentId]) {
+      showDetail(currentId);
+    }
   }
 
   // ── Modal 控制 ────────────────────────────────────────────

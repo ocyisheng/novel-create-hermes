@@ -89,25 +89,260 @@ def _rel_to_viz(r) -> dict:
 # ── GET /api/graph ────────────────────────────────────────────────
 
 @router.get("")
-def get_full_graph(project_root: str = Depends(get_project_root)):
-    """返回全量图谱数据（用于前端 vis-network 渲染）"""
+def get_full_graph(
+    limit: int = Query(500, description="最大返回节点数"),
+    offset: int = Query(0, description="分页偏移量"),
+    depth: int = Query(2, description="图遍历深度: 1=仅当前页, 2+=含邻居扩展"),
+    project_root: str = Depends(get_project_root),
+):
+    """返回图谱数据（支持分页，用于前端 vis-network 渲染）"""
     store = _get_store(project_root)
-    nodes = {}
-    for u in store._units.values():
-        if u.status == UnitStatus.ARCHIVED:
-            continue
-        nodes[u.id] = _node_to_viz(u)
 
+    # 1. 收集所有未归档单元，按类型+名称确定性排序
+    all_units = sorted(
+        [u for u in store._units.values() if u.status != UnitStatus.ARCHIVED],
+        key=lambda u: (u.type.value, u.unit_name),
+    )
+    total = len(all_units)
+
+    # 2. 应用 offset/limit 分页
+    page = all_units[offset : offset + limit]
+
+    # 3. depth > 1 时，为每个分页节点扩展 (depth-1) 跳邻居
+    included_ids = {u.id for u in page}
+    if depth > 1 and page:
+        extra_candidates: list[str] = []
+        for u in page:
+            neighbors = store.get_neighbors(u.id, max_depth=depth - 1)
+            for hop_nodes in neighbors.values():
+                for nid in hop_nodes:
+                    if nid not in included_ids:
+                        extra_candidates.append(nid)
+        # 去重并按确定性顺序追加（不超过 limit*2 总数）
+        cap = limit * 2
+        seen_extra: set[str] = set()
+        for nid in extra_candidates:
+            if nid in seen_extra or nid in included_ids:
+                continue
+            seen_extra.add(nid)
+            if len(page) >= cap:
+                break
+            u = store.get_unit(nid)
+            if u and u.status != UnitStatus.ARCHIVED:
+                page.append(u)
+                included_ids.add(nid)
+
+    # 4. 构建节点字典
+    nodes = {u.id: _node_to_viz(u) for u in page}
+
+    # 5. 构建边（仅保留两端均在结果集内的边）
     edges = []
-    seen = set()
+    seen_edges: set[str] = set()
     for r in store._relations.values():
         if r.source_id in nodes and r.target_id in nodes:
             key = f"{r.source_id}-{r.target_id}-{r.relation_type.value}"
-            if key not in seen:
-                seen.add(key)
+            if key not in seen_edges:
+                seen_edges.add(key)
                 edges.append(_rel_to_viz(r))
 
-    return {"nodes": nodes, "edges": edges, "node_count": len(nodes), "edge_count": len(edges)}
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "total": total,
+    }
+
+
+# ── GET /api/graph/structure-tree ─────────────────────────────────
+
+_STRUCTURE_TYPES = (UnitType.OUTLINE, UnitType.VOLUME_PLAN, UnitType.CHAPTER_PLAN)
+
+
+def _unit_content_dict(u: NarrativeUnit) -> dict:
+    """解析单元 content 为 dict（兼容 dict 与 str-JSON 两种存储形态）。"""
+    import json
+    if not u.content:
+        return {}
+    if isinstance(u.content, dict):
+        return u.content
+    if isinstance(u.content, str) and u.content.strip().startswith("{"):
+        try:
+            return json.loads(u.content)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _volume_number(u: NarrativeUnit) -> int | None:
+    """卷号：content 卷号/volume_number → 名称 '卷N'/'第N卷' 前缀 → None"""
+    import re
+    content = _unit_content_dict(u)
+    for key in ("卷号", "volume_number"):
+        v = content.get(key)
+        if isinstance(v, (int, float)):
+            return int(v)
+    m = re.search(r"卷\s*(\d+)", u.unit_name)
+    return int(m.group(1)) if m else None
+
+
+def _chapter_number(u: NarrativeUnit) -> int | None:
+    """章节号：content 章节号/chapter_number → 名称 '第N章' → None"""
+    import re
+    content = _unit_content_dict(u)
+    for key in ("章节号", "chapter_number"):
+        v = content.get(key)
+        if isinstance(v, (int, float)):
+            return int(v)
+    m = re.search(r"第\s*(\d+)\s*章", u.unit_name)
+    return int(m.group(1)) if m else None
+
+
+def _structure_sort_key(u: NarrativeUnit) -> tuple:
+    """结构单元排序：有卷号/章节号按数值排，无编号的按名称排（置于末尾）。"""
+    if u.type == UnitType.VOLUME_PLAN:
+        n = _volume_number(u)
+    elif u.type == UnitType.CHAPTER_PLAN:
+        n = _chapter_number(u)
+    else:
+        n = None
+    return (0 if n is not None else 1, n if n is not None else 0, u.unit_name)
+
+
+@router.get("/structure-tree")
+def get_structure_tree(project_root: str = Depends(get_project_root)):
+    """返回结构树：outline → volume_plan → chapter_plan
+
+    层级真相源是 CONTAINS/BELONGS_TO 边；缺失时按卷号/章节号推断：
+    - 卷号：content 卷号/volume_number，回退名称 '卷N' 前缀
+    - 章节号：content 章节号/chapter_number，回退名称 '第N章' 前缀
+    - 卷归属：显式卷号 → 名称含 '卷终' 的末章按章号区间回填 → 未归入
+    - 未挂载的卷/章挂到合成根（synthetic: true），不修改 graph 数据
+    """
+    store = _get_store(project_root)
+
+    units_by_id: dict[str, NarrativeUnit] = {}
+    outlines: list[NarrativeUnit] = []
+    volumes: list[NarrativeUnit] = []
+    chapters: list[NarrativeUnit] = []
+    for u in store._units.values():
+        if u.status == UnitStatus.ARCHIVED or u.type not in _STRUCTURE_TYPES:
+            continue
+        units_by_id[u.id] = u
+        if u.type == UnitType.OUTLINE:
+            outlines.append(u)
+        elif u.type == UnitType.VOLUME_PLAN:
+            volumes.append(u)
+        else:
+            chapters.append(u)
+
+    if not units_by_id:
+        return {"nodes": [], "counts": {}}
+
+    # 1. 边优先：CONTAINS（A 包含 B）/ BELONGS_TO（A 属于 B）——层级唯一真相源
+    children: dict[str, list[str]] = {uid: [] for uid in units_by_id}
+    for r in store._relations.values():
+        if r.relation_type not in (RelationType.CONTAINS, RelationType.BELONGS_TO):
+            continue
+        if r.source_id not in children or r.target_id not in children:
+            continue
+        if r.relation_type == RelationType.CONTAINS:
+            parent_id, child_id = r.source_id, r.target_id
+        else:
+            parent_id, child_id = r.target_id, r.source_id
+        if child_id != parent_id and child_id not in children[parent_id]:
+            children[parent_id].append(child_id)
+
+    mounted = {cid for kids in children.values() for cid in kids}
+
+    # 2. 卷 → 总纲：仅一个总纲时直接挂载（否则保持未归入，由合成根承接）
+    if len(outlines) == 1:
+        outline_id = outlines[0].id
+        for v in volumes:
+            if v.id not in mounted:
+                children[outline_id].append(v.id)
+                mounted.add(v.id)
+
+    # 3. 章 → 卷
+    vol_by_num: dict[int, str] = {}
+    for v in volumes:
+        n = _volume_number(v)
+        if n is not None and n not in vol_by_num:
+            vol_by_num[n] = v.id
+
+    # 3a. 显式卷号：章 content 卷号/volume_number，或名称 '卷N·第M章'
+    for c in chapters:
+        if c.id in mounted:
+            continue
+        n = _volume_number(c)
+        if n is not None and n in vol_by_num:
+            children[vol_by_num[n]].append(c.id)
+            mounted.add(c.id)
+
+    # 3b. 卷边界推断：名称含 '卷终' 的章节是该卷末章，
+    #     卷按卷号顺序依次承接区间 [prev_end+1 .. end]
+    boundary_ends = sorted(
+        _chapter_number(c)
+        for c in chapters
+        if "卷终" in c.unit_name and _chapter_number(c) is not None
+    )
+    if boundary_ends:
+        vol_ranges: list[tuple[int, int, str]] = []
+        prev_end = 0
+        for (vn, vid), end in zip(sorted(vol_by_num.items()), boundary_ends):
+            if end <= prev_end:
+                continue
+            vol_ranges.append((prev_end + 1, end, vid))
+            prev_end = end
+        for c in chapters:
+            if c.id in mounted:
+                continue
+            cn = _chapter_number(c)
+            if cn is None:
+                continue
+            for start, end, vid in vol_ranges:
+                if start <= cn <= end:
+                    children[vid].append(c.id)
+                    mounted.add(c.id)
+                    break
+
+    # 4. 合成根：承接未挂载的卷/章（或项目完全没有总纲时）
+    synthetic_id: str | None = None
+    unattached = [u for u in (volumes + chapters) if u.id not in mounted]
+    if unattached or not outlines:
+        synthetic_id = "__unattached__"
+        children[synthetic_id] = [u.id for u in unattached]
+
+    # 5. 序列化：根（总纲按名排序，合成根最后）→ 子节点按卷号/章节号排序
+    def _node_dict(uid: str) -> dict:
+        if uid == synthetic_id:
+            return {"id": uid, "name": "未归入总纲", "type": "outline", "synthetic": True, "children": []}
+        u = units_by_id[uid]
+        return {"id": uid, "name": u.unit_name, "type": u.type.value, "children": []}
+
+    root_ids = [o.id for o in sorted(outlines, key=_structure_sort_key)]
+    if synthetic_id is not None:
+        root_ids.append(synthetic_id)
+
+    nodes_out: list[dict] = []
+
+    def _emit(uid: str) -> None:
+        """DFS 先序遍历输出：节点在前，子节点按卷号/章节号排序紧随。"""
+        node = _node_dict(uid)
+        kids = sorted(
+            (cid for cid in children.get(uid, []) if cid in units_by_id),
+            key=lambda cid: _structure_sort_key(units_by_id[cid]),
+        )
+        node["children"] = kids
+        nodes_out.append(node)
+        for kid in kids:
+            _emit(kid)
+
+    for rid in root_ids:
+        _emit(rid)
+
+    counts = {"outline": len(outlines), "volume_plan": len(volumes), "chapter_plan": len(chapters)}
+    return {"nodes": nodes_out, "counts": counts}
 
 
 # ── GET /api/graph/neighbors/{id} ─────────────────────────────────

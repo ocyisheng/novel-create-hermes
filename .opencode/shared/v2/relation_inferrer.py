@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import sys
 import os
+import logging
 from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 V2_DIR = os.path.abspath(os.path.dirname(__file__))
 if V2_DIR not in sys.path:
@@ -127,6 +130,7 @@ class RelationInferrer:
         self.store = store
         self._stats = {"created": 0, "skipped": 0}
         self._batch_mode = False
+        self._batch_cache: dict = {}
 
     # ── 公共 API ────────────────────────────────────────────────────
 
@@ -184,6 +188,7 @@ class RelationInferrer:
         返回新建关系总数。
         """
         self._batch_mode = True
+        self._build_batch_cache()
         total = 0
         units = list(self.store._units.values())
         total_units = len(units)
@@ -199,7 +204,65 @@ class RelationInferrer:
             self._record_batch_event(total)
         self.store.flush()
         self._batch_mode = False
+        self._batch_cache.clear()
         return total
+
+    def _build_batch_cache(self) -> None:
+        """Pre-build type-filtered lists and name→unit mapping for O(N) batch inference.
+
+        Populates self._batch_cache with:
+        - name_to_unit: Dict[str, NarrativeUnit] — name lookup (incl. short names)
+        - structure_units: List — all non-archived STRUCTURE_TYPES units
+        - outline_units: List — all non-archived OUTLINE units
+        - character_units: List — all non-archived CHARACTER_ARC units
+        - active_units: List — all non-archived units
+        """
+        name_to_unit: Dict[str, NarrativeUnit] = {}
+        structure_units: List[NarrativeUnit] = []
+        outline_units: List[NarrativeUnit] = []
+        character_units: List[NarrativeUnit] = []
+        active_units: List[NarrativeUnit] = []
+
+        for unit in self.store._units.values():
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+            active_units.append(unit)
+            # Name mapping (full name + short prefix before first space)
+            name_to_unit[unit.unit_name] = unit
+            if ' ' in unit.unit_name:
+                short_name = unit.unit_name.split()[0]
+                name_to_unit[short_name] = unit
+            # Type-filtered lists
+            if unit.type in _STRUCTURE_TYPES:
+                structure_units.append(unit)
+            if unit.type == UnitType.OUTLINE:
+                outline_units.append(unit)
+            if unit.type == UnitType.CHARACTER_ARC:
+                character_units.append(unit)
+
+        self._batch_cache = {
+            "name_to_unit": name_to_unit,
+            "structure_units": structure_units,
+            "outline_units": outline_units,
+            "character_units": character_units,
+            "active_units": active_units,
+        }
+
+    def _get_cached_structure_units(self) -> list:
+        """Return pre-filtered structure units in batch mode, or full store values."""
+        return self._batch_cache.get("structure_units") or list(self.store._units.values())
+
+    def _get_cached_outline_units(self) -> list:
+        """Return pre-filtered outline units in batch mode, or full store values."""
+        return self._batch_cache.get("outline_units") or list(self.store._units.values())
+
+    def _get_cached_character_units(self) -> list:
+        """Return pre-filtered character units in batch mode, or full store values."""
+        return self._batch_cache.get("character_units") or list(self.store._units.values())
+
+    def _get_cached_active_units(self) -> list:
+        """Return pre-filtered active (non-archived) units in batch mode, or full store values."""
+        return self._batch_cache.get("active_units") or list(self.store._units.values())
 
     # ── 内部方法 ────────────────────────────────────────────────────
 
@@ -274,7 +337,7 @@ class RelationInferrer:
         scene_ch = get_unit_chapter(scene)
         scene_path = scene.structure_path
         
-        for u in self.store._units.values():
+        for u in self._get_cached_character_units():
             if u.type != UnitType.CHARACTER_ARC or u.status == UnitStatus.ARCHIVED:
                 continue
             
@@ -302,7 +365,7 @@ class RelationInferrer:
         if not content:
             return count
 
-        for other_id, other in self.store._units.items():
+        for other in self._get_cached_active_units():
             if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                 continue
             # 跳过内容为空或名称太短的匹配目标
@@ -376,7 +439,7 @@ class RelationInferrer:
         if len(name) < 2:
             return count
 
-        for u in self.store._units.values():
+        for u in self._get_cached_active_units():
             if u.id == character.id or u.status == UnitStatus.ARCHIVED:
                 continue
             if not u.content or name not in u.content:
@@ -417,7 +480,7 @@ class RelationInferrer:
         # 策略 A：基于 structure_path 前缀匹配
         if unit.structure_path and len(unit.structure_path) > 1:
             parent_path = unit.structure_path[:-1]
-            for other in self.store._units.values():
+            for other in self._get_cached_structure_units():
                 if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                     continue
                 if other.type not in _STRUCTURE_TYPES:
@@ -429,26 +492,49 @@ class RelationInferrer:
                     return count
         
         # 策略 B：基于名称模式
+        import re
         name = unit.unit_name
         
         # "第X章" → 找卷大纲
-        import re
         chapter_match = re.match(r'^第(\d+)章', name)
         if chapter_match:
             ch_num = int(chapter_match.group(1))
-            for other in self.store._units.values():
+            best_parent = None
+            best_vol_num = -1
+            for other in self._get_cached_structure_units():
                 if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
                     continue
                 if other.type not in _STRUCTURE_TYPES:
                     continue
                 # 匹配"XX卷"或"XX卷大纲"
                 if '卷' in other.unit_name:
-                    vol_ch = get_unit_chapter(other)
-                    if vol_ch:
-                        # 卷大纲的章节号应 <= 当前章号
-                        if vol_ch <= ch_num:
-                            # 检查相邻单元
-                            pass  # 简化：不自动推断
+                    # 从名称或 content 提取卷号
+                    vol_num = self._extract_volume_number(other)
+                    if vol_num is not None and vol_num <= ch_num and vol_num > best_vol_num:
+                        best_parent = other
+                        best_vol_num = vol_num
+            if best_parent:
+                if self._create_rel(best_parent.id, unit.id, RelationType.CONTAINS, 0.8):
+                    count += 1
+                return count
+            else:
+                logger.debug(f"Skipping structure hierarchy: {unit.unit_name} (no matching volume_plan found)")
+                return count
+        
+        # "XX卷" → 找总纲
+        if '卷' in name:
+            for other in self._get_cached_outline_units():
+                if other.id == unit.id or other.status == UnitStatus.ARCHIVED:
+                    continue
+                if other.type == UnitType.OUTLINE:
+                    if self._create_rel(other.id, unit.id, RelationType.CONTAINS, 0.8):
+                        count += 1
+                    return count
+            logger.debug(f"Skipping structure hierarchy: {unit.unit_name} (no matching outline found)")
+            return count
+        
+        # 无法匹配
+        logger.debug(f"Skipping structure hierarchy: {unit.unit_name} (unrecognized name pattern)")
         return count
 
     def _infer_event_relations(self, unit: NarrativeUnit) -> int:
@@ -490,6 +576,34 @@ class RelationInferrer:
                             count += 1
 
         return count
+
+    def _extract_volume_number(self, unit: NarrativeUnit) -> Optional[int]:
+        """
+        从卷大纲单元提取卷号。
+        
+        优先从 content JSON 中的 volume_number 字段提取，
+        否则从 unit_name 中提取数字（如 "卷1 测试卷" → 1）。
+        """
+        # 从 content 中提取
+        try:
+            content = unit.content
+            if content:
+                import json
+                content_dict = json.loads(content) if isinstance(content, str) else content
+                if isinstance(content_dict, dict):
+                    vol_num = content_dict.get("volume_number")
+                    if vol_num is not None and isinstance(vol_num, (int, float)):
+                        return int(vol_num)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+        
+        # 从名称中提取数字（如 "卷1 测试卷" → 1）
+        import re
+        match = re.search(r'卷\s*(\d+)', unit.unit_name)
+        if match:
+            return int(match.group(1))
+        
+        return None
 
     # ── 辅助方法 ────────────────────────────────────────────────────
 

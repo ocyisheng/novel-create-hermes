@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import threading
 from contextlib import redirect_stdout
 
 from pathlib import Path
@@ -33,8 +34,14 @@ logger = logging.getLogger(__name__)
 
 # _GET_STORE 注入钩子（守护进程模式使用）
 # 由 novel_tool.py --daemon 通过 set_store_provider() 注入缓存版 _get_store。
-# 非 daemon 模式下保持 None，_get_store 行为不变。
+# 非 daemon 模式下保持 None，_get_store 使用内置 LRU 缓存。
 _GET_STORE_IMPL = None
+
+# 非 daemon 模式下的 GraphStore 实例缓存（LRU 池）
+_STORE_CACHE: dict[str, Any] = {}
+_STORE_CACHE_ORDER: list[str] = []
+_MAX_CACHED_STORES = 5
+_STORE_CACHE_LOCK = threading.Lock()
 
 
 def set_store_provider(provider):
@@ -47,21 +54,57 @@ def set_store_provider(provider):
     _GET_STORE_IMPL = provider
 
 
+def clear_store_cache(project_root: str = ""):
+    """清除 GraphStore 缓存。
+    
+    Args:
+        project_root: 指定项目路径则只清除该项目的缓存；为空则清除全部缓存。
+    """
+    with _STORE_CACHE_LOCK:
+        if project_root:
+            _STORE_CACHE.pop(project_root, None)
+            if project_root in _STORE_CACHE_ORDER:
+                _STORE_CACHE_ORDER.remove(project_root)
+        else:
+            _STORE_CACHE.clear()
+            _STORE_CACHE_ORDER.clear()
+
+
 # 确保 sys.path 包含 shared/ 和 v2/
 ensure_sys_path()
 
 
 def _get_store(project_root: str):
+    # 守护进程模式：使用注入的缓存实现
     if _GET_STORE_IMPL is not None:
         return _GET_STORE_IMPL(project_root)
     if not project_root:
         raise ValueError("项目路径为空")
     resolved = _resolve_project(project_root)
+    
+    # 非 daemon 模式：LRU 缓存复用
+    with _STORE_CACHE_LOCK:
+        if resolved in _STORE_CACHE:
+            logger.debug(f"GraphStore cache hit for {project_root}")
+            _STORE_CACHE_ORDER.remove(resolved)
+            _STORE_CACHE_ORDER.append(resolved)
+            return _STORE_CACHE[resolved]
+    
+    logger.debug(f"GraphStore cache miss, creating for {project_root}")
     from graph_store import GraphStore
     store = GraphStore(resolved)
     store.initialize()
     # 自动注册约束引擎到 post_flush 钩子
     _register_constraint_engine(store)
+    
+    with _STORE_CACHE_LOCK:
+        # LRU 淘汰
+        while len(_STORE_CACHE) >= _MAX_CACHED_STORES:
+            evict_key = _STORE_CACHE_ORDER.pop(0)
+            _STORE_CACHE.pop(evict_key)
+        _STORE_CACHE[resolved] = store
+        _STORE_CACHE_ORDER.append(resolved)
+    
     return store
 
 

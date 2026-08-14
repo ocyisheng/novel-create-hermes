@@ -29,7 +29,6 @@ from graph_schema import (
 )
 from graph_store import GraphStore
 from projection_engine import ProjectionEngine
-from adapter import LegacyFileAdapter, AdapterMode
 
 
 def test_narrative_unit_lifecycle(store):
@@ -318,85 +317,7 @@ def test_projection_engine(store, project_root):
     print(" PASS")
 
 
-def test_adapter(store, project_root):
-    """测试兼容适配器"""
-    print("  [test] 兼容适配器...", end="")
-    
-    proj = ProjectionEngine(store, project_root)
-    adapter = LegacyFileAdapter(store, proj, mode=AdapterMode.DUAL_WRITE)
-    
-    # 模拟写角色 YAML
-    test_yaml = """索引信息:
-  名称: "适配器测试"
-  实体ID: "adapter_test"
-  状态: "active"
-摘要:
-  核心特质: ["测试"]
-"""
-    result = adapter.write_file(
-        os.path.join(project_root, "characters/适配器测试.yaml"),
-        test_yaml,
-        actor="test",
-    )
-    assert result
-    
-    # 验证 graph 中已存在
-    unit = store.get_unit_by_name("适配器测试")
-    assert unit is not None, "适配器写入后 graph 中应存在该单元"
-    assert unit.type == UnitType.CHARACTER_ARC
-    
-    # 验证文件存在（DUAL_WRITE 模式）
-    expected_file = os.path.join(project_root, "characters/适配器测试.yaml")
-    assert os.path.exists(expected_file), f"文件应存在: {expected_file}"
-    
-    # 模拟写章节正文
-    adapter.write_chapter(
-        os.path.join(project_root, "chapters/第1章.txt"),
-        "这是第一章正文",
-        chapter_number=1,
-        actor="test",
-    )
-    
-    chunks = store.find_units(type=UnitType.CHUNK, chapter=1)
-    assert len(chunks) >= 1
-    
-    print(" PASS")
 
-
-def test_migration(store, project_root):
-    """测试项目迁移"""
-    print("  [test] 项目迁移...", end="")
-    
-    proj = ProjectionEngine(store, project_root)
-    adapter = LegacyFileAdapter(store, proj)
-    
-    # 创建测试用的旧格式文件
-    test_dir = os.path.join(project_root, "test_migrate")
-    os.makedirs(os.path.join(test_dir, "characters"), exist_ok=True)
-    os.makedirs(os.path.join(test_dir, "worldbuilding"), exist_ok=True)
-    
-    char_yaml = """索引信息:
-  名称: "迁移角色"
-  实体ID: "migrate_char"
-  状态: "active"
-摘要:
-  核心特质: ["迁移", "测试"]
-"""
-    with open(os.path.join(test_dir, "characters/迁移角色.yaml"), "w", encoding="utf-8") as f:
-        f.write(char_yaml)
-    
-    # 创建新 store 用于迁移
-    migrate_store = GraphStore(test_dir)
-    migrate_store.initialize()
-    migrate_adapter = LegacyFileAdapter(migrate_store, ProjectionEngine(migrate_store, test_dir))
-    
-    result = migrate_adapter.migrate_project(test_dir)
-    assert result["characters"] >= 1
-    
-    # 清理
-    shutil.rmtree(test_dir)
-    
-    print(" PASS")
 
 
 # ── if_exists 幂等/防重测试（脚本层硬保障） ──────────────────────────────

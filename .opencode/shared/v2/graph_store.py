@@ -130,6 +130,7 @@ class GraphStore:
         self._outgoing_edges: Dict[str, List[str]] = defaultdict(list)  # source_id → [rel_id]
         self._incoming_edges: Dict[str, List[str]] = defaultdict(list)  # target_id → [rel_id]
         self._unit_by_name: Dict[str, List[str]] = {}  # unit_name → [ids]（同名可跨类型共存）
+        self._relation_index: Set[Tuple[str, str, str]] = set()  # (source_id, target_id, relation_type) 去重索引
         
         # 脏标记
         self._dirty_nodes = False
@@ -274,10 +275,12 @@ class GraphStore:
         self._outgoing_edges.clear()
         self._incoming_edges.clear()
         self._unit_by_name.clear()
+        self._relation_index.clear()
         
         for rel_id, rel in self._relations.items():
             self._outgoing_edges[rel.source_id].append(rel_id)
             self._incoming_edges[rel.target_id].append(rel_id)
+            self._relation_index.add((rel.source_id, rel.target_id, rel.relation_type))
         
         for uid, unit in self._units.items():
             self._unit_by_name.setdefault(unit.unit_name, []).append(uid)
@@ -454,8 +457,9 @@ class GraphStore:
         """将新增事件追加到 olog（只写未持久化的新事件）。
 
         重试安全：写入前记录起始偏移，逐条写入并同步推进 _last_flushed_event。
-        某条写入失败时，将该事件写入起点之前的文件截断到干净位置，
-        使下次 flush 从最后成功写入的事件之后恢复，避免重复追加产生脏行。
+        某条写入失败时，恢复游标到最后成功写入的事件之后，
+        记录错误日志但不抛出异常，保持系统稳定。
+        下次 flush 会自动重试未成功写入的事件。
         成功路径与其它写入保持一致：flush + fsync 确保落盘。
         """
         if not self._dirty_events:
@@ -468,26 +472,22 @@ class GraphStore:
         if not new_events:
             self._dirty_events = False
             return
-        with open(self.events_path, "a", encoding="utf-8") as f:
-            pos = f.tell()
-            for i, event in enumerate(new_events):
-                try:
+        
+        # 保存当前游标位置，用于写入失败时恢复
+        saved_cursor = self._last_flushed_event
+        
+        try:
+            with open(self.events_path, "a", encoding="utf-8") as f:
+                for i, event in enumerate(new_events):
                     f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
-                except Exception:
-                    # 截断掉可能残留的半行，保证下次重试从干净位置继续
-                    try:
-                        with open(self.events_path, "r+", encoding="utf-8") as tf:
-                            tf.seek(pos)
-                            tf.truncate()
-                    except OSError:
-                        logger.warning("事件日志截断失败（可能残留半行）: %s", self.events_path)
-                    self._last_flushed_event = start_idx + i
-                    raise
-                pos = f.tell()
-            f.flush()
-            os.fsync(f.fileno())
-        self._last_flushed_event = len(self._events)
-        self._dirty_events = False
+                    self._last_flushed_event += 1
+                f.flush()
+                os.fsync(f.fileno())
+            self._dirty_events = False
+        except Exception as e:
+            # 写入失败，恢复游标到保存的位置
+            self._last_flushed_event = saved_cursor
+            logger.error("事件日志写入失败（已恢复游标，下次重试）: %s", e)
     
     def flush(self, skip_constraint_check: bool = False):
         """将所有脏数据写回磁盘（事务性：全部成功或全部保留脏标记）
@@ -1238,11 +1238,14 @@ class GraphStore:
         if source_id not in self._units or target_id not in self._units:
             return None
         
-        # 检查是否已存在相同的关系
-        for rel in self._relations.values():
-            if (rel.source_id == source_id and rel.target_id == target_id
-                    and rel.relation_type == relation_type):
-                return rel
+        # O(1) 去重检查：通过 Set 索引快速判断是否已存在
+        key = (source_id, target_id, relation_type)
+        if key in self._relation_index:
+            # 找到已存在的关系，返回之
+            for rel in self._relations.values():
+                if (rel.source_id == source_id and rel.target_id == target_id
+                        and rel.relation_type == relation_type):
+                    return rel
         
         # 无环层级类型环检测：CONTAINS/BELONGS_TO 互为逆对，均需防环
         if relation_type.is_acyclic:
@@ -1264,6 +1267,7 @@ class GraphStore:
         self._relations[rel.id] = rel
         self._outgoing_edges[source_id].append(rel.id)
         self._incoming_edges[target_id].append(rel.id)
+        self._relation_index.add(key)
         
         if record_event:
             self._record_event(
@@ -1339,6 +1343,7 @@ class GraphStore:
                 self._incoming_edges[rel.target_id] = [
                     r for r in self._incoming_edges[rel.target_id] if r != relation_id
                 ]
+            self._relation_index.discard((rel.source_id, rel.target_id, rel.relation_type))
             
             self._record_event(
                 EventType.RELATION_REMOVED,

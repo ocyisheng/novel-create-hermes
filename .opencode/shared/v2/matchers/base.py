@@ -3,22 +3,15 @@
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from type_registry import ConstraintDef
 from graph_store import GraphStore
 from graph_schema import NarrativeUnit
 
-
-@dataclass
-class CheckResult:
-    """单条约束检查结果"""
-    rule_id: str
-    severity: str
-    description: str
-    units_involved: List[str]
-    detail: str = ""
+# CheckResult 的规范定义在 quality_checkers.types（超集，含 source/check_layer）。
+# 此处 re-export 以保持向后兼容：from matchers.base import CheckResult
+from quality_checkers.types import CheckResult
 
 
 class BaseMatcher(ABC):

@@ -19,6 +19,14 @@ from graph_schema import (
 from graph_store import GraphStore as GraphStoreImpl
 GraphStore = GraphStoreImpl  # type alias for type annotations
 
+# 项目配置加载：单一权威实现
+import sys as _sys
+import os as _os
+_shared_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+if _shared_dir not in _sys.path:
+    _sys.path.insert(0, _shared_dir)
+from handlers._common import load_project_config
+
 
 @dataclass
 class StoryTimeInfo:
@@ -476,41 +484,13 @@ class WorkspaceBuilder:
     
     def __init__(self, store: GraphStoreImpl):
         self.store = store
-        self._project_config: Optional[Dict[str, Any]] = None
-        self._project_config_mtime: Optional[float] = None  # config.yaml mtime 校验（mtime 变更即失效）
+        self._config_cache: Dict[str, Any] = {}  # load_project_config 缓存
     
     # ── 从 config.yaml 加载预热配置 ─────────────────────────────────────
     
     def _load_project_config(self) -> Dict[str, Any]:
-        """读取项目的 config.yaml，优先从 store.project_root 加载。
-
-        缓存按 config.yaml 的 mtime 校验：文件被修改后自动重读，
-        避免配置永久缓存导致修改不生效。
-        """
-        config_path = self.store.project_root / "config.yaml"
-        current_mtime = None
-        try:
-            current_mtime = config_path.stat().st_mtime if config_path.exists() else None
-        except OSError:
-            current_mtime = None
-
-        # 缓存有效：路径 mtime 未变则复用
-        if (self._project_config is not None
-                and current_mtime is not None
-                and self._project_config_mtime == current_mtime):
-            return self._project_config
-
-        self._project_config = {}
-        self._project_config_mtime = current_mtime
-        try:
-            if config_path.exists():
-                import yaml
-                with open(config_path, "r", encoding="utf-8") as f:
-                    self._project_config = yaml.safe_load(f) or {}
-        except Exception:
-            # 静默失败，回退到默认值（与历史行为一致）
-            self._project_config = {}
-        return self._project_config
+        """读取项目的 config.yaml（委托给 handlers._common.load_project_config）。"""
+        return load_project_config(self.store.project_root, self._config_cache)
     
     def _get_preheat_config(self, preheat_level: str) -> Dict[str, Any]:
         """

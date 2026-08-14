@@ -40,7 +40,8 @@ try:
     )
     from graph_store import GraphStore
     from projection_engine import ProjectionEngine
-    from search_engine import SearchEngine, SearchResult, SearchResultSet, CheckResult
+    from search_engine import SearchEngine, SearchResult, SearchResultSet
+    from quality_checkers.types import CheckResult
     from deviation_manager import DeviationManager, DeviationItem, DeviationState
     from type_registry import TypeRegistry
     from temporal_index import TemporalEventIndex, TemporalEvent, TemporalQuery

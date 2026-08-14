@@ -28,7 +28,7 @@ from graph_schema import NarrativeUnit, Relation, RelationType
 
 from type_registry import TypeRegistry, ConstraintDef, PayloadConstraintDef
 from matchers import MATCHERS
-from matchers.base import CheckResult
+from quality_checkers.types import CheckResult
 
 logger = logging.getLogger(__name__)
 

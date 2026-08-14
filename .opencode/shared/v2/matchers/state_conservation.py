@@ -78,6 +78,7 @@ class StateConservationMatcher(BaseMatcher):
         exception_str = ", ".join(exception_names[:5])
         return CheckResult(
             rule_id=constraint.rule_id,
+            rule_name=constraint.description,
             severity=constraint.severity,
             description=f"「{unit.unit_name}」(状态={status_str}) 仍有 {len(forbidden_found)} 条 {forbidden_rel.value} 关系",
             units_involved=[unit.id],

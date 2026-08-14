@@ -59,6 +59,7 @@ class RefIntegrityMatcher(BaseMatcher):
             names = "、".join(missing)
             return CheckResult(
                 rule_id=constraint.rule_id,
+                rule_name=constraint.description,
                 severity=constraint.severity,
                 description=f"「{unit.unit_name}」引用了不存在的实体「{names}」",
                 units_involved=[unit.id],

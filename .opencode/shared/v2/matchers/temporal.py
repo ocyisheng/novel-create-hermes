@@ -64,6 +64,7 @@ class TemporalMatcher(BaseMatcher):
                         continue
                     return CheckResult(
                         rule_id=constraint.rule_id,
+                        rule_name=constraint.description,
                         severity=constraint.severity,
                         description=f"「{unit.unit_name}」时序异常: {sequence[idx_a]} → {sequence[idx_b]}（未递增）",
                         units_involved=[unit.id],
@@ -81,6 +82,7 @@ class TemporalMatcher(BaseMatcher):
                         continue
                     return CheckResult(
                         rule_id=constraint.rule_id,
+                        rule_name=constraint.description,
                         severity=constraint.severity,
                         description=f"「{unit.unit_name}」时序异常: {sequence[idx_a]} → {sequence[idx_b]}（递减）",
                         units_involved=[unit.id],

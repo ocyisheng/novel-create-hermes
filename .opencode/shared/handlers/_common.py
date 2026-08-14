@@ -62,11 +62,11 @@ NOVELS_ROOT = _find_novels_root()
 def _resolve_project(project: str) -> str:
     """将项目名解析为绝对路径。
 
-    行为（与 handlers_graph._resolve_project 一致，最完整版）：
     - 空串 → 空串
     - 绝对路径 → 直接返回
-    - 相对路径 → 依次尝试 NOVELS_ROOT、cwd/novels、tool_root/novels 拼接；
-      首个存在的目录胜出；全不存在时回退到绝对化后的相对路径
+    - 相对路径 → 用 handlers_project.NOVELS_ROOT 拼接（与 handler 一致，支持测试 patch）
+    - NOVELS_ROOT 不可用时回退到 _find_novels_root() 拼接
+    - 候选目录不存在时仍返回拼接结果（由 handler 判断是否已存在）
 
     测试 patch 兼容：test_novel_tool.py 通过 patch("handlers.handlers_project.NOVELS_ROOT", tmpdir)
     重定向项目根，因此这里惰性读取 handlers_project.NOVELS_ROOT（未 patch 时与
@@ -76,20 +76,12 @@ def _resolve_project(project: str) -> str:
         return ""
     if os.path.isabs(project):
         return project
-    novels = _patchable_novels_root()
-    cand = os.path.join(novels, project)
-    if os.path.isdir(cand):
-        return cand
-    return os.path.abspath(project)
-
-
-def _patchable_novels_root() -> str:
-    """读取 NOVELS_ROOT（优先 handlers_project.NOVELS_ROOT 以兼容测试 patch）。"""
     try:
         from . import handlers_project as _hp
-        return _hp.NOVELS_ROOT
+        novels_root = _hp.NOVELS_ROOT
     except (ImportError, AttributeError):
-        return NOVELS_ROOT
+        novels_root = _find_novels_root()
+    return os.path.join(novels_root, project)
 
 
 # ── 分页工具 ──────────────────────────────────────────────────────────────
@@ -378,6 +370,56 @@ def _resolve_rel_type(rel_type: str):
             return RelationType.RELATES_TO, rel_type
 
 
+# ── 项目配置加载 ──────────────────────────────────────────────────────────
+
+def load_project_config(
+    project_root: "str | Path",
+    cache: "dict | None" = None,
+) -> dict:
+    """读取项目的 config.yaml。
+
+    缓存按 config.yaml 的 mtime 校验：文件被修改后自动重读，
+    避免配置永久缓存导致修改不生效。
+
+    Args:
+        project_root: 项目根目录
+        cache: 可选缓存 dict，键 'config' 和 'mtime'。
+               传入时自动维护缓存；为 None 则每次重新读取。
+
+    Returns:
+        配置 dict（解析失败返回空 dict）
+    """
+    config_path = Path(project_root) / "config.yaml"
+    current_mtime = None
+    try:
+        current_mtime = config_path.stat().st_mtime if config_path.exists() else None
+    except OSError:
+        current_mtime = None
+
+    if cache is not None:
+        cached_config = cache.get("config")
+        cached_mtime = cache.get("mtime")
+        if (cached_config is not None
+                and current_mtime is not None
+                and cached_mtime == current_mtime):
+            return cached_config
+
+    config: dict = {}
+    try:
+        if config_path.exists():
+            import yaml
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+    except Exception:
+        config = {}
+
+    if cache is not None:
+        cache["config"] = config
+        cache["mtime"] = current_mtime
+
+    return config
+
+
 # 公开导出（供 handlers_*.py 导入）
 __all__ = [
     "ensure_sys_path",
@@ -391,4 +433,5 @@ __all__ = [
     "_validate_content_schema", "_auto_detect_chapter",
     "_chunk_source_path", "_read_chunk_text",
     "_resolve_rel_type",
+    "load_project_config",
 ]

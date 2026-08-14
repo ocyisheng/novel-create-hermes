@@ -56,6 +56,7 @@ class BoundaryMatcher(BaseMatcher):
             if this_val and following_val and this_val != following_val:
                 return CheckResult(
                     rule_id=constraint.rule_id,
+                    rule_name=constraint.description,
                     severity=constraint.severity,
                     description=f"边界不一致: 「{unit.unit_name}」的 {field} 为「{this_val}」，但后续单元「{following.unit_name}」的对应值为「{following_val}」",
                     units_involved=[unit.id, following.id],

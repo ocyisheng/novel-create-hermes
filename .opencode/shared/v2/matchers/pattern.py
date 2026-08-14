@@ -223,6 +223,7 @@ class PatternMatcher(BaseMatcher):
 
         return CheckResult(
             rule_id=constraint.rule_id,
+            rule_name=constraint.description,
             severity=constraint.severity,
             description=(
                 f"「{unit.unit_name}」{constraint.description}: "
@@ -325,6 +326,7 @@ class PatternMatcher(BaseMatcher):
 
         return CheckResult(
             rule_id=constraint.rule_id,
+            rule_name=constraint.description,
             severity=constraint.severity,
             description=(
                 f"「{unit.unit_name}」{constraint.description}: "
@@ -419,6 +421,7 @@ class PatternMatcher(BaseMatcher):
             shared_detail += f"，与起点直接可达集({len(direct_set)})无交集"
             return CheckResult(
                 rule_id=constraint.rule_id,
+                rule_name=constraint.description,
                 severity=constraint.severity,
                 description=f"「{unit.unit_name}」{constraint.description}",
                 units_involved=units_involved,
@@ -428,6 +431,7 @@ class PatternMatcher(BaseMatcher):
         if check == "shared_at_least" and shared_count == 0:
             return CheckResult(
                 rule_id=constraint.rule_id,
+                rule_name=constraint.description,
                 severity=constraint.severity,
                 description=(
                     f"「{unit.unit_name}」{constraint.description}: "

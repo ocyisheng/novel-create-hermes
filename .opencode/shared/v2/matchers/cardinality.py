@@ -59,6 +59,7 @@ class CardinalityMatcher(BaseMatcher):
         if min_count is not None and count < min_count:
             return CheckResult(
                 rule_id=constraint.rule_id,
+                rule_name=constraint.description,
                 severity=constraint.severity,
                 description=f"「{unit.unit_name}」的 {rel_type.value} 关系数({count})低于最小值({min_count})",
                 units_involved=[unit.id],
@@ -68,6 +69,7 @@ class CardinalityMatcher(BaseMatcher):
         if max_count is not None and count > max_count:
             return CheckResult(
                 rule_id=constraint.rule_id,
+                rule_name=constraint.description,
                 severity=constraint.severity,
                 description=f"「{unit.unit_name}」的 {rel_type.value} 关系数({count})超过最大值({max_count})",
                 units_involved=[unit.id],
@@ -94,6 +96,7 @@ class CardinalityMatcher(BaseMatcher):
                         if min_items is not None and items_count < min_items:
                             return CheckResult(
                                 rule_id=f"{constraint.rule_id}_payload_min",
+                                rule_name=constraint.description,
                                 severity=constraint.severity,
                                 description=f"「{unit.unit_name}」的 {rel_type.value} 边 payload.{field} 项数({items_count})低于最小值({min_items})",
                                 units_involved=[unit.id, r.target_id],
@@ -102,6 +105,7 @@ class CardinalityMatcher(BaseMatcher):
                         if max_items is not None and items_count > max_items:
                             return CheckResult(
                                 rule_id=f"{constraint.rule_id}_payload_max",
+                                rule_name=constraint.description,
                                 severity=constraint.severity,
                                 description=f"「{unit.unit_name}」的 {rel_type.value} 边 payload.{field} 项数({items_count})超过最大值({max_items})",
                                 units_involved=[unit.id, r.target_id],

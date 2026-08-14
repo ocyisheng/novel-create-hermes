@@ -33,6 +33,7 @@ def _rel_to_out(r: Relation) -> dict:
         "label": r.label or "",
         "weight": r.weight,
         "description": r.description or "",
+        "payload": r.payload or {},
     }
 
 

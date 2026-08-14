@@ -1145,7 +1145,19 @@ class WorkspaceBuilder:
                 parts.append("当前角色状态：")
                 parts.extend(state_lines)
 
-        # 4. 预期产出提示
+        # 4. 关系载荷中的时间线键（start_chapter / end_chapter / resolve_chapter）
+        temporal_keys = ("start_chapter", "end_chapter", "resolve_chapter")
+        for rel in self.store.get_relations(focus.id, direction="incoming"):
+            payload = rel.payload or {}
+            found = {k: payload[k] for k in temporal_keys if k in payload}
+            if found:
+                src = self.store.get_unit(rel.source_id)
+                src_name = src.unit_name if src else rel.source_id
+                label = rel.label or rel.relation_type.value if rel.relation_type else ""
+                hint_parts = [f"{k}={v}" for k, v in found.items()]
+                parts.append(f"  关系[{label}] ← {src_name}：{', '.join(hint_parts)}")
+
+        # 5. 预期产出提示
         parts.append("")
         parts.append(
             "请确保本章产生的 content 包含精确的时间信息"

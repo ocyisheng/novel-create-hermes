@@ -194,7 +194,7 @@ OPERATION_REGISTRY = {
     },
     "graph.get_relations": {
         "handler": handle_get_relations,
-        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}, "role": {}, "role_substring": {}, "min_weight": {}, "max_weight": {}, "limit": {}, "offset": {}},
+        "params": {"project_root": {"required": True}, "id": {}, "rel_type": {}, "direction": {}, "label": {}, "label_substring": {}, "role": {}, "role_substring": {}, "min_weight": {}, "max_weight": {}, "source_id": {}, "target_id": {}, "payload_filter": {}, "limit": {}, "offset": {}},
     },
     "graph.remove_relation": {
         "handler": handle_remove_relation,

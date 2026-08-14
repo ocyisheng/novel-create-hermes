@@ -135,6 +135,7 @@ _PARAM_MAP = {
     "tag": "tag",
     # 关系
     "source": "source", "target": "target",
+    "source_id": "source_id", "target_id": "target_id",
     "bidirectional": "bidirectional",
     "label": "label",
     "label_substring": "label_substring",
@@ -147,6 +148,7 @@ _PARAM_MAP = {
     "max_weight": "max_weight",
     "description": "description",
     "payload": "payload",
+    "payload_filter": "payload_filter",
     "direction": "direction",
     # 迁移
     "verify": "verify", "report": "report",
@@ -208,7 +210,7 @@ _PARAM_ALIASES = {
     # graph.add_relation: old type/rel_type → canonical rel_type
     "graph.add_relation": {"rel_type": ["rel_type", "relType", "type"]},
     # graph.get_relations: old type → canonical rel_type
-    "graph.get_relations": {"rel_type": ["type", "rel_type"]},
+    "graph.get_relations": {"rel_type": ["type", "rel_type"], "source_id": ["source_id"], "target_id": ["target_id"], "payload_filter": ["payload_filter"]},
     # graph.remove_relation: old type → canonical rel_type
     "graph.remove_relation": {"rel_type": ["type", "rel_type"]},
     # graph.list_units: old type → canonical unit_type

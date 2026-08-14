@@ -770,9 +770,15 @@ def handle_update_relation(
             return {"error": f"payload 不是合法 JSON: {payload}"}
         if not isinstance(payload_dict, dict):
             return {"error": "payload 必须是 JSON 对象"}
-        if payload_dict != rel.payload:
+        # Deep merge: start from current payload, caller's keys win
+        merged = dict(rel.payload) if rel.payload else {}
+        merged.update(payload_dict)
+        # Source channel injection (same logic as handle_add_relation)
+        source_channel = "llm" if actor in ("novel-v2-crafter", "v2-crafter", "novel-writer") else ("planner" if actor == "novel-planner" else "manual")
+        merged.setdefault("source", source_channel)
+        if merged != rel.payload:
             # update_relation_payload 内部完成事件 + 脏标记（公共 API，已封装）
-            store.update_relation_payload(id, payload_dict, actor=actor)
+            store.update_relation_payload(id, merged, actor=actor)
             changed = True
 
     # 封装缺口：非 payload 字段（label/weight/description/source_role/target_role）
@@ -898,6 +904,9 @@ def handle_get_relations(
     role_substring: bool = False,
     min_weight: Optional[float] = None,
     max_weight: Optional[float] = None,
+    source_id: str = "",
+    target_id: str = "",
+    payload_filter: str = "",
     limit: int = 0,
     offset: int = 0,
 ) -> dict:
@@ -905,10 +914,21 @@ def handle_get_relations(
     from graph_schema import RelationType
     store = _get_store(project_root)
     rt = RelationType[rel_type.upper()] if rel_type else None
-    relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction,
-                                    label=label or None, label_substring=label_substring,
-                                    role=role or None, role_substring=role_substring,
-                                    min_weight=min_weight, max_weight=max_weight)
+    if source_id or target_id:
+        pf = json.loads(payload_filter) if payload_filter else None
+        relations = store.find_relations(
+            relation_type=rt,
+            source_id=source_id or None,
+            target_id=target_id or None,
+            payload_filter=pf,
+            label=label or None,
+            label_substring=label_substring,
+        )
+    else:
+        relations = store.get_relations(unit_id=id or None, relation_type=rt, direction=direction,
+                                        label=label or None, label_substring=label_substring,
+                                        role=role or None, role_substring=role_substring,
+                                        min_weight=min_weight, max_weight=max_weight)
     relations, total = _paginate(relations, limit, offset)
     return {
         "relations": [
@@ -1216,7 +1236,7 @@ def _change_unit_type(store, id: str, new_type: str, actor: str) -> dict:
         else:
             src, tgt = r.source_id, new_id
         # 添加新关系
-        new_rel = store.add_relation(src, tgt, rtype, actor=actor, label=r.label or "")
+        new_rel = store.add_relation(src, tgt, rtype, actor=actor, label=r.label or "", payload=r.payload)
         if new_rel:
             moved += 1
         # 删除旧关系

@@ -472,36 +472,7 @@ class Relation:
     payload: Dict[str, Any] = field(default_factory=dict)  # 结构化载荷（含 schema 校验）
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    # ── 时态演化（payload 约定键，非数据类字段）──────────────────────
-    def set_temporal_scope(self, start_chapter=None, end_chapter=None,
-                           resolve_chapter=None) -> None:
-        """写入关系时态范围（payload 约定键，非新字段）。
 
-        仅更新非 None 的键；置 None 的键从 payload 中移除（可传空串清除）。
-        """
-        for key, val in (("start_chapter", start_chapter),
-                         ("end_chapter", end_chapter),
-                         ("resolve_chapter", resolve_chapter)):
-            if val is None:
-                continue
-            if val == "":
-                self.payload.pop(key, None)
-            else:
-                self.payload[key] = val
-
-    def get_temporal_scope(self) -> dict:
-        """读取关系时态范围（缺失键返回 None）。"""
-        return {
-            "start_chapter": self.payload.get("start_chapter"),
-            "end_chapter": self.payload.get("end_chapter"),
-            "resolve_chapter": self.payload.get("resolve_chapter"),
-        }
-
-    def get_source_channel(self) -> str:
-        """读取关系证据来源通道（缺失默认 manual）。"""
-        return self.payload.get("source", "manual")
-    
     def to_dict(self) -> Dict[str, Any]:
         result = asdict(self)
         result["relation_type"] = self.relation_type.value

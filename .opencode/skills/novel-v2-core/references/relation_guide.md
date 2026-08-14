@@ -57,10 +57,49 @@
 - **配对类型**（有独立逆类型）：CONTAINS↔BELONGS_TO、POSSESSES↔POSSESSED_BY、CONTROLS↔CONTROLLED_BY、MEMBER_OF↔HAS_MEMBER、LOCATED_AT↔LOCATION_OF、HAS_EVENT↔EVENT_OF、PLANS↔PLANNED_BY → `bidirectional=true` 会物理写入逆类型边。
 - **无环配对**（CONTAINS/BELONGS_TO，optional）：`add_relation` 会做环检测拒绝成环；`fix_asymmetry` 跳过此类，避免自动制造环（由 R2 检查提示）。
 
-## 证据锚点与时态（payload 约定键，P2 起）
+## 证据锚点与时态（payload 约定键）
 
 - **证据锚点**：自动边（relation_inferrer / fix_asymmetry）写入 `payload.source="auto"` + 出处 `chapter`；`handle_add_relation` 按 actor 判定 `source="llm"`（novel-writer）或 `"manual"`（script/web-ui）。可用 `graph.get_relations` 读回 `payload` 溯源。
-- **时态约定**（约定而非新字段）：`payload.start_chapter` / `end_chapter` / `resolve_chapter` 表达关系生效/结束/伏笔回收章节。`Relation.set_temporal_scope()` / `get_temporal_scope()` 为读写入口。
+- **时态约定**（约定而非新字段）：`payload.start_chapter` / `end_chapter` / `resolve_chapter` 表达关系生效/结束/伏笔回收章节。通过 `graph.get_relations` 的 `payload_filter` 查询条件过滤，或读回 `payload` 字段后直接访问。
+
+## `graph.get_relations` 高级查询参数
+
+`graph.get_relations` 支持以下进阶过滤参数，用于按关系的端点或 payload 内容进行精准查询：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `source_id` | `str` | 按源端点 ID 过滤，返回所有以该 ID 为 source 的关系 |
+| `target_id` | `str` | 按目标端点 ID 过滤，返回所有以该 ID 为 target 的关系 |
+| `payload_filter` | `dict` | 按 payload 字段内容过滤，支持 MongoDB 风格的操作符 |
+
+**payload_filter 操作符**：
+
+| 操作符 | 含义 | 示例 |
+|--------|------|------|
+| `$gt` / `$gte` | 大于 / 大于等于 | `{"start_chapter": {"$gt": 5}}` — payload.start_chapter > 5 |
+| `$lt` / `$lte` | 小于 / 小于等于 | `{"end_chapter": {"$lte": 20}}` — payload.end_chapter ≤ 20 |
+| `$eq` | 等于 | `{"source": {"$eq": "auto"}}` — payload.source = "auto" |
+| `$exists` | 字段存在 | `{"upgrades": {"$exists": true}}` — payload 包含 upgrades 键 |
+| `$in` | 在列表中 | `{"source": {"$in": ["auto", "llm"]}}` — payload.source ∈ {auto, llm} |
+| `null` | 字段为 null 或不存在 | `{"lost_at": null}` — payload.lost_at 不存在或为 null |
+
+**示例**：
+
+```
+# 查某角色发出的所有关系（按源端点过滤）
+novel-tool(operation="graph.get_relations", project="{P}", source_id="char_韩致")
+
+# 查某场景接收的所有关系（按目标端点过滤）
+novel-tool(operation="graph.get_relations", project="{P}", target_id="scene_第3章")
+
+# 查第5章之后生效的时态关系
+novel-tool(operation="graph.get_relations", project="{P}", payload_filter='{"start_chapter": {"$gt": 5}}')
+
+# 查所有未回收的伏笔（resolve_chapter 不存在）
+novel-tool(operation="graph.get_relations", project="{P}", payload_filter='{"resolve_chapter": null}')
+```
+
+> **Web GET 可见 payload**：`GET /api/edges` 返回的每条关系现已包含 `payload` 字段，前端可直接读取证据锚点和时态约定。
 
 ## 常用操作
 

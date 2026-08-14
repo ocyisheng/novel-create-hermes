@@ -28,6 +28,14 @@ from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType, get_
 from graph_store import GraphStore
 from time_utils import get_story_ordinal
 
+# CheckResult 的规范定义在 quality_checkers.types（超集，含 source/check_layer）。
+# 此处 re-export 以保持向后兼容：from search_engine import CheckResult
+from quality_checkers.types import CheckResult
+
+# R1-R6+R9 规范实现：委托给 MechanicalChecker（单一权威）
+from quality_checkers.mechanical import MechanicalChecker
+from quality_checkers.types import CheckResult
+
 
 # ── 数据类 ──────────────────────────────────────────────────────────────────
 
@@ -60,17 +68,6 @@ class SearchResultSet:
     time_ms: float
 
 
-@dataclass
-class CheckResult:
-    """单条一致性检查结果"""
-    rule_name: str
-    rule_id: str
-    severity: str          # "error" | "warning" | "info"
-    description: str
-    units_involved: List[str]    # unit_ids
-    detail: str = ""
-
-
 # ── 搜索引擎 ────────────────────────────────────────────────────────────────
 
 
@@ -81,8 +78,8 @@ class SearchEngine:
     接收一个已初始化的 GraphStore 实例（store.initialize() 已调用）。
     """
 
-    # NOTE: R1-R6 rule family duplicates quality_checkers/mechanical.py;
-    # canonical LLM-facing entry is graph.quality_check (NarrativeQualityEngine).
+    # NOTE: R1-R6, R9 实现已委托给 MechanicalChecker（单一权威）。
+    # 仅 R7/R10-R12 保留在本文件（search_engine 独有）。
     # Do not add new duplicate rules here.
     # ── 一致性检查规则注册表 ─────────────────────────────────────────────
     # 格式: (rule_id: str, severity: str, method_name: str)
@@ -103,6 +100,99 @@ class SearchEngine:
 
     def __init__(self, store: GraphStore):
         self.store = store
+        # 倒排索引：token → unit_id set
+        self._name_index: Dict[str, Set[str]] = {}
+        self._content_index: Dict[str, Set[str]] = {}
+        self._tags_index: Dict[str, Set[str]] = {}
+        self._index_built = False
+
+    # ── 倒排索引分词与构建 ────────────────────────────────────────────────
+
+    # 中文停用词（高频无意义字符）
+    _STOP_WORDS: Set[str] = frozenset({
+        "的", "了", "在", "是", "我", "有", "和", "就", "不", "人",
+        "都", "一", "一个", "上", "也", "很", "到", "说", "要", "去",
+        "你", "会", "着", "没有", "看", "好", "自己", "这", "他", "她",
+        "它", "们", "那", "这个", "那个", "什么", "怎么", "但", "而",
+        "又", "或", "如果", "因为", "所以", "虽然", "但是", "可以",
+        "被", "把", "让", "从", "对", "向", "与", "及", "等", "之",
+    })
+
+    @classmethod
+    def _tokenize(cls, text: str) -> List[str]:
+        """
+        分词：中文按字符拆分 + 英文按空格拆分，去除停用词。
+        
+        不引入外部依赖（如 jieba），采用简单拆分策略。
+        """
+        if not text:
+            return []
+        
+        tokens: List[str] = []
+        current_english: List[str] = []
+        
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                # 中文字符：先输出累积的英文 token，再输出中文字符
+                if current_english:
+                    word = "".join(current_english).lower()
+                    if word and word not in cls._STOP_WORDS:
+                        tokens.append(word)
+                    current_english = []
+                if char not in cls._STOP_WORDS:
+                    tokens.append(char)
+            elif char.isalnum():
+                # 英文/数字字符：累积
+                current_english.append(char)
+            else:
+                # 标点/空格等：输出累积的英文 token
+                if current_english:
+                    word = "".join(current_english).lower()
+                    if word and word not in cls._STOP_WORDS:
+                        tokens.append(word)
+                    current_english = []
+        
+        # 输出最后累积的英文 token
+        if current_english:
+            word = "".join(current_english).lower()
+            if word and word not in cls._STOP_WORDS:
+                tokens.append(word)
+        
+        return tokens
+
+    def _build_index(self) -> None:
+        """
+        构建 name/content/tags 的倒排索引。
+        
+        首次搜索时调用，后续复用索引。
+        """
+        self._name_index.clear()
+        self._content_index.clear()
+        self._tags_index.clear()
+        
+        for unit_id, unit in self.store._units.items():
+            # 索引 name
+            name_raw = unit.unit_name
+            name_str = name_raw if isinstance(name_raw, str) else (
+                json.dumps(name_raw, ensure_ascii=False) if name_raw else ""
+            )
+            for token in self._tokenize(name_str):
+                self._name_index.setdefault(token, set()).add(unit_id)
+            
+            # 索引 content
+            content_raw = unit.content
+            content_str = content_raw if isinstance(content_raw, str) else (
+                json.dumps(content_raw, ensure_ascii=False) if content_raw else ""
+            )
+            for token in self._tokenize(content_str):
+                self._content_index.setdefault(token, set()).add(unit_id)
+            
+            # 索引 tags
+            tags_str = " ".join(unit.tags) if unit.tags else ""
+            for token in self._tokenize(tags_str):
+                self._tags_index.setdefault(token, set()).add(unit_id)
+        
+        self._index_built = True
 
     # ── 统一搜索入口 ─────────────────────────────────────────────────────
 
@@ -210,10 +300,42 @@ class SearchEngine:
         chapter: Optional[int] = None,
         tags: Optional[List[str]] = None,
     ) -> List[SearchResult]:
+        # 确保倒排索引已构建
+        if not self._index_built:
+            self._build_index()
+        
         results: List[SearchResult] = []
         kw = keyword if case_sensitive else keyword.lower()
 
-        for unit in self.store._units.values():
+        # 通过倒排索引获取候选 unit_id 集合
+        candidate_ids: Optional[Set[str]] = None
+        
+        # 分词 keyword 用于索引查找
+        kw_tokens = self._tokenize(keyword) if not case_sensitive else self._tokenize(keyword.lower())
+        
+        # 从 name_index、content_index 和 tags_index 获取候选
+        for token in kw_tokens:
+            name_matches = self._name_index.get(token, set())
+            content_matches = self._content_index.get(token, set())
+            tags_matches = self._tags_index.get(token, set())
+            token_candidates = name_matches | content_matches | tags_matches
+            
+            if candidate_ids is None:
+                candidate_ids = token_candidates
+            else:
+                # 多个 token 取并集（任一 token 命中即可）
+                candidate_ids |= token_candidates
+        
+        # 如果索引未命中，回退到全量扫描（处理停用词过滤后的情况）
+        if candidate_ids is None or not candidate_ids:
+            candidate_ids = set(self.store._units.keys())
+
+        # 只对候选集进行详细匹配
+        for unit_id in candidate_ids:
+            unit = self.store._units.get(unit_id)
+            if not unit:
+                continue
+            
             # Status filter
             if status is None or status == "":
                 if unit.status == UnitStatus.ARCHIVED:
@@ -376,194 +498,37 @@ class SearchEngine:
     # ── 一致性检查实现 ───────────────────────────────────────────────────
 
     def _check_archived_characters_in_scenes(self) -> List[CheckResult]:
-        """规则 1: 已故/归档角色仍在参与场景"""
-        results = []
-        for unit in self.store._units.values():
-            if unit.type != UnitType.CHARACTER_ARC:
-                continue
-            if unit.status != UnitStatus.ARCHIVED:
-                continue
-
-            for rel in self.store.get_relations(unit.id):
-                if rel.relation_type == RelationType.PARTICIPATES_IN:
-                    target = self.store.get_unit(rel.target_id)
-                    if target and target.type == UnitType.SCENE:
-                        results.append(CheckResult(
-                            rule_name="已故角色仍在出场",
-                            rule_id="R1",
-                            severity="error",
-                            description=f"角色『{unit.unit_name}』已归档({unit.status.value})，"
-                                       f"但仍在场景『{target.unit_name}』中出场",
-                            units_involved=[unit.id, target.id],
-                        ))
-        return results
+        """规则 1: 已故/归档角色仍在参与场景（委托 MechanicalChecker）"""
+        return MechanicalChecker(self.store)._check_archived_characters_in_scenes()
 
     def _check_asymmetric_relations(self) -> List[CheckResult]:
-        """规则 2: 关系不对称（A→B 但 B→A）"""
-        results = []
-        # 构建关系索引: (source_str, target_str, type) → count
-        for rel in self.store._relations.values():
-            src = self.store.get_unit(rel.source_id)
-            tgt = self.store.get_unit(rel.target_id)
-            if not src or not tgt:
-                continue
-            if src.type != UnitType.CHARACTER_ARC or tgt.type != UnitType.CHARACTER_ARC:
-                continue
-            if src.status == UnitStatus.ARCHIVED or tgt.status == UnitStatus.ARCHIVED:
-                continue  # 已归档角色的关系不对称是预期行为
-            # 三态对齐：仅 always 类型期望反向存在。
-            # never（单向断言 CAUSES/PRECEDES 等）不期望反向，反向存在反而是异常；
-            # optional（层级 CONTAINS/BELONGS_TO）一条边足够。
-            if rel.relation_type.auto_reverse != "always":
-                continue
-
-            # 检查反向关系是否存在
-            has_inverse = False
-            for rel2 in self.store.get_relations(tgt.id, direction="outgoing"):
-                if rel2.target_id == src.id and rel2.relation_type == rel.relation_type.inverse:
-                    has_inverse = True
-                    break
-
-            if not has_inverse:
-                results.append(CheckResult(
-                    rule_name="角色关系不对称",
-                    rule_id="R2",
-                    severity="warning",
-                    description=f"『{src.unit_name}』→『{tgt.unit_name}』({rel.relation_type.value})，"
-                               f"但反向关系不存在",
-                    units_involved=[src.id, tgt.id],
-                ))
-        return results
+        """规则 2: 关系不对称（A→B 但 B→A）（委托 MechanicalChecker）"""
+        return MechanicalChecker(self.store)._check_asymmetric_relations()
 
     def _check_orphan_units(self) -> CheckResult:
-        """规则 3: 孤立单元（没有任何关系）"""
-        orphan_count = 0
-        orphan_names: List[str] = []
-        for unit in self.store._units.values():
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
-            rels = self.store.get_relations(unit.id)
-            if not rels:
-                orphan_count += 1
-                orphan_names.append(f"{unit.unit_name} ({unit.type.value})")
-
-        detail = ""
-        if orphan_names:
-            detail = "孤立单元:\n" + "\n".join(f"  - {n}" for n in orphan_names[:10])
-            if len(orphan_names) > 10:
-                detail += f"\n  ... 等共 {len(orphan_names)} 个"
-
-        return CheckResult(
-            rule_name="孤立单元",
-            rule_id="R3",
-            severity="info",
-            description=f"有 {orphan_count} 个单元没有任何关系",
-            units_involved=[],
-            detail=detail,
+        """规则 3: 孤立单元（委托 MechanicalChecker）"""
+        results = MechanicalChecker(self.store)._check_orphan_units()
+        return results[0] if results else CheckResult(
+            rule_id="R3", rule_name="孤立单元", severity="info",
+            description="无孤立单元", units_involved=[],
         )
 
     def _check_archived_with_active_relations(self) -> List[CheckResult]:
-        """规则 4: 已归档但仍有 outgoing 关系的单元"""
-        results = []
-        for unit in self.store._units.values():
-            if unit.status != UnitStatus.ARCHIVED:
-                continue
-            outgoing = self.store._outgoing_edges.get(unit.id, [])
-            if outgoing:
-                rel_names = []
-                for rid in outgoing[:5]:
-                    rel = self.store._relations.get(rid)
-                    if rel:
-                        tgt = self.store.get_unit(rel.target_id)
-                        tn = tgt.unit_name if tgt else "?"
-                        rel_names.append(f"{rel.relation_type.value}→{tn}")
-                results.append(CheckResult(
-                    rule_name="归档单元仍有活跃关系",
-                    rule_id="R4",
-                    severity="warning",
-                    description=f"单元『{unit.unit_name}』({unit.type.value})已归档，"
-                               f"但仍有 {len(outgoing)} 条活跃关系",
-                    units_involved=[unit.id],
-                    detail="关系: " + ", ".join(rel_names) if rel_names else "",
-                ))
-        return results
+        """规则 4: 已归档但仍有 outgoing 关系的单元（委托 MechanicalChecker）"""
+        return MechanicalChecker(self.store)._check_archived_with_active_relations()
 
     # ── CHUNK 一致性检查 ──────────────────────────────────────────────────
 
     def _check_chunk_missing_file(self) -> List[CheckResult]:
-        """规则 5: CHUNK 的正文文件（正文路径/正文分片）不存在"""
-        results = []
-        import json
-        project_root = self.store.project_root
-        for unit in self.store._units.values():
-            if unit.type != UnitType.CHUNK:
-                continue
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
-            try:
-                content_dict = json.loads(unit.content) if unit.content else {}
-            except (json.JSONDecodeError, ValueError):
-                continue
-            # 优先检查 正文分片
-            slice_info = content_dict.get("slice_info")
-            if slice_info:
-                slice_path = slice_info.get("文件", "")
-                if slice_path and not (project_root / slice_path).exists():
-                    results.append(CheckResult(
-                        rule_name="CHUNK 分片文件丢失",
-                        rule_id="R5a",
-                        severity="warning",
-                        description=f"CHUNK『{unit.unit_name}』的分片文件不存在: {slice_path}",
-                        units_involved=[unit.id],
-                    ))
-                continue  # 有 slice_info 就不检查 file_path
-            # 回退到 file_path
-            source_path = content_dict.get("file_path", "")
-            if not source_path:
-                continue
-            if not (project_root / source_path).exists():
-                results.append(CheckResult(
-                    rule_name="CHUNK 正文文件丢失",
-                    rule_id="R5",
-                    severity="warning",
-                    description=f"CHUNK『{unit.unit_name}』的正文文件不存在: {source_path}",
-                    units_involved=[unit.id],
-                ))
-        return results
+        """规则 5: CHUNK 的正文文件（委托 MechanicalChecker）"""
+        return MechanicalChecker(self.store)._check_chunk_missing_file()
 
     def _check_chunk_no_chapter(self) -> CheckResult:
-        """
-        规则 6: CHUNK content 中有章节号但 chapter_number 未同步。
-        """
-        import json
-        count = 0
-        names: List[str] = []
-        for unit in self.store._units.values():
-            if unit.type != UnitType.CHUNK:
-                continue
-            if unit.status == UnitStatus.ARCHIVED:
-                continue
-            # 仅当 content 中显式设置了章节号但 get_unit_chapter 返回 0 时才标记
-            if not get_unit_chapter(unit) and unit.content:
-                try:
-                    content_dict = json.loads(unit.content) if isinstance(unit.content, str) else {}
-                    if content_dict.get("chapter_number") is not None:
-                        count += 1
-                        names.append(unit.unit_name)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-        detail = ""
-        if names:
-            detail = "\n".join(f"  - {n}" for n in names[:10])
-            if len(names) > 10:
-                detail += f"\n  ... 等共 {len(names)} 个"
-        return CheckResult(
-            rule_name="CHUNK 章节号不一致",
-            rule_id="R6",
-            severity="info",
-            description=f"有 {count} 个 CHUNK 的 content 含章节号但 chapter_number 未同步" if count else "CHUNK 章节状态一致",
-            units_involved=[],
-            detail=detail,
+        """规则 6: CHUNK content 中有章节号但 chapter_number 未同步（委托 MechanicalChecker）"""
+        results = MechanicalChecker(self.store)._check_chunk_no_chapter()
+        return results[0] if results else CheckResult(
+            rule_id="R6", rule_name="CHUNK 章节号不一致", severity="info",
+            description="CHUNK 章节状态一致", units_involved=[],
         )
 
     # ── R7：位置变化检测 ──────────────────────────────────────────────────
@@ -654,38 +619,8 @@ class SearchEngine:
     # ── R9：PRECEDES/ordinal 冲突 ────────────────────────────────────────
 
     def _check_precedes_ordinal_conflicts(self) -> List[CheckResult]:
-        """
-        检测 PRECEDES 边方向与故事时间序数排序的不一致。
-        纯结构检查：A PRECEDES B 但 ordinal(A) >= ordinal(B)。
-        """
-        results: List[CheckResult] = []
-
-        for rel_id, rel in self.store._relations.items():
-            if rel.relation_type != RelationType.PRECEDES:
-                continue
-
-            src = self.store.get_unit(rel.source_id)
-            tgt = self.store.get_unit(rel.target_id)
-            if not src or not tgt:
-                continue
-
-            ord_src = get_story_ordinal(src)
-            ord_tgt = get_story_ordinal(tgt)
-            if ord_src is None or ord_tgt is None:
-                continue
-
-            if ord_src >= ord_tgt:
-                results.append(CheckResult(
-                    rule_name="事件顺序冲突",
-                    rule_id="R9",
-                    severity="error",
-                    description=f"PRECEDES 边方向与序数不一致: {src.unit_name} → {tgt.unit_name}",
-                    units_involved=[rel.source_id, rel.target_id],
-                    detail=f"{src.unit_name}(ord={ord_src}) PRECEDES {tgt.unit_name}(ord={ord_tgt})，"
-                           f"但序数 {ord_src} >= {ord_tgt}",
-                ))
-
-        return results
+        """检测 PRECEDES 边方向与故事时间序数排序的不一致（委托 MechanicalChecker）"""
+        return MechanicalChecker(self.store)._check_precedes_ordinal_conflicts()
 
     # ── 工具方法 ─────────────────────────────────────────────────────────
 
@@ -695,13 +630,14 @@ class SearchEngine:
         预览长度从 200→500 字符，减少"搜索后再 get_unit"的额外调用。
         完整内容仍通过 graph.get_unit 获取。
         """
-        preview = unit.content[:500].replace("\n", " ") if unit.content else ""
+        raw = unit.content if isinstance(unit.content, str) else json.dumps(unit.content, ensure_ascii=False) if unit.content else ""
+        preview = raw[:500].replace("\n", " ") if raw else ""
         return SearchResult(
             unit_id=unit.id,
             unit_name=unit.unit_name,
             unit_type=unit.type,
             content_preview=preview,
-            content_length=len(unit.content) if unit.content else 0,
+            content_length=len(raw),
             chapter=get_unit_chapter(unit),
             volume=None,
             score=score,

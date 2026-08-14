@@ -155,6 +155,10 @@ relations:
       target_type: [scene]
       cardinality: any
       description: "时间线前驱场景"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "场景引用其他单元"
 
 state_machine:
   initial: sprout

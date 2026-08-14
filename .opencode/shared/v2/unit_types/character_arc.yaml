@@ -141,9 +141,9 @@ constraints:
 relations:
   allowed:
     participates_in:
-      target_type: [scene]
+      target_type: [scene, plot_thread, temporal_event, chapter_plan]
       cardinality: any
-      description: "角色参与场景"
+      description: "角色参与场景/情节线/事件"
       payload_schema:
         role:
           type: string
@@ -170,7 +170,7 @@ relations:
           category: boundary
           severity: info
           description: "重要角色应有入场状态标注"
-          field: "entry_state"
+          fields: ["entry_state"]
           check: field_not_null
 
     located_at:
@@ -339,6 +339,26 @@ relations:
       target_type: ["*"]
       cardinality: any
       description: "角色引用其他单元"
+    belongs_to:
+      target_type: [world_rule]
+      cardinality: "0..n"
+      description: "角色所属势力/所在地（层级归属）"
+    involves:
+      target_type: [temporal_event]
+      cardinality: any
+      description: "角色涉及的时间事件（temporal_event.involves 反向）"
+    has_event:
+      target_type: [temporal_event]
+      cardinality: any
+      description: "角色拥有的时间线事件（event_of 反向）"
+    contradicts:
+      target_type: ["*"]
+      cardinality: any
+      description: "矛盾/对立关系"
+    inspires:
+      target_type: ["*"]
+      cardinality: any
+      description: "灵感来源关系"
   forbidden_when:
     - relation_type: participates_in
       condition:

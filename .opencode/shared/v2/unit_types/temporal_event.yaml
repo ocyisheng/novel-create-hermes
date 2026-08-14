@@ -73,6 +73,18 @@ relations:
       target_type: [temporal_event]
       cardinality: any
       description: "后继事件（结果）"
+    causes:
+      target_type: [temporal_event]
+      cardinality: any
+      description: "导致的事件（因果关系，caused 的主动方向）"
+    event_of:
+      target_type: [character_arc]
+      cardinality: "0..1"
+      description: "所属角色的时间线事件"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "时间事件引用其他单元"
 
 state_machine:
   initial: sprout

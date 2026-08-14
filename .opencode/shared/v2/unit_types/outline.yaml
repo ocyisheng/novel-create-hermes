@@ -60,13 +60,17 @@ constraints: []
 relations:
   allowed:
     contains:
-      target_type: [arc_plan]
+      target_type: [arc_plan, volume_plan]
       cardinality: "0..n"
-      description: "全书的部大纲"
+      description: "全书的部大纲或卷大纲"
     references:
-      target_type: [character_arc, plot_thread, thematic_motif, narrative_voice]
+      target_type: ["*"]
       cardinality: any
-      description: "引用的角色/情节/主题/腔调"
+      description: "引用的角色/情节/主题/腔调或任意单元"
+    inspires:
+      target_type: ["*"]
+      cardinality: any
+      description: "灵感来源关系"
 
 state_machine:
   initial: sprout

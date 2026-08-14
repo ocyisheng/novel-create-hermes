@@ -112,6 +112,10 @@ relations:
       target_type: [plot_thread, arc_plan]
       cardinality: any
       description: "规划本章纲的情节线或部大纲"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "章纲引用其他单元"
 
 state_machine:
   initial: sprout

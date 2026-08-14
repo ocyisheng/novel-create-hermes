@@ -64,9 +64,9 @@ constraints:
 relations:
   allowed:
     plans:
-      target_type: [scene, chapter_plan]
+      target_type: [scene, chapter_plan, volume_plan]
       cardinality: "1+"
-      description: "情节线规划的场景或章纲"
+      description: "情节线规划的场景、章纲或卷纲"
       payload_schema:
         weight:
           type: number
@@ -97,13 +97,21 @@ relations:
       cardinality: any
       description: "因果关系的情节线"
     references:
-      target_type: [character_arc, world_rule]
+      target_type: ["*"]
       cardinality: any
-      description: "情节线涉及的角色或设定"
+      description: "情节线涉及的角色、设定或任意单元"
     belongs_to:
       target_type: [arc_plan, outline]
       cardinality: "0..1"
       description: "所属的部大纲或总纲"
+    participates_in:
+      target_type: [character_arc]
+      cardinality: any
+      description: "参与此情节线的角色（角色侧 participates_in 的正向端）"
+    member_of:
+      target_type: [world_rule]
+      cardinality: "0..1"
+      description: "所属的暗线/势力规则"
 
 state_machine:
   initial: sprout

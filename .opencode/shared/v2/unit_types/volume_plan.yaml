@@ -89,13 +89,21 @@ relations:
       cardinality: "1+"
       description: "本卷包含的章纲"
     belongs_to:
-      target_type: [arc_plan]
+      target_type: [arc_plan, outline]
       cardinality: "0..1"
-      description: "所属部大纲"
+      description: "所属部大纲或总纲"
     precedes:
       target_type: [volume_plan]
       cardinality: "0..1"
       description: "前驱卷"
+    planned_by:
+      target_type: [plot_thread, arc_plan]
+      cardinality: any
+      description: "规划本卷的情节线（plot_thread.plans 反向）"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "卷纲引用其他单元"
 
 state_machine:
   initial: sprout

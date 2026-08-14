@@ -121,6 +121,26 @@ relations:
       target_type: [character_arc]
       cardinality: any
       description: "角色所属此规则"
+    controlled_by:
+      target_type: [world_rule]
+      cardinality: any
+      description: "受控关系（controls 反向：被某势力/规则控制）"
+    location_of:
+      target_type: ["*"]
+      cardinality: any
+      description: "位于此地的其他单元（located_at 反向）"
+    has_member:
+      target_type: [character_arc]
+      cardinality: any
+      description: "此规则包含的角色成员（member_of 反向）"
+    parallel:
+      target_type: [world_rule]
+      cardinality: any
+      description: "并列/对等关系"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "world_rule 引用其他单元"
 
 state_machine:
   initial: sprout

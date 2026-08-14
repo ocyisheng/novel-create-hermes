@@ -81,6 +81,10 @@ relations:
       target_type: [outline, arc_plan, volume_plan]
       cardinality: any
       description: "此腔调适用的范围"
+    references:
+      target_type: ["*"]
+      cardinality: any
+      description: "腔调引用其他单元"
 
 state_machine:
   initial: sprout

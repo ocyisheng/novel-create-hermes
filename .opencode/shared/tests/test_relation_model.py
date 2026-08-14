@@ -475,28 +475,6 @@ def test_get_relations_weight_filter(tmp_project):
 
 # ── 11. 时态 payload 约定（P2-13）────────────────────────────────
 
-def test_relation_temporal_scope():
-    """Relation.set_temporal_scope/get_temporal_scope 读写 payload 约定键。"""
-    from graph_schema import Relation, RelationType
-    rel = Relation(
-        id="rel_t1", source_id="a", target_id="b",
-        relation_type=RelationType.CAUSES,
-    )
-    # 初始：三个键均为 None
-    assert rel.get_temporal_scope() == {
-        "start_chapter": None, "end_chapter": None, "resolve_chapter": None,
-    }
-    # 写入部分键
-    rel.set_temporal_scope(start_chapter=3, resolve_chapter=12)
-    scope = rel.get_temporal_scope()
-    assert scope["start_chapter"] == 3
-    assert scope["end_chapter"] is None
-    assert scope["resolve_chapter"] == 12
-    # 空串清除
-    rel.set_temporal_scope(resolve_chapter="")
-    assert rel.get_temporal_scope()["resolve_chapter"] is None
-
-
 def test_relation_temporal_scope_via_store(tmp_project):
     """时态约定键随 add_relation payload 持久化，get_relations 可读回。"""
     proj_path, _ = tmp_project

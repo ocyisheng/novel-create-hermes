@@ -36,6 +36,14 @@ relations:
       target_type: ["*"]
       cardinality: any
       description: "笔记引用的单元"
+    inspires:
+      target_type: ["*"]
+      cardinality: any
+      description: "灵感来源关系"
+    precedes:
+      target_type: ["*"]
+      cardinality: any
+      description: "时间先后关系"
 
 state_machine:
   initial: sprout

@@ -150,7 +150,7 @@ novel-tool(operation="deviation.pending", project="{PROJECT}")
 无需特殊处理时忽略此字段即可。
 
 **注意分工：**
-- **结构字段由脚本保障**——`schemas.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
+- **结构字段由脚本保障**——`type_registry.py` 会在写入时校验 content JSON 的必填字段。你不需要记忆字段清单，脚本会自动提示遗漏。
 - **参考文档只给方法论**——原则、判断标准、设计方案的选择依据。这些需要你的理解和判断。
 
 ### 纯物化边界（PURE MATERIALIZATION BOUNDARY）

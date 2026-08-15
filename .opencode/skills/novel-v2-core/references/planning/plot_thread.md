@@ -10,7 +10,7 @@
 
 ## 结构由脚本保障
 
-content JSON 的字段结构由 `schemas.py` 自动校验：
+content JSON 的字段结构由 `type_registry.py`（TypeRegistry）自动校验：
 - 类型（主线/支线/角色弧）必填
 - 冲突核心必填
 

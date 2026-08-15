@@ -37,8 +37,8 @@ SPECIAL_RENDER_MAP: Dict[str, str] = {
 }
 
 # 自动注册 subtype 字段到特殊渲染映射
-from schemas import get_subtype_field_names
-for _f in get_subtype_field_names():
+from type_registry import TypeRegistry
+for _f in TypeRegistry.get_global().get_subtype_field_names():
     if _f not in SPECIAL_RENDER_MAP:
         SPECIAL_RENDER_MAP[_f] = "tag"
 

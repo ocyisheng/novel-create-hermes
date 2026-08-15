@@ -18,6 +18,8 @@ from graph_schema import (
 )
 from graph_store import GraphStore as GraphStoreImpl
 GraphStore = GraphStoreImpl  # type alias for type annotations
+from time_utils import ORDINAL_BASE
+from type_registry import TypeRegistry
 
 # 项目配置加载：单一权威实现
 import sys as _sys
@@ -430,6 +432,7 @@ class Workspace:
             "has_ego_graph": self.ego_graph is not None,
             "completeness": self.completeness_score,
             "gaps": self.missing_gaps,
+            "planning_gaps": self.missing_gaps,
         }
 
 
@@ -589,8 +592,7 @@ class WorkspaceBuilder:
         self._assess_completeness(ws)
         
         # 10. 加载焦点类型的 content 字段 Schema（注入 prompt 指导 LLM 写 JSON）
-        from schemas import schema_info as _schema_info
-        ws.schema_info = _schema_info(focus.type)
+        ws.schema_info = TypeRegistry.get_global(project_root=str(self.store.project_root)).schema_info(focus.type.value)
         
         return ws
     
@@ -774,7 +776,7 @@ class WorkspaceBuilder:
                 if ord_val is not None:
                     return (0, float(ord_val), "")
                 ch = get_unit_chapter(sc) or 0
-                return (1, ch * 10000, sc.unit_name or "")
+                return (1, ch * ORDINAL_BASE, sc.unit_name or "")
             
             belonging_scenes.sort(key=_scene_sort_key)
             
@@ -965,16 +967,16 @@ class WorkspaceBuilder:
     def _load_timeline_data(self, ws: Workspace, focus: NarrativeUnit, config: Dict[str, Any]):
         """
         为焦点加载时间序列数据。
-        使用 TemporalEventIndex（统一全类型时间线索引），
+        使用 UnifiedTimelineIndex（统一全类型时间线索引），
         向后兼容 CharacterTimelineLedger 的输出格式。
         """
-        from temporal_index import TemporalEventIndex
+        from unified_timeline import UnifiedTimelineIndex
 
         num_events = config.get("timeline_events", 5)
         if num_events <= 0:
             return
 
-        index = TemporalEventIndex(self.store).build()
+        index = UnifiedTimelineIndex(self.store).build()
 
         # 1. 全局时间线摘要
         scene_count = len(index._by_type.get("scene_event", []))
@@ -1074,7 +1076,7 @@ class WorkspaceBuilder:
         涉及的实体当前状态，从而产出更精确的时间线信息
         （如精确的 time_text、ordinal、cast[].role_status）。
         """
-        from temporal_index import TemporalEventIndex
+        from unified_timeline import UnifiedTimelineIndex
 
         parts: List[str] = []
         focus_name = focus.unit_name or ""
@@ -1083,7 +1085,7 @@ class WorkspaceBuilder:
         # 1. 焦点在时间线上的位置
         if ws.story_ordinal is not None:
             ordinal = ws.story_ordinal
-            ch = int(ordinal // 10000) if ordinal else focus_chapter
+            ch = int(ordinal // ORDINAL_BASE) if ordinal else focus_chapter
             ch_info = f"第{ch}章" if ch else ""
             parts.append(f"当前焦点在故事时间序数 ~{ordinal:.0f}")
             if ch_info:

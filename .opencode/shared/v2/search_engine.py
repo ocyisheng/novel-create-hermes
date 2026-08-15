@@ -26,7 +26,7 @@ from collections import defaultdict
 
 from graph_schema import NarrativeUnit, UnitType, UnitStatus, RelationType, get_unit_chapter
 from graph_store import GraphStore
-from time_utils import get_story_ordinal
+from time_utils import get_story_ordinal, ORDINAL_BASE
 
 # CheckResult 的规范定义在 quality_checkers.types（超集，含 source/check_layer）。
 # 此处 re-export 以保持向后兼容：from search_engine import CheckResult
@@ -86,7 +86,6 @@ class SearchEngine:
     # 新增规则只需在列表中追加，无需修改 check_consistency() 方法体。
     _CHECKERS: List[Tuple[str, str, str]] = [
         ("R1", "error",   "_check_archived_characters_in_scenes"),
-        ("R2", "warning", "_check_asymmetric_relations"),
         ("R3", "info",    "_check_orphan_units"),
         ("R4", "warning", "_check_archived_with_active_relations"),
         ("R5", "warning", "_check_chunk_missing_file"),
@@ -501,10 +500,6 @@ class SearchEngine:
         """规则 1: 已故/归档角色仍在参与场景（委托 MechanicalChecker）"""
         return MechanicalChecker(self.store)._check_archived_characters_in_scenes()
 
-    def _check_asymmetric_relations(self) -> List[CheckResult]:
-        """规则 2: 关系不对称（A→B 但 B→A）（委托 MechanicalChecker）"""
-        return MechanicalChecker(self.store)._check_asymmetric_relations()
-
     def _check_orphan_units(self) -> CheckResult:
         """规则 3: 孤立单元（委托 MechanicalChecker）"""
         results = MechanicalChecker(self.store)._check_orphan_units()
@@ -563,15 +558,21 @@ class SearchEngine:
             scene_info[unit.id] = (loc, ordinal, ch, unit.unit_name or "?")
 
         # 建立角色→场景映射（通过 PARTICIPATES_IN 边）
+        # 对称类型（PARTICIPATES_IN inverse==自身）：物理方向无意义，任一端是场景即视为出场
         char_scenes: dict = {}
         for rel_id, rel in self.store._relations.items():
             if rel.relation_type != RelationType.PARTICIPATES_IN:
                 continue
-            if rel.target_id in scene_info:
-                loc, ordinal, ch, sname = scene_info[rel.target_id]
-                char_scenes.setdefault(rel.source_id, []).append(
-                    (rel.target_id, loc, ordinal, ch, sname)
-                )
+            if rel.target_id in scene_info and rel.source_id not in scene_info:
+                scene_id, char_id = rel.target_id, rel.source_id
+            elif rel.source_id in scene_info and rel.target_id not in scene_info:
+                scene_id, char_id = rel.source_id, rel.target_id
+            else:
+                continue  # 场景↔场景或非场景端点，不构成角色出场
+            loc, ordinal, ch, sname = scene_info[scene_id]
+            char_scenes.setdefault(char_id, []).append(
+                (scene_id, loc, ordinal, ch, sname)
+            )
 
         # 逐角色检查位置变化
         for char_id, scenes in char_scenes.items():
@@ -599,7 +600,7 @@ class SearchEngine:
                 if ord_a is not None and ord_b is not None:
                     gap = ord_b - ord_a
                 elif ch_a > 0 and ch_b > 0:
-                    gap = (ch_b - ch_a) * 10000
+                    gap = (ch_b - ch_a) * ORDINAL_BASE
                 else:
                     gap = 99999
 
@@ -780,14 +781,20 @@ class SearchEngine:
                 continue
             if "主角" not in unit.tags:
                 continue
-            outgoing = self.store.get_relations(unit.id, direction="outgoing")
+            # PARTICIPATES_IN 是对称类型（inverse==自身）：物理方向无意义，
+            # 单条边即可双向可达 → 用 direction="both" 采集出场场景。
+            all_rels = self.store.get_relations(unit.id, direction="both")
             scene_rels = [
-                r for r in outgoing if r.relation_type == RelationType.PARTICIPATES_IN
+                r for r in all_rels if r.relation_type == RelationType.PARTICIPATES_IN
             ]
             if len(scene_rels) < 3:
                 continue
+            # 主动关系：方向性类型只算 char 为源端的出边（主角的行动），
+            # 对称类型（RELATES_TO/CONTRADICTS 等）方向无意义，任一端关联即算。
             active_rels = [
-                r for r in outgoing if r.relation_type != RelationType.PARTICIPATES_IN
+                r for r in all_rels
+                if r.relation_type != RelationType.PARTICIPATES_IN
+                and (r.source_id == unit.id or r.relation_type.is_symmetric)
             ]
             if not active_rels:
                 results.append(CheckResult(
@@ -799,6 +806,6 @@ class SearchEngine:
                         f"但没有任何主动关系"
                     ),
                     units_involved=[unit.id],
-                    detail="连续被动：仅有 PARTICIPATES_IN 出边，无 CAUSES/REFERENCES 等主动关系",
+                    detail="连续被动：仅有 PARTICIPATES_IN 边，无 CAUSES/REFERENCES/RELATES_TO 等主动关系",
                 ))
         return results

@@ -18,8 +18,9 @@ import json
 import os
 import re
 import threading
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import yaml
 
@@ -107,6 +108,56 @@ class StateTransition:
     allowed_when: Optional[str] = None
 
 
+class DriftError(Exception):
+    """YAML 声明与生成枚举不一致时抛出（漂移检测）。"""
+
+
+@dataclass
+class RelationTypeDef:
+    """关系类型定义（来自 relation_types.yaml，唯一事实来源）。
+
+    - name: 枚举成员名（如 CAUSES）
+    - value: 枚举值（如 "causes"）
+    - domain: structural | planning | entity | temporal | causal | reference
+    - cardinality: one_to_one | one_to_many | many_to_many
+    - directed: 是否单向断言（false = 对称语义）
+    - endpoint_types: {"source": [...], "target": [...]}，允许的单元类型（"*" = 任意）
+    - inverse: 逆关系值（对称类型 = 自身）
+    - auto_reverse: always | optional | never
+    - symmetric: 自反类型（逆 = 自身）
+    - acyclic: 无环层级类型（受环检测约束）
+    """
+    name: str
+    value: str
+    domain: str = "narrative"
+    cardinality: str = "many_to_many"
+    directed: bool = True
+    endpoint_types: Dict[str, List[str]] = field(
+        default_factory=lambda: {"source": ["*"], "target": ["*"]})
+    inverse: Optional[str] = None
+    auto_reverse: str = "never"
+    label: str = ""
+    color: str = "#888888"
+    description: str = ""
+    payload_schema: Optional[Dict] = None
+    symmetric: bool = False
+    acyclic: bool = False
+
+
+@dataclass
+class InferenceRule:
+    """声明式推断规则（来自 relation_types.yaml 的 inference_rules 节）。
+
+    取代 relation_inferrer.INFER_RULES 的硬编码定义。
+    direction: "source_to_target" | "target_to_source"
+    """
+    source_type: str
+    target_type: str
+    rel_type: str
+    direction: str = "source_to_target"
+    weight: float = 0.5
+
+
 @dataclass
 class StateMachineDef:
     """状态机定义"""
@@ -130,7 +181,7 @@ class TypeDefinition:
     constraints: List[ConstraintDef] = field(default_factory=list)
     relations: RelationDefSet = field(default_factory=RelationDefSet)
     state_machine: StateMachineDef = field(default_factory=StateMachineDef)
-    # 子类型配置（从 YAML subtype 节读取，替代 schemas.py SUBTYPE_REGISTRY）
+    # 子类型配置（从 YAML subtype 节读取）
     subtype_config: Optional[Dict[str, Any]] = None
 
 
@@ -143,6 +194,46 @@ _VALID_CATEGORIES = {
     "boundary", "state_conservation", "pattern",
 }
 _VALID_CARDINALITIES = {"any", "0..1", "1", "1+", "0..n"}
+
+
+# ── 动态枚举生成 ──────────────────────────────────────────────────────
+
+
+def _build_str_enum(name: str, members: Dict[str, str], *,
+                    missing: Optional[Callable[[type, object], Optional[Enum]]] = None) -> type:
+    """动态生成 str 子类枚举（兼容 Python 3.10+）。
+
+    由 YAML 声明驱动生成，成员值保持小写字符串（与 graph_schema 枚举一致）。
+    missing: 宽松查找处理器（_missing_ classmethod），找不到时返回 None。
+    """
+    enum_cls = Enum(name, members, type=str, module=__name__)
+    if missing is not None:
+        enum_cls._missing_ = classmethod(missing)
+    return enum_cls
+
+
+def _missing_unit_type_value(cls: type, value: object) -> Optional[Enum]:
+    """宽松查找：先按 value（小写），再按 name（大写），都找不到返回 None。"""
+    if isinstance(value, str):
+        for member in cls:
+            if member.value == value.lower():
+                return member
+        for member in cls:
+            if member.name == value.upper():
+                return member
+    return None
+
+
+def _missing_relation_type_value(cls: type, value: object) -> Optional[Enum]:
+    """宽松查找：小写 value 与大写 name 均可解析。"""
+    if isinstance(value, str):
+        for member in cls:
+            if member.value == value.lower():
+                return member
+        for member in cls:
+            if member.name == value.upper():
+                return member
+    return None
 
 
 # ── 类型注册表 ────────────────────────────────────────────────────────
@@ -166,6 +257,9 @@ class TypeRegistry:
     def __init__(self, project_root: Optional[str] = None, lazy: bool = False):
         self._project_root = project_root
         self._types: Dict[str, TypeDefinition] = {}
+        self._relation_types: Dict[str, RelationTypeDef] = {}
+        self._inference_rules: List[InferenceRule] = []
+        self._enum_cache: Dict[str, type] = {}
         self._loaded = False
         if not lazy:
             self.load_all()
@@ -173,26 +267,93 @@ class TypeRegistry:
     # ── 加载 ─────────────────────────────────────────────────────────────
 
     def load_all(self):
-        """加载所有内置类型定义 + 项目级覆盖。"""
-        self._types = {}
+        """加载所有内置类型定义 + 项目级覆盖，并执行漂移检测。
 
-        # 1. 加载内置
+        漂移检测：YAML 声明（含 relations.allowed 引用）与动态生成的
+        UnitType / RelationType 枚举不一致时抛 DriftError。
+        """
+        self._types = {}
+        self._relation_types = {}
+        self._inference_rules = []
+        self._enum_cache = {}
+
+        # 1. 加载内置（relation_types.yaml 是关系类型声明，非单元类型定义）
         if os.path.isdir(self._BUILTIN_DIR):
             for fname in sorted(os.listdir(self._BUILTIN_DIR)):
-                if fname.endswith(".yaml") or fname.endswith(".yml"):
-                    fpath = os.path.join(self._BUILTIN_DIR, fname)
-                    type_name = fname.rsplit(".", 1)[0]
-                    try:
-                        with open(fpath, "r", encoding="utf-8") as f:
-                            data = yaml.safe_load(f)
-                        if data:
-                            td = self._parse_definition(data)
-                            self._types[type_name] = td
-                    except Exception as e:
-                        import warnings
-                        warnings.warn(f"Failed to load builtin type '{type_name}': {e}")
+                if not (fname.endswith(".yaml") or fname.endswith(".yml")):
+                    continue
+                if fname in ("relation_types.yaml", "relation_types.yml"):
+                    continue
+                fpath = os.path.join(self._BUILTIN_DIR, fname)
+                type_name = fname.rsplit(".", 1)[0]
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                    if data:
+                        td = self._parse_definition(data)
+                        self._types[type_name] = td
+                except Exception as e:
+                    import warnings
+                    warnings.warn(f"Failed to load builtin type '{type_name}': {e}")
 
         # 2. 加载项目级覆盖
+        project_dir = self._find_project_unit_types_dir()
+
+        if project_dir and os.path.isdir(project_dir):
+            for fname in sorted(os.listdir(project_dir)):
+                if not (fname.endswith(".yaml") or fname.endswith(".yml")):
+                    continue
+                if fname in ("relation_types.yaml", "relation_types.yml"):
+                    continue
+                fpath = os.path.join(project_dir, fname)
+                type_name = fname.rsplit(".", 1)[0]
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                    if data:
+                        td = self._parse_definition(data)
+                        # 如果内置已有，逐字段覆盖
+                        if type_name in self._types:
+                            existing = self._types[type_name]
+                            if td.description:
+                                existing.description = td.description
+                            if td.content_schema.fields:
+                                existing.content_schema.fields.update(td.content_schema.fields)
+                            if td.fact_fields:
+                                existing.fact_fields = td.fact_fields
+                            if td.constraints:
+                                # 按 rule_id 替换
+                                existing_ids = {c.rule_id for c in existing.constraints}
+                                for c in td.constraints:
+                                    if c.rule_id in existing_ids:
+                                        existing.constraints = [
+                                            ec if ec.rule_id != c.rule_id else c
+                                            for ec in existing.constraints
+                                        ]
+                                    else:
+                                        existing.constraints.append(c)
+                            if td.relations.allowed:
+                                existing.relations.allowed.update(td.relations.allowed)
+                            if td.relations.forbidden_when:
+                                existing.relations.forbidden_when = td.relations.forbidden_when
+                            if td.state_machine.transitions:
+                                existing.state_machine.transitions.update(td.state_machine.transitions)
+                        else:
+                            self._types[type_name] = td
+                except Exception as e:
+                    import warnings
+                    warnings.warn(f"Failed to load project type '{type_name}': {e}")
+
+        # 3. 加载关系类型声明（relation_types.yaml + 项目级覆盖）
+        self._load_relation_types()
+
+        self._loaded = True
+
+        # 4. 漂移检测：YAML 声明与生成枚举不一致则抛错
+        self.check_drift()
+
+    def _find_project_unit_types_dir(self) -> Optional[str]:
+        """解析项目级 unit_types 目录（含 CWD 推断）。"""
         project_dir = None
         if self._project_root:
             project_dir = os.path.join(self._project_root, ".opencode", "unit_types")
@@ -204,50 +365,79 @@ class TypeRegistry:
                 if os.path.isdir(pdir):
                     project_dir = pdir
                     break
+        return project_dir
 
-        if project_dir and os.path.isdir(project_dir):
-            for fname in sorted(os.listdir(project_dir)):
-                if fname.endswith(".yaml") or fname.endswith(".yml"):
-                    fpath = os.path.join(project_dir, fname)
-                    type_name = fname.rsplit(".", 1)[0]
-                    try:
-                        with open(fpath, "r", encoding="utf-8") as f:
-                            data = yaml.safe_load(f)
-                        if data:
-                            td = self._parse_definition(data)
-                            # 如果内置已有，逐字段覆盖
-                            if type_name in self._types:
-                                existing = self._types[type_name]
-                                if td.description:
-                                    existing.description = td.description
-                                if td.content_schema.fields:
-                                    existing.content_schema.fields.update(td.content_schema.fields)
-                                if td.fact_fields:
-                                    existing.fact_fields = td.fact_fields
-                                if td.constraints:
-                                    # 按 rule_id 替换
-                                    existing_ids = {c.rule_id for c in existing.constraints}
-                                    for c in td.constraints:
-                                        if c.rule_id in existing_ids:
-                                            existing.constraints = [
-                                                ec if ec.rule_id != c.rule_id else c
-                                                for ec in existing.constraints
-                                            ]
-                                        else:
-                                            existing.constraints.append(c)
-                                if td.relations.allowed:
-                                    existing.relations.allowed.update(td.relations.allowed)
-                                if td.relations.forbidden_when:
-                                    existing.relations.forbidden_when = td.relations.forbidden_when
-                                if td.state_machine.transitions:
-                                    existing.state_machine.transitions.update(td.state_machine.transitions)
-                            else:
-                                self._types[type_name] = td
-                    except Exception as e:
-                        import warnings
-                        warnings.warn(f"Failed to load project type '{type_name}': {e}")
+    def _load_relation_types(self):
+        """加载关系类型声明（relation_types.yaml，唯一事实来源）。
 
-        self._loaded = True
+        内置声明必载；若项目级存在 {project_root}/.opencode/unit_types/relation_types.yaml，
+        按 value 合并覆盖（推断规则追加）。
+        """
+        self._relation_types = {}
+        self._inference_rules = []
+
+        def _load_from(path: str):
+            if not os.path.isfile(path):
+                return
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            for value, cfg in (data.get("relation_types", {}) or {}).items():
+                self._relation_types[value] = self._parse_relation_type(value, cfg)
+            for rule in (data.get("inference_rules", []) or []):
+                self._inference_rules.append(self._parse_inference_rule(rule))
+
+        _load_from(os.path.join(self._BUILTIN_DIR, "relation_types.yaml"))
+
+        project_dir = self._find_project_unit_types_dir()
+        if project_dir:
+            _load_from(os.path.join(project_dir, "relation_types.yaml"))
+
+    def _parse_relation_type(self, value: str, cfg: Any) -> RelationTypeDef:
+        """将 relation_types.yaml 中单条关系类型声明解析为 RelationTypeDef。"""
+        if not isinstance(cfg, dict):
+            cfg = {}
+        endpoint_types = cfg.get("endpoint_types", {}) or {}
+        if isinstance(endpoint_types, list):
+            endpoint_types = {"source": endpoint_types, "target": endpoint_types}
+        source = endpoint_types.get("source", ["*"])
+        target = endpoint_types.get("target", ["*"])
+        if isinstance(source, str):
+            source = [source]
+        if isinstance(target, str):
+            target = [target]
+        inverse = cfg.get("inverse")
+        return RelationTypeDef(
+            name=cfg.get("name", value.upper()),
+            value=value,
+            domain=cfg.get("domain", "narrative"),
+            cardinality=cfg.get("cardinality", "many_to_many"),
+            directed=bool(cfg.get("directed", True)),
+            endpoint_types={"source": list(source), "target": list(target)},
+            inverse=inverse,
+            auto_reverse=cfg.get("auto_reverse", "never"),
+            label=cfg.get("label", ""),
+            color=cfg.get("color", "#888888"),
+            description=cfg.get("description", ""),
+            payload_schema=cfg.get("payload_schema"),
+            symmetric=bool(cfg.get("symmetric", inverse == value)),
+            acyclic=bool(cfg.get("acyclic", False)),
+        )
+
+    def _parse_inference_rule(self, rule: Any) -> InferenceRule:
+        """将 relation_types.yaml 中单条推断规则解析为 InferenceRule。"""
+        if not isinstance(rule, dict):
+            rule = {}
+        try:
+            weight = float(rule.get("weight", 0.5))
+        except (TypeError, ValueError):
+            weight = 0.5
+        return InferenceRule(
+            source_type=rule.get("source_type", ""),
+            target_type=rule.get("target_type", "*"),
+            rel_type=rule.get("rel_type", ""),
+            direction=rule.get("direction", "source_to_target"),
+            weight=weight,
+        )
 
     def reload(self):
         """重新加载所有定义。"""
@@ -370,7 +560,7 @@ class TypeRegistry:
                 for t in (to_list or [])
             ]
 
-        # subtype 配置（替代 schemas.py SUBTYPE_REGISTRY）
+        # subtype 配置（type_registry 唯一来源）
         td.subtype_config = data.get("subtype")
 
         return td
@@ -423,8 +613,7 @@ class TypeRegistry:
         return type_name in self._types
 
     def get_content_schema(self, type_name: str) -> Dict[str, Dict[str, Any]]:
-        """返回 content_schema 字段定义（含 required/nested/items 完整信息）。
-           替代 schemas.SCHEMA_REGISTRY。"""
+        """返回 content_schema 字段定义（含 required/nested/items 完整信息）。"""
         td = self._types.get(type_name)
         if not td:
             return {}
@@ -438,16 +627,24 @@ class TypeRegistry:
         return [n for n, s in td.content_schema.fields.items() if s.get("required", False)]
 
     def get_subtype_config(self, type_name: str) -> Optional[Dict[str, Any]]:
-        """返回子类型配置（替代 schemas.SUBTYPE_REGISTRY）。
-           含 field/options/value_colors/behaviors 等。"""
+        """返回子类型配置（含 field/options/value_colors/behaviors 等）。"""
         td = self._types.get(type_name)
         if not td:
             return None
         return td.subtype_config
 
+    def get_subtype_field_names(self, project_root: Optional[str] = None) -> Set[str]:
+        """收集所有类型的子类型字段名，供实体引用检测等使用。"""
+        registry = TypeRegistry.get_global(project_root)
+        names: Set[str] = set()
+        for type_name in registry.list_types():
+            cfg = registry.get_subtype_config(type_name)
+            if cfg and "field" in cfg:
+                names.add(cfg["field"])
+        return names
+
     def schema_info(self, type_name: str) -> List[str]:
-        """返回该类型的 Schema 摘要（供 LLM 参考注入 prompt）。
-           替代 schemas.schema_info()。"""
+        """返回该类型的 Schema 摘要（供 LLM 参考注入 prompt）。"""
         td = self._types.get(type_name)
         if not td:
             return [f"未知类型: {type_name}"]
@@ -463,8 +660,7 @@ class TypeRegistry:
         return lines
 
     def default_content(self, type_name: str) -> str:
-        """返回该类型的默认 content JSON（仅含必填字段的空值）。
-           替代 schemas.default_content()。"""
+        """返回该类型的默认 content JSON（仅含必填字段的空值）。"""
         import json
         schema = self.get_content_schema(type_name)
         defaults: Dict[str, Any] = {}
@@ -840,6 +1036,156 @@ class TypeRegistry:
         if not path:
             return []
         return [p.strip() for p in path.split(".") if p.strip()]
+
+    # ── 动态枚举生成（YAML 声明 → 枚举） ────────────────────────────────
+
+    def get_unit_type_enum(self) -> type:
+        """返回动态生成的 UnitType 枚举（str 子类，成员值 = 小写类型名）。
+
+        由 unit_types/*.yaml 的 unit_type 声明生成；成员名/值与
+        graph_schema.UnitType 保持一致以保证向后兼容。
+        """
+        if "unit_type" not in self._enum_cache:
+            self._enum_cache["unit_type"] = self._build_unit_type_enum()
+        return self._enum_cache["unit_type"]
+
+    def _build_unit_type_enum(self) -> type:
+        members = {name.upper(): name for name in sorted(self._types.keys()) if name}
+        return _build_str_enum("UnitType", members, missing=_missing_unit_type_value)
+
+    def get_relation_type_enum(self) -> type:
+        """返回动态生成的 RelationType 枚举（str 子类，成员值 = 小写关系类型名）。
+
+        由 relation_types.yaml 声明生成；包含 graph_schema.RelationType 全部成员
+        以及 YAML 中声明但旧枚举缺失的类型（caused_by/caused/applies_to）。
+        """
+        if "relation_type" not in self._enum_cache:
+            self._enum_cache["relation_type"] = self._build_relation_type_enum()
+        return self._enum_cache["relation_type"]
+
+    def _build_relation_type_enum(self) -> type:
+        members = {rtd.name: rtd.value for rtd in self._relation_types.values()}
+        return _build_str_enum("RelationType", members, missing=_missing_relation_type_value)
+
+    # ── 关系类型查询与校验 ──────────────────────────────────────────────
+
+    def get_relation_type_def(self, rel_type: str) -> Optional[RelationTypeDef]:
+        """按值（如 "causes"）返回关系类型定义。"""
+        return self._relation_types.get(rel_type)
+
+    def get_relation_validator(self, rel_type: str) -> Callable[..., List[str]]:
+        """返回该关系类型的校验函数。
+
+        校验函数签名：
+            validator(source_type: str, target_type: str,
+                      payload: Optional[Dict] = None,
+                      existing_count: int = 0) -> List[str]
+        返回错误信息列表，空列表 = 通过。
+
+        校验项（均来自 YAML 声明）：
+          - endpoint_types：源/目标单元类型是否被允许
+          - cardinality：one_to_one 时源单元已存在该类型关系则报错
+          - payload schema：先按源类型细粒度 schema，再回退通用 schema
+        """
+        rtd = self._relation_types.get(rel_type)
+        if rtd is None:
+            return lambda *args, **kwargs: [f"未知关系类型: {rel_type}"]
+        source_allowed = rtd.endpoint_types.get("source", ["*"])
+        target_allowed = rtd.endpoint_types.get("target", ["*"])
+        cardinality = rtd.cardinality
+        generic_payload_schema = rtd.payload_schema or {}
+
+        def validator(source_type: str, target_type: str,
+                      payload: Optional[Dict] = None,
+                      existing_count: int = 0) -> List[str]:
+            errors: List[str] = []
+            if "*" not in source_allowed and source_type not in source_allowed:
+                errors.append(
+                    f"关系 '{rel_type}' 不允许源类型 '{source_type}'（允许: {source_allowed}）")
+            if "*" not in target_allowed and target_type not in target_allowed:
+                errors.append(
+                    f"关系 '{rel_type}' 不允许目标类型 '{target_type}'（允许: {target_allowed}）")
+            if cardinality == "one_to_one" and existing_count >= 1:
+                errors.append(
+                    f"关系 '{rel_type}' 为 one_to_one，源单元已存在 {existing_count} 条该类型关系")
+            if payload:
+                schema = self.get_relation_payload_schema(source_type, rel_type) or generic_payload_schema
+                if schema:
+                    errors.extend(self._validate_dict(payload, schema))
+            return errors
+
+        return validator
+
+    def get_inference_rules(self) -> List[Dict[str, Any]]:
+        """返回声明式推断规则（来自 relation_types.yaml 的 inference_rules 节）。
+
+        取代 relation_inferrer.INFER_RULES 的硬编码定义。
+        每条规则: {"source_type", "target_type", "rel_type", "direction", "weight"}。
+        """
+        return [asdict(rule) for rule in self._inference_rules]
+
+    # ── 漂移检测 ────────────────────────────────────────────────────────
+
+    def _collect_referenced_relation_types(self) -> Set[str]:
+        """收集所有已加载单元类型 YAML 中 relations.allowed 引用的关系类型名。"""
+        referenced: Set[str] = set()
+        for td in self._types.values():
+            referenced.update(td.relations.allowed.keys())
+        return referenced
+
+    def check_drift(self) -> Dict[str, Any]:
+        """检测 YAML 声明与生成枚举是否一致。
+
+        检查项：
+          1. relation_types.yaml 声明的每个关系类型都能生成到 RelationType 枚举
+          2. 所有 unit_types/*.yaml 的 relations.allowed 引用的关系类型均已声明
+          3. unit_types/*.yaml 的 unit_type 声明都能生成到 UnitType 枚举
+          4. endpoint_types 中出现的单元类型（除 "*"）均已在 UnitType 枚举中
+
+        任一不一致抛 DriftError。
+        返回漂移报告 dict。
+        """
+        rel_enum = self.get_relation_type_enum()
+        unit_enum = self.get_unit_type_enum()
+
+        declared = set(self._relation_types.keys())
+        enum_values = {m.value for m in rel_enum}
+        missing_in_enum = declared - enum_values
+        extra_in_enum = enum_values - declared
+        if missing_in_enum or extra_in_enum:
+            raise DriftError(
+                "关系类型声明与生成枚举不一致: "
+                f"声明但未生成={sorted(missing_in_enum)}, "
+                f"生成但未声明={sorted(extra_in_enum)}")
+
+        referenced = self._collect_referenced_relation_types()
+        undeclared = referenced - declared
+        if undeclared:
+            raise DriftError(
+                "unit_types/*.yaml 引用了未声明的关系类型（缺失于 relation_types.yaml）: "
+                f"{sorted(undeclared)}")
+
+        yaml_unit_types = set(self._types.keys())
+        unit_enum_values = {m.value for m in unit_enum}
+        if yaml_unit_types != unit_enum_values:
+            raise DriftError(
+                "单元类型声明与生成枚举不一致: "
+                f"声明但未生成={sorted(yaml_unit_types - unit_enum_values)}, "
+                f"生成但未声明={sorted(unit_enum_values - yaml_unit_types)}")
+
+        known_units = set(unit_enum_values)
+        for value, rtd in self._relation_types.items():
+            for side in ("source", "target"):
+                for t in rtd.endpoint_types.get(side, []):
+                    if t != "*" and t not in known_units:
+                        raise DriftError(
+                            f"关系类型 '{value}' 的 endpoint_types.{side} 引用了未知单元类型 '{t}'")
+
+        return {
+            "unit_types": sorted(yaml_unit_types),
+            "relation_types": sorted(declared),
+            "referenced_relations": sorted(referenced),
+        }
 
     # ── 单例 ─────────────────────────────────────────────────────────────
 

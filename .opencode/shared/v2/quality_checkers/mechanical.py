@@ -69,7 +69,6 @@ class MechanicalChecker:
         results: List[CheckResult] = []
         # R1-R6, R9: 迁移自 search_engine.py
         results.extend(self._check_archived_characters_in_scenes())
-        results.extend(self._check_asymmetric_relations())
         results.extend(self._check_orphan_units())
         results.extend(self._check_archived_with_active_relations())
         results.extend(self._check_chunk_missing_file())
@@ -92,10 +91,14 @@ class MechanicalChecker:
             if unit.status != UnitStatus.ARCHIVED:
                 continue
 
+            # PARTICIPATES_IN 对称类型：物理方向无意义，任一端是场景即视为出场。
+            # get_relations(unit.id) 采集双向；对每条边找"另一端"判断是否场景。
             for rel in self.store.get_relations(unit.id):
-                if rel.relation_type == RelationType.PARTICIPATES_IN:
-                    target = self.store.get_unit(rel.target_id)
-                    if target and target.type == UnitType.SCENE:
+                if rel.relation_type != RelationType.PARTICIPATES_IN:
+                    continue
+                other_id = rel.target_id if rel.source_id == unit.id else rel.source_id
+                target = self.store.get_unit(other_id)
+                if target and target.type == UnitType.SCENE:
                         results.append(CheckResult(
                             rule_id="R1",
                             rule_name="已故角色仍在出场",
@@ -108,46 +111,6 @@ class MechanicalChecker:
                             source=CheckSource.MECHANICAL,
                             check_layer=CheckLayer.STRUCTURE,
                         ))
-        return results
-
-    # ── R2: 关系不对称 ─────────────────────────────────────────────────────
-
-    def _check_asymmetric_relations(self) -> List[CheckResult]:
-        """规则 2: 关系不对称（A→B 但 B→A）"""
-        results = []
-        for rel in self.store._relations.values():
-            src = self.store.get_unit(rel.source_id)
-            tgt = self.store.get_unit(rel.target_id)
-            if not src or not tgt:
-                continue
-            if src.type != UnitType.CHARACTER_ARC or tgt.type != UnitType.CHARACTER_ARC:
-                continue
-            if src.status == UnitStatus.ARCHIVED or tgt.status == UnitStatus.ARCHIVED:
-                continue  # 已归档角色的关系不对称是预期行为
-            # 三态对齐：仅 always 类型期望反向存在
-            if rel.relation_type.auto_reverse != "always":
-                continue
-
-            # 检查反向关系是否存在
-            has_inverse = False
-            for rel2 in self.store.get_relations(tgt.id, direction="outgoing"):
-                if rel2.target_id == src.id and rel2.relation_type == rel.relation_type.inverse:
-                    has_inverse = True
-                    break
-
-            if not has_inverse:
-                results.append(CheckResult(
-                    rule_id="R2",
-                    rule_name="角色关系不对称",
-                    severity="warning",
-                    description=(
-                        f"『{src.unit_name}』→『{tgt.unit_name}』({rel.relation_type.value})，"
-                        f"但反向关系不存在"
-                    ),
-                    units_involved=[src.id, tgt.id],
-                    source=CheckSource.MECHANICAL,
-                    check_layer=CheckLayer.STRUCTURE,
-                ))
         return results
 
     # ── R3: 孤立单元 ───────────────────────────────────────────────────────
@@ -184,27 +147,35 @@ class MechanicalChecker:
     # ── R4: 归档单元仍有活跃关系 ───────────────────────────────────────────
 
     def _check_archived_with_active_relations(self) -> List[CheckResult]:
-        """规则 4: 已归档但仍有 outgoing 关系的单元"""
+        """规则 4: 已归档但仍有活跃关系的单元
+
+        活跃关系判定（新关系模型）：
+        - 对称类型（RELATES_TO/CONTRADICTS/PARTICIPATES_IN 等，inverse==自身）：
+          方向无意义，任一端关联即算活跃——单条物理边即可双向可达；
+        - 非对称类型（CAUSES/REFERENCES 等）：仅单元为源端的出边算活跃。
+        """
         results = []
         for unit in self.store._units.values():
             if unit.status != UnitStatus.ARCHIVED:
                 continue
-            outgoing = self.store._outgoing_edges.get(unit.id, [])
-            if outgoing:
+            all_rels = self.store.get_relations(unit.id)
+            active = [
+                r for r in all_rels
+                if r.relation_type.is_symmetric or r.source_id == unit.id
+            ]
+            if active:
                 rel_names = []
-                for rid in outgoing[:5]:
-                    rel = self.store._relations.get(rid)
-                    if rel:
-                        tgt = self.store.get_unit(rel.target_id)
-                        tn = tgt.unit_name if tgt else "?"
-                        rel_names.append(f"{rel.relation_type.value}→{tn}")
+                for rel in active[:5]:
+                    tgt = self.store.get_unit(rel.target_id)
+                    tn = tgt.unit_name if tgt else "?"
+                    rel_names.append(f"{rel.relation_type.value}→{tn}")
                 results.append(CheckResult(
                     rule_id="R4",
                     rule_name="归档单元仍有活跃关系",
                     severity="warning",
                     description=(
                         f"单元『{unit.unit_name}』({unit.type.value})已归档，"
-                        f"但仍有 {len(outgoing)} 条活跃关系"
+                        f"但仍有 {len(active)} 条活跃关系"
                     ),
                     units_involved=[unit.id],
                     detail="关系: " + ", ".join(rel_names) if rel_names else "",

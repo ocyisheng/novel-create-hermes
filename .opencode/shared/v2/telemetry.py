@@ -356,7 +356,7 @@ def analyze_telemetry(project_root: str = "", project: str = "") -> dict:
             "type": "schema_validation",
             "target": "schema",
             "signal": f"schema 校验错误 {se_count} 次",
-            "action": "检查 schemas.py 中枚举字段的允许值列表是否合理",
+            "action": "检查 type_registry.py 中枚举字段的允许值列表是否合理",
         })
     
     # 如果平均耗时 > 5s 的操作有多个

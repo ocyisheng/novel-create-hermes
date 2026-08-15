@@ -258,6 +258,7 @@ class ConstraintEngine:
                         if status_str == fw.condition_eq:
                             results.append(CheckResult(
                                 rule_id=f"relation_forbidden_{fw.relation_type}",
+                                rule_name=f"禁止关系: {fw.relation_type}",
                                 severity="warning",
                                 description=f"「{unit.unit_name}」(状态={status_str}) 不应有 {fw.relation_type} 关系",
                                 units_involved=[unit.id],
@@ -270,6 +271,7 @@ class ConstraintEngine:
                 # 不是明确允许的边类型 — 记录 info
                 results.append(CheckResult(
                     rule_id=f"relation_not_allowed_{rel_type_name}",
+                    rule_name=f"未声明边类型: {rel_type_name}",
                     severity="info",
                     description=f"「{unit.unit_name}」使用了类型定义中未声明的边类型 {rel_type_name}",
                     units_involved=[unit.id],
@@ -286,6 +288,7 @@ class ConstraintEngine:
                         if tgt_type not in target_types:
                             results.append(CheckResult(
                                 rule_id=f"relation_target_type_{rel_type_name}",
+                                rule_name=f"边目标类型错误: {rel_type_name}",
                                 severity="info",
                                 description=f"「{unit.unit_name}」的 {rel_type_name} 边连接了不允许的类型 {tgt_type}（期望 {target_types}）",
                                 units_involved=[unit.id, rel.target_id],
@@ -359,6 +362,7 @@ class ConstraintEngine:
             truncated = violations[:5]
             results.append(CheckResult(
                 rule_id=f"payload_schema_{rel_type}",
+                rule_name=f"Payload schema 违规: {rel_type}",
                 severity="warning",
                 description=f"「{source.unit_name}」的 {rel_type} 边 payload 不合 schema",
                 units_involved=[rel.source_id, rel.target_id],
@@ -426,6 +430,7 @@ class ConstraintEngine:
                     if float(val_a) >= float(val_b):
                         return CheckResult(
                             rule_id=pc.rule_id,
+                            rule_name=f"时序约束违规: {pc.rule_id}",
                             severity=pc.severity,
                             description=(
                                 f"「{source.unit_name}」{pc.description}: "
@@ -442,6 +447,7 @@ class ConstraintEngine:
                 if val_a is None or val_b is None:
                     return CheckResult(
                         rule_id=pc.rule_id,
+                        rule_name=f"时序约束字段为空: {pc.rule_id}",
                         severity=pc.severity,
                         description=(
                             f"「{source.unit_name}」{pc.description}: "
@@ -485,6 +491,7 @@ class ConstraintEngine:
                 if prev is not None and prev >= num:
                     return CheckResult(
                         rule_id=pc.rule_id,
+                        rule_name=f"单调递增违规: {pc.rule_id}",
                         severity=pc.severity,
                         description=(
                             f"「{source.unit_name}」{pc.description}: "
@@ -512,6 +519,7 @@ class ConstraintEngine:
             if val is None or (isinstance(val, list) and not val):
                 return CheckResult(
                     rule_id=pc.rule_id,
+                    rule_name=f"边界约束违规: {pc.rule_id}",
                     severity=pc.severity,
                     description=(
                         f"「{source.unit_name}」{pc.description}: "

@@ -11,7 +11,7 @@
 
 ## 结构由脚本保障
 
-content JSON 的字段结构由 `schemas.py` 自动校验。各类型的子类型字段不同（详见 schemas.py SUBTYPE_REGISTRY）：
+content JSON 的字段结构由 `type_registry.py`（TypeRegistry）自动校验。各类型的子类型字段不同（详见 type_registry 子类型配置）：
 - OUTLINE → `模式选择`（沙漏/长链/螺旋/环状/多线交织）
 - ARC_PLAN → `命名规范`（部/篇）
 - VOLUME_PLAN → 无子类型字段（卷号本身就是分类）
@@ -175,7 +175,7 @@ content JSON 的字段结构由 `schemas.py` 自动校验。各类型的子类�
 
 #### content 字段
 
-章纲 content 的字段及含义（见 schemas.py CHAPTER_PLAN_SCHEMA）：
+章纲 content 的字段及含义（可调用 `graph.schema_info` 查看）：
 - `本章功能` — 本章在全书的叙事定位（开篇/推进/冲突/转折/展示/过渡/收束）
 - `场景序列` — 有序的场景规划列表
 - `情绪弧线` — 本章情绪起伏（可选）

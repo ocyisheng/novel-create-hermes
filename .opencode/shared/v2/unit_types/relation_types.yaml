@@ -1,0 +1,579 @@
+# relation_types.yaml — 关系类型唯一事实来源
+#
+# 由 TypeRegistry 加载：
+#   - 动态生成 RelationType 枚举（get_relation_type_enum()）
+#   - 生成关系校验器（get_relation_validator()）
+#   - 提供声明式推断规则（get_inference_rules()，取代 relation_inferrer.INFER_RULES 硬编码）
+#   - 漂移检测（check_drift()）比对 unit_types/*.yaml 的 relations.allowed 引用
+#
+# 字段说明：
+#   name           枚举成员名（大写，如 CAUSES）
+#   domain         语义域：structural | planning | entity | temporal | causal | reference
+#   cardinality    基数：one_to_one | one_to_many | many_to_many
+#   directed       是否单向断言（true=有方向；false=对称语义）
+#   endpoint_types 允许的源/目标单元类型（"*" = 任意）
+#   inverse        逆关系值（对称类型 = 自身）
+#   auto_reverse   自动补反向策略：always | optional | never
+#   label          中文显示标签
+#   color          可视化颜色
+#   symmetric      自反类型（逆 = 自身）
+#   acyclic        无环层级类型（受环检测约束）
+#   payload_schema 通用 payload schema（可被按源类型的更具体 schema 覆盖）
+
+relation_types:
+  causes:
+    name: CAUSES
+    domain: causal
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [temporal_event, plot_thread]
+      target: [temporal_event, plot_thread]
+    inverse: causes
+    auto_reverse: never
+    label: "导致"
+    color: "#FF4444"
+    symmetric: true
+    description: "A 导致 B 发生"
+
+  precedes:
+    name: PRECEDES
+    domain: temporal
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [scene, volume_plan, note, chapter_plan, arc_plan]
+      target: [scene, volume_plan, note, chapter_plan, arc_plan]
+    inverse: precedes
+    auto_reverse: never
+    label: "先于"
+    color: "#FFC000"
+    symmetric: true
+    description: "A 在时间线上先于 B"
+
+  contradicts:
+    name: CONTRADICTS
+    domain: causal
+    cardinality: many_to_many
+    directed: false
+    endpoint_types:
+      source: ["*"]
+      target: ["*"]
+    inverse: contradicts
+    auto_reverse: always
+    label: "矛盾"
+    color: "#FF6600"
+    symmetric: true
+    description: "A 与 B 矛盾（需解决）"
+
+  implements:
+    name: IMPLEMENTS
+    domain: planning
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: ["*"]
+      target: ["*"]
+    inverse: implements
+    auto_reverse: never
+    label: "实现"
+    color: "#70AD47"
+    symmetric: true
+    description: "A 是 B 的具体实现"
+
+  inspires:
+    name: INSPIRES
+    domain: reference
+    cardinality: many_to_many
+    directed: true
+    endpoint_types:
+      source: [note, character_arc, outline]
+      target: ["*"]
+    inverse: inspires
+    auto_reverse: never
+    label: "启发"
+    color: "#B4A7D6"
+    symmetric: true
+    description: "A 启发了 B 的创作"
+
+  refines:
+    name: REFINES
+    domain: reference
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: ["*"]
+      target: ["*"]
+    inverse: refines
+    auto_reverse: never
+    label: "细化"
+    color: "#70AD47"
+    symmetric: true
+    description: "A 对 B 做了精细化修订"
+
+  belongs_to:
+    name: BELONGS_TO
+    domain: structural
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule, thematic_motif, chunk, character_arc, plot_thread, outline, arc_plan, volume_plan, chapter_plan]
+      target: [world_rule, outline, chapter_plan, scene, arc_plan, volume_plan]
+    inverse: contains
+    auto_reverse: optional
+    label: "属于"
+    color: "#ED7D31"
+    acyclic: true
+    description: "A 是 B 的一部分"
+
+  references:
+    name: REFERENCES
+    domain: reference
+    cardinality: many_to_many
+    directed: true
+    endpoint_types:
+      source: ["*"]
+      target: ["*"]
+    inverse: references
+    auto_reverse: never
+    label: "引用"
+    color: "#8888AA"
+    symmetric: true
+    description: "A 中提到了 B"
+
+  implies:
+    name: IMPLIES
+    domain: causal
+    cardinality: many_to_many
+    directed: true
+    endpoint_types:
+      source: ["*"]
+      target: ["*"]
+    inverse: implies
+    auto_reverse: never
+    label: "隐含"
+    color: "#8888AA"
+    symmetric: true
+    description: "A 隐含了 B（弱关联）"
+
+  parallel:
+    name: PARALLEL
+    domain: temporal
+    cardinality: many_to_many
+    directed: false
+    endpoint_types:
+      source: [world_rule, thematic_motif]
+      target: [world_rule, thematic_motif]
+    inverse: parallel
+    auto_reverse: always
+    label: "并列"
+    color: "#B4A7D6"
+    symmetric: true
+    description: "A 与 B 并列发生"
+
+  plans:
+    name: PLANS
+    domain: planning
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [chapter_plan, plot_thread]
+      target: [scene, chapter_plan, volume_plan]
+    inverse: planned_by
+    auto_reverse: always
+    label: "规划"
+    color: "#7F8C8D"
+    description: "A 规划 B（章纲规划场景）——规划意图而非结构归属"
+
+  planned_by:
+    name: PLANNED_BY
+    domain: planning
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [scene, volume_plan, chapter_plan]
+      target: [chapter_plan, plot_thread, arc_plan]
+    inverse: plans
+    auto_reverse: always
+    label: "被规划"
+    color: "#7F8C8D"
+    description: "A 被 B 规划（PLANS 的反向）"
+
+  participates_in:
+    name: PARTICIPATES_IN
+    domain: entity
+    cardinality: many_to_many
+    directed: false
+    endpoint_types:
+      source: [scene, character_arc, plot_thread]
+      target: [character_arc, scene, plot_thread, temporal_event, chapter_plan]
+    inverse: participates_in
+    auto_reverse: always
+    label: "参与"
+    color: "#5B9BD5"
+    symmetric: true
+    description: "A 参与 B（角色参与场景）"
+
+  located_at:
+    name: LOCATED_AT
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [scene, character_arc, world_rule, temporal_event]
+      target: [world_rule]
+    inverse: location_of
+    auto_reverse: always
+    label: "位于"
+    color: "#00B0F0"
+    description: "A 位于 B（场景/角色所在地点）"
+
+  relates_to:
+    name: RELATES_TO
+    domain: entity
+    cardinality: many_to_many
+    directed: false
+    endpoint_types:
+      source: [character_arc, world_rule]
+      target: [character_arc, world_rule]
+    inverse: relates_to
+    auto_reverse: always
+    label: "关联"
+    color: "#92D050"
+    symmetric: true
+    description: "A 与 B 有关联（角色间通用容器，具体语义见 label）"
+
+  possesses:
+    name: POSSESSES
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [character_arc]
+      target: [world_rule]
+    inverse: possessed_by
+    auto_reverse: always
+    label: "拥有"
+    color: "#9B59B6"
+    description: "A 拥有 B（角色拥有物品/能力/法宝）"
+
+  possessed_by:
+    name: POSSESSED_BY
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: ["*"]
+      target: [character_arc]
+    inverse: possesses
+    auto_reverse: always
+    label: "被拥有"
+    color: "#9B59B6"
+    description: "A 被 B 拥有（POSSESSES 的反向）"
+
+  contains:
+    name: CONTAINS
+    domain: structural
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule, volume_plan, outline, arc_plan]
+      target: [world_rule, chapter_plan, arc_plan, volume_plan]
+    inverse: belongs_to
+    auto_reverse: optional
+    label: "包含"
+    color: "#ED7D31"
+    acyclic: true
+    description: "A 包含 B（BELONGS_TO 的反向）"
+
+  controls:
+    name: CONTROLS
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule]
+      target: [world_rule]
+    inverse: controlled_by
+    auto_reverse: always
+    label: "统治"
+    color: "#FF6600"
+    description: "A 控制 B（势力控制地域等）"
+
+  member_of:
+    name: MEMBER_OF
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [character_arc, plot_thread, world_rule]
+      target: [world_rule, character_arc]
+    inverse: has_member
+    auto_reverse: always
+    label: "成员"
+    color: "#5B9BD5"
+    description: "A 是 B 的成员（角色属于势力/组织）"
+
+  has_member:
+    name: HAS_MEMBER
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule]
+      target: [character_arc]
+    inverse: member_of
+    auto_reverse: always
+    label: "拥有成员"
+    color: "#5B9BD5"
+    description: "A 拥有成员 B（MEMBER_OF 的反向）"
+
+  location_of:
+    name: LOCATION_OF
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule]
+      target: ["*"]
+    inverse: located_at
+    auto_reverse: always
+    label: "所在"
+    color: "#00B0F0"
+    description: "A 是 B 的位置（LOCATED_AT 的反向）"
+
+  controlled_by:
+    name: CONTROLLED_BY
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [world_rule]
+      target: [world_rule]
+    inverse: controls
+    auto_reverse: always
+    label: "受制"
+    color: "#FF6600"
+    description: "A 受 B 控制（CONTROLS 的反向）"
+
+  has_event:
+    name: HAS_EVENT
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [character_arc]
+      target: [temporal_event]
+    inverse: event_of
+    auto_reverse: always
+    label: "有事件"
+    color: "#888888"
+    description: "A 有事件 B（实体 → temporal_event）"
+
+  event_of:
+    name: EVENT_OF
+    domain: entity
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [temporal_event]
+      target: [character_arc]
+    inverse: has_event
+    auto_reverse: always
+    label: "所属事件"
+    color: "#888888"
+    description: "A 是 B 的事件（HAS_EVENT 的反向）"
+
+  involves:
+    name: INVOLVES
+    domain: entity
+    cardinality: many_to_many
+    directed: false
+    endpoint_types:
+      source: [temporal_event, character_arc]
+      target: [character_arc, temporal_event]
+    inverse: involves
+    auto_reverse: always
+    label: "涉及"
+    color: "#888888"
+    symmetric: true
+    description: "A 涉及角色 B（事件 → 角色参与）"
+
+  # ── 漂移修复：temporal_event.yaml 声明但旧 RelationType 枚举缺失 ──
+  caused_by:
+    name: CAUSED_BY
+    domain: causal
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [temporal_event]
+      target: [temporal_event]
+    inverse: causes
+    auto_reverse: never
+    label: "由…导致"
+    color: "#FF4444"
+    description: "前驱事件（因果关系，causes 的反向）"
+
+  caused:
+    name: CAUSED
+    domain: causal
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [temporal_event]
+      target: [temporal_event]
+    inverse: causes
+    auto_reverse: never
+    label: "导致"
+    color: "#FF4444"
+    description: "后继事件（结果，causes 的另一种反向表达）"
+
+  # ── 漂移修复：narrative_voice.yaml 声明但旧 RelationType 枚举缺失 ──
+  applies_to:
+    name: APPLIES_TO
+    domain: planning
+    cardinality: one_to_many
+    directed: true
+    endpoint_types:
+      source: [narrative_voice]
+      target: [outline, arc_plan, volume_plan]
+    inverse: applies_to
+    auto_reverse: never
+    label: "适用于"
+    color: "#888888"
+    symmetric: true
+    description: "此腔调适用的范围"
+
+# ── 声明式推断规则（取代 relation_inferrer.INFER_RULES 硬编码） ──────────
+# direction: "source_to_target" | "target_to_source"
+inference_rules:
+  - source_type: scene
+    target_type: character_arc
+    rel_type: participates_in
+    direction: target_to_source
+    weight: 0.5
+  - source_type: scene
+    target_type: plot_thread
+    rel_type: implements
+    direction: source_to_target
+    weight: 0.5
+  - source_type: chunk
+    target_type: scene
+    rel_type: belongs_to
+    direction: source_to_target
+    weight: 0.5
+  - source_type: chunk
+    target_type: character_arc
+    rel_type: references
+    direction: source_to_target
+    weight: 0.3
+  - source_type: character_arc
+    target_type: world_rule
+    rel_type: references
+    direction: source_to_target
+    weight: 0.4
+  - source_type: plot_thread
+    target_type: world_rule
+    rel_type: references
+    direction: source_to_target
+    weight: 0.4
+  - source_type: scene
+    target_type: world_rule
+    rel_type: references
+    direction: source_to_target
+    weight: 0.3
+  - source_type: note
+    target_type: "*"
+    rel_type: references
+    direction: source_to_target
+    weight: 0.2
+  - source_type: scene
+    target_type: world_rule
+    rel_type: located_at
+    direction: source_to_target
+    weight: 0.5
+  - source_type: character_arc
+    target_type: world_rule
+    rel_type: located_at
+    direction: source_to_target
+    weight: 0.3
+  - source_type: world_rule
+    target_type: world_rule
+    rel_type: contains
+    direction: source_to_target
+    weight: 0.5
+  - source_type: character_arc
+    target_type: character_arc
+    rel_type: relates_to
+    direction: source_to_target
+    weight: 0.3
+  - source_type: outline
+    target_type: plot_thread
+    rel_type: implements
+    direction: source_to_target
+    weight: 0.5
+  - source_type: arc_plan
+    target_type: plot_thread
+    rel_type: implements
+    direction: source_to_target
+    weight: 0.5
+  - source_type: volume_plan
+    target_type: plot_thread
+    rel_type: implements
+    direction: source_to_target
+    weight: 0.5
+  - source_type: chapter_plan
+    target_type: plot_thread
+    rel_type: implements
+    direction: source_to_target
+    weight: 0.5
+  - source_type: outline
+    target_type: scene
+    rel_type: plans
+    direction: source_to_target
+    weight: 0.7
+  - source_type: arc_plan
+    target_type: scene
+    rel_type: plans
+    direction: source_to_target
+    weight: 0.7
+  - source_type: volume_plan
+    target_type: scene
+    rel_type: plans
+    direction: source_to_target
+    weight: 0.7
+  - source_type: chapter_plan
+    target_type: scene
+    rel_type: plans
+    direction: source_to_target
+    weight: 0.7
+  - source_type: narrative_voice
+    target_type: scene
+    rel_type: references
+    direction: source_to_target
+    weight: 0.4
+  - source_type: narrative_voice
+    target_type: chunk
+    rel_type: references
+    direction: source_to_target
+    weight: 0.3
+  - source_type: thematic_motif
+    target_type: scene
+    rel_type: references
+    direction: source_to_target
+    weight: 0.5
+  - source_type: thematic_motif
+    target_type: character_arc
+    rel_type: references
+    direction: source_to_target
+    weight: 0.4
+  - source_type: thematic_motif
+    target_type: plot_thread
+    rel_type: references
+    direction: source_to_target
+    weight: 0.3
+  - source_type: thematic_motif
+    target_type: thematic_motif
+    rel_type: parallel
+    direction: source_to_target
+    weight: 0.3

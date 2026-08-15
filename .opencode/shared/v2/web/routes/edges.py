@@ -92,7 +92,7 @@ def get_edge(id: str, project_root: str = Depends(get_project_root)):
 
 @router.put("/{id}")
 def update_edge(id: str, body: EdgeUpdate, project_root: str = Depends(get_project_root)):
-    """更新关系（label/weight/description/payload）。通过 run_operation 调 handlers 层。"""
+    """更新关系（label/weight/description/payload/source_role/target_role）。通过 run_operation 调 handlers 层。"""
     result = run_operation(
         "graph.update_relation",
         project_root=project_root,
@@ -101,6 +101,8 @@ def update_edge(id: str, body: EdgeUpdate, project_root: str = Depends(get_proje
         weight=body.weight,
         description=body.description or "",
         payload=json.dumps(body.payload, ensure_ascii=False) if body.payload is not None else None,
+        source_role=body.source_role or "",
+        target_role=body.target_role or "",
         actor=body.actor or "web-ui",
     )
     if "error" in result:
@@ -137,6 +139,12 @@ def create_edge(body: EdgeCreate, project_root: str = Depends(get_project_root))
         label=body.label or "",
         weight=body.weight,
         bidirectional=body.bidirectional or False,
+        source_role=body.source_role or "",
+        target_role=body.target_role or "",
+        session_id=body.session_id,
+        payload=json.dumps(body.payload, ensure_ascii=False) if body.payload is not None else None,
+        override=body.override or False,
+        severity=body.severity or "warning",
         actor=body.actor or "web-ui",
     )
     if "error" in result:

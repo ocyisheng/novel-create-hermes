@@ -112,6 +112,7 @@ _PARAM_MAP = {
     "role": "role",
     "role_substring": "role_substring",
     "weight": "weight",
+    "override": "override",
     "min_weight": "min_weight",
     "max_weight": "max_weight",
     "description": "description",
@@ -125,6 +126,9 @@ _PARAM_MAP = {
     # 层级查询
     "max_depth": "max_depth",
     # 项目
+    "project_root": "project_root",  # 直接透传绝对路径（规范 handler 参数）
+    "project": "project_root",  # project.* ops 接受 project 参数（项目名/路径），映射为 project_root
+    "project_root": "project_root",  # 直接传 project_root 时的直通映射
     "genre": "genre", "volumes": "volumes",
     "acts": "acts", "structure": "structure",
     "v2": "v2",
@@ -137,7 +141,7 @@ _PARAM_MAP = {
     "focus_name": "focus_name",
     # 偏差
     "findings": "findings",
-    "severity": "severity", "dimension": "dimension",
+    "severity": "severity", "dimension": "dimension", "category": "category",
     "scan_version": "scan_version",
     "full_scan_version": "full_scan_version",
     # 知识库
@@ -169,100 +173,24 @@ _PARAM_MAP = {
     "json_output": "json_output",
 }
 
-# 需要额外处理别名/兼容性的操作
-_PARAM_ALIASES = {
-    # graph.search: novel_tool 接受 scope/unit_type/unitType
-    "graph.search": {"scope": ["scope", "unit_type", "unitType"]},
-    # graph.get_neighbors: rel_type/relType
-    "graph.get_neighbors": {"rel_type": ["rel_type", "relType"]},
-    # graph.add_relation: old type/rel_type → canonical rel_type
-    "graph.add_relation": {"rel_type": ["rel_type", "relType", "type"]},
-    # graph.get_relations: old type → canonical rel_type
-    "graph.get_relations": {"rel_type": ["type", "rel_type"], "source_id": ["source_id", "source"], "target_id": ["target_id", "target"], "payload_filter": ["payload_filter"]},
-    # graph.remove_relation: old type → canonical rel_type
-    "graph.remove_relation": {"rel_type": ["type", "rel_type"]},
-    # graph.list_units: old type → canonical unit_type
-    "graph.list_units": {"unit_type": ["type", "unit_type", "unitType"]},
-    # graph.create_unit: old type → unit_type; data 是 content 的别名
-    "graph.create_unit": {"unit_type": ["type", "unit_type"], "content": ["content", "data"]},
-    # session.start: type → focus_type
-    "session.start": {"focus_type": ["type", "focus_type"]},
-    # graph.update_unit: data 是 content 的别名
-    "graph.update_unit": {"content": ["content", "data"]},
-    # project.*: handler 收 project_root（绝对路径），别名从 project/name 派生
-    "project.new": {"project_root": ["project", "name"], "v2_default": True},
-    "project.import": {"project_root": ["project", "name"], "source_path": ["source", "source_path"]},
-    "project.status": {"project_root": ["project", "name"]},
-    "project.resume": {"project_root": ["project", "name"]},
-    "project.switch": {"project_root": ["project", "name"]},
-    "project.delete": {"project_root": ["project", "name"]},
-    # read 类操作：file 会被 _PARAM_MAP 误映射为 file_path，
-    # 需在别名层映射回 file，否则 run_operation 按注册的 file 过滤时丢失
-    "summary.read": {"file": ["file", "file_path"]},
-    # analysis 类操作：file 同 summary.read，映射回 file
-    "analysis.read": {"file": ["file", "file_path"]},
-    "analysis.resolve": {"file": ["file", "file_path"]},
-}
-
-
 def _build_canonical_params(op: str, request: dict) -> dict:
     """将 novel_tool.py 的 flat request dict 转为规范化参数 dict。
 
     - 不在 _PARAM_MAP 中的参数会被忽略
-    - 特殊操作通过 _PARAM_ALIASES 处理别名
-    - 被别名消费的来源键（如 project.* 的 name、project.import 的 source、
-      graph.search 的 unit_type）不再同时经基础映射进入 canonical，
-      避免 run_operation 过滤时产生"参数被静默过滤"噪音
+    - 所有参数名已标准化，无需别名层
     """
     canonical = {}
 
-    # 1. 基础映射
+    # 1. 基础映射（_PARAM_MAP 已包含所有规范参数名）
     for novel_key, canonical_key in _PARAM_MAP.items():
         if novel_key in request:
             canonical[canonical_key] = request[novel_key]
 
-    # 2. 别名处理
-    aliases = _PARAM_ALIASES.get(op, {})
-    alias_set = set()  # 由别名实际设置了值的 canonical 键
-    for canonical_key, source_keys in aliases.items():
-        if canonical_key == "v2_default":
-            if "v2" not in request:
-                canonical["v2"] = True
-            continue
-        # 已通过基础映射拿到值的跳过
-        if canonical_key in canonical:
-            continue
-        for src in source_keys:
-            if src in request:
-                canonical[canonical_key] = request[src]
-                alias_set.add(canonical_key)
-                break
-
-    # 2b. 别名消费清理：来源键被别名重定向后，不应再以其自身规范名残留。
-    #     否则 run_operation 按 registry 过滤时会报"参数被静默过滤"（如
-    #     project.* 的 {'name'}、project.import 的 {'name', 'source'}）。
-    for canonical_key, source_keys in aliases.items():
-        if canonical_key == "v2_default" or canonical_key not in alias_set:
-            continue
-        for src in source_keys:
-            if src not in request:
-                continue
-            if src == canonical_key:
-                # 同键重定向（如 summary.read 的 file→file）：基础映射已把它
-                # 映射到别的规范名（file→file_path），需移除该映射产物
-                for nk, ck in _PARAM_MAP.items():
-                    if (nk == src and ck != canonical_key
-                            and ck in canonical and canonical[ck] == request[src]):
-                        canonical.pop(ck, None)
-            elif src in canonical and canonical[src] == request[src]:
-                # 异键重定向（如 project.* 的 name→project_root）：移除残留的 name
-                canonical.pop(src, None)
-
-    # 3. project 身份注入：按 OPERATION_REGISTRY 声明的参数裁剪，只填该 op
+    # 2. project 身份注入：按 OPERATION_REGISTRY 声明的参数裁剪，只填该 op
     #    实际消费的形态，避免 project_root / project / name 三形态同时进 params。
     #    - 存储类 ops（graph.*/session.*/deviation.* 等）：registry 声明 project_root → 只填绝对路径
     #    - 过滤类 ops（analyze.*/summary.list）：registry 声明 project → 填 basename（遥测归因匹配）
-    #    - project.* ops：别名已将 project/name 映射为 project_root → 统一绝对路径
+    #    - project.* ops：_PARAM_MAP 已将 project/name 映射为 project_root → 统一绝对路径
     if "project" in request:
         root = _resolve_project(request["project"])
         base = _project_basename(request["project"])
@@ -273,11 +201,10 @@ def _build_canonical_params(op: str, request: dict) -> dict:
         if "project" in accepted:
             canonical["project"] = base
     elif "project_root" in canonical and not os.path.isabs(canonical["project_root"]):
-        # 别名从 name 派生 project_root（如 project.* 传 name=项目名），
         # 相对路径需解析为绝对路径
         canonical["project_root"] = _resolve_project(canonical["project_root"])
 
-    # 4. actor 默认值：未指定时用 "novel-tool"（在白名单中），避免 handler 默认 "orchestrator" 被拦截
+    # 3. actor 默认值：未指定时用 "novel-tool"（在白名单中），避免 handler 默认 "orchestrator" 被拦截
     if "actor" not in canonical:
         canonical["actor"] = "novel-tool"
 

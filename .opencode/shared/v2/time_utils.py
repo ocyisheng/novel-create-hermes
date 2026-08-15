@@ -18,6 +18,7 @@ STORY_TIME_KEY = "time"
 
 ORDINAL_BASE = 10000   # 每章预留 10000 的序数空间
 ORDINAL_OFFSET = 0.5   # 基线偏移，允许在第一个场景之前插入
+VOLUME_BASE = 1000000  # 卷级序数基数（WORLD_RULE 纪年事件用）：每卷预留 1000000 的序数空间
 
 
 # ── getter / setter ──────────────────────────────────────────────────────────
@@ -142,13 +143,38 @@ def auto_sync_story_time(unit: NarrativeUnit) -> bool:
 # ── 序数自动计算 ────────────────────────────────────────────────────────────
 
 
+def derive_ordinal(chapter: int, position: int, sub_position: int = 0) -> float:
+    """
+    序数派生唯一入口。
+
+    公式：ordinal = chapter * ORDINAL_BASE + position * 100 + sub_position
+    """
+    return chapter * ORDINAL_BASE + position * 100 + sub_position
+
+
 def compute_ordinal(chapter_number: int, scene_position: int) -> float:
     """
     根据章节号和章内场景位置计算自动序数。
 
-    公式：ordinal = chapter_number * 10000 + scene_position * 100 + 0.5
+    公式：ordinal = chapter_number * ORDINAL_BASE + scene_position * 100 + ORDINAL_OFFSET
     """
-    return chapter_number * ORDINAL_BASE + scene_position * 100 + ORDINAL_OFFSET
+    return derive_ordinal(chapter_number, scene_position, sub_position=ORDINAL_OFFSET)
+
+
+def next_ordinal(
+    store,
+    unit: NarrativeUnit,
+    chapter: int,
+    registry=None,
+) -> float:
+    """
+    计算下一可用序数：同章场景按创建时间排序定位。
+
+    委托 UnifiedTimelineIndex（懒导入避免循环依赖），保证与时间线索引一致。
+    """
+    from unified_timeline import UnifiedTimelineIndex
+    index = UnifiedTimelineIndex(store, registry)
+    return index.auto_ordinal(unit, chapter)
 
 
 # ── 迁移 ─────────────────────────────────────────────────────────────────────
@@ -221,3 +247,97 @@ def backfill_story_time(unit: NarrativeUnit) -> bool:
         set_story_time(unit, label=label, ordinal=ordinal, precision=precision)
         return True
     return False
+
+
+# ── TimeUtils 类 ─────────────────────────────────────────────────────────────
+#
+# 时间操作唯一读取/派生入口。模块级函数保留为薄包装（向后兼容，
+# graph_store.py 等仍以模块函数方式导入）。
+
+
+class TimeUtils:
+    """时间工具类 — 统一时间操作入口（读取 / 派生 / 排序）。"""
+
+    STORY_TIME_KEY = STORY_TIME_KEY
+    ORDINAL_BASE = ORDINAL_BASE
+    ORDINAL_OFFSET = ORDINAL_OFFSET
+
+    # ── getter / setter ──────────────────────────────────────────────────
+
+    @staticmethod
+    def get_story_time(unit: NarrativeUnit) -> Optional[Dict[str, Any]]:
+        """获取故事时间 dict，不存在或格式错误时返回 None"""
+        return get_story_time(unit)
+
+    @staticmethod
+    def get_story_ordinal(unit: NarrativeUnit) -> Optional[float]:
+        """获取故事时间序数，不存在返回 None"""
+        return get_story_ordinal(unit)
+
+    @staticmethod
+    def get_story_label(unit: NarrativeUnit) -> str:
+        """获取人类可读时间标签，不存在返回空字符串"""
+        return get_story_label(unit)
+
+    @staticmethod
+    def get_story_precision(unit: NarrativeUnit) -> str:
+        """获取精度标签，默认 'vague'"""
+        return get_story_precision(unit)
+
+    @staticmethod
+    def set_story_time(
+        unit: NarrativeUnit,
+        label: str,
+        ordinal: Optional[float] = None,
+        precision: str = "vague",
+    ) -> None:
+        """设置任意单元类型的故事时间（写入 extra['time']）"""
+        set_story_time(unit, label=label, ordinal=ordinal, precision=precision)
+
+    # ── 排序 / 比较 ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def sort_by_story_time(units: List[NarrativeUnit]) -> List[NarrativeUnit]:
+        """按故事时间排序（有 ordinal 的在前，无的在后）"""
+        return sort_by_story_time(units)
+
+    # ── 自动同步 ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def auto_sync_story_time(unit: NarrativeUnit) -> bool:
+        """从 content JSON 自动同步时间字段到 extra["time"]。返回 True 表示有变更。"""
+        return auto_sync_story_time(unit)
+
+    @staticmethod
+    def backfill_story_time(unit: NarrativeUnit) -> bool:
+        """从旧格式迁移到 extra.time。返回 True 表示有变更。"""
+        return backfill_story_time(unit)
+
+    # ── 序数派生 ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def derive_ordinal(chapter: int, position: int, sub_position: int = 0) -> float:
+        """
+        序数派生唯一入口。
+
+        公式：ordinal = chapter * ORDINAL_BASE + position * 100 + sub_position
+        """
+        return derive_ordinal(chapter, position, sub_position)
+
+    @staticmethod
+    def compute_ordinal(chapter_number: int, scene_position: int) -> float:
+        """根据章节号和章内场景位置计算自动序数（含基线偏移 0.5）。"""
+        return compute_ordinal(chapter_number, scene_position)
+
+    @staticmethod
+    def next_ordinal(
+        store,
+        unit: NarrativeUnit,
+        chapter: int,
+        registry=None,
+    ) -> float:
+        """
+        计算下一可用序数：同章场景按创建时间排序定位。
+        委托 UnifiedTimelineIndex，保证与时间线索引一致。
+        """
+        return next_ordinal(store, unit, chapter, registry)

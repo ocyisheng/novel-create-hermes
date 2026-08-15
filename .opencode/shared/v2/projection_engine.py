@@ -31,6 +31,7 @@ from graph_schema import (
 )
 from graph_store import GraphStore
 from deviation_manager import DeviationManager
+from time_utils import get_story_ordinal
 
 # 项目配置加载：单一权威实现
 import sys as _sys
@@ -441,6 +442,34 @@ class ProjectionEngine:
     def _get_unit_chapter(unit: NarrativeUnit) -> int:
         """委托到 graph_schema.get_unit_chapter"""
         return get_unit_chapter(unit)
+
+    @staticmethod
+    def _derived_chapter_number(unit: NarrativeUnit) -> int:
+        """从 T3.2 派生属性解析章节号：chapter_number → structure_path 末位 → 0。
+
+        仅依赖 public 派生 @property（CONTAINS 边是唯一真相源），
+        不读取存储缓存 _structure_path_cache。
+        """
+        ch = unit.chapter_number
+        if ch is not None:
+            return ch
+        sp = unit.structure_path
+        if sp and isinstance(sp[-1], int):
+            return sp[-1]
+        return 0
+
+    @staticmethod
+    def _timeline_scene_sort_key(scene: NarrativeUnit) -> tuple:
+        """时间线场景排序键（T4.2）：优先按故事时间序数 ordinal 升序。
+
+        序数来自 T3.1 UnifiedTimelineIndex 统一写入的 extra.time.ordinal
+        （get_story_ordinal 读取）；无 ordinal 的场景回退到章节号 + 创建时间，
+        保证排序稳定且不改变既有无序数数据的顺序。
+        """
+        ordinal = get_story_ordinal(scene)
+        if ordinal is not None:
+            return (0, ordinal, 0, 0)
+        return (1, 0, ProjectionEngine._derived_chapter_number(scene), scene.created_at.timestamp())
     
     def _get_density_range(self, subtype: str, density: str) -> tuple:
         """根据子类型和密度级别返回建议字数范围"""
@@ -839,9 +868,9 @@ class ProjectionEngine:
         return "\n".join(lines)
     
     def _project_timeline(self, **kwargs) -> str:
-        """时间线投影"""
+        """时间线投影（场景按故事时间序数 ordinal 排序）"""
         scenes = self.store.find_units(type=UnitType.SCENE)
-        scenes.sort(key=lambda s: (self._get_unit_chapter(s), s.created_at))
+        scenes.sort(key=self._timeline_scene_sort_key)
         
         lines = []
         lines.append("# 时间线设计（V2 Graph 投影）")
@@ -1140,14 +1169,14 @@ class ProjectionEngine:
         return str(path)
 
     def _export_timeline(self, export_dir: Path) -> str:
-        """时间线"""
+        """时间线（场景按故事时间序数 ordinal 排列）"""
         scenes = self.store.find_units(type=UnitType.SCENE)
-        scenes.sort(key=lambda s: (self._get_unit_chapter(s), s.created_at))
+        scenes.sort(key=self._timeline_scene_sort_key)
 
         lines = [
             f"# 时间线",
             f"",
-            f"由场景章节顺序排列",
+            f"由场景故事时间序数排列",
             f"",
         ]
 
@@ -1243,8 +1272,9 @@ class ProjectionEngine:
         chunks = self.store.find_units(type=UnitType.CHUNK)
         by_chapter = defaultdict(list)
         for c in chunks:
-            ch = self._get_unit_chapter(c)
-            by_chapter[ch].append(c)
+            # T4.2：使用派生属性解析章节号（chapter_number 优先，
+            # 缺失时从 structure_path 末位取章节号；CONTAINS 边是唯一真相源）。
+            by_chapter[self._derived_chapter_number(c)].append(c)
 
         lines = [
             f"# 章节正文清单",

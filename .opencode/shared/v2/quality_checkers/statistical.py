@@ -23,7 +23,7 @@ from graph_schema import (
     get_unit_chapter,
 )
 from graph_store import GraphStore
-from time_utils import get_story_ordinal
+from time_utils import get_story_ordinal, ORDINAL_BASE
 
 from quality_checkers.types import SignalResult
 
@@ -96,15 +96,21 @@ class StatisticalDetector:
             scene_info[unit.id] = (loc, ordinal, ch, unit.unit_name or "?")
 
         # 建立角色→场景映射（通过 PARTICIPATES_IN 边）
+        # 对称类型（PARTICIPATES_IN inverse==自身）：物理方向无意义，任一端是场景即视为出场
         char_scenes: dict = defaultdict(list)
         for rel_id, rel in self.store._relations.items():
             if rel.relation_type != RelationType.PARTICIPATES_IN:
                 continue
-            if rel.target_id in scene_info:
-                loc, ordinal, ch, sname = scene_info[rel.target_id]
-                char_scenes[rel.source_id].append(
-                    (rel.target_id, loc, ordinal, ch, sname)
-                )
+            if rel.target_id in scene_info and rel.source_id not in scene_info:
+                scene_id, char_id = rel.target_id, rel.source_id
+            elif rel.source_id in scene_info and rel.target_id not in scene_info:
+                scene_id, char_id = rel.source_id, rel.target_id
+            else:
+                continue  # 场景↔场景或非场景端点，不构成角色出场
+            loc, ordinal, ch, sname = scene_info[scene_id]
+            char_scenes[char_id].append(
+                (scene_id, loc, ordinal, ch, sname)
+            )
 
         results: List[SignalResult] = []
 
@@ -134,7 +140,7 @@ class StatisticalDetector:
                 if ord_a is not None and ord_b is not None:
                     gap = ord_b - ord_a
                 elif ch_a > 0 and ch_b > 0:
-                    gap = (ch_b - ch_a) * 10000
+                    gap = (ch_b - ch_a) * ORDINAL_BASE
                 else:
                     gap = 99999
 
@@ -286,18 +292,20 @@ class StatisticalDetector:
         if not protagonist_id:
             return []
 
-        # 收集主角参与的场景
+        # 收集主角参与的场景（PARTICIPATES_IN 对称类型：物理方向无意义）
         protagonist_scenes: List[str] = []
         for rel in self.store._relations.values():
             if rel.relation_type != RelationType.PARTICIPATES_IN:
                 continue
             if rel.source_id == protagonist_id:
                 protagonist_scenes.append(rel.target_id)
+            elif rel.target_id == protagonist_id:
+                protagonist_scenes.append(rel.source_id)
 
         if not protagonist_scenes:
             return []
 
-        # 计算主动比例：主角作为源端的关系数 / 主角参与的场景数
+        # 计算主动比例：主角作为源端（或对称类型任一端）的关系数 / 主角参与的场景数
         active_count = 0
         passive_count = 0
 
@@ -306,12 +314,19 @@ class StatisticalDetector:
             if not scene_unit:
                 continue
 
-            # 检查主角在该场景中是否有 outgoing 关系（除 PARTICIPATES_IN 外）
+            # 检查主角在该场景中是否有主动关系（除 PARTICIPATES_IN 外）。
+            # 方向性类型只算主角为源端的出边；对称类型方向无意义，任一端关联即算。
             has_active = False
             for rel in self.store._relations.values():
-                if rel.source_id == protagonist_id and rel.target_id == scene_id:
-                    if rel.relation_type == RelationType.PARTICIPATES_IN:
-                        continue
+                if rel.relation_type == RelationType.PARTICIPATES_IN:
+                    continue
+                connects_scene = (
+                    (rel.source_id == protagonist_id and rel.target_id == scene_id)
+                    or (rel.target_id == protagonist_id and rel.source_id == scene_id)
+                )
+                if connects_scene and (
+                    rel.source_id == protagonist_id or rel.relation_type.is_symmetric
+                ):
                     has_active = True
                     break
 

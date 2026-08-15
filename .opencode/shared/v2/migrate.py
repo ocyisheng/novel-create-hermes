@@ -45,6 +45,7 @@ from graph_schema import (
     create_unit_id,
 )
 from graph_store import GraphStore as GraphStoreImpl
+from type_registry import TypeRegistry
 
 
 # ── 文件扫描器 ────────────────────────────────────────────────────────────
@@ -179,8 +180,7 @@ class ImportEngine:
             if unit_type == UnitType.CHUNK:
                 # CHUNK 只存元数据，正文保留在原文件
                 # 从文件名推测子类型（如 第3章_v1.txt → "v1"），默认 "v1"
-                from schemas import get_subtype_info
-                chunk_subtype_config = get_subtype_info(UnitType.CHUNK)
+                chunk_subtype_config = TypeRegistry.get_global().get_subtype_config("chunk")
                 chunk_options = chunk_subtype_config.get("options", ["v1","v2","v3"]) if chunk_subtype_config else ["v1","v2","v3"]
                 detected_subtype = "v1"
                 stem = file_path.stem  # "第3章_v1"
@@ -300,8 +300,9 @@ class RelationBuilder:
                     # 查找角色单元
                     for cpath, cuid in chars.items():
                         if cname in cpath or cname in Path(cpath).stem:
-                            if self.store.add_relation(cuid, scene_uid, RelationType.PARTICIPATES_IN, 
-                                                       actor="migration"):
+                            rel = self.store.add_relation(cuid, scene_uid, RelationType.PARTICIPATES_IN,
+                                                          actor="migration")
+                            if rel and not isinstance(rel, dict):
                                 self._stats["relations_added"] += 1
                             break
             except Exception:
@@ -331,8 +332,9 @@ class RelationBuilder:
                     plot_ref = str(plot_ref).strip()
                     for ppath, puid in plots.items():
                         if plot_ref in ppath or plot_ref in Path(ppath).stem:
-                            if self.store.add_relation(scene_uid, puid, RelationType.IMPLEMENTS,
-                                                       actor="migration"):
+                            rel = self.store.add_relation(scene_uid, puid, RelationType.IMPLEMENTS,
+                                                          actor="migration")
+                            if rel and not isinstance(rel, dict):
                                 self._stats["relations_added"] += 1
                             break
             except Exception:
@@ -363,16 +365,18 @@ class RelationBuilder:
                                     if isinstance(v, str):
                                         for ppath, puid in plots.items():
                                             if v and (v in ppath or any(w in v.lower() for w in ["主线", "支线"])):
-                                                if self.store.add_relation(syn_uid, puid, RelationType.REFERENCES,
-                                                                           actor="migration"):
+                                                rel = self.store.add_relation(syn_uid, puid, RelationType.REFERENCES,
+                                                                              actor="migration")
+                                                if rel and not isinstance(rel, dict):
                                                     self._stats["relations_added"] += 1
     
     def _build_ideation_synopsis_relations(self, ideations: Dict[str, str], synopses: Dict[str, str]):
         """创意方案被总纲使用"""
         for ideation_path, ideation_uid in ideations.items():
             for syn_path, syn_uid in synopses.items():
-                if self.store.add_relation(ideation_uid, syn_uid, RelationType.INSPIRES,
-                                           actor="migration"):
+                rel = self.store.add_relation(ideation_uid, syn_uid, RelationType.INSPIRES,
+                                              actor="migration")
+                if rel and not isinstance(rel, dict):
                     self._stats["relations_added"] += 1
     
     def report(self) -> Dict[str, int]:
@@ -771,59 +775,9 @@ def normalize_subtype_fields(project_root: str, dry_run: bool = False) -> Dict[s
     if not nodes_path.exists():
         return {"error": f"nodes.jsonl 不存在: {nodes_path}"}
 
-    from schemas import SUBTYPE_REGISTRY
-
-    # 旧字段 → 新字段 映射
-    OLD_FIELDS = {
-        "角色类型": "subtype",
-        "章节类型": "subtype",
-        "类型": "subtype",
-        "实体子类型": "subtype",
-        "note_type": "subtype",
-        "NoteType": "subtype",
-    }
-
-    # 旧角色类型值 → 新值映射
-    CHAR_MAP = {
-        "主角": "主角",
-        "反派": "反派",
-        "导师": "关键配角",
-        "盟友": "关键配角",
-        "对手": "关键配角",
-        "次要角色": "功能性角色",
-    }
-
-    # 旧场景类型值 → 新值映射（V1 的章段类型 → V2 单场域类型）
-    # 与 migrate_scene_schema.py SUBTYPE_MAP 保持同步
-    SCENE_MAP = {
-        "推进": "推进",
-        "过渡": "过渡",
-        "高潮": "冲突",
-        "结局": "收束",
-        "转折": "转折",
-        "收尾": "收束",
-        "引入": "开篇",
-        "铺垫": "展示",
-    }
-
-    # 旧情节线类型值 → 新值映射
-    PLOT_MAP = {
-        "主线": "主线",
-        "支线": "支线",
-        "角色弧": "成长线",
-    }
-
-    # NOTE 旧值 → 新值映射（不在选项中的统一归为笔记）
-    NOTE_MAP = {
-        "笔记": "笔记",
-        "灵感": "灵感",
-        "总纲": "笔记",
-        "卷大纲": "笔记",
-    }
-
-    # 从 SUBTYPE_REGISTRY 获取 WORLD_RULE 英语→中文映射
-    world_info = SUBTYPE_REGISTRY.get(UnitType.WORLD_RULE)
-    WORLD_VALUE_MAP = dict(world_info.value_labels) if world_info else {}
+    # 从 TypeRegistry 获取 WORLD_RULE 英语→中文映射
+    world_info = TypeRegistry.get_global().get_subtype_config("world_rule")
+    WORLD_VALUE_MAP = dict(world_info.get("value_labels", {})) if world_info else {}
 
     # CHAPTER_PLAN 旧值→新字段+值映射（LLM 曾按旧 prompt 写 "子类型:章纲"）
     CP_FIX_MAP = {

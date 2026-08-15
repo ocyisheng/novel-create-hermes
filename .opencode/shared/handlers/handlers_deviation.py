@@ -45,6 +45,7 @@ def handle_deviation_merge(
             scanned_version=f.get("scanned_version", scan_version),
             status=f.get("status", "pending"),
             severity=f.get("severity", "info"),
+            category=f.get("category"),  # 显式分类（authorial_override 等）；缺省由 merge 回退 soft_warning
             summary=f.get("summary", ""),
             detail=f.get("detail", ""),
             suggested_changeset=f.get("suggested_changeset"),
@@ -71,6 +72,7 @@ def handle_deviation_list(
     offset: int = 0,
     severity: str = "",
     dimension: str = "",
+    category: str = "",
 ) -> dict:
     """列出偏差。"""
     from deviation_manager import DeviationManager
@@ -86,6 +88,8 @@ def handle_deviation_list(
         all_items = [d for d in all_items if d.severity == severity]
     if dimension:
         all_items = [d for d in all_items if d.dimension == dimension]
+    if category:
+        all_items = [d for d in all_items if d.category == category]
 
     items, total = _paginate(all_items, limit, offset)
 
@@ -94,8 +98,8 @@ def handle_deviation_list(
             {
                 "id": d.id, "dimension": d.dimension,
                 "entity": d.entity, "status": d.status,
-                "severity": d.severity, "summary": d.summary,
-                "detail": d.detail, "detection_count": d.detection_count,
+                "severity": d.severity, "category": d.category,
+                "summary": d.summary, "detail": d.detail, "detection_count": d.detection_count,
             }
             for d in items
         ],
@@ -122,6 +126,7 @@ def handle_deviation_pending(project_root: str, limit: int = 0, offset: int = 0)
             {
                 "id": d.id, "dimension": d.dimension,
                 "entity": d.entity, "severity": d.severity,
+                "category": d.category,
                 "summary": d.summary,
             }
             for d in items
@@ -189,7 +194,13 @@ def handle_deviation_stats(project_root: str) -> dict:
         return {"error": f"项目路径无效: {project}"}
 
     mgr = DeviationManager(project)
-    return mgr.stats()
+    stats = mgr.stats()
+    # 添加 category 统计
+    by_category = {}
+    for d in mgr.list_all():
+        by_category[d.category] = by_category.get(d.category, 0) + 1
+    stats["by_category"] = by_category
+    return stats
 
 def handle_deviation_summary(project_root: str) -> dict:
     """偏差快速概览（简化版 stats，带 source 维度）。"""

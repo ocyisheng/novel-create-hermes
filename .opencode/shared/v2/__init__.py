@@ -45,6 +45,15 @@ try:
     from deviation_manager import DeviationManager, DeviationItem, DeviationState
     from type_registry import TypeRegistry
     from temporal_index import TemporalEventIndex, TemporalEvent, TemporalQuery
+    from unified_timeline import (
+        UnifiedTimelineIndex,
+        UnifiedTimelineQuery,
+        TimelineView,
+        TimelineScene,
+        CharacterSnapshot,
+    )
+    from time_writer import TimeWriter
+    from time_utils import TimeUtils
 
     __all__ = [
         "NarrativeUnit",
@@ -68,6 +77,13 @@ try:
         "TemporalEventIndex",
         "TemporalEvent",
         "TemporalQuery",
+        "UnifiedTimelineIndex",
+        "UnifiedTimelineQuery",
+        "TimelineView",
+        "TimelineScene",
+        "CharacterSnapshot",
+        "TimeWriter",
+        "TimeUtils",
     ]
 except ImportError:
     # 在 pytest 或部分导入场景下，graph_schema 可能尚未就绪

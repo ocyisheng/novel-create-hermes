@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 from dataclasses import dataclass, field, asdict
 
 
@@ -125,14 +125,21 @@ class RelationType(str, Enum):
     HAS_EVENT = "has_event"             # A 有事件 B（实体 → temporal_event）
     EVENT_OF = "event_of"               # A 是 B 的事件（HAS_EVENT 的反向）
     INVOLVES = "involves"               # A 涉及角色 B（事件 → 角色参与）
+    # ── type_registry 声明类型（relation_types.yaml 唯一事实来源）──
+    # 漂移修复：YAML 已声明但旧枚举缺失，补齐使主代码路径与注册表一致
+    # （否则 Relation.from_dict 加载此类边会因 RelationType 查找失败而丢弃）。
+    CAUSED_BY = "caused_by"             # A 由 B 导致（causes 的反向，前驱事件）
+    CAUSED = "caused"                   # A 是 B 的后果（causes 的另一种反向表达）
+    APPLIES_TO = "applies_to"           # 此腔调适用的范围（narrative_voice → 规划/大纲）
 
     @classmethod
     def _missing_(cls, value: str):
-        """宽松查找。旧数据中的 allied_with → 自动映射为 relates_to"""
-        if value.lower() == "allied_with":
-            return cls.RELATES_TO
+        """宽松查找：小写 value 与大写 name 均可解析。"""
         for member in cls:
             if member.value == value.lower():
+                return member
+        for member in cls:
+            if member.name == value.upper():
                 return member
         return None
 
@@ -176,6 +183,9 @@ class RelationType(str, Enum):
             "has_member": "member_of",
             "location_of": "located_at",
             "controlled_by": "controls",
+            "caused_by": "causes",
+            "caused": "causes",
+            "applies_to": "applies_to",
         }
         name = inverses.get(self.value, self.value)
         try:
@@ -242,6 +252,9 @@ class RelationType(str, Enum):
             "implies": "never",
             "inspires": "never",
             "refines": "never",
+            "caused_by": "never",
+            "caused": "never",
+            "applies_to": "never",
         }
         return policies.get(self.value, "never")
 
@@ -275,6 +288,9 @@ class RelationType(str, Enum):
             cls.HAS_MEMBER: "拥有成员",
             cls.LOCATION_OF: "所在",
             cls.CONTROLLED_BY: "受制",
+            cls.CAUSED_BY: "由…导致",
+            cls.CAUSED: "导致",
+            cls.APPLIES_TO: "适用于",
         }
         return labels.get(rt, rt.value)
 
@@ -305,21 +321,55 @@ class RelationType(str, Enum):
             cls.CONTROLLED_BY: "#FF6600",
             cls.PLANS: "#7F8C8D",
             cls.PLANNED_BY: "#7F8C8D",
+            cls.CAUSED_BY: "#FF4444",
+            cls.CAUSED: "#FF4444",
+            cls.APPLIES_TO: "#888888",
         }
         return colors.get(rt, "#888888")
 
     @classmethod
     def domain(cls, rt: "RelationType") -> str:
-        """返回所属域：structural / spatiotemporal / narrative"""
+        """返回所属域：structural / planning / entity / temporal / causal / reference
+
+        与 type_registry 的 RelationTypeDef.domain 保持一致（relation_types.yaml 唯一事实来源）；
+        此处为静态兼容视图，供无法访问注册表的纯枚举场景使用。
+        """
         domains = {
+            # structural：层级归属
             cls.CONTAINS: "structural",
             cls.BELONGS_TO: "structural",
-            cls.PLANS: "structural",
-            cls.PLANNED_BY: "structural",
-            cls.PARTICIPATES_IN: "structural",
-            cls.LOCATED_AT: "spatiotemporal",
-            cls.LOCATION_OF: "spatiotemporal",
-            cls.PRECEDES: "spatiotemporal",
+            # planning：规划意图
+            cls.PLANS: "planning",
+            cls.PLANNED_BY: "planning",
+            cls.IMPLEMENTS: "planning",
+            cls.APPLIES_TO: "planning",
+            # entity：实体关系（角色/势力/物品/时间事件）
+            cls.PARTICIPATES_IN: "entity",
+            cls.LOCATED_AT: "entity",
+            cls.LOCATION_OF: "entity",
+            cls.RELATES_TO: "entity",
+            cls.POSSESSES: "entity",
+            cls.POSSESSED_BY: "entity",
+            cls.CONTROLS: "entity",
+            cls.CONTROLLED_BY: "entity",
+            cls.MEMBER_OF: "entity",
+            cls.HAS_MEMBER: "entity",
+            cls.HAS_EVENT: "entity",
+            cls.EVENT_OF: "entity",
+            cls.INVOLVES: "entity",
+            # temporal：叙事/事件时序
+            cls.PRECEDES: "temporal",
+            cls.PARALLEL: "temporal",
+            # causal：因果
+            cls.CAUSES: "causal",
+            cls.CAUSED_BY: "causal",
+            cls.CAUSED: "causal",
+            cls.CONTRADICTS: "causal",
+            cls.IMPLIES: "causal",
+            # reference：引用/启发/细化
+            cls.REFERENCES: "reference",
+            cls.INSPIRES: "reference",
+            cls.REFINES: "reference",
         }
         return domains.get(rt, "narrative")
 
@@ -354,6 +404,18 @@ class ProjectionView(str, Enum):
 
 # ── 核心数据类 ────────────────────────────────────────────────────────────
 
+
+@dataclass(frozen=True)
+class HierarchyInfo:
+    """从 graph 结构推导的层级属性（chapter_number + structure_path）。
+
+    由 GraphStore 注入的层级解析器计算，NarrativeUnit 的 chapter_number /
+    structure_path 属性在显式缓存缺失时回退到该推导结果。
+    """
+    chapter_number: Optional[int] = None
+    structure_path: Optional[List[Any]] = None
+
+
 @dataclass
 class NarrativeUnit:
     """
@@ -382,16 +444,16 @@ class NarrativeUnit:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
-    # 层级归属（CONTAINS 边是唯一真相源，以下字段为缓存/快捷字段）
-    # 精确章节号（CONTAINS 边关系下的真实章节标号）
-    chapter_number: Optional[int] = None
-    # 通用结构路径，CONTAINS 边的缓存
-    # 示例：["人界篇", "黄枫谷卷", 15] 表示第15章，在黄枫谷卷、人界篇下
-    # 示例：[15] 仅章节号，无篇无卷
-    # 示例：None 无层级归属（事件驱动、非线性叙事）
-    # NOTE: structure_path 不是持久化来源——边的 CONTAINS 层级关系才是唯一真相源。
-    # structure_path 可由 rebuild_structure_path_from_edges() 重新构建，仅作为缓存。
-    structure_path: Optional[List[Any]] = None
+    # 层级归属（CONTAINS 边是唯一真相源）
+    # chapter_number / structure_path 是派生属性（见下方 @property）：
+    # - 显式缓存（JSONL 旧数据 / create_unit 参数）优先；
+    # - 缓存缺失时回退到 _hierarchy_resolver（GraphStore 注入）从图结构推导。
+    # 以下私有字段不参与序列化 / 相等比较 / repr。
+    _chapter_number_cache: Optional[int] = field(default=None, init=False, repr=False, compare=False)
+    _structure_path_cache: Optional[List[Any]] = field(default=None, init=False, repr=False, compare=False)
+    _hierarchy_resolver: Optional[Callable[[], "HierarchyInfo"]] = field(
+        default=None, init=False, repr=False, compare=False,
+    )
     
     # 历史版本（仅保留最新版本 + diff 链）
     version: int = 1
@@ -399,12 +461,53 @@ class NarrativeUnit:
     # 扩展字段（按 type 不同有不同期望的键）
     extra: Dict[str, Any] = field(default_factory=dict)
     
+    # ── 派生层级属性 ────────────────────────────────────────────────────
+    
+    @property
+    def chapter_number(self) -> Optional[int]:
+        """精确章节号：显式缓存优先，否则从 graph 结构推导。
+
+        推导链（由 _hierarchy_resolver 提供）：自身缓存 → structure_path 缓存
+        末位 → 最近的 CHAPTER_PLAN 祖先章节号。
+        """
+        if self._chapter_number_cache is not None:
+            return self._chapter_number_cache
+        info = self._resolve_hierarchy()
+        return info.chapter_number if info is not None else None
+    
+    @chapter_number.setter
+    def chapter_number(self, value: Optional[int]) -> None:
+        self._chapter_number_cache = value
+    
+    @property
+    def structure_path(self) -> Optional[List[Any]]:
+        """通用结构路径：显式缓存优先，否则沿 graph 祖先链（CONTAINS 边）推导。
+
+        示例：["人界篇", "黄枫谷卷", 15] 表示第15章，在黄枫谷卷、人界篇下。
+        None 表示无层级归属（事件驱动、非线性叙事）。
+        """
+        if self._structure_path_cache is not None:
+            return self._structure_path_cache
+        info = self._resolve_hierarchy()
+        return info.structure_path if info is not None else None
+    
+    @structure_path.setter
+    def structure_path(self, value: Optional[List[Any]]) -> None:
+        self._structure_path_cache = value
+    
+    def _resolve_hierarchy(self) -> Optional["HierarchyInfo"]:
+        """调用注入的层级解析器（无解析器或 store 已释放时返回 None）。"""
+        if self._hierarchy_resolver is None:
+            return None
+        return self._hierarchy_resolver()
+    
     def to_dict(self) -> Dict[str, Any]:
         """
         序列化到 dict（用于持久化 JSONL）。
         
         structure_path 不作为持久化字段——CONTAINS 边才是层级关系唯一真相源。
         加载时 through from_dict() 会自动从 JSONL 读取旧数据兼容。
+        chapter_number 序列化派生后的值作为缓存，供旧读者兼容。
         """
         result = {}
         result["id"] = self.id
@@ -426,6 +529,10 @@ class NarrativeUnit:
     def from_dict(cls, data: Dict[str, Any]) -> "NarrativeUnit":
         """从 dict 反序列化。自动忽略已废弃的旧字段以保证向后兼容。"""
         data = dict(data)
+        # chapter_number / structure_path 是派生属性，不能作为构造参数；
+        # 从 JSONL 读取的旧值存入私有缓存（显式值优先于图结构推导）。
+        chapter_number = data.pop("chapter_number", None)
+        structure_path = data.pop("structure_path", None)
         data["type"] = UnitType(data["type"])
         data["status"] = UnitStatus(data.get("status", "sprout"))
         if isinstance(data.get("created_at"), str):
@@ -441,7 +548,10 @@ class NarrativeUnit:
         # 移除已废弃的旧字段（存量 JSONL 中可能还有），structure_path 保留
         for old_key in ("belongs_to_project", "belongs_to_chapter", "belongs_to_volume"):
             data.pop(old_key, None)
-        return cls(**data)
+        unit = cls(**data)
+        unit._chapter_number_cache = chapter_number
+        unit._structure_path_cache = structure_path
+        return unit
 
 
 @dataclass
@@ -452,9 +562,6 @@ class Relation:
     取代现有架构中分散在 project_index.yaml 和各文件内部的隐式引用。
     关系是 graph 的核心——它使得"如果改这个角色会影响哪些情节线"这类
     查询成为可能，而不需要手动遍历文件。
-    
-    第二阶段扩展：metadata → payload 重命名，payload 带 schema 校验。
-    to_dict() 同时写入 payload 和 metadata 字段以保证向后兼容。
     
     payload 约定键（约定而非新字段，无 schema 强制，写入时自由合并）：
     - 时态演化：start_chapter / end_chapter / resolve_chapter（关系生效/结束/伏笔回收章节）
@@ -473,26 +580,34 @@ class Relation:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
+    def __post_init__(self):
+        """统一 label 位置：payload.label 是唯一事实来源。
+
+        构造时若顶层 label 为空而 payload.label 非空，则回填顶层 label，
+        保证内存中的 rel.label 与持久化位置一致（去重键与查询都以它为据）。
+        """
+        payload_label = self.payload.get("label") if isinstance(self.payload, dict) else None
+        if not self.label and payload_label:
+            self.label = str(payload_label)
+
     def to_dict(self) -> Dict[str, Any]:
         result = asdict(self)
         result["relation_type"] = self.relation_type.value
         result["created_at"] = self.created_at.isoformat()
         result["updated_at"] = self.updated_at.isoformat()
-        # 向后兼容：新 payload 同时写入 metadata 字段
-        if self.payload:
-            result["metadata"] = self.payload
+        # 统一 label 存储：写入 payload.label（非空时写，空时删除陈旧残留）
+        payload = dict(self.payload)
+        if self.label:
+            payload["label"] = self.label
+        else:
+            payload.pop("label", None)
+        result["payload"] = payload
         return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Relation":
-        """从 dict 反序列化，兼容旧 metadata 字段。"""
+        """从 dict 反序列化。旧 metadata 字段已由 T1.1 迁移完成，不再兼容。"""
         data = dict(data)
-        # 旧数据兼容：metadata → payload（仅当 payload 不存在时）
-        if "metadata" in data:
-            if "payload" not in data or not data["payload"]:
-                data["payload"] = data.pop("metadata")
-            else:
-                data.pop("metadata")  # payload 已存在，删除 metadata 避免冲突
         if "payload" not in data:
             data["payload"] = {}
         # 类型转换
@@ -561,13 +676,14 @@ class GraphSnapshot:
 
 def get_unit_chapter(unit: NarrativeUnit) -> int:
     """
-    获取单元的章节号，回退链：chapter_number → structure_path 末位 → 0。
+    获取单元的章节号，回退链：chapter_number（派生属性）→ structure_path 末位 → 0。
     用于排序和分组。
     """
-    if unit.chapter_number is not None:
-        return unit.chapter_number
-    if unit.structure_path and len(unit.structure_path) > 0:
-        last = unit.structure_path[-1]
+    ch = unit.chapter_number
+    if ch is not None:
+        return ch
+    if unit._structure_path_cache and len(unit._structure_path_cache) > 0:
+        last = unit._structure_path_cache[-1]
         if isinstance(last, int):
             return last
     return 0

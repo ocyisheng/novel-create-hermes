@@ -298,11 +298,11 @@ def _validate_content_schema(unit_type, content: str) -> list:
     if not content or not content.startswith("{"):
         return []
     try:
-        from schemas import validate_content
+        from type_registry import TypeRegistry
         content_dict = json.loads(content)
         if not isinstance(content_dict, dict):
             return []
-        return validate_content(unit_type, content_dict)
+        return TypeRegistry.get_global().validate_content(unit_type.value, content_dict)
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)

@@ -19,6 +19,8 @@ import logging
 import os
 import threading
 import uuid
+import weakref
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Any, Callable
@@ -33,12 +35,14 @@ from graph_schema import (
     Event,
     EventType,
     GraphSnapshot,
+    HierarchyInfo,
     create_unit_id,
     create_relation_id,
     create_event_id,
     get_unit_chapter,
 )
-from schemas import validate_content, default_content
+from type_registry import TypeRegistry
+from validators.relation_validator import RelationValidator
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +134,6 @@ class GraphStore:
         self._outgoing_edges: Dict[str, List[str]] = defaultdict(list)  # source_id → [rel_id]
         self._incoming_edges: Dict[str, List[str]] = defaultdict(list)  # target_id → [rel_id]
         self._unit_by_name: Dict[str, List[str]] = {}  # unit_name → [ids]（同名可跨类型共存）
-        self._relation_index: Set[Tuple[str, str, str]] = set()  # (source_id, target_id, relation_type) 去重索引
         
         # 脏标记
         self._dirty_nodes = False
@@ -155,6 +158,11 @@ class GraphStore:
         
         # 线程安全锁（RLock 允许同一线程重入）
         self._lock = threading.RLock()
+        
+        # 写时校验器（T0.2 RelationValidator，无状态可复用）
+        self._validator = RelationValidator()
+        # 偏差台账（override 警告记录，惰性创建）
+        self._deviation_manager = None
     
     # ── 初始化与持久化 ──────────────────────────────────────────────────
     
@@ -208,6 +216,7 @@ class GraphStore:
                         self.nodes_path, lineno, line,
                     )
                     continue
+                self._attach_hierarchy_resolver(unit)
                 self._units[unit.id] = unit
     
     def _load_edges(self):
@@ -275,12 +284,10 @@ class GraphStore:
         self._outgoing_edges.clear()
         self._incoming_edges.clear()
         self._unit_by_name.clear()
-        self._relation_index.clear()
         
         for rel_id, rel in self._relations.items():
             self._outgoing_edges[rel.source_id].append(rel_id)
             self._incoming_edges[rel.target_id].append(rel_id)
-            self._relation_index.add((rel.source_id, rel.target_id, rel.relation_type))
         
         for uid, unit in self._units.items():
             self._unit_by_name.setdefault(unit.unit_name, []).append(uid)
@@ -342,7 +349,9 @@ class GraphStore:
         
         # 恢复单元
         for uid, data in cache.get("units", {}).items():
-            self._units[uid] = NarrativeUnit.from_dict(data)
+            unit = NarrativeUnit.from_dict(data)
+            self._attach_hierarchy_resolver(unit)
+            self._units[uid] = unit
         
         # 恢复关系
         for rid, data in cache.get("relations", {}).items():
@@ -702,7 +711,7 @@ class GraphStore:
         except json.JSONDecodeError:
             content_dict = None
         if content_dict:
-            errors = validate_content(type, content_dict, project_root=str(self.project_root))
+            errors = TypeRegistry.get_global(project_root=str(self.project_root)).validate_content(type.value, content_dict)
             if errors:
                 error_msg = f"content schema 校验不通过: {'; '.join(errors)}"
                 self._record_event(
@@ -714,10 +723,12 @@ class GraphStore:
                 pass
         
         if structure_path is None and parent_id is not None:
-            # 若指定了 parent_id 但未提供 structure_path，从父级继承并追加
+            # 若指定了 parent_id 但未提供 structure_path，从父级"显式缓存"继承并追加。
+            # 仅继承显式值（create_unit 参数 / JSONL 旧数据）；派生路径由
+            # _hierarchy_resolver 从 CONTAINS 边推导，不在此处固化进缓存。
             parent = self.get_unit(parent_id)
-            if parent and parent.structure_path:
-                structure_path = list(parent.structure_path)
+            if parent and parent._structure_path_cache:
+                structure_path = list(parent._structure_path_cache)
                 if chapter_number is not None:
                     structure_path.append(chapter_number)
         
@@ -735,10 +746,13 @@ class GraphStore:
             status=status,
             confidence=confidence,
             tags=tags or [],
-            chapter_number=chapter_number,
-            structure_path=structure_path,
             extra=extra or {},
         )
+        # chapter_number / structure_path 是派生属性：显式值存入私有缓存，
+        # 缺失时由 _hierarchy_resolver 从 graph 结构推导。
+        unit._chapter_number_cache = chapter_number
+        unit._structure_path_cache = structure_path
+        self._attach_hierarchy_resolver(unit)
         self._units[unit.id] = unit
         self._unit_by_name.setdefault(unit.unit_name, []).append(unit.id)
         
@@ -949,7 +963,7 @@ class GraphStore:
             except json.JSONDecodeError:
                 content_dict = None
             if content_dict:
-                errors = validate_content(unit.type, content_dict, project_root=str(self.project_root))
+                errors = TypeRegistry.get_global(project_root=str(self.project_root)).validate_content(unit.type.value, content_dict)
                 if errors:
                     self._record_event(
                         EventType.SYSTEM_EVENT, actor=actor,
@@ -1200,7 +1214,9 @@ class GraphStore:
         record_event: bool = True,
         session_id: Optional[str] = None,
         payload: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Relation]:
+        override: bool = False,
+        severity: str = "warning",
+    ) -> Optional[Relation] | Dict[str, Any]:
         """在两个叙事单元之间建立关系
 
         Args:
@@ -1208,6 +1224,14 @@ class GraphStore:
             target_role: 目标端点在关系中的角色（如"徒弟"），跟随端点不跟随边。
             session_id: 关联的创作会话 ID（遥测归因，写入事件）。
             payload: 关系结构化载荷（证据锚点/时态约定写入处）。
+            override: True 时跳过写时校验（校验失败降级为警告并记入偏差台账）。
+            severity: 偏差严重级别（error/warning/info），override=True 时校验失败降级为该级别偏差。
+
+        Returns:
+            Relation: 写入成功（或命中去重）时返回关系对象。
+            None: 单元不存在或层级环检测拒绝。
+            dict: 写时校验失败（override=False）时返回
+                  {"error": "关系校验失败", "validation_errors": [...]}。
         """
         with self._lock:
             return self._add_relation_locked(
@@ -1217,6 +1241,7 @@ class GraphStore:
                 source_role=source_role, target_role=target_role,
                 actor=actor, record_event=record_event,
                 session_id=session_id, payload=payload,
+                override=override, severity=severity,
             )
 
     def _add_relation_locked(
@@ -1233,19 +1258,70 @@ class GraphStore:
         record_event: bool = True,
         session_id: Optional[str] = None,
         payload: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Relation]:
-        """add_relation 的加锁实现（调用方须持有 self._lock）。"""
+        override: bool = False,
+        severity: str = "warning",
+    ) -> Optional[Relation] | Dict[str, Any]:
+        """add_relation 的加锁实现（调用方须持有 self._lock）。
+
+        写时校验（RelationValidator，T0.2）：
+        - valid=False 且 override=False → 返回结构化校验错误 dict
+        - valid=False 且 override=True  → 指定 severity 记入偏差台账，继续写入
+        """
         if source_id not in self._units or target_id not in self._units:
             return None
         
-        # O(1) 去重检查：通过 Set 索引快速判断是否已存在
-        key = (source_id, target_id, relation_type)
-        if key in self._relation_index:
-            # 找到已存在的关系，返回之
-            for rel in self._relations.values():
-                if (rel.source_id == source_id and rel.target_id == target_id
-                        and rel.relation_type == relation_type):
-                    return rel
+        # 写时校验：收集上下文（端点类型、已有边）后调用 RelationValidator
+        source_unit = self._units.get(source_id)
+        target_unit = self._units.get(target_id)
+        source_type = source_unit.type.value if source_unit and source_unit.type else None
+        target_type = target_unit.type.value if target_unit and target_unit.type else None
+        rel_type_value = relation_type.value if hasattr(relation_type, "value") else str(relation_type)
+        
+        # First validate without override to capture errors
+        result = self._validator.validate(
+            source=source_id,
+            target=target_id,
+            rel_type=rel_type_value,
+            payload=payload,
+            weight=weight,
+            source_role=source_role,
+            target_role=target_role,
+            override=False,
+            source_type=source_type,
+            target_type=target_type,
+            existing_relations=list(self._relations.values()),
+        )
+        if not result.valid:
+            if not override:
+                return {
+                    "error": "关系校验失败",
+                    "validation_errors": [asdict(e) for e in result.errors],
+                }
+            # override=True：校验失败降级为指定 severity，记入偏差台账后继续写入
+            # Convert errors to warnings for logging
+            from v2.validators.relation_validator import ValidationError
+            warnings = [
+                ValidationError(e.field, e.expected, e.actual, e.message, "warning")
+                for e in result.errors
+            ]
+            self._log_validation_warnings(
+                warnings, source_id, target_id, rel_type_value, severity,
+            )
+        
+        # 复合键去重：(source_id, target_id, relation_type, label)
+        # label 归一：顶层 label 优先，空时回退 payload.label（统一 label 位置）。
+        # 去重判定以源端点的出边扫描为准（O(度)，通常为个位数）——出边列表即
+        # (source_id, ...) 的全部物理边，与复合键一一对应；label 可被
+        # handle_update_relation 直改字段，Set 索引会因此陈旧导致同键重复建边，
+        # 出边扫描永不陈旧，保证复合键去重在全部边操作上一致生效。
+        label_key = (label or "") or ((payload or {}).get("label") or "")
+        for rel_id in self._outgoing_edges.get(source_id, ()):
+            rel = self._relations[rel_id]
+            if (rel.target_id == target_id
+                    and rel.relation_type == relation_type
+                    and (rel.label or "") == label_key):
+                # 找到已存在的关系，返回之
+                return rel
         
         # 无环层级类型环检测：CONTAINS/BELONGS_TO 互为逆对，均需防环
         if relation_type.is_acyclic:
@@ -1267,7 +1343,6 @@ class GraphStore:
         self._relations[rel.id] = rel
         self._outgoing_edges[source_id].append(rel.id)
         self._incoming_edges[target_id].append(rel.id)
-        self._relation_index.add(key)
         
         if record_event:
             self._record_event(
@@ -1278,7 +1353,7 @@ class GraphStore:
                 payload={
                     "source_id": source_id,
                     "target_id": target_id,
-                    "relation_type": relation_type.value,
+                    "relation_type": rel_type_value,
                     "relations_affected": [rel.id],
                 },
                 session_id=session_id,
@@ -1286,6 +1361,50 @@ class GraphStore:
         self._dirty_edges = True
         self._dirty_relation_ids.add(rel.id)
         return rel
+    
+    def _get_deviation_manager(self):
+        """惰性创建偏差台账管理器（override 警告记录用）。"""
+        if self._deviation_manager is None:
+            from deviation_manager import DeviationManager
+            self._deviation_manager = DeviationManager(self.project_root)
+        return self._deviation_manager
+    
+    def _log_validation_warnings(
+        self,
+        warnings: List[Any],
+        source_id: str,
+        target_id: str,
+        rel_type_value: str,
+        severity: str = "warning",
+    ) -> None:
+        """将写时校验警告记入偏差台账（失败仅记 warning，不阻塞写入）。
+
+        这些偏差由 override=True 显式触发，标记为 authorial_override。
+        severity: 偏差严重级别（error/warning/info），默认 warning。
+        """
+        if not warnings:
+            return
+        try:
+            from deviation_manager import DeviationItem
+            dm = self._get_deviation_manager()
+            items = [
+                DeviationItem(
+                    id="",  # merge() 会为空 id 生成唯一 id
+                    dimension="relation_validation",
+                    entity=f"{source_id}→{target_id}",
+                    entity_id=source_id,
+                    severity=severity,
+                    category="authorial_override",  # override=True 显式触发
+                    summary=f"关系校验警告({rel_type_value}): {w.message}",
+                    detail=f"field={w.field}, expected={w.expected}, actual={w.actual}",
+                    source="relation_validator",
+                )
+                for w in warnings
+            ]
+            dm.merge(items)
+            dm.save()
+        except Exception as e:
+            logger.warning("记录关系校验警告到偏差台账失败: %s", e)
     
     def _would_create_cycle(
         self, source_id: str, target_id: str, rel_type: RelationType
@@ -1343,7 +1462,6 @@ class GraphStore:
                 self._incoming_edges[rel.target_id] = [
                     r for r in self._incoming_edges[rel.target_id] if r != relation_id
                 ]
-            self._relation_index.discard((rel.source_id, rel.target_id, rel.relation_type))
             
             self._record_event(
                 EventType.RELATION_REMOVED,
@@ -1446,11 +1564,97 @@ class GraphStore:
                     path.append(unit.unit_name)
         return path if path else [0]
     
+    # ── 派生层级属性（chapter_number / structure_path） ─────────────────
+    
+    def _attach_hierarchy_resolver(self, unit: NarrativeUnit) -> None:
+        """为单元注入层级解析器：从 graph 结构推导 chapter_number / structure_path。
+
+        使用弱引用避免 store ↔ unit 的强引用环；store 释放后解析器返回 None，
+        属性回退到显式缓存。
+        """
+        store_ref = weakref.ref(self)
+        unit_id = unit.id
+
+        def _resolve() -> Optional[HierarchyInfo]:
+            store = store_ref()
+            return store._resolve_unit_hierarchy(unit_id) if store is not None else None
+
+        unit._hierarchy_resolver = _resolve
+    
+    def _resolve_unit_hierarchy(self, unit_id: str) -> HierarchyInfo:
+        """从 graph 结构推导单元的层级属性。
+
+        - structure_path：沿 CONTAINS 边向上追溯祖先链（父级名称/序号），
+          再追加自身章节号。
+        - chapter_number：自身缓存 → structure_path 缓存末位 → 最近的
+          CHAPTER_PLAN 祖先章节号。
+
+        仅读取缓存字段（不触发 property），避免递归。
+        """
+        unit = self._units.get(unit_id)
+        if unit is None:
+            return HierarchyInfo()
+
+        _STRUCTURE_TYPES = {UnitType.OUTLINE, UnitType.ARC_PLAN, UnitType.VOLUME_PLAN,
+                            UnitType.CHAPTER_PLAN}
+
+        # 1. 沿 CONTAINS 边向上收集祖先链
+        path: List[Any] = []
+        visited: Set[str] = {unit_id}
+        current = unit_id
+        while True:
+            parents = self.get_relations(
+                current, relation_type=RelationType.CONTAINS, direction="incoming"
+            )
+            if not parents:
+                break
+            parent = self.get_unit(parents[0].source_id)
+            if not parent or parent.id in visited:
+                break
+            visited.add(parent.id)
+            if parent.type in _STRUCTURE_TYPES:
+                seq = (parent.extra or {}).get("sequence")
+                path.insert(0, seq if seq is not None else parent.unit_name)
+            else:
+                path.insert(0, parent.unit_name)
+            current = parent.id
+
+        # 2. 章节号：自身缓存 → structure_path 缓存末位 → CHAPTER_PLAN 祖先
+        chapter_number = unit._chapter_number_cache
+        if chapter_number is None and unit._structure_path_cache:
+            last = unit._structure_path_cache[-1]
+            if isinstance(last, int):
+                chapter_number = last
+        if chapter_number is None:
+            for ancestor_id in self.find_ancestors(unit_id):
+                ancestor = self._units.get(ancestor_id)
+                if ancestor and ancestor.type == UnitType.CHAPTER_PLAN:
+                    ch = ancestor._chapter_number_cache
+                    if ch is None and ancestor._structure_path_cache:
+                        last = ancestor._structure_path_cache[-1]
+                        if isinstance(last, int):
+                            ch = last
+                    if ch:
+                        chapter_number = ch
+                        break
+
+        # 3. 追加自身章节号到路径
+        if chapter_number:
+            path.append(chapter_number)
+        elif unit.type in _STRUCTURE_TYPES:
+            path.append(unit.unit_name)
+
+        return HierarchyInfo(
+            chapter_number=chapter_number,
+            structure_path=path if path else None,
+        )
+    
     def get_relations(
         self,
         unit_id: Optional[str] = None,
         relation_type: Optional[RelationType] = None,
         direction: str = "both",  # "outgoing" | "incoming" | "both"
+        domain: Optional[str] = None,
         label: Optional[str] = None,
         label_substring: bool = False,
         role: Optional[str] = None,
@@ -1465,12 +1669,17 @@ class GraphStore:
         role: 按端点角色过滤（None 表示不过滤），命中 source_role 或 target_role 均视为匹配；
         role_substring: True 时 role 改为包含匹配。
         min_weight/max_weight: 按关系强度过滤（含边界），None 表示不限制。
+        domain: 按语义域过滤（structural/planning/entity/temporal/causal/reference），
+                domain 解析来自 TypeRegistry（relation_types.yaml 唯一事实来源），
+                未知类型或未声明 domain 的关系不命中。
         """
         if not unit_id:
             # 返回所有关系（可筛选类型）
             results = list(self._relations.values())
             if relation_type:
                 results = [r for r in results if r.relation_type == relation_type]
+            if domain is not None:
+                results = [r for r in results if self._relation_in_domain(r, domain)]
             if label is not None:
                 results = [r for r in results if _match_label(r.label, label, label_substring)]
             if role is not None:
@@ -1490,6 +1699,8 @@ class GraphStore:
         results = [self._relations[rid] for rid in rel_ids if rid in self._relations]
         if relation_type:
             results = [r for r in results if r.relation_type == relation_type]
+        if domain is not None:
+            results = [r for r in results if self._relation_in_domain(r, domain)]
         if label is not None:
             results = [r for r in results if _match_label(r.label, label, label_substring)]
         if role is not None:
@@ -1499,6 +1710,20 @@ class GraphStore:
         if max_weight is not None:
             results = [r for r in results if r.weight <= max_weight]
         return results
+    
+    def _relation_in_domain(self, rel: Relation, domain: str) -> bool:
+        """判断一条边是否属于指定语义域（domain 解析来自 TypeRegistry）。
+
+        注册表不可用 / 关系类型未声明 / domain 不匹配时返回 False。
+        """
+        try:
+            from type_registry import TypeRegistry
+            registry = TypeRegistry.get_global(project_root=str(self.project_root))
+            rtd = registry.get_relation_type_def(rel.relation_type.value)
+            return rtd is not None and rtd.domain == domain
+        except Exception:
+            # 注册表加载失败时按静态枚举 domain 兜底（关系过滤不阻塞查询）
+            return RelationType.domain(rel.relation_type) == domain
     
     def get_relation(self, relation_id: str) -> Optional[Relation]:
         """按 ID 获取单条边。"""
@@ -1550,8 +1775,9 @@ class GraphStore:
         payload_filter: Optional[Dict[str, Any]] = None,
         label: Optional[str] = None,
         label_substring: bool = False,
+        domain: Optional[str] = None,
     ) -> List[Relation]:
-        """查询边，支持按类型、源/目标类型、payload 字段、label 过滤。
+        """查询边，支持按类型、源/目标类型、payload 字段、label、domain 过滤。
         
         payload_filter 示例：
           {"acquired_at.ordinal": {"$gt": 5}}     # ordinal > 5
@@ -1561,10 +1787,14 @@ class GraphStore:
 
         label: 按语义标签过滤（"师徒"等降级标签可直接查询）；
         label_substring: True 时 label 包含匹配。
+        domain: 按语义域过滤（structural/planning/entity/temporal/causal/reference），
+                domain 解析来自 TypeRegistry（relation_types.yaml 唯一事实来源）。
         """
         results = []
         for rel in self._relations.values():
             if relation_type and rel.relation_type != relation_type:
+                continue
+            if domain is not None and not self._relation_in_domain(rel, domain):
                 continue
             if source_id and rel.source_id != source_id:
                 continue
@@ -1657,12 +1887,18 @@ class GraphStore:
         unit_id: str,
         relation_type: Optional[RelationType] = None,
         max_depth: int = 1,
+        direction: str = "both",  # "outgoing" | "incoming" | "both"
     ) -> Dict[int, Set[str]]:
         """
         获取叙事单元的邻居（按深度分组）。
         
         返回如 {1: {id1, id2}, 2: {id3, id4}}
         用于构建写作时的工作空间。
+
+        direction: "outgoing" | "incoming" | "both"（默认 both）。
+        查询层逆边（T3.3）：对称类型（relates_to/causes 等，inverse == 自身）
+        在查询时自动补逆边——无论物理边方向如何，双向均可达；
+        非对称类型（belongs_to/contains 等）按物理方向返回。
         """
         result: Dict[int, Set[str]] = {1: set(), 2: set()}
         visited: Set[str] = {unit_id}
@@ -1671,32 +1907,41 @@ class GraphStore:
             u = self._units.get(uid)
             return u is not None and u.status != UnitStatus.ARCHIVED
 
+        def _add_neighbor(uid: str, depth: int) -> None:
+            if uid in visited:
+                return
+            visited.add(uid)
+            if _is_active(uid):
+                result[depth].add(uid)
+
+        def _collect(rel: Relation, node_id: str, depth: int) -> None:
+            """从一条边收集邻居。
+
+            对称类型（inverse == 自身）：方向无意义，outgoing/incoming 均可达对方；
+            非对称类型：按 direction 过滤物理方向。
+            """
+            symmetric = rel.relation_type.is_symmetric
+            if rel.source_id == node_id:
+                # node 是 source：target 是 outgoing 邻居
+                if direction in ("outgoing", "both") or symmetric:
+                    _add_neighbor(rel.target_id, depth)
+            if rel.target_id == node_id:
+                # node 是 target：source 是 incoming 邻居
+                if direction in ("incoming", "both") or symmetric:
+                    _add_neighbor(rel.source_id, depth)
+
         # 1 度邻居
         for rel in self.get_relations(unit_id):
             if relation_type and rel.relation_type != relation_type:
                 continue
-            if rel.source_id == unit_id and rel.target_id not in visited:
-                visited.add(rel.target_id)
-                if _is_active(rel.target_id):
-                    result[1].add(rel.target_id)
-            if rel.target_id == unit_id and rel.source_id not in visited:
-                visited.add(rel.source_id)
-                if _is_active(rel.source_id):
-                    result[1].add(rel.source_id)
+            _collect(rel, unit_id, 1)
 
         # 2 度邻居
         if max_depth >= 2:
             for neighbor_id in result[1]:
                 for rel in self.get_relations(neighbor_id):
-                    if rel.source_id == neighbor_id and rel.target_id not in visited:
-                        visited.add(rel.target_id)
-                        if _is_active(rel.target_id):
-                            result[2].add(rel.target_id)
-                    if rel.target_id == neighbor_id and rel.source_id not in visited:
-                        visited.add(rel.source_id)
-                        if _is_active(rel.source_id):
-                            result[2].add(rel.source_id)
-        
+                    _collect(rel, neighbor_id, 2)
+
         return result
     
     def find_path(
@@ -1840,7 +2085,11 @@ class GraphStore:
             with open(snapshot_path, "r", encoding="utf-8") as f:
                 data = json.loads(f.read())
 
-            self._units = {u["id"]: NarrativeUnit.from_dict(u) for u in data["units"]}
+            self._units = {}
+            for u in data["units"]:
+                unit = NarrativeUnit.from_dict(u)
+                self._attach_hierarchy_resolver(unit)
+                self._units[unit.id] = unit
             self._relations = {}
             for r in data["relations"]:
                 rel = Relation.from_dict(r)
@@ -1985,5 +2234,5 @@ class GraphStore:
     
     def get_schema_info(self, unit_type: UnitType) -> List[str]:
         """返回该类型的 content 字段要求（供注入 LLM prompt）"""
-        from schemas import schema_info
-        return schema_info(unit_type, project_root=str(self.project_root))
+        from type_registry import TypeRegistry
+        return TypeRegistry.get_global(project_root=str(self.project_root)).schema_info(unit_type.value)

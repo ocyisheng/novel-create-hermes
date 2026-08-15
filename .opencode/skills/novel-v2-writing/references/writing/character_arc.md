@@ -10,7 +10,7 @@
 
 ## 结构由脚本保障
 
-content JSON 的字段结构由 `schemas.py` 自动校验：
+content JSON 的字段结构由 `type_registry.py`（TypeRegistry）自动校验：
 - 角色类型（主角/反派/导师/盟友/对手/次要角色）必填
 - 性格（核心特质/优点/缺点）必填
 - 角色弧线（起始状态→最终状态）必填

@@ -1,4 +1,4 @@
-﻿"""
+"""
 关系系统优化方案（docs/关系系统优化方案.md）核心测试。
 
 覆盖：
@@ -152,8 +152,8 @@ def test_bidirectional_c_class_never(tmp_project):
     sc = call_tool("graph.create_unit", project=proj_path, unit_type="scene",
                    name="后山拔剑",
                    content='{"subtype":"开篇","synopsis":"拔剑","pov_character":"林渊",'
-                           '"one_line_summary":"后山拔剑","location":"落云宗"}',
-                   actor="novel-v2-crafter")
+                            '"one_line_summary":"后山拔剑","location":"落云宗"}',
+                    actor="novel-v2-crafter")
     assert_success(sc)
     pt = call_tool("graph.create_unit", project=proj_path, unit_type="plot_thread",
                    name="主线-剑道之争", content='{"类型":"主线"}', actor="novel-v2-crafter")
@@ -174,8 +174,8 @@ def test_bidirectional_c_class_causes(tmp_project):
     proj_path, _ = tmp_project
     sc = call_tool("graph.create_unit", project=proj_path, unit_type="scene",
                    name="坠崖", content='{"subtype":"冲突","synopsis":"坠崖","pov_character":"林渊",'
-                                         '"one_line_summary":"坠崖","location":"崖底"}',
-                   actor="novel-v2-crafter")
+                                          '"one_line_summary":"坠崖","location":"崖底"}',
+                    actor="novel-v2-crafter")
     assert_success(sc)
     pt = call_tool("graph.create_unit", project=proj_path, unit_type="plot_thread",
                    name="得传承", content='{"类型":"主线"}', actor="novel-v2-crafter")
@@ -184,7 +184,7 @@ def test_bidirectional_c_class_causes(tmp_project):
     res = call_tool("graph.add_relation", project=proj_path,
                     source=sc["data"]["id"], target=pt["data"]["id"],
                     rel_type="causes", bidirectional=True,
-                    actor="novel-v2-crafter")
+                    actor="novel-v2-crafter", override=True)
     assert_success(res)
     assert "inverse_id" not in res["data"]
 
@@ -206,7 +206,7 @@ def test_fix_asymmetry_skips_never_types(tmp_project):
     b = _create_char(tmp_project, "乙")
     res = call_tool("graph.add_relation", project=proj_path,
                     source=a, target=b, rel_type="causes",
-                    actor="novel-v2-crafter")
+                    actor="novel-v2-crafter", override=True)
     assert_success(res)
 
     res = call_tool("graph.fix_asymmetry", project=proj_path)

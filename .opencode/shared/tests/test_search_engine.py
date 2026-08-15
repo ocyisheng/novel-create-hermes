@@ -436,17 +436,6 @@ class TestConsistencyCheck:
         assert len(rule3) >= 1
         assert rule3[0].severity == "info"
 
-    def test_asymmetric_relations(self, store):
-        """关系不对称检测"""
-        hero, villain, *_ = _populate_test_data(store)
-        # hero→villain 有 PARTICIPATES_IN（共享场景）
-        # 但没有 villain→hero 的反向 REFERENCES 关系 → 不对称
-        engine = SearchEngine(store)
-        results = engine.check_consistency()
-        rule2 = [r for r in results if r.rule_id == "R2"]
-        # 至少有一个不对称关系
-        assert len(rule2) >= 0  # 不确定，因为场景关系可能是对称的
-
     def test_archived_with_active_relations(self, store):
         """归档单元仍有活跃关系"""
         _populate_test_data(store)
@@ -576,6 +565,33 @@ class TestRule7LocationChanges:
             assert cr.severity == "warning"
             assert len(cr.units_involved) >= 2
 
+    def test_r7_reverse_direction_edge(self, store):
+        """PARTICIPATES_IN 以 scene→char 物理方向存储（对称类型）仍应触发 R7"""
+        hero, *_ = _populate_test_data(store)
+        s1 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景A",
+            content='{"location":"天道宗","time_text":"清晨"}',
+            chapter_number=1, actor="test",
+        )
+        s2 = store.create_unit(
+            type=UnitType.SCENE, unit_name="场景B",
+            content='{"location":"魔界","time_text":"正午"}',
+            chapter_number=1, actor="test",
+        )
+        set_story_time(s1, "清晨", ordinal=1001.5, precision="exact")
+        set_story_time(s2, "正午", ordinal=1050.5, precision="exact")
+        # 反向物理边：source=scene, target=char（对称类型方向无意义）
+        store.add_relation(s1.id, hero.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.add_relation(s2.id, hero.id, RelationType.PARTICIPATES_IN, actor="test")
+        store.flush()
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r7 = [r for r in results if r.rule_id == "R7" and "林昭" in r.description]
+        assert len(r7) >= 1
+        assert "天道宗" in r7[0].description
+        assert "魔界" in r7[0].description
+
 
 class TestRule9PrecedesOrdinal:
     def test_precedes_ordinal_consistent(self, store):
@@ -651,6 +667,56 @@ class TestRule9PrecedesOrdinal:
         assert len(r9) == 0
 
 
+# ── R12: 主角能动性 ───────────────────────────────────────────────────────
+
+
+class TestRule12ProtagonistAgency:
+    def _make_passive_protagonist(self, store, n_scenes=3, active_rels=()):
+        """构造主角：n 个出场场景（PARTICIPATES_IN 反向物理边）+ 可选主动关系。"""
+        protag = store.create_unit(
+            type=UnitType.CHARACTER_ARC,
+            unit_name="被动主角",
+            tags=["主角"],
+            actor="test",
+        )
+        for i in range(n_scenes):
+            sc = store.create_unit(
+                type=UnitType.SCENE, unit_name=f"场景{i}",
+                content='{"location":"天"}', chapter_number=1, actor="test",
+            )
+            # PARTICIPATES_IN 反向物理边：source=scene, target=char
+            store.add_relation(sc.id, protag.id, RelationType.PARTICIPATES_IN, actor="test")
+        for other_id, rel_type in active_rels:
+            # 反向对称关系边：other→protag（对称类型方向无意义 → 主动）
+            store.add_relation(other_id, protag.id, rel_type, actor="test")
+        store.flush()
+        return protag
+
+    def test_passive_with_reverse_participates_in(self, store):
+        """主角 ≥3 个出场场景（PARTICIPATES_IN 反向物理边）但无主动关系 → 触发 R12"""
+        _populate_test_data(store)
+        self._make_passive_protagonist(store)
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r12 = [r for r in results if r.rule_id == "R12"]
+        assert len(r12) >= 1
+        assert "被动主角" in r12[0].description
+
+    def test_active_with_reverse_symmetric_relation(self, store):
+        """主角有对称关系（RELATES_TO 反向物理边）→ 不触发 R12"""
+        _populate_test_data(store)
+        hero = store.get_unit_by_name("林昭")
+        self._make_passive_protagonist(
+            store, active_rels=[(hero.id, RelationType.RELATES_TO)],
+        )
+
+        engine = SearchEngine(store)
+        results = engine.check_consistency()
+        r12 = [r for r in results if r.rule_id == "R12"]
+        assert len(r12) == 0, f"对称关系反向边应算主动关系，实际触发: {r12}"
+
+
 # ── 规则注册表 ────────────────────────────────────────────────────────────────
 
 
@@ -659,7 +725,7 @@ class TestCheckerRegistry:
         """验证 _CHECKERS 注册表包含所有预期规则"""
         from search_engine import SearchEngine
         rule_ids = {rid for rid, _, _ in SearchEngine._CHECKERS}
-        expected = {"R1", "R2", "R3", "R4", "R5", "R6", "R7", "R9", "R10", "R11", "R12"}
+        expected = {"R1", "R3", "R4", "R5", "R6", "R7", "R9", "R10", "R11", "R12"}
         missing = expected - rule_ids
         assert not missing, f"Missing rules: {missing}"
         unexpected = rule_ids - expected

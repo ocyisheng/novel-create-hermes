@@ -218,52 +218,27 @@ def _unit_content_dict(u: NarrativeUnit) -> dict:
     return {}
 
 
-def _volume_number(u: NarrativeUnit) -> int | None:
-    """卷号：content 卷号/volume_number → 名称 '卷N'/'第N卷' 前缀 → None"""
-    import re
-    content = _unit_content_dict(u)
-    for key in ("卷号", "volume_number"):
-        v = content.get(key)
-        if isinstance(v, (int, float)):
-            return int(v)
-    m = re.search(r"卷\s*(\d+)", u.unit_name)
-    return int(m.group(1)) if m else None
-
-
-def _chapter_number(u: NarrativeUnit) -> int | None:
-    """章节号：content 章节号/chapter_number → 名称 '第N章' → None"""
-    import re
-    content = _unit_content_dict(u)
-    for key in ("章节号", "chapter_number"):
-        v = content.get(key)
-        if isinstance(v, (int, float)):
-            return int(v)
-    m = re.search(r"第\s*(\d+)\s*章", u.unit_name)
-    return int(m.group(1)) if m else None
-
-
-def _structure_sort_key(u: NarrativeUnit) -> tuple:
-    """结构单元排序：有卷号/章节号按数值排，无编号的按名称排（置于末尾）。"""
-    if u.type == UnitType.VOLUME_PLAN:
-        n = _volume_number(u)
-    elif u.type == UnitType.CHAPTER_PLAN:
-        n = _chapter_number(u)
-    else:
-        n = None
-    return (0 if n is not None else 1, n if n is not None else 0, u.unit_name)
-
-
 @router.get("/structure-tree")
 def get_structure_tree(project_root: str = Depends(get_project_root)):
     """返回结构树：outline → volume_plan → chapter_plan
 
     层级真相源是 CONTAINS/BELONGS_TO 边；缺失时按卷号/章节号推断：
-    - 卷号：content 卷号/volume_number，回退名称 '卷N' 前缀
-    - 章节号：content 章节号/chapter_number，回退名称 '第N章' 前缀
+    - 卷号：store._get_unit_volume（content/extra/CONTAINS 祖先/structure_path）
+    - 章节号：unit.chapter_number（派生属性，显式缓存优先，graph 结构兜底）
     - 卷归属：显式卷号 → 名称含 '卷终' 的末章按章号区间回填 → 未归入
     - 未挂载的卷/章挂到合成根（synthetic: true），不修改 graph 数据
     """
     store = _get_store(project_root)
+
+    def _structure_sort_key(u: NarrativeUnit) -> tuple:
+        """结构单元排序：有卷号/章节号按数值排，无编号的按名称排（置于末尾）。"""
+        if u.type == UnitType.VOLUME_PLAN:
+            n = store._get_unit_volume(u)
+        elif u.type == UnitType.CHAPTER_PLAN:
+            n = u.chapter_number
+        else:
+            n = None
+        return (0 if n is not None else 1, n if n is not None else 0, u.unit_name)
 
     units_by_id: dict[str, NarrativeUnit] = {}
     outlines: list[NarrativeUnit] = []
@@ -310,7 +285,7 @@ def get_structure_tree(project_root: str = Depends(get_project_root)):
     # 3. 章 → 卷
     vol_by_num: dict[int, str] = {}
     for v in volumes:
-        n = _volume_number(v)
+        n = store._get_unit_volume(v)
         if n is not None and n not in vol_by_num:
             vol_by_num[n] = v.id
 
@@ -318,7 +293,7 @@ def get_structure_tree(project_root: str = Depends(get_project_root)):
     for c in chapters:
         if c.id in mounted:
             continue
-        n = _volume_number(c)
+        n = store._get_unit_volume(c)
         if n is not None and n in vol_by_num:
             children[vol_by_num[n]].append(c.id)
             mounted.add(c.id)
@@ -326,9 +301,9 @@ def get_structure_tree(project_root: str = Depends(get_project_root)):
     # 3b. 卷边界推断：名称含 '卷终' 的章节是该卷末章，
     #     卷按卷号顺序依次承接区间 [prev_end+1 .. end]
     boundary_ends = sorted(
-        _chapter_number(c)
+        c.chapter_number
         for c in chapters
-        if "卷终" in c.unit_name and _chapter_number(c) is not None
+        if "卷终" in c.unit_name and c.chapter_number is not None
     )
     if boundary_ends:
         vol_ranges: list[tuple[int, int, str]] = []
@@ -341,7 +316,7 @@ def get_structure_tree(project_root: str = Depends(get_project_root)):
         for c in chapters:
             if c.id in mounted:
                 continue
-            cn = _chapter_number(c)
+            cn = c.chapter_number
             if cn is None:
                 continue
             for start, end, vid in vol_ranges:
@@ -470,15 +445,15 @@ def get_global_timeline(project_root: str = Depends(get_project_root)):
     无 SCENE 时自动回退到 temporal_event 事件时间线（event_mode=true）。
     """
     store = _get_store(project_root)
-    from character_timeline import CharacterTimelineLedger
+    from unified_timeline import UnifiedTimelineIndex
 
-    ledger = CharacterTimelineLedger(store)
-    view = ledger.build()
+    index = UnifiedTimelineIndex(store)
+    view = index.build_timeline_view()
 
     # 无 SCENE 项目兜底：改用 temporal_event 事件时间线（event_mode）
     event_mode = False
     if view.total_scenes == 0:
-        view = ledger.build_events()
+        view = index.build_timeline_view(event_mode=True)
         event_mode = True
 
     # 按章节分组（chapter=0 的事件也放入 chapters，章号为 0）
@@ -540,8 +515,8 @@ def get_timeline(id: str, project_root: str = Depends(get_project_root)):
     if not center:
         raise HTTPException(status_code=404, detail=f"节点不存在: {id}")
 
-    from temporal_index import TemporalEventIndex
-    index = TemporalEventIndex(store).build()
+    from unified_timeline import UnifiedTimelineIndex
+    index = UnifiedTimelineIndex(store).build()
     focus_name = center.unit_name
 
     # 通过实体名查询所有关联事件

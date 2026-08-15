@@ -23,7 +23,12 @@ from deviation_manager import (
     DeviationState,
     ScanState,
 )
-from handlers.handlers_deviation import handle_deviation_list, handle_deviation_merge
+from handlers.handlers_deviation import (
+    handle_deviation_list,
+    handle_deviation_merge,
+    handle_deviation_stats,
+    handle_deviation_pending,
+)
 
 
 # ── 辅助函数 ────────────────────────────────────────────────────────────────
@@ -561,3 +566,289 @@ class TestListFiltersAndPagination:
 
         result = handle_deviation_list(proj_path, status="resolved")
         assert result["total"] == 0
+
+
+# ── Category 三分法测试 ────────────────────────────────────────────────────────
+
+
+class TestDeviationCategory:
+    """测试偏差语义三分法：pre_existing / authorial_override / soft_warning"""
+
+    def test_default_category_is_soft_warning(self, project_root):
+        """新建偏差默认 category 为 soft_warning"""
+        mgr = DeviationManager(project_root)
+        mgr.merge([_make_item(dimension="character_trait", entity="林昭")])
+        item = mgr.list_all()[0]
+        assert item.category == "soft_warning"
+
+    def test_explicit_category_preserved_on_merge(self, project_root):
+        """显式设置的 category 在 merge 时保持"""
+        mgr = DeviationManager(project_root)
+        item = _make_item(dimension="character_trait", entity="林昭")
+        item.category = "authorial_override"
+        mgr.merge([item])
+        loaded = mgr.list_all()[0]
+        assert loaded.category == "authorial_override"
+
+    def test_merge_from_check_results_new_is_soft_warning(self, project_root):
+        """merge_from_check_results 创建的新偏差 category 为 soft_warning"""
+        mgr = DeviationManager(project_root)
+        results = [{
+            "rule_id": "test_rule_01",
+            "severity": "warning",
+            "description": "测试偏差「林昭」",
+            "units_involved": ["unit_001"],
+            "detail": "详情",
+        }]
+        mgr.merge_from_check_results(results)
+        item = mgr.list_all()[0]
+        assert item.category == "soft_warning"
+
+    def test_merge_from_check_results_existing_becomes_pre_existing(self, project_root):
+        """merge_from_check_results 更新已有偏差时，category 变为 pre_existing"""
+        mgr = DeviationManager(project_root)
+        # 先创建一个偏差
+        results1 = [{
+            "rule_id": "test_rule_01",
+            "severity": "warning",
+            "description": "测试偏差「林昭」",
+            "units_involved": ["unit_001"],
+            "detail": "详情1",
+        }]
+        mgr.merge_from_check_results(results1)
+        item = mgr.list_all()[0]
+        assert item.category == "soft_warning"
+        assert item.detection_count == 1
+
+        # 再次合并相同规则 → 应标记为 pre_existing
+        results2 = [{
+            "rule_id": "test_rule_01",
+            "severity": "warning",
+            "description": "测试偏差「林昭」再次检出",
+            "units_involved": ["unit_001"],
+            "detail": "详情2",
+        }]
+        mgr.merge_from_check_results(results2)
+        item = mgr.list_all()[0]
+        assert item.category == "pre_existing"
+        assert item.detection_count == 2
+
+    def test_resolved_retained_category_unchanged(self, project_root):
+        """resolved/retained 状态的偏差再次检出，category 不变"""
+        mgr = DeviationManager(project_root)
+        results = [{
+            "rule_id": "test_rule_01",
+            "severity": "warning",
+            "description": "测试偏差「林昭」",
+            "units_involved": ["unit_001"],
+            "detail": "详情",
+        }]
+        mgr.merge_from_check_results(results)
+        item = mgr.list_all()[0]
+        mgr.resolve(item.id)
+        assert item.category == "soft_warning"
+
+        # 再次合并 → resolved 状态下 category 保持不变
+        results2 = [{
+            "rule_id": "test_rule_01",
+            "severity": "warning",
+            "description": "测试偏差「林昭」再次检出",
+            "units_involved": ["unit_001"],
+            "detail": "详情2",
+        }]
+        mgr.merge_from_check_results(results2)
+        item = mgr.get(item.id)
+        assert item.status == "resolved"
+        assert item.category == "soft_warning"  # 不变
+
+    def test_stats_includes_by_category(self, project_root):
+        """stats() 包含 by_category 统计"""
+        mgr = DeviationManager(project_root)
+        mgr.merge([
+            _make_item(dimension="dim1", entity="A", severity="info"),
+            _make_item(dimension="dim2", entity="B", severity="warning"),
+        ])
+        # 手动修改一个为 pre_existing
+        items = mgr.list_all()
+        items[0].category = "pre_existing"
+        mgr.save()
+
+        stats = mgr.stats()
+        assert "by_category" in stats
+        assert stats["by_category"]["soft_warning"] == 1
+        assert stats["by_category"]["pre_existing"] == 1
+
+    def test_summary_includes_by_category(self, project_root):
+        """summary() 包含 by_category 统计"""
+        mgr = DeviationManager(project_root)
+        mgr.merge([
+            _make_item(dimension="dim1", entity="A"),
+            _make_item(dimension="dim2", entity="B"),
+        ])
+        items = mgr.list_all()
+        items[0].category = "authorial_override"
+        mgr.save()
+
+        summary = mgr.summary()
+        assert "by_category" in summary
+        assert summary["by_category"]["soft_warning"] == 1
+        assert summary["by_category"]["authorial_override"] == 1
+
+    def test_handler_list_includes_category(self, tmp_project):
+        """handle_deviation_list 返回包含 category 字段"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high", "summary": "高严重"},
+        ]
+        handle_deviation_merge(proj_path, findings=findings)
+
+        result = handle_deviation_list(proj_path)
+        assert result["total"] == 1
+        assert "category" in result["deviations"][0]
+        assert result["deviations"][0]["category"] == "soft_warning"
+
+    def test_handler_list_filter_by_category(self, tmp_project):
+        """handle_deviation_list 支持按 category 过滤"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high", "summary": "高严重"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "severity": "medium", "summary": "中情节"},
+        ]
+        handle_deviation_merge(proj_path, findings=findings)
+        mgr = DeviationManager(proj_path)
+        items = mgr.list_all()
+        items[0].category = "pre_existing"
+        mgr.save()
+
+        # 过滤 pre_existing
+        result = handle_deviation_list(proj_path, category="pre_existing")
+        assert result["total"] == 1
+        assert result["deviations"][0]["entity"] == "林渊"
+
+        # 过滤 soft_warning
+        result = handle_deviation_list(proj_path, category="soft_warning")
+        assert result["total"] == 1
+        assert result["deviations"][0]["entity"] == "后山拔剑"
+
+    def test_handler_stats_includes_by_category(self, tmp_project):
+        """handle_deviation_stats 返回包含 by_category"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high", "summary": "高严重"},
+        ]
+        handle_deviation_merge(proj_path, findings=findings)
+
+        result = handle_deviation_stats(proj_path)
+        assert "by_category" in result
+        assert result["by_category"]["soft_warning"] == 1
+
+    def test_pending_includes_category(self, tmp_project):
+        """handle_deviation_pending 返回包含 category 字段"""
+        proj_path, store = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high", "summary": "高严重"},
+        ]
+        handle_deviation_merge(proj_path, findings=findings)
+
+        result = handle_deviation_pending(proj_path)
+        assert result["total"] == 1
+        assert "category" in result["deviations"][0]
+        assert result["deviations"][0]["category"] == "soft_warning"
+
+    def test_category_persistence(self, project_root):
+        """category 字段持久化后保持"""
+        mgr = DeviationManager(project_root)
+        item = _make_item(dimension="character_trait", entity="林昭")
+        item.category = "authorial_override"
+        mgr.merge([item])
+        mgr.save()
+
+        mgr2 = DeviationManager(project_root)
+        loaded = mgr2.list_all()[0]
+        assert loaded.category == "authorial_override"
+
+    def test_load_legacy_without_category_defaults_to_soft_warning(self, project_root):
+        """加载旧格式（无 category 字段）的偏差状态，默认为 soft_warning"""
+        import yaml
+        import os
+        os.makedirs(os.path.join(project_root, "graph"), exist_ok=True)
+        path = os.path.join(project_root, "graph", "deviation_state.yaml")
+        # 写入旧格式数据（无 category）
+        legacy_data = {
+            "format_version": "1.0",
+            "scan": {"full_scan_version": 0, "last_scan_at": "", "constraint_watermark": 0, "constraint_checked": {}},
+            "deviations": [{
+                "id": "dev_legacy",
+                "dimension": "character_trait",
+                "entity": "旧角色",
+                "entity_id": "",
+                "scanned_version": 0,
+                "status": "pending",
+                "severity": "info",
+                "first_detected": "2024-01-01T00:00:00+00:00",
+                "last_detected": "2024-01-01T00:00:00+00:00",
+                "detection_count": 1,
+                "summary": "旧偏差",
+                "detail": "",
+                "suggested_changeset": None,
+                "source": "llm_analysis",
+            }]
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(legacy_data, f, allow_unicode=True)
+
+        mgr = DeviationManager(project_root)
+        item = mgr.list_all()[0]
+        assert item.category == "soft_warning"  # 兼容旧数据，默认值
+
+    def test_override_flow_marks_authorial_override(self, tmp_project):
+        """add_relation(override=True) 校验失败 → 偏差台账记录 authorial_override。
+
+        override 是 T0.3 的写时校验绕过机制：校验失败降级为警告并记入偏差台账。
+        这些记录必须标记为 authorial_override（作者显式覆盖规则）。
+        """
+        from graph_schema import UnitType, RelationType
+        proj_path, store = tmp_project
+        a = store.create_unit(UnitType.CHARACTER_ARC, "林渊", "content")
+        sc = store.create_unit(UnitType.SCENE, "坠崖", "content")
+
+        # CHARACTER_ARC LOCATED_AT SCENE 违反 endpoint_types（LOCATED_AT target 仅 world_rule）
+        rel = store.add_relation(a.id, sc.id, RelationType.LOCATED_AT,
+                                 actor="test", override=True, severity="error")
+        assert rel is not None and not isinstance(rel, dict)
+
+        mgr = DeviationManager(proj_path)
+        devs = [d for d in mgr.list_all() if d.dimension == "relation_validation"]
+        assert len(devs) >= 1
+        assert all(d.category == "authorial_override" for d in devs)
+        # severity 独立于 category：显式传入的 severity 原样保留
+        assert all(d.severity == "error" for d in devs)
+
+    def test_override_false_does_not_record_ledger(self, tmp_project):
+        """override=False 时校验失败 → 返回结构化错误 dict，不产生偏差台账。"""
+        from graph_schema import UnitType, RelationType
+        proj_path, store = tmp_project
+        a = store.create_unit(UnitType.CHARACTER_ARC, "林渊", "content")
+        sc = store.create_unit(UnitType.SCENE, "坠崖", "content")
+
+        result = store.add_relation(a.id, sc.id, RelationType.LOCATED_AT, actor="test")
+        assert isinstance(result, dict)
+        assert "validation_errors" in result
+
+        mgr = DeviationManager(proj_path)
+        assert mgr.list_all() == []
+
+    def test_merge_handler_propagates_category(self, tmp_project):
+        """handle_deviation_merge 透传 findings 中的 category（显式 authorial_override 不丢失）。"""
+        proj_path, store = tmp_project
+        handle_deviation_merge(proj_path, findings=[
+            {"dimension": "角色一致性", "entity": "林渊", "severity": "high",
+             "summary": "作者显式覆盖", "category": "authorial_override"},
+            {"dimension": "情节逻辑", "entity": "后山拔剑", "severity": "medium",
+             "summary": "普通偏差"},
+        ])
+
+        mgr = DeviationManager(proj_path)
+        by_entity = {d.entity: d for d in mgr.list_all()}
+        assert by_entity["林渊"].category == "authorial_override"
+        assert by_entity["后山拔剑"].category == "soft_warning"  # 缺省回退

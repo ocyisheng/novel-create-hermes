@@ -680,6 +680,8 @@ def handle_add_relation(
     actor: str = "orchestrator",
     session_id: Optional[str] = None,
     payload: Optional[str] = None,
+    override: bool = False,
+    severity: str = "warning",
 ) -> dict:
     """建立关系。
 
@@ -690,6 +692,8 @@ def handle_add_relation(
 
     证据锚点：payload 合并 source 通道（crafter → llm，其余 → manual），
     再与调用方传入的 payload（JSON 字符串，可选）合并。
+
+    severity: 偏差严重级别（error/warning/info），override=True 时校验失败降级为该级别偏差。
     """
     blocked = check_write_permission(actor, "graph.add_relation")
     if blocked:
@@ -725,7 +729,10 @@ def handle_add_relation(
         rel = store.add_relation(source, target, rtype, actor=actor, label=effective_label,
                                  source_role=source_role or "", target_role=target_role or "",
                                  weight=weight if weight is not None else 0.5,
-                                 session_id=session_id, payload=payload_dict)
+                                 session_id=session_id, payload=payload_dict,
+                                 override=override, severity=severity)
+        if isinstance(rel, dict):
+            return rel  # 写时校验失败：透传结构化错误
         if not rel:
             return {"error": "关系建立失败"}
         result = {"id": rel.id, "type": rtype.value}
@@ -744,8 +751,11 @@ def handle_add_relation(
             inv_rel = store.add_relation(target, source, inv, actor=actor, label=effective_label,
                                          source_role=target_role or "", target_role=source_role or "",
                                          weight=weight if weight is not None else 0.5,
-                                         session_id=session_id, payload=payload_dict)
-            if inv_rel:
+                                         session_id=session_id, payload=payload_dict,
+                                         override=override, severity=severity)
+            if isinstance(inv_rel, dict):
+                result["warning"] = inv_rel.get("error", "反向边校验失败")
+            elif inv_rel:
                 result["inverse_id"] = inv_rel.id
         elif bidirectional and rtype.auto_reverse == "never":
             result["warning"] = (
@@ -930,7 +940,9 @@ def handle_fix_asymmetry(project_root: str) -> dict:
                                source_role=rel.target_role or "", target_role=rel.source_role or "",
                                actor="fix-asymmetry",
                                payload={"source": "auto", "auto_filled_reverse": True})
-        if r:
+        if isinstance(r, dict):
+            skipped += 1  # 写时校验失败：跳过补齐
+        elif r:
             created += 1
     store.flush()
     return {"created": created, "skipped": skipped}
@@ -1190,12 +1202,12 @@ def handle_migrate_structure_to_edges(project_root: str, actor: str = "novel-too
 def handle_schema_info(unit_type: str) -> dict:
     """返回指定叙事单元类型的 content JSON 字段要求（供 LLM/CLI 参考）。"""
     from graph_schema import UnitType
-    from schemas import schema_info
+    from type_registry import TypeRegistry
     try:
         ut = UnitType[unit_type.upper()]
     except KeyError:
         return {"error": f"未知单元类型: {unit_type}", "available_types": [t.name for t in UnitType]}
-    lines = schema_info(ut)
+    lines = TypeRegistry.get_global().schema_info(ut.value)
     return {"unit_type": unit_type, "fields": lines}
 
 
@@ -1280,6 +1292,8 @@ def _change_unit_type(store, id: str, new_type: str, actor: str) -> dict:
             src, tgt = r.source_id, new_id
         # 添加新关系
         new_rel = store.add_relation(src, tgt, rtype, actor=actor, label=r.label or "", payload=r.payload)
+        if isinstance(new_rel, dict):
+            continue  # 写时校验失败：保留旧关系，跳过搬运
         if new_rel:
             moved += 1
         # 删除旧关系

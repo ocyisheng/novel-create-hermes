@@ -188,7 +188,7 @@ class TestGraphRead:
 
     def test_list_units_by_type(self, sample_units):
         proj_path, store, units = sample_units
-        res = call_tool("graph.list_units", project=proj_path, type="CHARACTER_ARC")
+        res = call_tool("graph.list_units", project=proj_path, unit_type="CHARACTER_ARC")
         assert_success(res)
         for u in res["data"]["units"]:
             assert u["type"] == "character_arc"
@@ -228,7 +228,7 @@ class TestGraphRead:
     def test_get_neighbors_with_reltype_filter(self, sample_units):
         proj_path, store, units = sample_units
         uid = units["林渊"].id
-        res = call_tool("graph.get_neighbors", project=proj_path, id=uid, relType="PARTICIPATES_IN")
+        res = call_tool("graph.get_neighbors", project=proj_path, id=uid, rel_type="PARTICIPATES_IN")
         assert_success(res)
         assert len(res["data"]["neighbors"]) >= 1
 
@@ -275,7 +275,7 @@ class TestGraphWrite:
     def test_create_unit(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="CHARACTER_ARC", name="新角色",
+                        unit_type="CHARACTER_ARC", name="新角色",
                         content="测试内容", tags="主角,新标签",
                         chapter=1, actor="novel-v2-crafter")
         assert_success(res)
@@ -290,24 +290,24 @@ class TestGraphWrite:
     def test_create_unit_default_type(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="默认笔记", actor="novel-v2-crafter")
+                        unit_type="NOTE", name="默认笔记", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["id"].startswith("nt_")
 
     def test_create_unit_invalid_type(self, tmp_project):
         proj_path, _ = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="INVALID_TYPE", name="坏单元", actor="novel-v2-crafter")
+                        unit_type="INVALID_TYPE", name="坏单元", actor="novel-v2-crafter")
         assert_error(res)
 
     def test_create_unit_duplicate_error_by_default(self, tmp_project):
         """handler 默认 if_exists=error：同名同类型重复创建被拒绝。"""
         proj_path, _ = tmp_project
         res1 = call_tool("graph.create_unit", project=proj_path,
-                         type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
+                         unit_type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
         assert_success(res1)
         res2 = call_tool("graph.create_unit", project=proj_path,
-                         type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
+                         unit_type="CHARACTER_ARC", name="林渊", content="{}", actor="novel-v2-crafter")
         assert_error(res2)
         assert "同名" in res2["error"] or "已存在" in res2["error"]
         # 库中只有一个林渊
@@ -320,10 +320,10 @@ class TestGraphWrite:
         """handler if_exists=skip：幂等返回已有单元，不重复创建。"""
         proj_path, _ = tmp_project
         r1 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="幂等角色", content="{}", actor="novel-v2-crafter")
+                       unit_type="CHARACTER_ARC", name="幂等角色", content="{}", actor="novel-v2-crafter")
         assert_success(r1)
         r2 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="幂等角色", content="{}",
+                       unit_type="CHARACTER_ARC", name="幂等角色", content="{}",
                        actor="novel-v2-crafter", if_exists="skip")
         assert_success(r2)
         assert r2["data"]["id"] == r1["data"]["id"]
@@ -337,10 +337,10 @@ class TestGraphWrite:
         """handler if_exists=create：强制新建，产生不同 id。"""
         proj_path, _ = tmp_project
         r1 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="强制角色", content="{}", actor="novel-v2-crafter")
+                       unit_type="CHARACTER_ARC", name="强制角色", content="{}", actor="novel-v2-crafter")
         assert_success(r1)
         r2 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="强制角色", content="{}",
+                       unit_type="CHARACTER_ARC", name="强制角色", content="{}",
                        actor="novel-v2-crafter", if_exists="create")
         assert_success(r2)
         assert r2["data"]["id"] != r1["data"]["id"]
@@ -349,7 +349,7 @@ class TestGraphWrite:
         """handler if_exists=skip：已归档单元不阻塞，允许新建。"""
         proj_path, _ = tmp_project
         r1 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="归档角色", content="{}", actor="novel-v2-crafter")
+                       unit_type="CHARACTER_ARC", name="归档角色", content="{}", actor="novel-v2-crafter")
         assert_success(r1)
         # 归档原单元
         arc = call_tool("graph.archive_unit", project=proj_path,
@@ -357,7 +357,7 @@ class TestGraphWrite:
         assert_success(arc)
         # skip 应新建（归档不算活跃重复）
         r2 = call_tool("graph.create_unit", project=proj_path,
-                       type="CHARACTER_ARC", name="归档角色", content="{}",
+                       unit_type="CHARACTER_ARC", name="归档角色", content="{}",
                        actor="novel-v2-crafter", if_exists="skip")
         assert_success(r2)
         assert r2["data"]["id"] != r1["data"]["id"]
@@ -446,7 +446,7 @@ class TestGraphWrite:
         proj_path, store, units = sample_units
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="MEMBER_OF", actor="novel-v2-crafter")
+                        rel_type="MEMBER_OF", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["type"] == "member_of"
 
@@ -454,17 +454,45 @@ class TestGraphWrite:
         proj_path, store, units = sample_units
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="MEMBER_OF", bidirectional=True, actor="novel-v2-crafter")
+                        rel_type="MEMBER_OF", bidirectional=True, actor="novel-v2-crafter")
         assert_success(res)
         assert "inverse_id" in res["data"]
         assert res["data"]["inverse_id"] is not None
+
+    def test_add_relation_override_roundtrip(self, tmp_project):
+        """graph.add_relation 的 override 参数穿透 adapter 链（round-trip）。
+
+        约束违例（CHARACTER_ARC LOCATED_AT SCENE）在 override=True 下降级写入，
+        并在 deviation.list 中以 category=authorial_override 呈现——
+        证明 override 经 _PARAM_MAP → run_operation → handler 全程可达。
+        """
+        proj_path, _ = tmp_project
+        char = call_tool("graph.create_unit", project=proj_path,
+                         unit_type="character_arc", name="林渊", content="内容",
+                         actor="novel-v2-crafter")
+        assert_success(char)
+        scene = call_tool("graph.create_unit", project=proj_path,
+                          unit_type="scene", name="坠崖", content="内容",
+                          actor="novel-v2-crafter")
+        assert_success(scene)
+
+        res = call_tool("graph.add_relation", project=proj_path,
+                        source=char["data"]["id"], target=scene["data"]["id"],
+                        rel_type="located_at", override=True, severity="error",
+                        actor="novel-v2-crafter")
+        assert_success(res)
+        assert "id" in res["data"]
+
+        list_res = call_tool("deviation.list", project=proj_path, category="authorial_override")
+        assert_success(list_res)
+        assert len(list_res["data"]["deviations"]) >= 1
 
     def test_add_relation_invalid_type(self, sample_units):
         proj_path, store, units = sample_units
         # 非法关系类型不再报错——降级为 RELATES_TO（关联容器），原始输入存为 label
         res = call_tool("graph.add_relation", project=proj_path,
                         source=units["林渊"].id, target=units["落云宗"].id,
-                        type="NOT_A_TYPE", actor="novel-v2-crafter")
+                        rel_type="NOT_A_TYPE", actor="novel-v2-crafter")
         assert_success(res)
         assert res["data"]["type"] == "relates_to"
         assert res["data"].get("label") == "NOT_A_TYPE"
@@ -492,7 +520,7 @@ class TestGraphWrite:
     def test_create_unit_without_content(self, tmp_project):
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="空内容笔记", actor="novel-v2-crafter")
+                        unit_type="NOTE", name="空内容笔记", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["content"] is None
@@ -507,7 +535,7 @@ class TestGraphWriteChapterNumber:
         """不传 --chapter，从 content.章节号 自动推断"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="CHUNK", name="第5章",
+                        unit_type="CHUNK", name="第5章",
                         content='{"章节号":5,"章节名":"测试"}', actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
@@ -517,7 +545,7 @@ class TestGraphWriteChapterNumber:
         """不传 --chapter，从名称 第N章 自动推断"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="SCENE", name="第3章_上山", actor="novel-v2-crafter")
+                        unit_type="SCENE", name="第3章_上山", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] == 3
@@ -526,7 +554,7 @@ class TestGraphWriteChapterNumber:
         """content 有 JSON 但无 章节号 字段，回退到名称推断"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="CHUNK", name="第8章_测试",
+                        unit_type="CHUNK", name="第8章_测试",
                         content='{"章节名":"测试"}', actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
@@ -536,7 +564,7 @@ class TestGraphWriteChapterNumber:
         """显式 --chapter 优先级高于 content.章节号 和 名称"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="CHUNK", name="第8章_测试",
+                        unit_type="CHUNK", name="第8章_测试",
                         content='{"章节号":5,"章节名":"测试"}',
                         chapter=7, actor="novel-v2-crafter")
         assert_success(res)
@@ -547,7 +575,7 @@ class TestGraphWriteChapterNumber:
         """无任何章节信息时 chapter 为 None"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="NOTE", name="日常笔记", actor="novel-v2-crafter")
+                        unit_type="NOTE", name="日常笔记", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
         assert verify["data"]["unit"]["chapter"] is None
@@ -556,7 +584,7 @@ class TestGraphWriteChapterNumber:
         """content 不是 JSON 时跳过 content 推断，走名称推断"""
         proj_path, store = tmp_project
         res = call_tool("graph.create_unit", project=proj_path,
-                        type="CHUNK", name="第2章_赶路",
+                        unit_type="CHUNK", name="第2章_赶路",
                         content="纯文本正文内容", actor="novel-v2-crafter")
         assert_success(res)
         verify = call_tool("graph.get_unit", project=proj_path, id=res["data"]["id"])
@@ -621,7 +649,7 @@ class TestGraphSessionExportViz:
     def test_start_session(self, sample_units):
         proj_path, store, units = sample_units
         res = call_tool("session.start", project=proj_path,
-                        type="SCENE", id=units["后山拔剑"].id)
+                        focus_type="SCENE", id=units["后山拔剑"].id)
         assert_success(res)
         assert "session_id" in res["data"]
         assert len(res["data"]["session_id"]) > 0
@@ -679,10 +707,10 @@ class TestGraphSessionExportViz:
     def test_start_session_resume(self, sample_units):
         proj_path, store, units = sample_units
         res1 = call_tool("session.start", project=proj_path,
-                         type="SCENE", id=units["后山拔剑"].id)
+                         focus_type="SCENE", id=units["后山拔剑"].id)
         assert_success(res1)
         res2 = call_tool("session.start", project=proj_path,
-                         type="SCENE", id=units["后山拔剑"].id)
+                         focus_type="SCENE", id=units["后山拔剑"].id)
         assert_success(res2)
 
 
@@ -696,7 +724,7 @@ class TestProject:
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.new", name="测试小说", genre="玄幻",
+                res = call_tool("project.new", project_root=os.path.join(tmpdir, "测试小说"), genre="玄幻",
                                v2=True, volumes=5, acts=3, structure="三幕")
                 assert_success(res)
                 assert res["data"]["v2"] is True
@@ -717,7 +745,7 @@ class TestProject:
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.new", name="V1小说", v2=False,
+                res = call_tool("project.new", project_root=os.path.join(tmpdir, "V1小说"), v2=False,
                                volumes=2, acts=3, structure="三幕")
                 assert_success(res)
                 assert res["data"]["v2"] is False
@@ -738,7 +766,7 @@ class TestProject:
         try:
             os.makedirs(os.path.join(tmpdir, "已有项目"))
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.new", name="已有项目")
+                res = call_tool("project.new", project_root=os.path.join(tmpdir, "已有项目"))
                 assert_error(res, "已存在")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -751,7 +779,7 @@ class TestProject:
             os.makedirs(src)
             Path(os.path.join(src, "test.txt")).write_text("hello", encoding="utf-8")
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.import", name="导入项目", source=src)
+                res = call_tool("project.import", project_root=os.path.join(tmpdir, "导入项目"), source_path=src)
                 assert_success(res)
                 dst = os.path.join(tmpdir, "导入项目")
                 assert os.path.isdir(dst)
@@ -764,7 +792,7 @@ class TestProject:
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.import", name="导入项目",
+                res = call_tool("project.import", project_root=os.path.join(tmpdir, "导入项目"),
                                source_path="/nonexistent/source")
                 assert_error(res, "不存在")
         finally:
@@ -779,7 +807,7 @@ class TestProject:
             dst = os.path.join(tmpdir, proj_name)
             shutil.copytree(proj_path, dst)
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.status", name=proj_name)
+                res = call_tool("project.status", project_root=dst)
                 assert_success(res)
                 assert res["data"]["name"] == proj_name
                 assert res["data"]["is_v2"] is True
@@ -792,7 +820,7 @@ class TestProject:
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.status", name="不存在的项目")
+                res = call_tool("project.status", project_root=os.path.join(tmpdir, "不存在的项目"))
                 assert_error(res, "不存在")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -806,7 +834,7 @@ class TestProject:
             dst = os.path.join(tmpdir, proj_name)
             shutil.copytree(proj_path, dst)
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.resume", name=proj_name)
+                res = call_tool("project.resume", project_root=dst)
                 assert_success(res, lambda d: d.get("ok") is True)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -820,7 +848,7 @@ class TestProject:
             dst = os.path.join(tmpdir, proj_name)
             shutil.copytree(proj_path, dst)
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.switch", name=proj_name)
+                res = call_tool("project.switch", project_root=dst)
                 assert_success(res)
                 assert res["data"]["project"] == proj_name
                 ctx_path = os.path.join(os.path.dirname(TOOLS_DIR), "..", ".omo", "notepads", "novel-context.md")
@@ -860,7 +888,7 @@ class TestProject:
             fake_shared = os.path.join(tmpdir, "shared", "nested")
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir), \
                  patch("handlers.handlers_project._SHARED_DIR", fake_shared):
-                res = call_tool("project.switch", name=proj_name)
+                res = call_tool("project.switch", project=proj_name)
                 assert_success(res)
                 assert res["data"]["mode"] == "release"
                 ctx_path = os.path.join(tmpdir, ".context", "novel-context.md")
@@ -876,7 +904,7 @@ class TestProject:
         tmpdir = tempfile.mkdtemp(prefix="proj_test_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.switch", name="不存在", dryRun=True)
+                res = call_tool("project.switch", project="不存在", dryRun=True)
                 assert_error(res)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -888,7 +916,7 @@ class TestProject:
             proj_dir = os.path.join(tmpdir, "删除测试")
             os.makedirs(proj_dir)
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.delete", name="删除测试", force=True)
+                res = call_tool("project.delete", project_root=proj_dir, force=True)
                 assert res["data"]["deleted"] is True
                 assert not os.path.isdir(proj_dir)
         finally:
@@ -900,7 +928,7 @@ class TestProject:
         try:
             os.makedirs(os.path.join(tmpdir, "删除测试"))
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                res = call_tool("project.delete", name="删除测试")
+                res = call_tool("project.delete", project_root=os.path.join(tmpdir, "删除测试"))
                 assert_error(res, "force=True")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -965,7 +993,7 @@ class TestKnowledge:
             # handler uses _find_novels_root() directly (no project param), so patch it
             os.makedirs(os.path.join(tmpdir, "knowledge"), exist_ok=True)
             with patch("handlers.handlers_knowledge._find_novels_root", return_value=tmpdir):
-                res = call_tool("knowledge.list_books", project=tmpdir)
+                res = call_tool("knowledge.list_books")
                 assert_success(res)
                 assert res["data"]["books"] == []
         finally:
@@ -984,7 +1012,7 @@ class TestKnowledge:
                 yaml.dump(source_yaml, f, allow_unicode=True)
             Path(os.path.join(book_dir, "knowledge.md")).write_text("# 测试书籍内容", encoding="utf-8")
             with patch("handlers.handlers_knowledge._find_novels_root", return_value=tmpdir):
-                res = call_tool("knowledge.list_books", project=tmpdir)
+                res = call_tool("knowledge.list_books")
                 assert_success(res)
                 assert len(res["data"]["books"]) >= 1
         finally:
@@ -1218,6 +1246,35 @@ class TestDeviation:
         assert len(res["data"]["deviations"]) == 1
         assert res["data"]["deviations"][0]["entity"] == "韩致"
 
+    def test_deviation_list_category_filter(self, tmp_project):
+        """deviation.list 的 category 参数穿透 adapter 链（round-trip）。
+
+        merge 时显式传入 category 的偏差可被 list 按 category 精确过滤，
+        证明 category 经 _PARAM_MAP → run_operation → handler 全程可达。
+        """
+        proj_path, _ = tmp_project
+        findings = [
+            {"dimension": "角色一致性", "entity": "林渊", "entity_id": "ca_cat1",
+             "severity": "high", "summary": "作者显式覆盖", "category": "authorial_override"},
+            {"dimension": "角色一致性", "entity": "韩致", "entity_id": "ca_cat2",
+             "severity": "low", "summary": "普通警告"},
+        ]
+        call_tool("deviation.merge", project=proj_path, findings=findings)
+
+        res = call_tool("deviation.list", project=proj_path, category="authorial_override")
+        assert_success(res)
+        items = res["data"]["deviations"]
+        assert len(items) == 1
+        assert items[0]["entity"] == "林渊"
+        assert items[0]["category"] == "authorial_override"
+
+        res = call_tool("deviation.list", project=proj_path, category="soft_warning")
+        assert_success(res)
+        items = res["data"]["deviations"]
+        assert len(items) == 1
+        assert items[0]["entity"] == "韩致"
+        assert items[0]["category"] == "soft_warning"
+
     def test_deviation_pending_pagination(self, tmp_project):
         """待处理偏差分页：limit/offset 正确，total 为分页前总数，truncated 标志正确（集成测试）
 
@@ -1436,25 +1493,25 @@ class TestIntegration:
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
                 # project.new
-                r1 = call_tool("project.new", name="集成测试小说", genre="仙侠", v2=True)
+                r1 = call_tool("project.new", project="集成测试小说", genre="仙侠", v2=True)
                 assert_success(r1)
                 proj_path = r1["data"]["path"]
 
                 # graph.create_unit x3
                 r2 = call_tool("graph.create_unit", project=proj_path,
-                              type="CHARACTER_ARC", name="叶凡",
+                              unit_type="CHARACTER_ARC", name="叶凡",
                               content="主角", tags="主角", actor="novel-v2-crafter")
                 assert_success(r2)
                 vf_id = r2["data"]["id"]
 
                 r3 = call_tool("graph.create_unit", project=proj_path,
-                              type="SCENE", name="第一章-上山",
+                              unit_type="SCENE", name="第一章-上山",
                               content="上山拜师", chapter=1, actor="novel-v2-crafter")
                 assert_success(r3)
                 scene_id = r3["data"]["id"]
 
                 r4 = call_tool("graph.create_unit", project=proj_path,
-                              type="WORLD_RULE", name="青云门",
+                              unit_type="WORLD_RULE", name="青云门",
                               content="修仙门派", actor="novel-v2-crafter")
                 assert_success(r4)
                 sect_id = r4["data"]["id"]
@@ -1462,12 +1519,12 @@ class TestIntegration:
                 # graph.add_relation
                 r5 = call_tool("graph.add_relation", project=proj_path,
                               source=vf_id, target=scene_id,
-                              type="PARTICIPATES_IN", actor="novel-v2-crafter")
+                              rel_type="PARTICIPATES_IN", actor="novel-v2-crafter")
                 assert_success(r5)
 
                 r6 = call_tool("graph.add_relation", project=proj_path,
                               source=vf_id, target=sect_id,
-                              type="MEMBER_OF", actor="novel-v2-crafter")
+                              rel_type="MEMBER_OF", actor="novel-v2-crafter")
                 assert_success(r6)
 
                 # graph.get_neighbors
@@ -1504,7 +1561,7 @@ class TestIntegration:
         tmpdir = tempfile.mkdtemp(prefix="deviation_int_")
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                r1 = call_tool("project.new", name="偏差测试", v2=True)
+                r1 = call_tool("project.new", project="偏差测试", v2=True)
                 assert_success(r1)
                 proj_path = r1["data"]["path"]
 

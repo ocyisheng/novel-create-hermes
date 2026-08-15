@@ -29,7 +29,7 @@ from dataclasses import dataclass, field, asdict
 from graph_schema import UnitType, UnitStatus, RelationType
 from graph_store import GraphStore
 from type_registry import TypeRegistry
-from time_utils import get_story_time
+from time_utils import get_story_time, compute_ordinal, ORDINAL_BASE, VOLUME_BASE
 
 logger = logging.getLogger(__name__)
 
@@ -429,7 +429,7 @@ class EventExtractor:
 
             ch = self._field_num(item, "chapter_number", "章节")
             if ch is not None:
-                ordinal = float(ch) * 10000
+                ordinal = float(ch) * ORDINAL_BASE
             else:
                 ordinal = default_ordinal
 
@@ -467,7 +467,7 @@ class EventExtractor:
         if not event_location and event_volume is None:
             return []
 
-        ordinal = float(event_volume) * 1000000 if event_volume is not None else default_ordinal
+        ordinal = float(event_volume) * VOLUME_BASE if event_volume is not None else default_ordinal
 
         details = {}
         if event_location:
@@ -518,7 +518,7 @@ class EventExtractor:
         if unit:
             ch = getattr(unit, "chapter_number", None)
             if ch:
-                return (float(ch) * 10000 + 0.5, "chapter")
+                return (compute_ordinal(int(ch), 0), "chapter")
 
         # 4. 默认
         if default_ordinal is not None:

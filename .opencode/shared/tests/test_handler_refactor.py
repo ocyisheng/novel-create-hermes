@@ -266,27 +266,27 @@ class TestNoSpuriousParamFilterWarnings:
             with warnings.catch_warnings():
                 warnings.simplefilter("error")  # 任何 UserWarning → 失败
                 with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
-                    r = call_tool("project.new", name="无噪音小说", genre="玄幻", v2=True)
+                    r = call_tool("project.new", project="无噪音小说", genre="玄幻", v2=True)
                     assert_success(r)
                     proj_path = r["data"]["path"]
 
-                    r2 = call_tool("project.status", name="无噪音小说")
+                    r2 = call_tool("project.status", project="无噪音小说")
                     assert_success(r2)
 
-                    r3 = call_tool("project.import", name="导入噪音源",
+                    r3 = call_tool("project.import", project="导入噪音源",
                                    source_path=os.path.join(tmpdir, "不存在"))
                     assert_error(r3, "不存在")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
-    def test_canonical_params_drop_alias_consumed_keys(self):
-        """别名消费的源键不再同时经基础映射残留。"""
+    def test_canonical_params_project_identity(self):
+        """project= 注入 project_root（name 不再作为 project.* 的项目名别名）。"""
         from novel_tool import _build_canonical_params
         tmpdir = self._project_dir()
         try:
             with patch("handlers.handlers_project.NOVELS_ROOT", tmpdir):
                 p = _build_canonical_params("project.new",
-                                            {"operation": "project.new", "name": "小说", "genre": "仙侠"})
+                                            {"operation": "project.new", "project": "小说", "genre": "仙侠"})
                 assert "name" not in p
                 assert p["project_root"] == os.path.join(tmpdir, "小说")
                 assert p["genre"] == "仙侠"

@@ -46,6 +46,13 @@ class DeviationSource(str, Enum):
 # ── 数据类 ──────────────────────────────────────────────────────────────────
 
 
+class DeviationCategory(str, Enum):
+    """偏差语义分类：三分法"""
+    PRE_EXISTING = "pre_existing"       # 会话前已存在的偏差（历史遗留）
+    AUTHORIAL_OVERRIDE = "authorial_override"  # 作者显式覆盖规则（override=True）
+    SOFT_WARNING = "soft_warning"       # 信息性/可修复偏差（不阻塞）
+
+
 @dataclass
 class DeviationItem:
     """单条偏差记录"""
@@ -56,6 +63,7 @@ class DeviationItem:
     scanned_version: int = 0 # 分析时的单元版本
     status: str = "pending"  # "pending" | "resolved" | "retained"
     severity: str = "info"   # "error" | "warning" | "info"
+    category: str = "soft_warning"  # 语义分类：pre_existing | authorial_override | soft_warning
     first_detected: str = "" # ISO 时间戳
     last_detected: str = ""
     detection_count: int = 1
@@ -137,6 +145,7 @@ class DeviationManager:
                     scanned_version=d.get("scanned_version", 0),
                     status=d.get("status", "pending"),
                     severity=d.get("severity", "info"),
+                    category=d.get("category", "soft_warning"),
                     first_detected=d.get("first_detected", ""),
                     last_detected=d.get("last_detected", ""),
                     detection_count=d.get("detection_count", 1),
@@ -265,6 +274,9 @@ class DeviationManager:
                     new_item.first_detected = now
                 new_item.last_detected = now
                 new_item.detection_count = 1
+                # category 使用传入值（默认 soft_warning），或由调用方显式设置为 authorial_override
+                if not new_item.category:
+                    new_item.category = "soft_warning"
                 self._state.deviations[new_item.id] = new_item
             else:
                 # 已有偏差，更新
@@ -281,6 +293,7 @@ class DeviationManager:
                     existing.summary = new_item.summary
                 if new_item.detail:
                     existing.detail = new_item.detail
+                # category 保持原有分类不变（历史分类优先）
 
     def resolve(self, deviation_id: str) -> bool:
         """标记偏差为已解决（用户/LLM 确认已修复）"""
@@ -379,17 +392,20 @@ class DeviationManager:
         by_status = {}
         by_severity = {}
         by_dimension = {}
+        by_category = {}
         
         for item in self._state.deviations.values():
             by_status[item.status] = by_status.get(item.status, 0) + 1
             by_severity[item.severity] = by_severity.get(item.severity, 0) + 1
             by_dimension[item.dimension] = by_dimension.get(item.dimension, 0) + 1
+            by_category[item.category] = by_category.get(item.category, 0) + 1
         
         return {
             "total": total,
             "by_status": by_status,
             "by_severity": by_severity,
             "by_dimension": by_dimension,
+            "by_category": by_category,
             "full_scan_version": self._state.scan.full_scan_version,
         }
 
@@ -485,6 +501,10 @@ class DeviationManager:
             if existing:
                 existing.detection_count += 1
                 existing.last_detected = now
+                # 仅对 pending 状态的偏差标记为 pre_existing（历史遗留）
+                # resolved/retained 状态的偏差保持原有 category（尊重用户判断）
+                if existing.status == "pending" and existing.category == "soft_warning":
+                    existing.category = "pre_existing"
                 if existing.status == "pending":
                     existing.detail = detail or existing.detail
                     stats["updated"] += 1
@@ -506,6 +526,7 @@ class DeviationManager:
                     summary=description[:200],
                     detail=detail,
                     source=source,
+                    category="soft_warning",  # 新发现的偏差默认为 soft_warning
                 )
                 stats["new"] += 1
 
@@ -525,15 +546,18 @@ class DeviationManager:
         counts = {"pending": 0, "resolved": 0, "retained": 0}
         severities = {"error": 0, "warning": 0, "info": 0}
         by_source = {}
+        by_category = {}
         for d in self._state.deviations.values():
             counts[d.status] = counts.get(d.status, 0) + 1
             severities[d.severity] = severities.get(d.severity, 0) + 1
             by_source[d.source] = by_source.get(d.source, 0) + 1
+            by_category[d.category] = by_category.get(d.category, 0) + 1
         return {
             "total": len(self._state.deviations),
             "by_status": counts,
             "by_severity": severities,
             "by_source": by_source,
+            "by_category": by_category,
         }
     
     # ── 内部方法 ───────────────────────────────────────────────────────

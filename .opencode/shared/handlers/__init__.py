@@ -166,7 +166,7 @@ OPERATION_REGISTRY = {
     },
     "graph.add_relation": {
         "handler": handle_add_relation,
-        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "source_role": {}, "target_role": {}, "weight": {}, "actor": {}, "session_id": {}, "payload": {}},
+        "params": {"project_root": {"required": True}, "source": {"required": True}, "target": {"required": True}, "rel_type": {"required": True}, "bidirectional": {}, "label": {}, "source_role": {}, "target_role": {}, "weight": {}, "actor": {}, "session_id": {}, "payload": {}, "override": {}, "severity": {}},
     },
     "graph.update_relation": {
         "handler": handle_update_relation,
@@ -307,7 +307,7 @@ OPERATION_REGISTRY = {
     },
     "deviation.list": {
         "handler": handle_deviation_list,
-        "params": {"project_root": {"required": True}, "status": {}, "limit": {}, "offset": {}, "severity": {}, "dimension": {}},
+        "params": {"project_root": {"required": True}, "status": {}, "limit": {}, "offset": {}, "severity": {}, "dimension": {}, "category": {}},
     },
     "deviation.pending": {
         "handler": handle_deviation_pending,

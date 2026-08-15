@@ -66,6 +66,12 @@ class EdgeCreate(BaseModel):
     label: Optional[str] = None
     weight: Optional[float] = None
     bidirectional: bool = False
+    source_role: Optional[str] = None
+    target_role: Optional[str] = None
+    session_id: Optional[str] = None
+    payload: Optional[Any] = None
+    override: Optional[bool] = None
+    severity: Optional[str] = None
     actor: str = "web-ui"
 
 
@@ -74,6 +80,8 @@ class EdgeUpdate(BaseModel):
     weight: Optional[float] = None
     description: Optional[str] = None
     payload: Optional[Any] = None
+    source_role: Optional[str] = None
+    target_role: Optional[str] = None
     actor: str = "web-ui"
 
 

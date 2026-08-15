@@ -491,14 +491,12 @@ class RelationInferrer:
                         count += 1
                     return count
         
-        # 策略 B：基于名称模式
-        import re
+        # 策略 B：基于派生章节号（chapter_number 属性，显式缓存优先，graph 结构兜底）
         name = unit.unit_name
+        ch_num = unit.chapter_number
         
-        # "第X章" → 找卷大纲
-        chapter_match = re.match(r'^第(\d+)章', name)
-        if chapter_match:
-            ch_num = int(chapter_match.group(1))
+        # 有章节号 → 找卷大纲
+        if ch_num is not None:
             best_parent = None
             best_vol_num = -1
             for other in self._get_cached_structure_units():
@@ -581,29 +579,10 @@ class RelationInferrer:
         """
         从卷大纲单元提取卷号。
         
-        优先从 content JSON 中的 volume_number 字段提取，
-        否则从 unit_name 中提取数字（如 "卷1 测试卷" → 1）。
+        委托 store._get_unit_volume（content/extra/CONTAINS 祖先/structure_path 派生），
+        不再使用名称正则推断。
         """
-        # 从 content 中提取
-        try:
-            content = unit.content
-            if content:
-                import json
-                content_dict = json.loads(content) if isinstance(content, str) else content
-                if isinstance(content_dict, dict):
-                    vol_num = content_dict.get("volume_number")
-                    if vol_num is not None and isinstance(vol_num, (int, float)):
-                        return int(vol_num)
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-        
-        # 从名称中提取数字（如 "卷1 测试卷" → 1）
-        import re
-        match = re.search(r'卷\s*(\d+)', unit.unit_name)
-        if match:
-            return int(match.group(1))
-        
-        return None
+        return self.store._get_unit_volume(unit)
 
     # ── 辅助方法 ────────────────────────────────────────────────────
 
@@ -652,6 +631,9 @@ class RelationInferrer:
             record_event=not self._batch_mode,
             payload=payload,
         )
+        if isinstance(rel, dict):
+            self._stats["skipped"] += 1  # 写时校验失败：跳过
+            return False
         if rel:
             self._stats["created"] += 1
             return True

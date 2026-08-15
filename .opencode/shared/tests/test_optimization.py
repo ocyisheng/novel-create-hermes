@@ -3,7 +3,7 @@
 
 测试范围：
 1. render_utils 统一渲染引擎
-2. schemas 普适字段验证
+2. schema 普适字段验证
 3. graph_store.find_units_by_field()
 4. 跨流派渲染一致性（仙侠/都市/历史）
 5. 边界情况（空数据、混合类型、_display 旧数据兼容）
@@ -51,11 +51,18 @@ if __name__ == "__main__":
         check("render_utils 模块导入", False, str(e))
 
     try:
-        from schemas import validate_content, SCHEMA_REGISTRY
+        from type_registry import TypeRegistry
         from graph_schema import UnitType
-        check("schemas 模块导入成功", True)
+        check("type_registry 模块导入成功", True)
     except Exception as e:
-        check("schemas 模块导入", False, str(e))
+        check("type_registry 模块导入", False, str(e))
+
+# 使用 TypeRegistry 直接调用
+def validate_content(unit_type, content):
+    return TypeRegistry.get_global().validate_content(unit_type.value, content)
+
+def default_content(unit_type):
+    return TypeRegistry.get_global().default_content(unit_type.value)
 
     try:
         import tempfile
@@ -348,11 +355,11 @@ if __name__ == "__main__":
          any(r["key"] == "重要场所" and r["mode"] == "tagcloud" for r in rw))
 
 
-    # ── 4. schemas 验证测试 ─────────────────────────────────────
+    # ── 4. schema 验证测试 ─────────────────────────────────────
 
     print()
     print("=" * 60)
-    print("4. schemas 验证测试")
+    print("4. schema 验证测试")
     print("=" * 60)
 
     # 4.1 CHARACTER_ARC 验证

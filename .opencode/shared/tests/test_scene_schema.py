@@ -16,9 +16,15 @@ sys.path.insert(0, str(_shared_dir))
 
 import pytest
 from graph_schema import UnitType, NarrativeUnit
-from schemas import validate_content, default_content
 from type_registry import TypeRegistry
 from projection_engine import ProjectionEngine
+
+# 使用 TypeRegistry 直接调用
+def validate_content(unit_type, content):
+    return TypeRegistry.get_global().validate_content(unit_type.value, content)
+
+def default_content(unit_type):
+    return TypeRegistry.get_global().default_content(unit_type.value)
 
 
 # ── 测试数据 ───────────────────────────────────────────────────────

@@ -14,7 +14,7 @@
 
 ## 结构由脚本保障
 
-content JSON 的字段结构由 `schemas.py` 自动校验：
+content JSON 的字段结构由 `type_registry.py`（TypeRegistry）自动校验：
 - 子类型（开篇/推进/冲突/转折/展示/过渡/收束）必填
 - POV角色、地点、一句话概要 必填
 - 时间、出场角色、关联情节线 可选

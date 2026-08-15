@@ -123,6 +123,36 @@ class CharacterTimelineLedger:
                 manual_count += 1
             scenes.append(ts)
 
+        return self._finalize(scenes, manual_count)
+
+    def build_events(self) -> TimelineView:
+        """temporal_event 版时间线，用于无 SCENE 项目兜底
+
+        扫描所有活跃 TEMPORAL_EVENT 单元，从 content 解析
+        ordinal/precision/time_label/location/summary/characters，
+        构建与 SCENE 时间线同结构的 TimelineView。
+        """
+        scenes: List[TimelineScene] = []
+        manual_count = 0
+
+        # 收集所有活跃 temporal_event
+        for unit in self.store._units.values():
+            if unit.type != UnitType.TEMPORAL_EVENT:
+                continue
+            if unit.status == UnitStatus.ARCHIVED:
+                continue
+
+            ts = self._build_timeline_event(unit)
+            if ts is None:
+                continue
+            if ts.is_manual_ordinal:
+                manual_count += 1
+            scenes.append(ts)
+
+        return self._finalize(scenes, manual_count)
+
+    def _finalize(self, scenes: List[TimelineScene], manual_count: int = 0) -> TimelineView:
+        """排序 + 构建索引 + 统计（build() 与 build_events() 共用）"""
         # 排序：有 ordinal 的在前 → ordinal 升序 → precision 优先 → 名称兜底
         _prec_order = {"exact": 0, "same": 1, "approximate": 2, "override": 3, "vague": 4}
         scenes.sort(key=lambda s: (
@@ -210,6 +240,44 @@ class CharacterTimelineLedger:
             location=location,
             characters=characters,
             is_manual_ordinal=False,
+        )
+
+    def _build_timeline_event(self, unit: NarrativeUnit) -> Optional[TimelineScene]:
+        """从单个 TEMPORAL_EVENT 单元构建 TimelineScene"""
+        content = self._parse_content(unit)
+        if not content:
+            return None
+
+        # 字段解析：ordinal / precision / time_label / location / summary
+        raw_ordinal = content.get("ordinal")
+        ordinal = float(raw_ordinal) if raw_ordinal is not None else 0.0
+        precision = content.get("precision", "approximate") or "approximate"
+        label = content.get("time_label", "") or ""
+        location = content.get("location", "") or ""
+        summary = content.get("summary", "") or ""
+
+        # 提取角色列表（数组元素为 {"name":..} dict 或 str）
+        characters: List[str] = []
+        raw_chars = content.get("characters", [])
+        if isinstance(raw_chars, list):
+            for c in raw_chars:
+                if isinstance(c, dict):
+                    name = c.get("name", "")
+                    if name:
+                        characters.append(name)
+                elif isinstance(c, str):
+                    characters.append(c)
+
+        return TimelineScene(
+            unit_id=unit.id,
+            unit_name=unit.unit_name or summary or "",
+            chapter=0,  # temporal_event 无章节
+            ordinal=ordinal,
+            precision=precision,
+            label=label,
+            location=location,
+            characters=characters,
+            is_manual_ordinal=raw_ordinal is not None,
         )
 
     def _auto_ordinal(self, unit: NarrativeUnit, chapter: int) -> float:

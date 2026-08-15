@@ -95,18 +95,62 @@ def get_full_graph(
     depth: int = Query(2, description="图遍历深度: 1=仅当前页, 2+=含邻居扩展"),
     project_root: str = Depends(get_project_root),
 ):
-    """返回图谱数据（支持分页，用于前端 vis-network 渲染）"""
+    """返回图谱数据（支持分页，用于前端 vis-network 渲染）
+
+    轮转采样保证首屏类型多样性（原字母序导致 chapter_plan 霸屏）
+    """
     store = _get_store(project_root)
 
-    # 1. 收集所有未归档单元，按类型+名称确定性排序
-    all_units = sorted(
-        [u for u in store._units.values() if u.status != UnitStatus.ARCHIVED],
-        key=lambda u: (u.type.value, u.unit_name),
-    )
+    # 1. 收集所有未归档单元，按类型分组、组内按名称排序
+    all_units = [u for u in store._units.values() if u.status != UnitStatus.ARCHIVED]
+
+    # 类型优先级（图谱浏览视角，重要在前）
+    TYPE_PRIORITY = {
+        UnitType.CHARACTER_ARC: 0,
+        UnitType.SCENE: 1,
+        UnitType.PLOT_THREAD: 2,
+        UnitType.WORLD_RULE: 3,
+        UnitType.THEMATIC_MOTIF: 4,
+        UnitType.OUTLINE: 5,
+        UnitType.ARC_PLAN: 6,
+        UnitType.VOLUME_PLAN: 7,
+        UnitType.CHAPTER_PLAN: 8,
+        UnitType.CHUNK: 9,
+        UnitType.NOTE: 10,
+        UnitType.NARRATIVE_VOICE: 11,
+        UnitType.STRUCTURE: 12,
+        UnitType.TEMPORAL_EVENT: 13,
+    }
+
+    # 分组：每组内按 unit_name 排序
+    groups: dict[int, list] = {}
+    for u in all_units:
+        prio = TYPE_PRIORITY.get(u.type, 99)
+        if prio not in groups:
+            groups[prio] = []
+        groups[prio].append(u)
+
+    for prio in groups:
+        groups[prio].sort(key=lambda u: u.unit_name)
+
+    # 轮转采样：按优先级顺序从每组轮流取 1 个，直到满 limit
+    candidates: list = []
+    sorted_prios = sorted(groups.keys())
+    while len(candidates) < limit:
+        any_taken = False
+        for prio in sorted_prios:
+            if groups[prio]:
+                candidates.append(groups[prio].pop(0))
+                any_taken = True
+                if len(candidates) >= limit:
+                    break
+        if not any_taken:
+            break
+
     total = len(all_units)
 
-    # 2. 应用 offset/limit 分页
-    page = all_units[offset : offset + limit]
+    # 2. 应用 offset/limit 分页（先轮转出完整候选列表，再切片）
+    page = candidates[offset : offset + limit]
 
     # 3. depth > 1 时，为每个分页节点扩展 (depth-1) 跳邻居
     included_ids = {u.id for u in page}
@@ -421,14 +465,23 @@ def get_neighbors(
 
 @router.get("/timeline")
 def get_global_timeline(project_root: str = Depends(get_project_root)):
-    """返回全局时间线：所有 SCENE 按故事时间排序，按章节分组，含角色索引"""
+    """返回全局时间线：所有 SCENE 按故事时间排序，按章节分组，含角色索引
+
+    无 SCENE 时自动回退到 temporal_event 事件时间线（event_mode=true）。
+    """
     store = _get_store(project_root)
     from character_timeline import CharacterTimelineLedger
 
     ledger = CharacterTimelineLedger(store)
     view = ledger.build()
 
-    # 按章节分组
+    # 无 SCENE 项目兜底：改用 temporal_event 事件时间线（event_mode）
+    event_mode = False
+    if view.total_scenes == 0:
+        view = ledger.build_events()
+        event_mode = True
+
+    # 按章节分组（chapter=0 的事件也放入 chapters，章号为 0）
     chapters: dict[int, list] = {}
     for ts in view.scenes:
         ch = ts.chapter or 0
@@ -465,6 +518,7 @@ def get_global_timeline(project_root: str = Depends(get_project_root)):
         "total_scenes": view.total_scenes,
         "manual_overrides": view.manual_overrides,
         "parallel_groups": view.parallel_groups,
+        "event_mode": event_mode,
         "chapters": [
             {"chapter": ch, "scenes": scenes}
             for ch, scenes in sorted(chapters.items())

@@ -54,9 +54,9 @@
         names.map(function(n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
     }
 
-    // 章节
+    // 章节（event_mode 时跳过章节下拉填充，保持"全部章节"占位）
     const chSelect = document.getElementById('tlChapterFilter');
-    if (chSelect && data.chapters) {
+    if (chSelect && data.chapters && !data.event_mode) {
       chSelect.innerHTML = '<option value="">全部章节</option>' +
         data.chapters.map(function(ch) {
           return '<option value="' + ch.chapter + '">第 ' + ch.chapter + ' 章（' + ch.scenes.length + ' 场景）</option>';
@@ -66,7 +66,9 @@
     // 统计
     const stats = document.getElementById('tlStats');
     if (stats) {
-      stats.textContent = data.total_scenes + ' 场景';
+      stats.textContent = data.event_mode
+        ? data.total_scenes + ' 事件'
+        : data.total_scenes + ' 场景';
     }
   }
 
@@ -74,6 +76,12 @@
   function renderTimeline(data) {
     const content = document.getElementById('timelineContent');
     if (!content) return;
+
+    // event_mode：无 SCENE 项目走扁平事件时间线
+    if (data.event_mode) {
+      renderEventTimeline(data);
+      return;
+    }
 
     if (!data.chapters || data.chapters.length === 0) {
       content.innerHTML = '<div class="tl-empty">暂无时间线数据</div>';
@@ -127,6 +135,47 @@
     for (var i = 0; i < toggles.length; i++) {
       toggles[i].textContent = '▼';
     }
+  }
+
+  /** 渲染事件模式扁平时间线（无章节分组，temporal_event 兜底） */
+  function renderEventTimeline(data) {
+    const content = document.getElementById('timelineContent');
+    if (!content) return;
+
+    // 事件无章节，全部归入 chapter 0，摊平到扁平列表
+    var scenes = [];
+    (data.chapters || []).forEach(function(ch) {
+      scenes = scenes.concat(ch.scenes || []);
+    });
+
+    // 应用角色筛选
+    if (currentCharacterFilter) {
+      scenes = scenes.filter(function(s) {
+        return s.characters && s.characters.indexOf(currentCharacterFilter) >= 0;
+      });
+    }
+
+    if (scenes.length === 0) {
+      content.innerHTML = '<div class="tl-empty">暂无时间线数据</div>';
+      return;
+    }
+
+    var html = '<div class="tl-chapter">';
+    html += '<div class="tl-chapter-header">';
+    html += '<span class="tl-chapter-title">时间事件</span>';
+    html += '<span class="tl-chapter-count">' + scenes.length + ' 事件</span>';
+    html += '</div>';
+    html += '<div class="tl-chapter-body">';
+
+    scenes.forEach(function(s, idx) {
+      var isLast = idx === scenes.length - 1;
+      html += renderSceneItem(s, idx, isLast);
+    });
+
+    html += '</div>'; // tl-chapter-body
+    html += '</div>'; // tl-chapter
+
+    content.innerHTML = html;
   }
 
   /** 渲染单个场景条目 */

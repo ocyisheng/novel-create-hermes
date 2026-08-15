@@ -21,8 +21,8 @@
   let currentId = null;     // 当前选中的节点 ID
   let loaded = false;
   let loadedNeighbors = {}; // id → true, 已拉取过邻居的节点
-  let initialLimit = 50;    // 首次加载节点数
-  let initialDepth = 1;     // 首次加载深度
+  let initialLimit = 150;   // 首次加载节点数（增大以覆盖多类型并自动带出关系边）
+  let initialDepth = 2;     // 首次加载深度（2 级邻居自动带出边）
 
   // 类型配置
   const TYPE_CONFIG = {};

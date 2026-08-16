@@ -1,8 +1,8 @@
 import html
 import re
 import sys
-from book_to_skill.parsers.text import read_text_file
-from book_to_skill.exceptions import ExtractionError
+from book_to_knowledge.parsers.text import read_text_file
+from book_to_knowledge.exceptions import ExtractionError
 
 
 # RTF unicode escape: \uN (signed decimal) followed by its fallback char(s).

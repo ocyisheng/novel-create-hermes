@@ -5,7 +5,7 @@ description: "深度诊断执行器。全量扫描 graph 做 align/cross-ref/gap
 
 # novel-diagnose — 深度诊断执行器
 
-## 角色定位（吸收自 novel-v2-analysis）
+## 角色定位（吸收自 novel-search-analysis）
 
 你是 novel-diagnose，**深度诊断 subagent**。负责全量 graph 扫描、语义级诊断、结构化报告。
 质量检查方法论参考：`novel-search-analysis/references/analysis/quality_methodology.md`

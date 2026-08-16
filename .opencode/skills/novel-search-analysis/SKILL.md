@@ -37,7 +37,7 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 
 ## 分析模式（LLM 做的事）
 
-以下每种模式，你（LLM）都要按推理框架执行。通用分析方法详见 `references/analysis/quality_methodology.md`。
+以下每种模式，执行者都应按推理框架执行。通用分析方法详见 `references/quality_methodology.md`。
 
 ### 一、mode=search
 
@@ -102,7 +102,7 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
    novel-tool(operation="graph.quality_check", project="{PROJECT}", layers="mechanical")
 
    返回 mechanical_results 列表，每条包含：
-   - rule_id: R1/R2/R3/R4/R5/R6/R9
+   - rule_id: R1/R3/R4/R5a/R5/R6/R9
    - rule_name: 规则名称
    - severity: error/warning/info
    - description: 问题描述
@@ -139,7 +139,7 @@ skill("novel-search-analysis", user_message="mode=full-diagnose")
 每项输出:
   - 矛盾类型: error / warning / info
   - 涉及单元: [unit_id1, unit_id2]
-  - 你的归因: "角色A在角色档案中性格写的是隐忍，但在第3章的行为显示冲动——可能是在创作过程中调整了设定但没有同步更新角色档案"
+  - 归因: "角色A在角色档案中性格写的是隐忍，但在第3章的行为显示冲动——可能是在创作过程中调整了设定但没有同步更新角色档案"
 
 时间戳辅助归因：当同一设定在多个单元间不一致时，先比较各单元
 updated_at 判断"哪个是被修正过的最新值"：
@@ -195,7 +195,7 @@ updated_at 判断"哪个是被修正过的最新值"：
 
 ### 获取数据
 
-你（LLM）通过 `novel-tool` 获取原始数据：
+执行者通过 `novel-tool` 获取原始数据：
 
 ```
 novel-tool(operation="graph.search", project="<PROJECT>", keyword="天道宗")
@@ -205,7 +205,7 @@ novel-tool(operation="graph.search", project="<PROJECT>", keyword="林昭", limi
 返回结果包含：`unit_id`、`unit_name`、`unit_type`、`content_preview`、`chapter`、`score`、`tags`、`status`、`version`、`neighbors` 等字段。
 
 **重要**：novel-tool 只回答"数据在哪"，不回答"这意味着什么"。
-后面的分析工作是你（LLM）的事。
+后面的分析工作由执行者完成。
 
 ### novel-tool 参数契约
 
@@ -244,7 +244,7 @@ Step 5: 生成可执行动作
 
 ## 分析完成后输出格式
 
-你的最终输出应为结构化文本，包含以下部分：
+执行者的最终输出应为结构化文本，包含以下部分：
 
 ```
 【分析报告】
@@ -259,8 +259,8 @@ Step 5: 生成可执行动作
 ### 1. {简要标题}
 - 类型: error/warning/info
 - 涉及: 单元名 (类型)
-- 描述: {你的分析结论}
-- 归因: {你认为的原因}
+- 描述: {分析结论}
+- 归因: {判断的原因}
 - 建议:
   ```yaml
   changes:

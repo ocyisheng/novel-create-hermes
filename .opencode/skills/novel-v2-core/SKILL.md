@@ -17,11 +17,14 @@ novel-v2-core 是 V2 创作体系的**共享操作层**：操作语义、输出�
 
 角色技能只保留角色定位与专属参考，不再重复操作指南：
 
-| 角色技能 | 供谁使用 |
-|----------|----------|
-| `novel-v2-writing` | `novel-writer`（写作物化） |
+| Agent | 角色技能（专属） | 附加技能 |
+|-------|-----------------|----------|
+| `novel-writer` | `novel-v2-writing`（写作物化） | `humanizer-zh-enhanced` |
+| `novel-planner` | — | `novel-grill` + `novel-ideation` + `novel-six-dimensions` |
+| `novel-diagnose` | — | `novel-search-analysis` |
+| `novel-lore-search` | — | （仅读操作，无专属技能） |
 
-> **不存在** `novel-v2-crafter` / `novel-ideation` / `novel-search-analysis` / `novel-v2-analyzer` / `novel-analyzer` 等 subagent —— 均为幽灵，调度即失败。创意方案用 `skill("novel-ideation")` 自执行加载；深度诊断用 `task(subagent_type="novel-diagnose", ...)`。
+> **不存在** `novel-v2-crafter` / `novel-ideation` / `novel-search-analysis` / `novel-v2-analyzer` / `novel-diagnose` 等 subagent —— 均为幽灵，调度即失败。创意方案用 `skill("novel-ideation")` 自执行加载；深度诊断用 `task(subagent_type="novel-diagnose", ...)`。
 
 ## 脚本 vs 提示词分工
 
@@ -87,7 +90,7 @@ novel-v2-core 是 V2 创作体系的**共享操作层**：操作语义、输出�
 2. **flush 自动触发约束检查**：写操作完成后 `graph.flush` 落盘即触发增量约束检查，无需手动 `graph.check`；全量语义检查才需 `constraint.check`
 3. **bidirectional 三态**：`always`（总是建反向边）/ `optional`（物化，视语义而定）/ `never`（不建反向，返回 warning）——`bidirectional=True` 优先，禁止无意识单向关系
 4. **if_exists 策略**：同名单元已存在时 `error`（默认，报错）/ `skip`（跳过）/ `create`（强行新建）
-5. **actor 门禁**：`actor` 参数标识操作者并限定写权限——`novel-planner` 只能写 NOTE 单元；`novel-writer` 走白名单（单元内容创作/关系构建/质量检查）；`novel-analyzer` / `novel-diagnose` / `novel-lore-search` 只读（仅 `deviation.merge` 例外）
+5. **actor 门禁**：`actor` 参数标识操作者并限定写权限——`novel-planner` 只能写 NOTE 单元；`novel-writer` 走白名单（单元内容创作/关系构建/质量检查）；`novel-diagnose` / `novel-lore-search` 只读（仅 `deviation.merge` 例外）
 6. **操作顺序规则**：先 `graph.create_unit` 再 `graph.add_relation`（关系必须指向已存在单元）；`flush` 前完成本批全部 `add_relation`，否则约束检查会报孤立边/缺失关系
 7. **增量扫描**：`graph.get_modified_units` 必须指定 `since_version`，禁止无版本增量扫描
 
@@ -124,9 +127,9 @@ novel-v2-core 是 V2 创作体系的**共享操作层**：操作语义、输出�
 | 文件 | 内容 |
 |:----|:-----|
 | `references/relation_guide.md` | 关系操作指南 |
-| `references/planning/structure.md` | 结构化规划参考 |
-| `references/planning/plot_thread.md` | 情节线规划参考 |
-| `references/planning/note.md` | NOTE 单元规范 |
+| `references/structure.md` | 结构化规划参考 |
+| `references/plot_thread.md` | 情节线规划参考 |
+| `references/note.md` | NOTE 单元规范 |
 
 ## HARD CONSTRAINTS
 

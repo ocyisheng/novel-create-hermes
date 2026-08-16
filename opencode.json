@@ -22,7 +22,7 @@
       "mode": "all",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-planner.md",
-      "skills": ["novel-grill", "novel-ideation", "novel-six-dimensions", "novel-dev-ops"],
+      "skills": ["novel-v2-core", "novel-grill", "novel-ideation", "novel-six-dimensions", "book-knowledge", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
@@ -37,7 +37,7 @@
       "mode": "all",
       "model": "opencode/big-pickle",
       "prompt": ".opencode/agents/novel-writer.md",
-      "skills": ["novel-v2-writing", "humanizer-zh-enhanced", "novel-dev-ops"],
+      "skills": ["novel-v2-core", "novel-v2-writing", "humanizer-zh-enhanced", "novel-dev-ops"],
       "tools": {
         "task": true,
         "skill": true,
@@ -55,6 +55,8 @@
       "prompt": ".opencode/agents/novel-lore-search.md",
       "permission": {
         "read": "allow",
+        "grep": "allow",
+        "glob": "allow",
         "novel-tool": "allow"
       }
     },

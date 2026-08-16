@@ -13,7 +13,7 @@ tags: ["novel", "project-management", "v2"]
 
 通过 `novel-tool` tool 执行。
 
-> 以下操作与 novel-v2-core §6 一致，独立加载时自包含；与 core 同载时以 core 为准
+> 以下操作与 novel-v2-core 一致，独立加载时自包含；与 core 同载时以 core 为准
 
 ### 新建项目
 

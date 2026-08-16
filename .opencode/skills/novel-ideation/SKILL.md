@@ -59,7 +59,8 @@ ideation 是**只读**步骤——输出仅通过响应文本传递，**MUST NOT
 4. 仅通过响应文本传递，**MUST NOT 写入 graph**（只读）
 
 ## 参考文件
-- `references/constraints_library.md` — 30 个约束模板 + 组合策略
-- `references/genres_compendium.md` — 5 大类型总览 + 融合指南
+<!-- 领域知识库片段：以下两项为领域知识库片段（knowledge fragment），未来可迁移至 knowledge/ 目录统一管理 -->
+- `references/constraints_library.md` — 30 个约束模板 + 组合策略（领域知识库片段）
+- `references/genres_compendium.md` — 5 大类型总览 + 融合指南（领域知识库片段）
 - `references/ideation_mode.md` — 方案内容构成指南
 - `references/genres_quick_reference.md` — 类型快速诊断

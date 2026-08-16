@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
-from book_to_skill.config import OUTPUT_DIR
+from book_to_knowledge.config import OUTPUT_DIR
 
 
 def extract_with_ebook_convert(input_path: str) -> str | None:

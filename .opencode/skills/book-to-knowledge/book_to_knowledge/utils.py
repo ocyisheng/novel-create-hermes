@@ -9,9 +9,9 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from book_to_skill.exceptions import ExtractionError
+from book_to_knowledge.exceptions import ExtractionError
 
-from book_to_skill.config import (
+from book_to_knowledge.config import (
     OUTPUT_DIR,
     OUTPUT_TEXT,
     OUTPUT_META,
@@ -22,24 +22,24 @@ from book_to_skill.config import (
     CALIBRE_EBOOK_EXTENSIONS,
     supported_formats_message,
 )
-from book_to_skill.dependencies import (
+from book_to_knowledge.dependencies import (
     normalize_install_mode,
     prepare_dependencies,
     run_dependency_check,
 )
-from book_to_skill.parsers.text import read_text_file
-from book_to_skill.parsers.html import extract_html_file
-from book_to_skill.parsers.docx import extract_docx
-from book_to_skill.parsers.rtf import extract_rtf
-from book_to_skill.parsers.calibre import extract_with_ebook_convert
-from book_to_skill.parsers.pdf import (
+from book_to_knowledge.parsers.text import read_text_file
+from book_to_knowledge.parsers.html import extract_html_file
+from book_to_knowledge.parsers.docx import extract_docx
+from book_to_knowledge.parsers.rtf import extract_rtf
+from book_to_knowledge.parsers.calibre import extract_with_ebook_convert
+from book_to_knowledge.parsers.pdf import (
     extract_with_docling,
     extract_with_pdftotext,
     extract_with_pypdf,
     extract_with_pdfminer,
     count_pages,
 )
-from book_to_skill.parsers.epub import (
+from book_to_knowledge.parsers.epub import (
     extract_with_ebooklib,
     extract_with_zipfile,
     count_epub_chapters,

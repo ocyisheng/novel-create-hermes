@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
-from book_to_skill.config import PYTHON_DEPENDENCIES, HTML_EXTENSIONS
+from book_to_knowledge.config import PYTHON_DEPENDENCIES, HTML_EXTENSIONS
 
 
 # Ordered groups for the --check preflight report. Each entry describes one

@@ -25,7 +25,7 @@ tags: ["novel", "conflict-design", "character", "plot"]
 | 创意发散/方案生成（ideation） | ✅ planner 注入——用维度约束框定创意的方向 |
 | 纯技术性操作（导出/质检/查重） | ❌ 不加载 |
 
-> **加载者**：novel-planner。本技能不被子 Agent 自行加载——planner 在物化/创意生成前，将相关维度内容注入 prompt。
+> **加载者**：横切技能（cross-cutting）。planner 注入设计选维、writer 注入冲突深度、ideation 注入约束框定方向——均通过 `load_skills=["novel-six-dimensions"]` 加载。
 
 ---
 

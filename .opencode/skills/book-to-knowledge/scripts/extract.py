@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract text from a document file for book-to-skill processing.
-Backward-compatible entrypoint wrapper.
+Extract text from a document file for book-to-knowledge processing.
 """
 
 import os
@@ -20,7 +19,7 @@ for _stream in (sys.stdout, sys.stderr):
 # so the modular package can be imported reliably regardless of the working directory.
 sys.path.insert(0, str(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from book_to_skill.cli import main
+from book_to_knowledge.utils import main
 
 if __name__ == "__main__":
     main()
